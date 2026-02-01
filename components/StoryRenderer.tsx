@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { THEME } from '../constants';
 
@@ -10,7 +11,6 @@ const parseInlineMarkdown = (text: string, animate: boolean = false) => {
     }
     if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
       const content = part.slice(2, -2);
-      // Special coloring for the "Look" mechanic labels to be dark navy instead of orange
       const isSystemLabel = content.startsWith('Objects of interest') || content.startsWith('Possible exits');
       const textColor = isSystemLabel ? "text-[#293351]" : "text-[#CD7B00]";
       
@@ -24,22 +24,13 @@ const parseInlineMarkdown = (text: string, animate: boolean = false) => {
     }
     
     if (animate && part.trim().length > 0) {
-      const words = part.split(/(\s+)/); 
+      // Using standard spans instead of inline-block to prevent line-breaking shifts
       return (
-        <span key={j}>
-          {words.map((word, k) => {
-             if (word.match(/^\s+$/)) {
-                 return <span key={k}>{word}</span>;
-             }
-             return (
-                <span 
-                  key={k} 
-                  className="inline-block animate-in fade-in duration-700 fill-mode-forwards"
-                >
-                  {word}
-                </span>
-             );
-          })}
+        <span 
+          key={j} 
+          className="animate-in fade-in duration-500 fill-mode-forwards"
+        >
+          {part}
         </span>
       );
     }
@@ -64,6 +55,7 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
       leading-relaxed md:leading-relaxed lg:leading-[1.8] 
       text-[#293351] 
       max-w-[65ch]
+      transition-all duration-200
     `}>
       {lines.map((line, i) => {
         const trimmed = line.trim();
@@ -99,13 +91,12 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
            );
         }
 
-        // Special handling for the "Look" mechanic block to tighten the spacing
-        // The container has space-y-6 (24px). We use negative margin to pull these specific lines closer.
         const isSystemSummary = trimmed.startsWith('**Objects of interest') || trimmed.startsWith('**Possible exits');
-        const spacingClass = isSystemSummary ? "-mt-3" : "m-0";
+        // Only apply negative margin if the line is relatively complete to avoid jumpy text during typing
+        const spacingClass = (isSystemSummary && trimmed.length > 25) ? "-mt-3" : "m-0";
 
         return (
-          <p key={i} className={`${spacingClass} p-0`}>
+          <p key={i} className={`${spacingClass} p-0 transition-all duration-300`}>
             {parseInlineMarkdown(line, animate)}
           </p>
         );

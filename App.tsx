@@ -2,7 +2,7 @@
 import { 
   MapPin, Send, Briefcase, User, Menu, X, Feather, Sparkles, 
   ScrollText, Lightbulb, Save, FolderOpen, Brain, PanelLeftClose, 
-  PanelLeftOpen, ChevronDown, LogOut, DoorOpen
+  PanelLeftOpen, ChevronDown, LogOut, DoorOpen, ArrowDown
 } from 'lucide-react';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StoryRenderer } from './components/StoryRenderer';
@@ -31,6 +31,7 @@ const App: React.FC = () => {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isAutoScrollLocked, setIsAutoScrollLocked] = useState(true);
   
   // Game State
   const [location, setLocation] = useState(INITIAL_LOCATION);
@@ -38,7 +39,8 @@ const App: React.FC = () => {
   const [sanity, setSanity] = useState(INITIAL_SANITY);
   const [disposition, setDisposition] = useState(INITIAL_DISPOSITION);
   
-  const [journalNotes, setJournalNotes] = useState("CASE PROGRESS:\n\n**Current Lead:**\n* Inspect the map board at Baker Street.\n\n**Inventory:**\n* Diary, Watch, Laudanum.");
+  // Refined initial state for notes
+  const [journalNotes, setJournalNotes] = useState("**Found:**\n* Warm sigils on diary.\n\n**Current Lead:**\n* Inspect the map board.\n\n**Sanity Note:**\n* Feeling quite steady.");
   
   const [isUpdatingJournal, setIsUpdatingJournal] = useState(false);
   const [isConsultingHolmes, setIsConsultingHolmes] = useState(false);
@@ -63,15 +65,26 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const scrollToBottom = useCallback(() => {
+  const handleScroll = useCallback(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+      setIsAutoScrollLocked(isAtBottom);
     }
   }, []);
 
+  const scrollToBottom = useCallback((force = false) => {
+    if (scrollRef.current && (isAutoScrollLocked || force)) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [isAutoScrollLocked]);
+
   useEffect(() => {
-    scrollToBottom();
-  }, [history, scrollToBottom]);
+    const lastMsg = history[history.length - 1];
+    if (lastMsg?.role === 'user') {
+      scrollToBottom(true);
+    }
+  }, [history.length, scrollToBottom]);
 
   const handleSaveGame = () => {
     setIsProfileMenuOpen(false);
@@ -122,9 +135,12 @@ const App: React.FC = () => {
     const userAction = input;
     setInput('');
     setIsLoading(true);
+    setIsAutoScrollLocked(true); 
 
     setHistory(prev => [...prev, { role: 'user', text: userAction }]);
     setHistory(prev => [...prev, { role: 'assistant', text: '' }]);
+
+    requestAnimationFrame(() => scrollToBottom(true));
 
     try {
       const currentLocationData = WORLD_DATA[location as keyof typeof WORLD_DATA] || { 
@@ -163,65 +179,70 @@ const App: React.FC = () => {
       `;
 
       let fullAccumulatedText = "";
-      let finalJsonData = "";
+      let foundSeparatorAt = -1;
+      const separator = "<<<GAME_STATE>>>";
       
       const stream = streamGemini(contextPrompt);
 
       for await (const chunk of stream) {
         fullAccumulatedText += chunk;
-        const separator = "<<<GAME_STATE>>>";
-        const splitIndex = fullAccumulatedText.indexOf(separator);
-
-        if (splitIndex !== -1) {
-             const narrativePart = fullAccumulatedText.substring(0, splitIndex);
-             finalJsonData = fullAccumulatedText.substring(splitIndex + separator.length);
-             setHistory(prev => {
-                const newHistory = [...prev];
-                const lastIdx = newHistory.length - 1;
-                newHistory[lastIdx] = { ...newHistory[lastIdx], text: narrativePart };
-                return newHistory;
-             });
-        } else {
-             setHistory(prev => {
-                const newHistory = [...prev];
-                const lastIdx = newHistory.length - 1;
-                newHistory[lastIdx] = { ...newHistory[lastIdx], text: fullAccumulatedText };
-                return newHistory;
-             });
+        
+        if (foundSeparatorAt === -1) {
+          const idx = fullAccumulatedText.indexOf(separator);
+          if (idx !== -1) {
+            foundSeparatorAt = idx;
+            const narrativePart = fullAccumulatedText.substring(0, idx);
+            setHistory(prev => {
+              const newHistory = [...prev];
+              newHistory[newHistory.length - 1] = { ...newHistory[newHistory.length - 1], text: narrativePart };
+              return newHistory;
+            });
+          } else {
+            setHistory(prev => {
+              const newHistory = [...prev];
+              newHistory[newHistory.length - 1] = { ...newHistory[newHistory.length - 1], text: fullAccumulatedText };
+              return newHistory;
+            });
+          }
         }
       }
       
-      if (finalJsonData.trim()) {
-        try {
-            const aiData = JSON.parse(finalJsonData.trim()) as GameResponse;
-            if (aiData.newLocationId && WORLD_DATA[aiData.newLocationId as keyof typeof WORLD_DATA]) {
-                setLocation(aiData.newLocationId);
-            }
-            if (aiData.inventoryUpdate) {
-                let newInv = [...inventory];
-                if (aiData.inventoryUpdate.add) newInv = [...newInv, ...aiData.inventoryUpdate.add];
-                if (aiData.inventoryUpdate.remove) newInv = newInv.filter(i => !aiData.inventoryUpdate!.remove!.includes(i));
-                setInventory(newInv);
-            }
-            if (aiData.sanityUpdate) {
-                setSanity(prev => Math.max(0, Math.min(100, prev + aiData.sanityUpdate!)));
-            }
-            if (aiData.dispositionUpdate) {
-                setDisposition(prev => {
-                const next = { ...prev };
-                Object.keys(aiData.dispositionUpdate || {}).forEach(char => {
-                    const charKey = char as keyof typeof prev;
-                    if (next[charKey]) {
-                    const update = aiData.dispositionUpdate![charKey];
-                    if (update.trust) next[charKey].trust += update.trust;
-                    if (update.annoyance) next[charKey].annoyance += update.annoyance;
-                    }
-                });
-                return next;
-                });
-            }
-        } catch (parseError) {
-            console.error("Failed to parse game state JSON", parseError);
+      if (foundSeparatorAt !== -1) {
+        const finalJsonData = fullAccumulatedText.substring(foundSeparatorAt + separator.length).trim();
+        if (finalJsonData) {
+          try {
+              const aiData = JSON.parse(finalJsonData) as GameResponse;
+              if (aiData.newLocationId && WORLD_DATA[aiData.newLocationId as keyof typeof WORLD_DATA]) {
+                  setLocation(aiData.newLocationId);
+              }
+              if (aiData.inventoryUpdate) {
+                  let newInv = [...inventory];
+                  if (aiData.inventoryUpdate.add) newInv = [...newInv, ...aiData.inventoryUpdate.add];
+                  if (aiData.inventoryUpdate.remove) newInv = newInv.filter(i => !aiData.inventoryUpdate!.remove!.includes(i));
+                  setInventory(newInv);
+              }
+              if (aiData.sanityUpdate) {
+                  setSanity(prev => Math.max(0, Math.min(100, prev + aiData.sanityUpdate!)));
+              }
+              if (aiData.dispositionUpdate) {
+                  setDisposition(prev => {
+                  const next = { ...prev };
+                  Object.keys(aiData.dispositionUpdate || {}).forEach(char => {
+                      const charKey = char as keyof typeof prev;
+                      if (next[charKey]) {
+                          const update = aiData.dispositionUpdate![charKey];
+                          if (update) {
+                            if (update.trust !== undefined) next[charKey].trust += update.trust;
+                            if (update.annoyance !== undefined) next[charKey].annoyance += update.annoyance;
+                          }
+                      }
+                  });
+                  return next;
+                  });
+              }
+          } catch (parseError) {
+              console.error("Failed to parse game state JSON", parseError);
+          }
         }
       }
 
@@ -237,6 +258,7 @@ const App: React.FC = () => {
     if (isConsultingHolmes || isLoading) return;
     setIsConsultingHolmes(true);
     setIsLoading(true); 
+    setIsAutoScrollLocked(true);
 
     try {
       const currentLocationData = WORLD_DATA[location as keyof typeof WORLD_DATA];
@@ -251,11 +273,12 @@ const App: React.FC = () => {
         Max 40 words. No fluff.
       `;
       
-      const hint = await callGemini(prompt, false);
+      const hint = await callGemini(prompt, false, 0);
       setHistory(prev => [...prev, { 
         role: 'assistant', 
         text: `> *Holmes leans in, his eyes sharp and analytical...*\n\n**Sherlock Holmes**: "${hint || "Focus on the facts at hand, Watson!"}"` 
       }]);
+      requestAnimationFrame(() => scrollToBottom(true));
     } catch (error) {
       console.error("Hint failed", error);
     } finally {
@@ -268,25 +291,26 @@ const App: React.FC = () => {
     if (isUpdatingJournal) return;
     setIsUpdatingJournal(true);
     try {
-      const fullStory = history.filter(h => h.role !== 'system').map(h => h.text || "").join('\n');
-      const prompt = `You are Dr. Watson. Update your medical journal about the Whitechapel case.
-      Constraint: Keep it very brief and fact-oriented. No narrative re-telling.
-      Format: 
-      **Found:**
-      - [bulleted list of clues]
-      
-      **Current Lead:**
-      - [bulleted list of next steps]
-      
-      **Sanity Note:**
-      - [brief medical reflection on sanity]
+      const fullStory = history
+        .slice(-15)
+        .filter(h => h.role !== 'system')
+        .map(h => h.text || "")
+        .join('\n');
+
+      const prompt = `You are Dr. Watson. Update your case notes. 
+      STRICT CONSTRAINTS:
+      1. Keep the sections: **Found:**, **Current Lead:**, and **Sanity Note:**.
+      2. Provide a TOTAL of only 2 to 3 bullet points across the entire notes.
+      3. Each bullet point must be 5 words maximum.
+      4. Be extremely brief. No narrative re-telling.
       
       Source Material: ${fullStory}`;
       
-      const notes = await callGemini(prompt, false);
+      const notes = await callGemini(prompt, false, 0);
       setJournalNotes(notes || "No updates available.");
     } catch (error) {
-      console.error("Journal update failed", error);
+      console.error("Notes update failed", error);
+      setNotification({ message: "Notes update failed. Try again.", type: 'error' });
     } finally {
       setIsUpdatingJournal(false);
     }
@@ -362,9 +386,9 @@ const App: React.FC = () => {
                 <div className="flex items-center justify-between text-[#CD7B00] mb-4">
                     <div className="flex items-center gap-2">
                     <ScrollText size={18} />
-                    <span className="uppercase tracking-widest text-xs font-bold">Watson's Journal</span>
+                    <span className="uppercase tracking-widest text-xs font-bold">Watson's Notes</span>
                     </div>
-                    <button onClick={handleUpdateJournal} disabled={isUpdatingJournal} className="p-1 hover:bg-[#CD7B00]/10 rounded-full transition-colors">
+                    <button onClick={handleUpdateJournal} disabled={isUpdatingJournal} className="p-1 hover:bg-[#CD7B00]/10 rounded-full transition-colors" title="Refine Notes">
                       <Sparkles size={14} className={isUpdatingJournal ? "animate-spin" : ""} />
                     </button>
                 </div>
@@ -405,9 +429,13 @@ const App: React.FC = () => {
             </div>
         </header>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-8 md:px-16 pb-64 scroll-smooth">
+        <div 
+          ref={scrollRef} 
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto px-8 md:px-16 pb-64 scroll-smooth scrollbar-thin scrollbar-thumb-[#CD7B00]/20 scrollbar-track-transparent"
+        >
           <div className="max-w-4xl mx-auto pt-8 pb-6 z-10">
-            <h1 className="font-serif text-5xl md:text-[76px] text-[#293351] leading-none mb-2">London Bleeds</h1>
+            <h1 className="font-serif text-5xl md:text-[76px] text-[#293351] leading-none mb-2 text-balance">London Bleeds</h1>
             <p className="font-serif text-2xl md:text-[40px] text-[#293351] opacity-90">The Whitechapel diaries</p>
           </div>
 
@@ -428,21 +456,37 @@ const App: React.FC = () => {
                 );
                 }
 
-                if (isLast && isAI) {
+                if (isLast && isAI && msg.text !== "") {
                      return (
                         <div key={index} className="mb-8">
-                            <TypewriterBlock text={msg.text} scrollToBottom={scrollToBottom} />
+                            <TypewriterBlock text={msg.text} />
                         </div>
                     );
                 }
 
-                return (
-                    <div key={index} className="mb-8">
-                        <StoryRenderer text={msg.text} />
-                    </div>
-                );
+                if (msg.text !== "") {
+                  return (
+                      <div key={index} className="mb-8">
+                          <StoryRenderer text={msg.text} />
+                      </div>
+                  );
+                }
+                return null;
             })}
           </div>
+
+          {isLoading && !isAutoScrollLocked && (
+            <button 
+              onClick={() => {
+                setIsAutoScrollLocked(true);
+                scrollToBottom(true);
+              }}
+              className="fixed bottom-36 left-1/2 -translate-x-1/2 z-50 bg-[#293351] text-white px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300 hover:bg-[#CD7B00] border border-[#CD7B00]/30 group"
+            >
+              <ArrowDown size={14} className="group-hover:translate-y-0.5 transition-transform" />
+              <span className="text-xs font-bold uppercase tracking-widest">New leads below</span>
+            </button>
+          )}
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 px-8 pb-8 pt-32 md:px-16 md:pb-12 md:pt-48 bg-gradient-to-t from-[#FDF9F5] via-[#FDF9F5] to-transparent pointer-events-none">
@@ -453,11 +497,11 @@ const App: React.FC = () => {
                </button>
             </div>
 
-            {isLoading && history[history.length-1].text === "" && (
+            {isLoading && (isConsultingHolmes || (history.length > 0 && history[history.length-1].role === 'assistant' && history[history.length-1].text === "")) && (
                 <div className="absolute bottom-full left-4 mb-2 flex items-center gap-2 text-[#CD7B00] animate-in fade-in zoom-in-95 duration-300 z-20">
                     <Feather size={14} className="animate-bounce" />
                     <span className="text-sm italic font-serif">
-                        {isConsultingHolmes ? "Holmes is deducing..." : "The ink is flowing..."}
+                        {isConsultingHolmes ? "Asking Holmes..." : "The ink is flowing..."}
                     </span>
                 </div>
             )}

@@ -1,16 +1,29 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Using gemini-3-flash-preview for significantly lower latency while maintaining storytelling quality.
+const MODEL_ID = 'gemini-3-flash-preview';
+const DEFAULT_THINKING_BUDGET = 2048;
 
-export const callGemini = async (prompt: string, useJson: boolean = true): Promise<string> => {
-  const modelId = 'gemini-3-pro-preview';
+/**
+ * Executes a unary call to Gemini.
+ * @param prompt The prompt string.
+ * @param useJson Whether to enforce JSON response.
+ * @param thinkingBudget Reasoning budget (set to 0 for fastest response on simple tasks).
+ */
+export const callGemini = async (
+  prompt: string, 
+  useJson: boolean = true, 
+  thinkingBudget: number = DEFAULT_THINKING_BUDGET
+): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+  // Using the explicit parts structure for better compatibility with proxy environments
   const response = await ai.models.generateContent({
-    model: modelId,
-    contents: prompt,
+    model: MODEL_ID,
+    contents: [{ parts: [{ text: prompt }] }],
     config: {
-      thinkingConfig: { thinkingBudget: 32768 },
+      thinkingConfig: { thinkingBudget: thinkingBudget },
       responseMimeType: useJson ? "application/json" : undefined
     }
   });
@@ -18,10 +31,10 @@ export const callGemini = async (prompt: string, useJson: boolean = true): Promi
   let text = response.text || "";
 
   if (useJson) {
-    // 1. Remove markdown code blocks (e.g. ```json ... ```)
+    // 1. Remove markdown code blocks if present
     text = text.replace(/^```json\s*/, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
 
-    // 2. Find the JSON object substring (handles preamble text)
+    // 2. Extract JSON object substring
     const firstOpen = text.indexOf('{');
     const lastClose = text.lastIndexOf('}');
     
@@ -33,14 +46,17 @@ export const callGemini = async (prompt: string, useJson: boolean = true): Promi
   return text;
 };
 
+/**
+ * Streams a response from Gemini.
+ */
 export const streamGemini = async function* (prompt: string) {
-  const modelId = 'gemini-3-pro-preview';
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const responseStream = await ai.models.generateContentStream({
-    model: modelId,
-    contents: prompt,
+    model: MODEL_ID,
+    contents: [{ parts: [{ text: prompt }] }],
     config: {
-      thinkingConfig: { thinkingBudget: 16000 }
+      thinkingConfig: { thinkingBudget: DEFAULT_THINKING_BUDGET }
     }
   });
 
