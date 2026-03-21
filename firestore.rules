@@ -1,0 +1,192 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (matches Auth UID)
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional)
+    //   - createdAt: string (required)
+    //   - lastLogin: string (required)
+    //
+    // Collection: investigations
+    // Document ID: {investigationId}
+    // Fields:
+    //   - ownerId: string (required, owner's UID)
+    //   - status: string (required, enum: active, cold_case, solved, archived)
+    //   - currentLocation: string (required)
+    //   - sanity: number (required)
+    //   - globalFlags: map (required)
+    //   - journalNotes: string (required)
+    //   - createdAt: string (required)
+    //   - updatedAt: string (required)
+    //
+    // Sub-collection: investigations/{id}/locations
+    // Document ID: {locationId}
+    // Fields:
+    //   - locationId: string (required)
+    //   - isCrimeScene: bool (optional)
+    //   - isLocked: bool (optional)
+    //   - mutations: map (optional)
+    //   - updatedAt: string (required)
+    //
+    // Sub-collection: investigations/{id}/npcs
+    // Document ID: {npcId}
+    // Fields:
+    //   - npcId: string (required)
+    //   - disposition: number (required, 0-100)
+    //   - currentLocation: string (optional)
+    //   - status: string (required)
+    //   - lastInteraction: string (optional)
+    //
+    // Sub-collection: investigations/{id}/clues
+    // Document ID: {clueId}
+    // Fields:
+    //   - clueId: string (required)
+    //   - name: string (required)
+    //   - description: string (required)
+    //   - discoveredAt: string (required)
+    //   - locationFound: string (optional)
+    //   - connections: list (optional)
+    //
+    // Sub-collection: investigations/{id}/log
+    // Document ID: {logId}
+    // Fields:
+    //   - timestamp: string (required)
+    //   - type: string (required, enum: narration, action, dialogue, system)
+    //   - content: string (required)
+    //   - speaker: string (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "bliland@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt', 'lastLogin']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.uid is string &&
+             data.uid.size() < 128;
+    }
+
+    function isInvestigationOwner(investigationId) {
+      return isAuthenticated() && get(/databases/$(database)/documents/investigations/$(investigationId)).data.ownerId == request.auth.uid;
+    }
+
+    function isValidInvestigation(data) {
+      return data.keys().hasAll(['ownerId', 'status', 'currentLocation', 'sanity', 'globalFlags', 'createdAt', 'updatedAt']) &&
+             data.ownerId == request.auth.uid &&
+             data.status in ['active', 'cold_case', 'solved', 'archived'] &&
+             data.sanity is number &&
+             data.sanity >= 0 &&
+             data.sanity <= 100 &&
+             data.globalFlags is map &&
+             data.journalNotes is string &&
+             data.journalNotes.size() < 10000;
+    }
+
+    function isValidLocationState(data) {
+      return data.keys().hasAll(['locationId', 'updatedAt']) &&
+             data.locationId is string &&
+             data.updatedAt is string;
+    }
+
+    function isValidNPCState(data) {
+      return data.keys().hasAll(['npcId', 'disposition', 'status']) &&
+             data.npcId is string &&
+             data.disposition is number &&
+             data.disposition >= 0 &&
+             data.disposition <= 100 &&
+             data.status is string;
+    }
+
+    function isValidClue(data) {
+      return data.keys().hasAll(['clueId', 'name', 'description', 'discoveredAt']) &&
+             data.clueId is string &&
+             data.name is string &&
+             data.name.size() < 100 &&
+             data.description is string &&
+             data.description.size() < 1000;
+    }
+
+    function isValidLogEntry(data) {
+      return data.keys().hasAll(['timestamp', 'type', 'content']) &&
+             data.timestamp is string &&
+             data.type in ['narration', 'action', 'dialogue', 'system'] &&
+             data.content is string &&
+             data.content.size() < 5000;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+    }
+
+    match /investigations/{investigationId} {
+      allow read: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidInvestigation(request.resource.data);
+      allow update: if isAuthenticated() && resource.data.ownerId == request.auth.uid && isValidInvestigation(request.resource.data);
+      allow delete: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin());
+
+      // Sub-collections
+      match /locations/{locationId} {
+        allow read: if isInvestigationOwner(investigationId) || isAdmin();
+        allow write: if isInvestigationOwner(investigationId) && isValidLocationState(request.resource.data);
+      }
+
+      match /npcs/{npcId} {
+        allow read: if isInvestigationOwner(investigationId) || isAdmin();
+        allow write: if isInvestigationOwner(investigationId) && isValidNPCState(request.resource.data);
+      }
+
+      match /clues/{clueId} {
+        allow read: if isInvestigationOwner(investigationId) || isAdmin();
+        allow write: if isInvestigationOwner(investigationId) && isValidClue(request.resource.data);
+      }
+
+      match /log/{logId} {
+        allow read: if isInvestigationOwner(investigationId) || isAdmin();
+        allow create: if isInvestigationOwner(investigationId) && isValidLogEntry(request.resource.data);
+        // Log entries are usually immutable
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

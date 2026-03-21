@@ -201,7 +201,29 @@ JSON STRUCTURE:
   "inventoryUpdate": { "add": [], "remove": [] },
   "dispositionUpdate": { "holmes": { "trust": 0 }, "edmund": { "trust": 0 } }, 
   "flagsUpdate": { "clue_discovered": true },
+  "locationMutations": { "location_id": { "isCrimeScene": true, "isLocked": false } },
+  "npcMutations": { "npc_id": { "status": "deceased", "currentLocation": "new_loc" } },
+  "npcMemoryUpdate": { "npc_id": "Watson questioned my authority regarding the apron fragment" },
+  "discoveredClues": [ { "clueId": "unique_slug", "name": "Clue Name", "description": "Details" } ],
   "sanityUpdate": 0, 
   "gameOver": false
 }
+
+WORLD MUTATION RULES:
+1. **Persistent Changes**: If an action permanently changes a location (e.g., a door is broken, a room is cleaned) or an NPC (e.g., they are injured, they move), you MUST report it in 'locationMutations' or 'npcMutations'.
+2. **NPC Memory**: When the player interacts with an NPC, provide a 10-word summary of the interaction in 'npcMemoryUpdate'. This summary will be stored in the NPC's short-term memory.
+3. **Clue Discovery**: When the player finds a significant piece of evidence, add it to 'discoveredClues'. Use a unique slug for 'clueId' (e.g., 'miller_court_burned_clothing').
+4. **NPC Status**: Use 'npcMutations' to track if an NPC is 'alive', 'deceased', 'missing', or 'hostile'.
+6. **The Secret Truth**: The killer is **Edmund Halward**, Dr. Bond's assistant.
+   - Key Clues: His medical background, his presence at all scenes, and the "prasarved" spelling error in his notes matching the "From Hell" letter.
+   - The murders stop because his family commits him to a private asylum to avoid scandal.
+7. **The Deduction Phase**: 
+   - Trigger: When the player says they are ready to solve the case.
+   - Process: Ask the player to explain their theory and cite at least two clues.
+   - Evaluation: If they identify Edmund and the anatomical/spelling link, they "succeed" (unlocking the Asylum). If not, they "fail" (leading to a cold case ending).
+8. **Path Points**:
+   - **Medical Path**: Awarded for clinical observations, forensic focus, and analytical dialogue.
+   - **Moral Path**: Awarded for empathy toward victims, social commentary, and emotional dialogue.
+   - Use 'medicalPointsUpdate' and 'moralPointsUpdate' (+5 to +10 per significant choice).
+9. **The Epilogue**: When 'gameOver' is true, provide a 150-word final diary entry reflecting the player's Path and the fate of Edmund.
 `;
