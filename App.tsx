@@ -26,7 +26,7 @@ const App: React.FC = () => {
   const [history, setHistory] = useState<GameHistoryItem[]>([
     { 
       role: 'assistant', 
-      text: "### SCENE 1: A STUDY IN SMOKE\n\n> *The pattern is too deliberate...*\n\nYou stand in 221B Baker Street. It is early morning. **Sherlock Holmes** sits cross-legged on the floor, surrounded by a chaotic map of Whitechapel, red string connecting points like *bloody veins*. You hold **The Diary** in your hand; its cover feels faintly warm.\n\nHolmes murmurs without looking up: \"The sigils match the locations, Watson. Inspect the board.\"\n\n**Sherlock Holmes** is here, sitting cross-legged on the floor amidst a sea of maps.\n**Objects of interest:** The Case files, The Board.\n**Possible exits:** Scotland Yard." 
+      text: "### ACT I: THE LAST MURDER\n\n> *Dorset Street is a grey sea of humanity, the fog thin and revealing the soot-stained faces of the working poor. A crowd has gathered outside Miller’s Court, their whispers a low hum against the city's noise.*\n\nI stand with Holmes outside the entrance to the court. Inspector Abberline is here, his face etched with the fatigue of a man who has seen too much and learned too little. 'Another one, Doctor,' he says, his voice flat. 'Inside. Room 13.'\n\n**Inspector Abberline** is here, guarding the entrance.\n**Objects of interest:** Police Barricade, Street Lamps, Lodging House Entrances.\n**Possible exits:** Miller’s Court, Buck’s Row." 
     }
   ]);
   const [input, setInput] = useState('');
@@ -38,9 +38,9 @@ const App: React.FC = () => {
   const [inventory, setInventory] = useState(INITIAL_INVENTORY);
   const [sanity, setSanity] = useState(INITIAL_SANITY);
   const [disposition, setDisposition] = useState(INITIAL_DISPOSITION);
+  const [flags, setFlags] = useState<Record<string, boolean>>({});
   
-  // Refined initial state for notes
-  const [journalNotes, setJournalNotes] = useState("**Found:**\n* Warm sigils on diary.\n\n**Current Lead:**\n* Inspect the map board.\n\n**Sanity Note:**\n* Feeling quite steady.");
+  const [journalNotes, setJournalNotes] = useState("**Found:**\n* Reports of a new murder in Miller's Court.\n\n**Sanity Note:**\n* The fog of Whitechapel feels heavier today.");
   
   const [isUpdatingJournal, setIsUpdatingJournal] = useState(false);
   const [isConsultingHolmes, setIsConsultingHolmes] = useState(false);
@@ -51,6 +51,7 @@ const App: React.FC = () => {
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastUserMessageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -68,7 +69,7 @@ const App: React.FC = () => {
   const handleScroll = useCallback(() => {
     if (scrollRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
       setIsAutoScrollLocked(isAtBottom);
     }
   }, []);
@@ -79,12 +80,23 @@ const App: React.FC = () => {
     }
   }, [isAutoScrollLocked]);
 
+  const scrollToActiveTurn = useCallback(() => {
+    if (lastUserMessageRef.current) {
+      // Anchoring the player input to the top of the viewport
+      // The scroll-mt-[120px] on the element handles the sticky header gap
+      lastUserMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
   useEffect(() => {
     const lastMsg = history[history.length - 1];
     if (lastMsg?.role === 'user') {
-      scrollToBottom(true);
+      // Use requestAnimationFrame for most reliable scrolling after render
+      requestAnimationFrame(() => {
+        scrollToActiveTurn();
+      });
     }
-  }, [history.length, scrollToBottom]);
+  }, [history.length, scrollToActiveTurn]);
 
   const handleSaveGame = () => {
     setIsProfileMenuOpen(false);
@@ -94,6 +106,7 @@ const App: React.FC = () => {
       inventory,
       sanity,
       disposition,
+      flags,
       journalNotes,
       timestamp: new Date().toLocaleString()
     };
@@ -120,6 +133,7 @@ const App: React.FC = () => {
       setInventory(state.inventory);
       setSanity(state.sanity || 100);
       setDisposition(state.disposition || INITIAL_DISPOSITION);
+      setFlags(state.flags || {});
       setJournalNotes(state.journalNotes || journalNotes);
       setNotification({ message: `Game Loaded! (${state.timestamp})`, type: "success" });
     } catch (e) {
@@ -135,12 +149,11 @@ const App: React.FC = () => {
     const userAction = input;
     setInput('');
     setIsLoading(true);
-    setIsAutoScrollLocked(true); 
+    // Temporarily unlock auto-scroll to bottom so our top-anchoring takes priority
+    setIsAutoScrollLocked(false); 
 
     setHistory(prev => [...prev, { role: 'user', text: userAction }]);
     setHistory(prev => [...prev, { role: 'assistant', text: '' }]);
-
-    requestAnimationFrame(() => scrollToBottom(true));
 
     try {
       const currentLocationData = WORLD_DATA[location as keyof typeof WORLD_DATA] || { 
@@ -156,7 +169,7 @@ const App: React.FC = () => {
       const narrativeHistory = history
         .slice(-10)
         .filter(h => h.role !== 'system')
-        .map(h => `${h.role === 'user' ? 'PLAYER' : 'GAME ENGINE'}: ${h.text}`)
+        .map(h => `${h.role === 'user' ? 'WATSON' : 'GAME ENGINE'}: ${h.text}`)
         .join('\n\n');
 
       const contextPrompt = `
@@ -164,7 +177,7 @@ const App: React.FC = () => {
 
         === CURRENT LOCATION DATA ===
         Name: ${currentLocationData.name}
-        Key Clues to Find: ${currentLocationData.keyClues.join(', ')}
+        Key Clues: ${currentLocationData.keyClues.join(', ')}
         CRITICAL PROGRESSION LEAD: ${currentLocationData.criticalPathLead}
 
         === NARRATIVE HISTORY ===
@@ -174,6 +187,7 @@ const App: React.FC = () => {
         - Location: ${location}
         - Inventory: ${inventory.join(', ')}
         - Sanity: ${sanity}/100
+        - Flags: ${JSON.stringify(flags)}
         
         PLAYER ACTION: "${userAction}"
       `;
@@ -224,6 +238,9 @@ const App: React.FC = () => {
               if (aiData.sanityUpdate) {
                   setSanity(prev => Math.max(0, Math.min(100, prev + aiData.sanityUpdate!)));
               }
+              if (aiData.flagsUpdate) {
+                  setFlags(prev => ({ ...prev, ...aiData.flagsUpdate }));
+              }
               if (aiData.dispositionUpdate) {
                   setDisposition(prev => {
                   const next = { ...prev };
@@ -251,6 +268,7 @@ const App: React.FC = () => {
       setHistory(prev => [...prev, { role: 'system', text: "The connection to the engine was lost." }]);
     } finally {
       setIsLoading(false);
+      setIsAutoScrollLocked(true);
     }
   };
 
@@ -258,7 +276,6 @@ const App: React.FC = () => {
     if (isConsultingHolmes || isLoading) return;
     setIsConsultingHolmes(true);
     setIsLoading(true); 
-    setIsAutoScrollLocked(true);
 
     try {
       const currentLocationData = WORLD_DATA[location as keyof typeof WORLD_DATA];
@@ -267,10 +284,11 @@ const App: React.FC = () => {
       const prompt = `
         You are Sherlock Holmes. Watson (the player) is stuck.
         Location: ${currentLocationData?.name}
-        Critical Progression Goal: ${currentLocationData?.criticalPathLead}
+        Progression Goal: ${currentLocationData?.criticalPathLead}
+        Current Flags: ${JSON.stringify(flags)}
         Context: ${context}
-        Task: Give a sharp, brief, cryptic deduction that points Watson toward the Critical Path Goal. 
-        Max 40 words. No fluff.
+        Task: Give a sharp, brief, cryptic deduction that points Watson toward the Medical or Moral Path. 
+        Max 40 words. No fluff. Use Holmes's intellectual but respectful tone toward Watson.
       `;
       
       const hint = await callGemini(prompt, false, 0);
@@ -278,7 +296,8 @@ const App: React.FC = () => {
         role: 'assistant', 
         text: `> *Holmes leans in, his eyes sharp and analytical...*\n\n**Sherlock Holmes**: "${hint || "Focus on the facts at hand, Watson!"}"` 
       }]);
-      requestAnimationFrame(() => scrollToBottom(true));
+      // For holmes, we want to scroll to bottom since it's an extra help line
+      setTimeout(() => scrollToBottom(true), 100);
     } catch (error) {
       console.error("Hint failed", error);
     } finally {
@@ -297,12 +316,12 @@ const App: React.FC = () => {
         .map(h => h.text || "")
         .join('\n');
 
-      const prompt = `You are Dr. Watson. Update your case notes. 
+      const prompt = `You are Dr. Watson. Update your diary entries based on the case progress. 
       STRICT CONSTRAINTS:
-      1. Keep the sections: **Found:**, **Current Lead:**, and **Sanity Note:**.
+      1. Keep the sections: **Found:** and **Sanity Note:**.
       2. Provide a TOTAL of only 2 to 3 bullet points across the entire notes.
-      3. Each bullet point must be 5 words maximum.
-      4. Be extremely brief. No narrative re-telling.
+      3. Focus on medical findings and systemic observations.
+      4. Be brief. No narrative re-telling.
       
       Source Material: ${fullStory}`;
       
@@ -315,6 +334,10 @@ const App: React.FC = () => {
       setIsUpdatingJournal(false);
     }
   };
+
+  // Find the index of the absolute last user message in the history
+  const lastUserMsgIdx = [...history].reverse().findIndex(m => m.role === 'user');
+  const actualLastUserIdx = lastUserMsgIdx === -1 ? -1 : history.length - 1 - lastUserMsgIdx;
 
   return (
     <div className="flex h-screen w-full overflow-hidden font-sans selection:bg-[#CD7B00] selection:text-white" 
@@ -342,7 +365,7 @@ const App: React.FC = () => {
             <div className="mb-8">
                 <div className="flex items-center gap-2 text-[#CD7B00] mb-2">
                     <MapPin size={18} />
-                    <span className="uppercase tracking-widest text-xs font-bold">Current Location</span>
+                    <span className="uppercase tracking-widest text-xs font-bold">Current Sector</span>
                 </div>
                 <h2 className="font-serif text-2xl leading-tight text-[#293351]">
                     {WORLD_DATA[location as keyof typeof WORLD_DATA]?.name || "Unknown Location"}
@@ -352,7 +375,7 @@ const App: React.FC = () => {
             <div className="mb-8">
                 <div className="flex items-center gap-2 text-[#CD7B00] mb-4">
                     <Briefcase size={18} />
-                    <span className="uppercase tracking-widest text-xs font-bold">Inventory</span>
+                    <span className="uppercase tracking-widest text-xs font-bold">Medical Bag</span>
                 </div>
                 <ul className="space-y-3">
                     {inventory.map((item, idx) => (
@@ -367,7 +390,7 @@ const App: React.FC = () => {
             <div className="mb-8">
                 <div className="flex items-center gap-2 text-[#CD7B00] mb-4">
                     <DoorOpen size={18} />
-                    <span className="uppercase tracking-widest text-xs font-bold">Exits</span>
+                    <span className="uppercase tracking-widest text-xs font-bold">Avenues</span>
                 </div>
                 <ul className="space-y-3">
                     {WORLD_DATA[location as keyof typeof WORLD_DATA]?.exits.map((exitId, idx) => {
@@ -386,9 +409,9 @@ const App: React.FC = () => {
                 <div className="flex items-center justify-between text-[#CD7B00] mb-4">
                     <div className="flex items-center gap-2">
                     <ScrollText size={18} />
-                    <span className="uppercase tracking-widest text-xs font-bold">Watson's Notes</span>
+                    <span className="uppercase tracking-widest text-xs font-bold">Watson's Diary</span>
                     </div>
-                    <button onClick={handleUpdateJournal} disabled={isUpdatingJournal} className="p-1 hover:bg-[#CD7B00]/10 rounded-full transition-colors" title="Refine Notes">
+                    <button onClick={handleUpdateJournal} disabled={isUpdatingJournal} className="p-1 hover:bg-[#CD7B00]/10 rounded-full transition-colors" title="Refine Diary">
                       <Sparkles size={14} className={isUpdatingJournal ? "animate-spin" : ""} />
                     </button>
                 </div>
@@ -410,7 +433,7 @@ const App: React.FC = () => {
                 <button onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)} className="flex items-center gap-3 text-[#293351] group">
                     <div className="text-right hidden sm:block">
                         <span className="block text-sm font-bold group-hover:text-[#CD7B00]">Dr. John Watson</span>
-                        <span className="text-[10px] uppercase tracking-widest opacity-60">Detective Profile</span>
+                        <span className="text-[10px] uppercase tracking-widest opacity-60">Medical Profile</span>
                     </div>
                     <div className="w-8 h-8 rounded-full bg-[#293351] text-white flex items-center justify-center"><User size={16} /></div>
                     <ChevronDown size={14} className={`transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
@@ -432,23 +455,28 @@ const App: React.FC = () => {
         <div 
           ref={scrollRef} 
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto px-8 md:px-16 pb-64 scroll-smooth scrollbar-thin scrollbar-thumb-[#CD7B00]/20 scrollbar-track-transparent"
+          className="flex-1 overflow-y-auto px-8 md:px-16 pb-[60vh] scrollbar-thin scrollbar-thumb-[#CD7B00]/20 scrollbar-track-transparent scroll-smooth"
         >
-          <div className="max-w-4xl mx-auto pt-8 pb-6 z-10">
+          <div className="max-w-3xl mx-auto pt-8 pb-6 z-10">
             <h1 className="font-serif text-5xl md:text-[76px] text-[#293351] leading-none mb-2 text-balance">London Bleeds</h1>
-            <p className="font-serif text-2xl md:text-[40px] text-[#293351] opacity-90">The Whitechapel diaries</p>
+            <p className="font-serif text-2xl md:text-[40px] text-[#293351] opacity-90">The Whitechapel Diaries</p>
           </div>
 
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-3xl mx-auto">
             {history.map((msg, index) => {
                 const isAI = msg.role === 'assistant';
                 const isLast = index === history.length - 1;
+                const isLatestUser = index === actualLastUserIdx;
 
                 if (!isAI && msg.role !== 'system') {
                 return (
-                    <div key={index} className="my-8 animate-in slide-in-from-bottom-2 duration-300">
-                    <div className="pl-4 border-l-[2px] border-[#CD7B00]">
-                        <span className="text-[#CD7B00] font-sans font-medium text-[16px] md:text-[20px] leading-relaxed">
+                    <div 
+                      key={index} 
+                      ref={isLatestUser ? lastUserMessageRef : null}
+                      className="my-8 animate-in slide-in-from-bottom-2 duration-300 scroll-mt-[100px]"
+                    >
+                    <div className="pl-6 border-l-[3px] border-[#CD7B00]">
+                        <span className="text-[#CD7B00] font-sans font-medium text-[14px] md:text-[20px] leading-relaxed">
                         {msg.text}
                         </span>
                     </div>
@@ -474,49 +502,47 @@ const App: React.FC = () => {
                 return null;
             })}
           </div>
-
-          {isLoading && !isAutoScrollLocked && (
-            <button 
-              onClick={() => {
-                setIsAutoScrollLocked(true);
-                scrollToBottom(true);
-              }}
-              className="fixed bottom-36 left-1/2 -translate-x-1/2 z-50 bg-[#293351] text-white px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300 hover:bg-[#CD7B00] border border-[#CD7B00]/30 group"
-            >
-              <ArrowDown size={14} className="group-hover:translate-y-0.5 transition-transform" />
-              <span className="text-xs font-bold uppercase tracking-widest">New leads below</span>
-            </button>
-          )}
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 px-8 pb-8 pt-32 md:px-16 md:pb-12 md:pt-48 bg-gradient-to-t from-[#FDF9F5] via-[#FDF9F5] to-transparent pointer-events-none">
-          <form onSubmit={handleAction} className="relative pointer-events-auto max-w-4xl mx-auto">
-            <div className="absolute right-0 -top-10 flex justify-end mb-2 z-20">
-               <button type="button" onClick={handleConsultHolmes} disabled={isLoading} className="flex items-center gap-2 bg-[#293351] text-white px-4 py-1.5 rounded-t-lg shadow-sm hover:bg-[#CD7B00] transition-all disabled:opacity-50">
-                 <Lightbulb size={14} className="text-yellow-300" /><span className="text-xs font-bold uppercase">Consult Holmes</span>
-               </button>
-            </div>
-
+          <form onSubmit={handleAction} className="relative pointer-events-auto max-w-3xl mx-auto">
             {isLoading && (isConsultingHolmes || (history.length > 0 && history[history.length-1].role === 'assistant' && history[history.length-1].text === "")) && (
                 <div className="absolute bottom-full left-4 mb-2 flex items-center gap-2 text-[#CD7B00] animate-in fade-in zoom-in-95 duration-300 z-20">
                     <Feather size={14} className="animate-bounce" />
                     <span className="text-sm italic font-serif">
-                        {isConsultingHolmes ? "Asking Holmes..." : "The ink is flowing..."}
+                        {isConsultingHolmes ? "Holmes is contemplating..." : "The ink is drying..."}
                     </span>
                 </div>
             )}
 
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="What do you wish to do?"
-              className="w-full bg-white border border-[#C5CBDD] rounded-lg py-4 pl-4 pr-14 text-[#293351] placeholder-[#929DBF] text-lg focus:outline-none focus:border-[#CD7B00] shadow-sm relative z-10"
-              autoFocus
-            />
-            <button type="submit" disabled={isLoading || !input.trim()} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-[#929DBF] hover:text-[#CD7B00] z-20">
-              <Send size={20} />
-            </button>
+            <div className="relative flex items-center">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="How do you choose to proceed, Doctor?"
+                className="w-full bg-white border border-[#C5CBDD] rounded-full py-4 pl-6 pr-24 text-[#293351] placeholder-[#929DBF] text-lg focus:outline-none focus:border-[#CD7B00] shadow-sm relative z-10"
+                autoFocus
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 z-20">
+                <button 
+                  type="button" 
+                  onClick={handleConsultHolmes} 
+                  disabled={isLoading} 
+                  className="p-2 text-[#929DBF] hover:text-[#CD7B00] transition-colors disabled:opacity-50"
+                  title="Consult Holmes"
+                >
+                  <Lightbulb size={20} />
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isLoading || !input.trim()} 
+                  className="p-2 text-[#929DBF] hover:text-[#CD7B00] transition-colors disabled:opacity-50"
+                >
+                  <Send size={20} />
+                </button>
+              </div>
+            </div>
           </form>
         </div>
       </div>

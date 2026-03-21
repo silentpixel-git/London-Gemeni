@@ -12,7 +12,9 @@ export interface DispositionStats {
 export interface GameDispositions {
   holmes: DispositionStats;
   abberline: DispositionStats;
-  greel: DispositionStats;
+  bond: DispositionStats;
+  edmund: DispositionStats;
+  lusk: DispositionStats;
 }
 
 export interface GameState {
@@ -21,6 +23,7 @@ export interface GameState {
   inventory: string[];
   sanity: number;
   disposition: GameDispositions;
+  flags: Record<string, boolean>;
   journalNotes: string;
   timestamp: string;
 }
@@ -47,6 +50,7 @@ export interface GameResponse {
   dispositionUpdate?: {
     [key in keyof GameDispositions]?: Partial<DispositionStats>;
   };
+  flagsUpdate?: Record<string, boolean>;
   sanityUpdate?: number;
   gameOver?: boolean;
 }

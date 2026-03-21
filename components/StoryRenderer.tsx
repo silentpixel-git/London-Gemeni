@@ -54,7 +54,7 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
       text-[16px] md:text-[18px] lg:text-[20px] 
       leading-relaxed md:leading-relaxed lg:leading-[1.8] 
       text-[#293351] 
-      max-w-[65ch]
+      max-w-3xl
       transition-all duration-200
     `}>
       {lines.map((line, i) => {
@@ -74,7 +74,7 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
         if (line.startsWith('>')) {
           return (
             <div key={i} className="pl-6 border-l-[3px] border-[#CD7B00] my-6 py-1">
-              <p className="italic text-[#293351] font-playfair text-[24px] leading-relaxed opacity-90">
+              <p className="italic text-[#293351] font-playfair text-[16px] md:text-[24px] leading-relaxed opacity-90">
                 {parseInlineMarkdown(line.replace(/>\s*/, ''), animate)}
               </p>
             </div>

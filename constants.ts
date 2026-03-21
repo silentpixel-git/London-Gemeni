@@ -3,9 +3,9 @@ import { GameDispositions, WorldLocation } from './types';
 
 export const THEME = {
   colors: {
-    bg: '#FDF9F5', // Warm off-white
-    primary: '#293351', // Navy
-    accent: '#CD7B00', // Orange
+    bg: '#FDF9F5', 
+    primary: '#293351', 
+    accent: '#CD7B00', 
     muted: '#929DBF',
     border: '#C5CBDD',
     paper: '#FDF9F5'
@@ -16,99 +16,191 @@ export const THEME = {
   }
 };
 
-export const INITIAL_LOCATION = 'scene_1_baker_street';
-export const INITIAL_INVENTORY = ['The Diary (Warm to touch)', 'Pocket Watch', 'Laudanum Vial'];
+export const INITIAL_LOCATION = 'dorset_street';
+export const INITIAL_INVENTORY = ['Medical Bag', 'Watson\'s Diary', 'Pocket Watch'];
 export const INITIAL_SANITY = 100;
 export const INITIAL_DISPOSITION: GameDispositions = {
   holmes: { trust: 5, annoyance: 0 },
   abberline: { trust: 3, annoyance: 0 },
-  greel: { trust: 1, annoyance: 0 }
+  bond: { trust: 4, annoyance: 0 },
+  edmund: { trust: 10, annoyance: 0 },
+  lusk: { trust: 1, annoyance: 0 }
 };
 
 export const WORLD_DATA: Record<string, WorldLocation> = {
-  scene_1_baker_street: {
-    name: "221B Baker Street (Morning)",
+  dorset_street: {
+    name: "Dorset Street",
+    shortName: "Dorset Street",
+    atmosphere: "Foggy mornings, muddy roads, constant noise from vendors and carts. A crowded and impoverished street in Whitechapel.",
+    description: "The air is thick with the smell of coal smoke and the press of humanity. A crowd has gathered outside Miller’s Court, their whispers a low hum against the city's noise.",
+    exits: ['millers_court', 'bucks_row'],
+    interactables: ['police_barricade', 'street_lamps', 'lodging_house_entrances', 'abberline', 'crowd'],
+    keyClues: ["Crowd rumors", "Miller’s Court entrance observations"],
+    criticalPathLead: "Speak with Inspector Abberline or enter Miller’s Court to begin the investigation."
+  },
+  millers_court: {
+    name: "Miller’s Court",
+    shortName: "Miller’s Court",
+    atmosphere: "Claustrophobic, quiet, and deeply unsettling. The room where Mary Jane Kelly was found.",
+    description: "A small rented room, barely large enough for the bed that dominates it. The fireplace is cold, but the air feels heavy with the weight of what occurred here.",
+    exits: ['dorset_street'],
+    interactables: ['the_bed', 'burned_clothing', 'examination_instruments', 'bloodstained_sheets', 'bond', 'edmund'],
+    keyClues: ["Killer had time and confidence", "Burned clothing used for light"],
+    criticalPathLead: "Examine the bed and fireplace, and speak with Dr. Bond to understand the brutality of the scene."
+  },
+  bucks_row: {
+    name: "Buck’s Row",
+    shortName: "Buck’s Row",
+    atmosphere: "Quiet and industrial. A narrow street lined with warehouses where Mary Ann Nichols was found.",
+    description: "The cobblestones are slick with damp. The warehouses loom like silent sentinels over the spot where the first victim was discovered.",
+    exits: ['dorset_street', 'hanbury_street'],
+    interactables: ['cobblestone_roadway', 'warehouse_doors', 'street_lamps', 'abberline'],
+    keyClues: ["Killer approached Nichols calmly", "Witnesses believed she was drunk"],
+    criticalPathLead: "Review the witness testimony and examine the street to understand the killer's non-threatening approach."
+  },
+  hanbury_street: {
+    name: "Hanbury Street",
+    shortName: "Hanbury Street",
+    atmosphere: "Crowded working-class neighborhood. The backyard behind 29 Hanbury Street where Annie Chapman was found.",
+    description: "The yard is small, enclosed by a wooden fence. It feels far too public for such a private horror.",
+    exits: ['bucks_row', 'dutfields_yard'],
+    interactables: ['wooden_fence', 'yard_steps', 'ground_where_body_was_discovered', 'bond', 'edmund'],
+    keyClues: ["Organ removal (uterus)", "Killer has anatomical familiarity"],
+    criticalPathLead: "Examine the yard and speak with Dr. Bond about the anatomical precision of the organ removal."
+  },
+  dutfields_yard: {
+    name: "Dutfield’s Yard",
+    shortName: "Dutfield’s Yard",
+    atmosphere: "Lively due to the nearby club, but quiet within the yard itself. Where Elizabeth Stride was found.",
+    description: "A small yard beside the International Working Men’s Club. The sounds of political discussion drift from the open windows above.",
+    exits: ['hanbury_street', 'working_mens_club', 'mitre_square'],
+    interactables: ['yard_entrance_gate', 'cart_path', 'club_doorway', 'diemschutz', 'bond', 'edmund'],
+    keyClues: ["Killer was interrupted", "Only a throat wound"],
+    criticalPathLead: "Inspect the entryway and speak with Louis Diemschutz to reconstruct the timeline of the interruption."
+  },
+  working_mens_club: {
+    name: "International Working Men’s Club",
+    shortName: "Working Men's Club",
+    atmosphere: "Political discussions, cigarette smoke, crowded benches. A meeting hall for socialist workers.",
+    description: "The room is filled with the scent of cheap tobacco and the energy of debate. Posters and newspapers line the walls.",
+    exits: ['dutfields_yard'],
+    interactables: ['tables', 'posters', 'newspapers', 'club_members'],
+    keyClues: ["Witness accounts of Stride's discovery", "Social context of the neighborhood"],
+    criticalPathLead: "Interview the club members to gather witness accounts and understand the social tension."
+  },
+  mitre_square: {
+    name: "Mitre Square",
+    shortName: "Mitre Square",
+    atmosphere: "Cold and isolated with echoing footsteps. Where Catherine Eddowes was murdered.",
+    description: "A stone square within the City of London. The dark alleyways seem to swallow the light from the police lanterns.",
+    exits: ['dutfields_yard', 'goulston_street'],
+    interactables: ['alleyways', 'square_walls', 'police_lanterns', 'bond', 'edmund'],
+    keyClues: ["Kidney removal", "Killer knew the city escape routes"],
+    criticalPathLead: "Discuss the kidney removal with Dr. Bond and study the escape routes to build the killer's profile."
+  },
+  goulston_street: {
+    name: "Goulston Street",
+    shortName: "Goulston Street",
+    atmosphere: "Busy street with tension due to recent unrest. Where a piece of Eddowes’ apron was found.",
+    description: "The street is bustling, but the wall where the graffiti was discovered remains a point of grim fascination.",
+    exits: ['mitre_square', 'lusk_office'],
+    interactables: ['graffiti_wall', 'apron_fragment_location', 'city_police'],
+    keyClues: ["Killer moving through the city", "Manipulation of the investigation through graffiti"],
+    criticalPathLead: "Examine the graffiti location and discuss the police decision to erase the message."
+  },
+  lusk_office: {
+    name: "George Lusk’s Office",
+    shortName: "Lusk Office",
+    atmosphere: "Cluttered with papers and letters. Meeting room of the Whitechapel Vigilance Committee.",
+    description: "The office is small and cramped, filled with the correspondence of a terrified district.",
+    exits: ['goulston_street', 'bond_office'],
+    interactables: ['parcel_box', 'from_hell_letter', 'kidney_parcel', 'lusk'],
+    keyClues: ["From Hell letter authenticity", "Half human kidney"],
+    criticalPathLead: "Examine the From Hell letter and the kidney parcel to understand the killer's psychological intent."
+  },
+  bond_office: {
+    name: "Dr. Bond’s Office",
+    shortName: "Bond Office",
+    atmosphere: "Clinical and quiet. Contains forensic records and anatomical specimens.",
+    description: "The room smells of formaldehyde and old paper. Medical reports are stacked neatly on the desk.",
+    exits: ['lusk_office', 'private_asylum', 'baker_street'],
+    interactables: ['medical_reports', 'anatomical_texts', 'specimen_jars', 'bond', 'edmund'],
+    keyClues: ["Edmund’s unusual spelling ('prasarved')", "Patterns across the murders"],
+    criticalPathLead: "Review the forensic reports and discover the spelling anomaly in Edmund's notes."
+  },
+  private_asylum: {
+    name: "The Private Asylum",
+    shortName: "Private Asylum",
+    atmosphere: "Quiet, sterile, and unsettlingly calm. An institution outside London.",
+    description: "The grounds are well-kept, but the high walls and locked doors speak of a different kind of poverty—the poverty of the mind.",
+    exits: ['bond_office', 'baker_street'],
+    interactables: ['patient_records', 'edmund_room_furnishings', 'superintendent', 'edmund'],
+    keyClues: ["Edmund's quiet commitment", "Family discovered disturbing evidence"],
+    criticalPathLead: "Speak with the asylum superintendent and confront Edmund in his room."
+  },
+  baker_street: {
+    name: "221B Baker Street",
     shortName: "Baker Street",
-    atmosphere: "Domestic familiarity tainted by intellectual mania. Hazy light, smell of stale tobacco.",
-    description: "Early morning light filters through the haze. The fire burns low. The floor is a carpet of cuttings, maps, and red string. Holmes sits cross-legged in the center of it all, a manic intellectual spider.",
-    exits: ['scene_2_scotland_yard'],
-    interactables: ['holmes', 'map_board', 'red_string', 'fireplace'],
-    keyClues: ["Sigils match hospital locations", "Diary reacts to the map"],
-    criticalPathLead: "Examine the map board carefully to link the diary to Scotland Yard's current investigation."
-  },
-  scene_2_scotland_yard: {
-    name: "Scotland Yard",
-    shortName: "Scotland Yard",
-    atmosphere: "Oppressive bureaucracy. Smells of ink, damp wool, and exhaustion.",
-    description: "A paper maze under gaslight. Constables whisper about the 'ghost ledger'. Inspector Abberline looks tired, buried behind a fortress of files.",
-    exits: ['scene_1_baker_street', 'scene_3_st_barts'],
-    interactables: ['abberline', 'evidence_files', 'clerk'],
-    keyClues: ["The Ghost Ledger missing entries", "Abberline's suspicion of Tobias Greel"],
-    criticalPathLead: "Search the evidence files to find the name 'Tobias Greel' mentioned in the Whitechapel reports."
-  },
-  scene_3_st_barts: {
-    name: "St. Bartholomew’s Hospital",
-    shortName: "St. Barts",
-    atmosphere: "Clinical chill. Smell of carbolic acid and old blood. Detached cruelty.",
-    description: "The chilled anatomy theatre. Sawdust damp with carbolic. Tobias Greel stands over a cadaver half-shrouded in muslin, a surgical saw in hand.",
-    exits: ['scene_2_scotland_yard', 'scene_4_whitechapel'],
-    interactables: ['tobias_greel', 'cadaver', 'tool_ledger'],
-    keyClues: ["Surgical saw matches victim marks", "Greel's bloody apron"],
-    criticalPathLead: "Confront Greel about the cadaver or secretly check the Tool Ledger to confirm a missing saw."
-  },
-  scene_4_whitechapel: {
-    name: "Whitechapel Streets (The Chase)",
-    shortName: "Whitechapel",
-    atmosphere: "Suffocating fog, wet cobbles, lurking danger. Gothic realism.",
-    description: "Narrow streets soaked in drizzle. Gaslight flickers on wet cobbles. A phantom coach rattles through the labyrinthine alleys ahead. The fog swells, alive with shapes.",
-    exits: ['scene_5_baker_street_night'],
-    interactables: ['phantom_coach', 'fog', 'muddy_cobbles', 'finch'],
-    keyClues: ["The Coach belongs to a high-ranking official", "Finch saw the driver's ring"],
-    criticalPathLead: "Pursue the phantom coach through the fog to identify its mysterious passenger."
-  },
-  scene_5_baker_street_night: {
-    name: "221B Baker Street (Reflection)",
-    shortName: "Baker Street",
-    atmosphere: "Heavy, reflective, storm-battered sanctuary.",
-    description: "Late night. Rain drums against the windows. Holmes is sketching lines connecting victims, sigils, and charity routes. The atmosphere is heavy with the weight of a new hypothesis.",
-    exits: [], // End of Act I
-    interactables: ['holmes', 'sketch_pad', 'brandy', 'window'],
-    keyClues: ["The Grand Conspiracy involves the Medical Board"],
-    criticalPathLead: "Review all gathered clues with Holmes to finalize the deduction of the Whitechapel killer's motive."
+    atmosphere: "Warm but reflective. Holmes and Watson’s residence.",
+    description: "The familiar clutter of our rooms at Baker Street is a welcome sight, though the case still hangs heavy in the air.",
+    exits: ['dorset_street', 'bond_office', 'private_asylum'],
+    interactables: ['watson_diary', 'holmes_violin', 'newspapers', 'holmes'],
+    keyClues: ["Final deduction (Edmund Halward)", "Historical ambiguity"],
+    criticalPathLead: "Review your diary entries and discuss the final conclusions with Holmes."
   }
 };
 
 export const GAME_ENGINE_PROMPT = `
 You are the Game Engine for "London Bleeds: The Whitechapel Diaries".
 Player: Dr. John Watson. 
-Style: Arthur Conan Doyle.
+Companion: Sherlock Holmes.
+Style: Somber, observant, first-person medical perspective (Watson's internal monologue).
+
+STORY CONTEXT:
+The year is 1888. You are investigating the Whitechapel murders. 
+The suspect is Edmund Halward, a quiet medical assistant to Dr. Thomas Bond.
+He is polite, reserved, and outwardly ordinary. 
+He is present at many crime scenes and medical examinations.
+
+CLUE PROGRESSION:
+1. Victim Approach: Killer appears respectable (Edmund fits this).
+2. Anatomical Knowledge: Killer knows anatomy (Edmund is a medical assistant).
+3. Interrupted Ritual: Stride murder was interrupted.
+4. Kidney Removal: Eddowes murder involved kidney removal.
+5. The Letter: "From Hell" letter with half a kidney.
+6. Spelling Clue: Edmund's note has "prasarved", matching the letter's "prasarved".
+7. Proximity: Edmund is always there.
+8. The Other Half: Edmund's family found the other half of the kidney.
+9. Asylum: Edmund is committed to an asylum after the Kelly murder.
 
 STRICT OPERATIONAL CONSTRAINTS:
-1. **Persona & Ethics (Red Lines)**: Watson is a Victorian Gentleman and Medical Doctor. 
-   - He NEVER steals, murders, or acts like a common criminal. 
-   - He is loyal to Holmes but maintains a moral compass. 
-   - If a player commands Watson to do something immoral or wildly out of character, Watson MUST refuse in-character (e.g., "My dear fellow, I am a man of medicine, not a cutpurse!").
-2. **Narrative Limit**: Each response MUST be under 150 words. Be punchy, atmospheric, and focus on immediate action/observation. Avoid rambling descriptions.
-3. **World Consistency**: ONLY use the locations and exits defined in WORLD_DATA. NEVER create new streets, rooms, or districts. If a player tries to leave the map, describe environmental barriers (fog, police lines).
-4. **Progression Nudge**: Your primary goal is to move the story toward the "Critical Path Lead". If a player pursues a "red herring" (irrelevant actions) for more than one turn, use Holmes or Watson's internal dialogue to refocus them on the key objective.
-5. **NPC Persistence**: NPCs stay in their assigned locations in WORLD_DATA unless the narrative explicitly transitions them.
+1. **Edmund's Behavior**: He must NEVER appear suspicious early. He is helpful, quiet, and mundane.
+2. **Holmes' Role**: Holmes is the guide. He makes subtle observations but NEVER accuses Edmund until the final act (The Asylum).
+3. **Watson's Perspective**: Focus on medical details, the atmosphere of Whitechapel, and the weight of the investigation.
+4. **Narrative Format**: 
+   - Each response < 150 words.
+   - Use first-person "I" for Watson's thoughts.
+   - Headers: "### ACT [X]: [SCENE NAME]" (Act I: The Last Murder, Act II: Reconstructing, Act III: Double Event, Act IV: The Letter, Act V: Suspicion, Act VI: Confrontation).
+   - Thoughts: > *Italics in blockquote representing Watson's internal conflict.*
+   - Look Mechanic (Only on entry/look):
+     **[NPC Name]** is here, [action].
+     **Objects of interest:** [Item 1].
+     **Possible exits:** [Exit 1].
 
-NARRATIVE FORMAT:
-- Headers: "### SCENE [X]: [NAME]"
-- Thoughts: > *Italics in blockquote*
-- Look Mechanic: Append a Summary Block ONLY when entering a new location or when specifically "looking".
-  **[Character Name]** is here, [brief action].
-  **Objects of interest:** [Item 1], [Item 2].
-  **Possible exits:** [Exit 1].
+5. **Progression Logic**:
+   - The game follows the Acts defined in the Scene Structure Document.
+   - Clues are revealed gradually.
+   - The final deduction happens at Baker Street after the Asylum visit.
 
 Separation: End story with " <<<GAME_STATE>>> " followed by JSON.
 
 JSON STRUCTURE:
 {
-  "thoughtProcess": "Plan the nudge and check character ethics before generating text",
+  "thoughtProcess": "Analysis of clues and narrative progression",
   "newLocationId": "scene_id",
   "inventoryUpdate": { "add": [], "remove": [] },
-  "dispositionUpdate": {}, 
+  "dispositionUpdate": { "holmes": { "trust": 0 }, "edmund": { "trust": 0 } }, 
+  "flagsUpdate": { "clue_discovered": true },
   "sanityUpdate": 0, 
   "gameOver": false
 }
