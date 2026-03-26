@@ -16,7 +16,11 @@ export const callGemini = async (
   useJson: boolean = true, 
   thinkingBudget: number = DEFAULT_THINKING_BUDGET
 ): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is missing. Please check your environment variables.");
+  }
+  const ai = new GoogleGenAI({ apiKey });
 
   // Using the explicit parts structure for better compatibility with proxy environments
   const response = await ai.models.generateContent({
@@ -50,7 +54,11 @@ export const callGemini = async (
  * Streams a response from Gemini.
  */
 export const streamGemini = async function* (prompt: string) {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is missing. Please check your environment variables.");
+  }
+  const ai = new GoogleGenAI({ apiKey });
   
   const responseStream = await ai.models.generateContentStream({
     model: MODEL_ID,

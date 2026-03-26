@@ -17,8 +17,11 @@ import {
   INITIAL_INVENTORY, 
   INITIAL_SANITY, 
   INITIAL_DISPOSITION, 
+  INITIAL_NPC_STATES,
   WORLD_DATA, 
-  GAME_ENGINE_PROMPT 
+  GAME_ENGINE_PROMPT,
+  NPC_DISPLAY_NAMES,
+  OBJECT_DISPLAY_NAMES
 } from './constants';
 import { 
   GameHistoryItem, 
@@ -28,18 +31,17 @@ import {
   NPCState,
   LogEntry 
 } from './types';
-import { FirebaseProvider, useFirebase } from './components/FirebaseProvider';
+import { SupabaseProvider, useSupabase } from './components/SupabaseProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { loginWithGoogle, logout, db, OperationType, handleFirestoreError } from './firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { supabase } from './supabase';
 
 const AppContent: React.FC = () => {
-  const { user, isAuthReady } = useFirebase();
+  const { user, isAuthReady, authError, loginWithGoogle, logout, clearAuthError } = useSupabase();
   // --- STATE ---
   const [history, setHistory] = useState<GameHistoryItem[]>([
     { 
       role: 'assistant', 
-      text: "### ACT I: THE LAST MURDER\n\n> *Dorset Street is a grey sea of humanity, the fog thin and revealing the soot-stained faces of the working poor. A crowd has gathered outside Miller’s Court, their whispers a low hum against the city's noise.*\n\nI stand with Holmes outside the entrance to the court. Inspector Abberline is here, his face etched with the fatigue of a man who has seen too much and learned too little. 'Another one, Doctor,' he says, his voice flat. 'Inside. Room 13.'\n\n**Inspector Abberline** is here, guarding the entrance.\n**Objects of interest:** Police Barricade, Street Lamps, Lodging House Entrances.\n**Possible exits:** Miller’s Court, Buck’s Row." 
+      text: "### ACT I: THE LAST MURDER\n\n> *Dorset Street is a grey sea of humanity, the fog thin and revealing the soot-stained faces of the working poor. A crowd has gathered outside Miller’s Court, their whispers a low hum against the city's noise.*\n\nI stand with Holmes outside the entrance to the court. Inspector Abberline is here, his face etched with the fatigue of a man who has seen too much and learned too little. 'Another one, Doctor,' he says, his voice flat. 'Inside. Room 13.'\n\n**Sherlock Holmes** and **Inspector Abberline** are here.\n**Objects of interest:** Police Barricade, Street Lamps, Lodging House Entrances.\n**Possible exits:** Miller’s Court, Buck’s Row." 
     }
   ]);
   const [input, setInput] = useState('');
@@ -55,7 +57,7 @@ const AppContent: React.FC = () => {
   const [isGameOver, setIsGameOver] = useState(false);
   const [disposition, setDisposition] = useState(INITIAL_DISPOSITION);
   const [flags, setFlags] = useState<Record<string, boolean>>({});
-  const [npcStates, setNpcStates] = useState<Record<string, NPCState>>({});
+  const [npcStates, setNpcStates] = useState<Record<string, NPCState>>(INITIAL_NPC_STATES as Record<string, NPCState>);
   const [activeInvestigation, setActiveInvestigation] = useState<Investigation | null>(null);
   
   const [journalNotes, setJournalNotes] = useState("**Found:**\n* Reports of a new murder in Miller's Court.\n\n**Sanity Note:**\n* The fog of Whitechapel feels heavier today.");
@@ -66,7 +68,9 @@ const AppContent: React.FC = () => {
   // UI State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<{ gemini: boolean | null; supabase: boolean | null }>({ gemini: null, supabase: null });
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
@@ -81,6 +85,26 @@ const AppContent: React.FC = () => {
     };
     handleResize();
     window.addEventListener('resize', handleResize);
+
+    const checkConnections = async () => {
+      // Check Supabase
+      try {
+        const { error } = await supabase.from('investigations').select('id').limit(1);
+        setConnectionStatus(prev => ({ ...prev, supabase: !error }));
+      } catch (e) {
+        setConnectionStatus(prev => ({ ...prev, supabase: false }));
+      }
+
+      // Check Gemini
+      try {
+        const test = await callGemini("Say 'ok'", false, 0);
+        setConnectionStatus(prev => ({ ...prev, gemini: test.toLowerCase().includes('ok') }));
+      } catch (e) {
+        setConnectionStatus(prev => ({ ...prev, gemini: false }));
+      }
+    };
+    checkConnections();
+
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -108,22 +132,29 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     const lastMsg = history[history.length - 1];
-    if (lastMsg?.role === 'user') {
-      // Use requestAnimationFrame for most reliable scrolling after render
+    const secondLastMsg = history[history.length - 2];
+    
+    // Trigger scroll to active turn when a user message is submitted
+    // (Note: handleAction adds both user and empty assistant message at once)
+    if (lastMsg?.role === 'user' || (lastMsg?.role === 'assistant' && secondLastMsg?.role === 'user' && lastMsg.text === "")) {
       requestAnimationFrame(() => {
         scrollToActiveTurn();
       });
     }
   }, [history.length, scrollToActiveTurn]);
 
-  const handleSaveGame = async () => {
-    setIsProfileMenuOpen(false);
+  const handleSaveGame = async (silent = false) => {
+    if (!silent) setIsProfileMenuOpen(false);
+    setIsSaving(true);
     const gameState: GameState = {
       history,
       location,
       inventory,
       sanity,
+      medicalPoints,
+      moralPoints,
       disposition,
+      npcStates,
       flags,
       journalNotes,
       timestamp: new Date().toLocaleString()
@@ -137,31 +168,41 @@ const AppContent: React.FC = () => {
       if (user) {
         // 1. Update Granular Investigation
         if (activeInvestigation) {
-          await InvestigationService.updateInvestigation(activeInvestigation.id, {
+          const updated = await InvestigationService.updateInvestigation(activeInvestigation.id, {
             currentLocation: location,
             sanity,
             globalFlags: flags,
             journalNotes,
           });
+          if (updated) setActiveInvestigation(updated);
         }
 
         // 2. Update Legacy Save Blob (for backward compatibility/snapshots)
-        const saveRef = doc(db, 'saves', `${user.uid}_latest`);
-        await setDoc(saveRef, {
-          ...gameState,
-          uid: user.uid,
-          timestamp: new Date().toISOString()
-        });
-        setNotification({ message: "Game Saved to Cloud!", type: "success" });
+        const { error } = await supabase
+          .from('saves')
+          .upsert({
+            owner_id: user.id,
+            history: gameState.history,
+            location: gameState.location,
+            inventory: gameState.inventory,
+            sanity: gameState.sanity,
+            medical_points: gameState.medicalPoints,
+            moral_points: gameState.moralPoints,
+            flags: gameState.flags,
+            journal_notes: gameState.journalNotes,
+            timestamp: new Date().toISOString()
+          }, { onConflict: 'owner_id' });
+
+        if (error) throw error;
+        if (!silent) setNotification({ message: "Game Saved to Cloud!", type: "success" });
       } else {
-        setNotification({ message: "Game Saved Locally!", type: "success" });
+        if (!silent) setNotification({ message: "Game Saved Locally!", type: "success" });
       }
     } catch (e) {
       console.error("Save failed", e);
-      if (user) {
-        handleFirestoreError(e, OperationType.WRITE, `saves/${user.uid}_latest`);
-      }
-      setNotification({ message: "Failed to save game.", type: "error" });
+      if (!silent) setNotification({ message: "Failed to save game.", type: "error" });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -174,7 +215,7 @@ const AppContent: React.FC = () => {
       // Try Cloud Load first if logged in
       if (user) {
         // 1. Try to find an active investigation
-        investigation = await InvestigationService.getActiveInvestigation(user.uid);
+        investigation = await InvestigationService.getActiveInvestigation(user.id);
         
         if (investigation) {
           // Load from granular structure
@@ -195,37 +236,32 @@ const AppContent: React.FC = () => {
           setActiveInvestigation(investigation);
 
           // Fetch all NPC states for this investigation
-          const npcIds = ['abberline', 'bond', 'edmund', 'lusk', 'diemschutz'];
-          const npcPromises = npcIds.map(id => InvestigationService.getNPCState(investigation!.id, id));
-          const npcResults = await Promise.all(npcPromises);
-          const npcMap: Record<string, NPCState> = {};
-          npcResults.forEach((s, i) => {
-            if (s) npcMap[npcIds[i]] = s;
+          const npcMap = await InvestigationService.getAllNPCStates(investigation.id);
+          
+          // Ensure followers are with the player if they don't have a specific location set
+          const followers = ['holmes', 'edmund'];
+          const updatedNpcMap = { ...npcMap };
+          followers.forEach(fid => {
+            if (updatedNpcMap[fid] && updatedNpcMap[fid].currentLocation !== investigation.currentLocation) {
+              // Only move them if they were at a "previous" location or have no location
+              // For now, let's assume they follow if they are not explicitly elsewhere
+              // But we don't want to move them if they were intentionally left behind.
+              // This is tricky. Let's stick to the handleAction fix for now, 
+              // but ensure the sidebar shows them if they are in the "party".
+            }
           });
-          setNpcStates(npcMap);
+
+          if (Object.keys(npcMap).length > 0) {
+            setNpcStates(prev => ({ ...prev, ...npcMap }));
+          }
           
           setNotification({ message: "Investigation Resumed!", type: "success" });
           return;
         }
 
-        // 2. If no investigation, check for old save blob to migrate
-        const saveRef = doc(db, 'saves', `${user.uid}_latest`);
-        const saveSnap = await getDoc(saveRef);
-        if (saveSnap.exists()) {
-          const oldSave = saveSnap.data() as GameState & { isMigrated?: boolean };
-          if (!oldSave.isMigrated) {
-            setNotification({ message: "Migrating Case Files...", type: "success" });
-            investigation = await InvestigationService.migrateOldSave(user.uid, oldSave);
-            setActiveInvestigation(investigation);
-            // Reload with new structure
-            handleLoadGame();
-            return;
-          }
-        }
-
-        // 3. If still nothing, start a new investigation
+        // 2. If still nothing, start a new investigation
         if (!investigation) {
-          investigation = await InvestigationService.startNewInvestigation(user.uid, {
+          investigation = await InvestigationService.startNewInvestigation(user.id, {
             currentLocation: location,
             sanity,
             globalFlags: flags,
@@ -255,6 +291,7 @@ const AppContent: React.FC = () => {
           setDisposition(state.disposition || INITIAL_DISPOSITION);
           setFlags(state.flags || {});
           setJournalNotes(state.journalNotes || journalNotes);
+          if (state.npcStates) setNpcStates(state.npcStates);
         }
       }
     } catch (e) {
@@ -269,6 +306,90 @@ const AppContent: React.FC = () => {
       handleLoadGame();
     }
   }, [user, isAuthReady]);
+
+  // Real-time Sync for Investigation State
+  useEffect(() => {
+    if (!user || !activeInvestigation) return;
+
+    const channel = supabase
+      .channel(`investigation-${activeInvestigation.id}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'investigations', 
+        filter: `id=eq.${activeInvestigation.id}` 
+      }, (payload) => {
+        const data = payload.new as any;
+        // Only update if the remote change is newer than our local state
+        if (data.updated_at > activeInvestigation.updatedAt) {
+          setLocation(data.current_location);
+          setSanity(data.sanity);
+          setMedicalPoints(data.medical_points);
+          setMoralPoints(data.moral_points);
+          setFlags(data.global_flags);
+          setJournalNotes(data.journal_notes);
+          setActiveInvestigation(prev => prev ? ({
+            ...prev,
+            currentLocation: data.current_location,
+            sanity: data.sanity,
+            medicalPoints: data.medical_points,
+            moralPoints: data.moral_points,
+            globalFlags: data.global_flags,
+            journalNotes: data.journal_notes,
+            updatedAt: data.updated_at
+          }) : null);
+        }
+      })
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'npc_states', 
+        filter: `investigation_id=eq.${activeInvestigation.id}` 
+      }, (payload) => {
+        const data = payload.new as any;
+        setNpcStates(prev => {
+          // Check if we already have this exact state to avoid unnecessary re-renders
+          const existing = prev[data.npc_id];
+          if (existing && existing.lastInteraction === data.last_interaction && existing.status === data.status) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [data.npc_id]: {
+              npcId: data.npc_id,
+              disposition: data.disposition,
+              currentLocation: data.current_location,
+              status: data.status,
+              lastInteraction: data.last_interaction,
+              memory: data.memory
+            }
+          };
+        });
+      })
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'logs', 
+        filter: `investigation_id=eq.${activeInvestigation.id}` 
+      }, (payload) => {
+        const data = payload.new as any;
+        setHistory(prev => {
+          // Avoid duplicates if we were the one who added it
+          const isDuplicate = prev.some(h => h.text === data.content);
+          if (isDuplicate) return prev;
+          
+          return [...prev, {
+            role: data.type === 'action' ? 'user' : 'assistant',
+            text: data.content
+          }];
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, activeInvestigation?.id, activeInvestigation?.updatedAt]);
 
   const handleAction = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -305,25 +426,37 @@ const AppContent: React.FC = () => {
 
       // --- Phase 3: Fetch Dynamic Context ---
       let dynamicContext = "";
+      
+      // Explicitly list NPCs present in the current location for the AI
+      const npcsHere = Object.values(npcStates)
+        .filter(s => {
+          const npcLoc = s.currentLocation || (INITIAL_NPC_STATES[s.npcId]?.currentLocation);
+          return npcLoc === location && s.status !== 'deceased';
+        })
+        .map(s => NPC_DISPLAY_NAMES[s.npcId as keyof typeof NPC_DISPLAY_NAMES] || s.npcId);
+      
+      if (npcsHere.length > 0) {
+        dynamicContext += `\n=== NPCs PRESENT IN THIS SECTOR ===\n${npcsHere.join(', ')}\n`;
+      }
+
       if (user && activeInvestigation) {
         const locState = await InvestigationService.getLocationState(activeInvestigation.id, location);
         if (locState) {
           dynamicContext += `\n=== DYNAMIC LOCATION STATE ===\n${JSON.stringify(locState)}\n`;
         }
         
-        // Fetch state for NPCs in this location
-        const npcPromises = currentLocationData.interactables
-          .filter(id => ['abberline', 'bond', 'edmund', 'lusk', 'diemschutz'].includes(id))
+        // Fetch state for all known NPCs to ensure location persistence
+        const npcPromises = Object.keys(NPC_DISPLAY_NAMES)
           .map(id => InvestigationService.getNPCState(activeInvestigation.id, id));
         
-        const npcStates = await Promise.all(npcPromises);
-        const validNpcStates = npcStates.filter(s => s !== null);
+        const fetchedNpcStates = await Promise.all(npcPromises);
+        const validNpcStates = fetchedNpcStates.filter(s => s !== null);
         if (validNpcStates.length > 0) {
           dynamicContext += `\n=== DYNAMIC NPC STATES ===\n${JSON.stringify(validNpcStates.map(s => ({
             npcId: s.npcId,
             status: s.status,
             currentLocation: s.currentLocation,
-            memory: s.memory // AI now sees what happened in last meetings
+            memory: s.memory?.slice(0, 3) // Limit memory to last 3 interactions for context
           })))}\n`;
         }
 
@@ -334,15 +467,19 @@ const AppContent: React.FC = () => {
       }
 
       const narrativeHistory = history
-        .slice(-10)
+        .slice(-4) // Further reduced to 4 to be safe with token limits
         .filter(h => h.role !== 'system')
-        .map(h => `${h.role === 'user' ? 'WATSON' : 'GAME ENGINE'}: ${h.text}`)
+        .map(h => `${h.role === 'user' ? 'WATSON' : 'GAME ENGINE'}: ${h.text.substring(0, 800)}`)
         .join('\n\n');
 
       const isDeductionAttempt = input.toLowerCase().includes("deduce") || input.toLowerCase().includes("theory") || input.toLowerCase().includes("killer is");
 
       const contextPrompt = `
         ${GAME_ENGINE_PROMPT}
+
+        === DISPLAY NAMES ===
+        NPCs: ${JSON.stringify(NPC_DISPLAY_NAMES)}
+        Objects: ${JSON.stringify(OBJECT_DISPLAY_NAMES)}
 
         === CURRENT LOCATION DATA ===
         Name: ${currentLocationData.name}
@@ -410,7 +547,14 @@ const AppContent: React.FC = () => {
               return newHistory;
             });
           }
+          
+          // Task 1: Continuous auto-scroll during streaming
+          requestAnimationFrame(() => scrollToBottom(true));
         }
+      }
+
+      if (!fullAccumulatedText) {
+        throw new Error("The engine returned an empty response.");
       }
       
       if (foundSeparatorAt !== -1) {
@@ -418,8 +562,17 @@ const AppContent: React.FC = () => {
         if (finalJsonData) {
           try {
               const aiData = JSON.parse(finalJsonData) as GameResponse;
+              // --- Update Game State from AI Response ---
               if (aiData.newLocationId && WORLD_DATA[aiData.newLocationId as keyof typeof WORLD_DATA]) {
-                  setLocation(aiData.newLocationId);
+                  const newLoc = aiData.newLocationId;
+                  const oldLoc = location;
+                  setLocation(newLoc);
+
+                  // Logical Default: Holmes follows Watson if he was with him
+                  if (!aiData.npcMutations?.['holmes'] && npcStates['holmes']?.currentLocation === oldLoc) {
+                    if (!aiData.npcMutations) aiData.npcMutations = {};
+                    aiData.npcMutations['holmes'] = { currentLocation: newLoc };
+                  }
               }
               if (aiData.inventoryUpdate) {
                   let newInv = [...inventory];
@@ -433,8 +586,47 @@ const AppContent: React.FC = () => {
               if (aiData.flagsUpdate) {
                   setFlags(prev => ({ ...prev, ...aiData.flagsUpdate }));
               }
+              if (aiData.medicalPointsUpdate) setMedicalPoints(prev => prev + aiData.medicalPointsUpdate!);
+              if (aiData.moralPointsUpdate) setMoralPoints(prev => prev + aiData.moralPointsUpdate!);
+              if (aiData.gameOver) setIsGameOver(true);
 
-              // Update investigation state after AI turn
+              // Handle NPC Mutations & Memory (Local State First)
+              if (aiData.npcMutations || aiData.npcMemoryUpdate) {
+                setNpcStates(prev => {
+                  const finalNpcUpdates: Record<string, NPCState> = { ...prev };
+                  
+                  // 1. Apply Mutations
+                  if (aiData.npcMutations) {
+                    Object.entries(aiData.npcMutations).forEach(([npcId, updates]) => {
+                      const existing = finalNpcUpdates[npcId] || { npcId, disposition: 50, status: 'alive' };
+                      finalNpcUpdates[npcId] = { ...existing, ...updates };
+
+                      // Logical Default: Halward follows Bond
+                      if (npcId === 'bond' && updates.currentLocation) {
+                        const halwardExplicitlyMoved = aiData.npcMutations && aiData.npcMutations['edmund']?.currentLocation;
+                        if (!halwardExplicitlyMoved) {
+                          const hExisting = finalNpcUpdates['edmund'] || { npcId: 'edmund', disposition: 50, status: 'alive' };
+                          finalNpcUpdates['edmund'] = { ...hExisting, currentLocation: updates.currentLocation };
+                        }
+                      }
+                    });
+                  }
+
+                  // 2. Apply Memory Updates
+                  if (aiData.npcMemoryUpdate) {
+                    Object.entries(aiData.npcMemoryUpdate).forEach(([npcId, summary]) => {
+                      const existing = finalNpcUpdates[npcId] || { npcId, disposition: 50, status: 'alive' };
+                      const memory = existing.memory || [];
+                      const newMemory = [summary, ...memory].slice(0, 5); // Keep last 5
+                      finalNpcUpdates[npcId] = { ...existing, memory: newMemory };
+                    });
+                  }
+
+                  return finalNpcUpdates;
+                });
+              }
+
+              // --- Persist to Cloud if logged in ---
               if (user && activeInvestigation) {
                 // 1. Update Core Investigation
                 InvestigationService.updateInvestigation(activeInvestigation.id, {
@@ -444,18 +636,8 @@ const AppContent: React.FC = () => {
                   moralPoints: moralPoints + (aiData.moralPointsUpdate || 0),
                   globalFlags: { ...flags, ...(aiData.flagsUpdate || {}) },
                   journalNotes: journalNotes,
+                  status: aiData.gameOver ? 'solved' : 'active'
                 });
-
-                if (aiData.medicalPointsUpdate) setMedicalPoints(prev => prev + aiData.medicalPointsUpdate!);
-                if (aiData.moralPointsUpdate) setMoralPoints(prev => prev + aiData.moralPointsUpdate!);
-
-                if (aiData.gameOver) {
-                  setIsGameOver(true);
-                  InvestigationService.updateInvestigation(activeInvestigation.id, {
-                    status: 'solved',
-                    updatedAt: new Date().toISOString()
-                  });
-                }
 
                 // 2. Handle Location Mutations
                 if (aiData.locationMutations) {
@@ -464,28 +646,28 @@ const AppContent: React.FC = () => {
                   });
                 }
 
-                // 3. Handle NPC Mutations
+                // 3. Handle NPC Mutations (Cloud Sync)
                 if (aiData.npcMutations) {
                   Object.entries(aiData.npcMutations).forEach(([npcId, updates]) => {
                     InvestigationService.upsertNPCState(activeInvestigation.id, npcId, updates);
-                    setNpcStates(prev => ({
-                      ...prev,
-                      [npcId]: { ...(prev[npcId] || { npcId, disposition: 50, status: 'alive' }), ...updates }
-                    }));
+                    
+                    // Sync Halward if Bond moved
+                    if (npcId === 'bond' && updates.currentLocation) {
+                      const halwardExplicitlyMoved = aiData.npcMutations && aiData.npcMutations['edmund']?.currentLocation;
+                      if (!halwardExplicitlyMoved) {
+                        InvestigationService.upsertNPCState(activeInvestigation.id, 'edmund', { currentLocation: updates.currentLocation });
+                      }
+                    }
                   });
                 }
 
-                // 4. Handle NPC Memory Updates
+                // 4. Handle NPC Memory Updates (Cloud Sync)
                 if (aiData.npcMemoryUpdate) {
                   Object.entries(aiData.npcMemoryUpdate).forEach(async ([npcId, summary]) => {
                     const currentState = await InvestigationService.getNPCState(activeInvestigation.id, npcId);
                     const memory = currentState?.memory || [];
                     const newMemory = [summary, ...memory].slice(0, 5); // Keep last 5
                     InvestigationService.upsertNPCState(activeInvestigation.id, npcId, { memory: newMemory });
-                    setNpcStates(prev => ({
-                      ...prev,
-                      [npcId]: { ...(prev[npcId] || { npcId, disposition: 50, status: 'alive' }), memory: newMemory }
-                    }));
                   });
                 }
 
@@ -512,6 +694,9 @@ const AppContent: React.FC = () => {
                   return next;
                   });
               }
+
+              // Trigger silent auto-save after state updates
+              handleSaveGame(true);
           } catch (parseError) {
               console.error("Failed to parse game state JSON", parseError);
           }
@@ -667,31 +852,32 @@ const AppContent: React.FC = () => {
                     <span className="uppercase tracking-widest text-xs font-bold">Present in Sector</span>
                 </div>
                 <ul className="space-y-3">
-                    {Object.entries(npcStates)
-                      .filter(([_, state]) => state.currentLocation === location && state.status !== 'deceased')
-                      .map(([npcId, state]) => (
-                        <li key={npcId} className="flex flex-col gap-1 text-[#293351] opacity-90">
-                            <div className="flex items-center gap-3">
-                              <div className="w-1.5 h-1.5 rounded-full bg-[#CD7B00]" />
-                              <span className="font-sans text-md font-bold capitalize">{npcId}</span>
-                            </div>
-                            {state.memory && state.memory.length > 0 && (
-                              <p className="text-[10px] italic pl-4.5 opacity-60">Last: {state.memory[0]}</p>
-                            )}
-                        </li>
-                      ))
-                    }
-                    {/* Fallback to static data if no dynamic NPCs found yet */}
-                    {Object.values(npcStates).filter(s => s.currentLocation === location).length === 0 && 
-                      WORLD_DATA[location as keyof typeof WORLD_DATA]?.interactables
-                        .filter(id => ['abberline', 'bond', 'edmund', 'lusk', 'diemschutz'].includes(id))
-                        .map((npcId, idx) => (
-                          <li key={idx} className="flex items-center gap-3 text-[#293351] opacity-90">
-                              <div className="w-1.5 h-1.5 rounded-full bg-[#CD7B00]" />
-                              <span className="font-sans text-md capitalize">{npcId}</span>
-                          </li>
-                        ))
-                    }
+                    {(() => {
+                        const presentNpcs = Object.values(npcStates).filter(s => {
+                            const npcLoc = s.currentLocation || (INITIAL_NPC_STATES[s.npcId]?.currentLocation);
+                            return npcLoc === location && s.status !== 'deceased';
+                        });
+
+                        if (presentNpcs.length === 0) {
+                            return <p className="text-sm text-[#929DBF] italic">No one else is here.</p>;
+                        }
+
+                        return presentNpcs.map(state => {
+                            const npcId = state.npcId;
+                            const displayName = NPC_DISPLAY_NAMES[npcId as keyof typeof NPC_DISPLAY_NAMES] || npcId;
+                            return (
+                                <li key={npcId} className="flex flex-col gap-1 text-[#293351] opacity-90">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-[#CD7B00]" />
+                                      <span className="font-sans text-md capitalize">{displayName}</span>
+                                    </div>
+                                    {state?.memory && state.memory.length > 0 && (
+                                      <p className="text-[10px] italic pl-4.5 opacity-60">Last: {state.memory[0]}</p>
+                                    )}
+                                </li>
+                            );
+                        });
+                    })()}
                 </ul>
             </div>
 
@@ -715,23 +901,46 @@ const AppContent: React.FC = () => {
 
       <div className="flex-1 flex flex-col h-full relative w-full transition-all duration-300">
         <header className="sticky top-0 z-30 px-8 md:px-16 py-4 flex items-center justify-between bg-[#FDF9F5]/90 backdrop-blur-sm border-b border-[#C5CBDD]">
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-[#293351] hover:bg-[#293351]/5 rounded-md">
-                {isSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
-            </button>
+            <div className="flex items-center gap-4">
+              <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-[#293351] hover:bg-[#293351]/5 rounded-md">
+                  {isSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
+              </button>
+              
+              <div className="hidden md:flex items-center gap-3 px-3 py-1.5 bg-white/50 rounded-full border border-[#C5CBDD]/50">
+                  <div className="flex items-center gap-1.5" title={connectionStatus.gemini === true ? "Engine Connected" : connectionStatus.gemini === false ? "Engine Disconnected" : "Checking Engine..."}>
+                      <div className={`w-1.5 h-1.5 rounded-full ${connectionStatus.gemini === true ? 'bg-green-500' : connectionStatus.gemini === false ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+                      <span className="text-[9px] uppercase tracking-widest text-[#929DBF] font-bold">Engine</span>
+                  </div>
+                  <div className="w-px h-3 bg-[#C5CBDD]/50" />
+                  <div className="flex items-center gap-1.5" title={connectionStatus.supabase === true ? "Cloud Connected" : connectionStatus.supabase === false ? "Cloud Disconnected" : "Checking Cloud..."}>
+                      <div className={`w-1.5 h-1.5 rounded-full ${connectionStatus.supabase === true ? 'bg-green-500' : connectionStatus.supabase === false ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+                      <span className="text-[9px] uppercase tracking-widest text-[#929DBF] font-bold">Cloud</span>
+                  </div>
+                  {isSaving && (
+                    <>
+                      <div className="w-px h-3 bg-[#C5CBDD]/50" />
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                        <span className="text-[9px] uppercase tracking-widest text-orange-500 font-bold">Saving</span>
+                      </div>
+                    </>
+                  )}
+              </div>
+            </div>
 
             <div className="relative">
                 <button onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)} className="flex items-center gap-3 text-[#293351] group">
                     <div className="text-right hidden sm:block">
                         <span className="block text-sm font-bold group-hover:text-[#CD7B00]">
-                          {user ? user.displayName : "Dr. John Watson"}
+                          {user ? (user.user_metadata?.full_name || user.email) : "Dr. John Watson"}
                         </span>
                         <span className="text-[10px] uppercase tracking-widest opacity-60">
                           {user ? "Cloud Profile" : "Medical Profile"}
                         </span>
                     </div>
                     <div className="w-8 h-8 rounded-full bg-[#293351] text-white flex items-center justify-center overflow-hidden">
-                      {user?.photoURL ? (
-                        <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      {user?.user_metadata?.avatar_url ? (
+                        <img src={user.user_metadata.avatar_url} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
                         <User size={16} />
                       )}
@@ -747,18 +956,33 @@ const AppContent: React.FC = () => {
                                   <>
                                     <div className="px-3 py-2 border-b border-[#FDF9F5] mb-1">
                                       <p className="text-[10px] uppercase tracking-widest text-[#929DBF] font-bold">Logged In As</p>
-                                      <p className="text-xs font-medium text-[#293351] truncate">{user.email}</p>
+                                      <p className="text-xs font-medium text-[#293351] truncate">{user.user_metadata?.full_name || user.email}</p>
                                     </div>
-                                    <button onClick={handleSaveGame} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#293351] hover:bg-[#FDF9F5] rounded text-left"><Save size={14} /><span>Save to Cloud</span></button>
+                                    <button onClick={() => handleSaveGame()} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#293351] hover:bg-[#FDF9F5] rounded text-left"><Save size={14} /><span>Save to Cloud</span></button>
                                     <button onClick={handleLoadGame} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#293351] hover:bg-[#FDF9F5] rounded text-left"><FolderOpen size={14} /><span>Load from Cloud</span></button>
                                     <div className="h-px bg-[#FDF9F5] my-1" />
                                     <button onClick={() => { logout(); setIsProfileMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded text-left"><LogOut size={14} /><span>Sign Out</span></button>
                                   </>
                                 ) : (
                                   <>
-                                    <button onClick={() => { loginWithGoogle(); setIsProfileMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#293351] hover:bg-[#FDF9F5] rounded text-left font-bold"><LogIn size={14} /><span>Sign In with Google</span></button>
+                                    <button onClick={() => { loginWithGoogle(); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#293351] hover:bg-[#FDF9F5] rounded text-left font-bold"><LogIn size={14} /><span>Sign In with Google</span></button>
+                                    
+                                    {authError && (
+                                      <div className="px-3 py-2 bg-red-50 border border-red-100 rounded mx-2 my-1">
+                                        <p className="text-[10px] text-red-600 leading-tight">{authError}</p>
+                                        <button onClick={clearAuthError} className="text-[9px] text-red-400 underline mt-1">Clear</button>
+                                      </div>
+                                    )}
+
+                                    {((import.meta as any).env.VITE_SUPABASE_URL === 'https://itjnzcqapohnoqfnxtat.supabase.co' || !(import.meta as any).env.VITE_SUPABASE_URL) && (
+                                      <div className="px-3 py-2 bg-amber-50 border border-amber-100 rounded mx-2 my-1">
+                                        <p className="text-[9px] text-amber-700 leading-tight">
+                                          Using fallback project. To enable Google Login, please set your own Supabase credentials in Settings.
+                                        </p>
+                                      </div>
+                                    )}
                                     <div className="h-px bg-[#FDF9F5] my-1" />
-                                    <button onClick={handleSaveGame} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#293351] hover:bg-[#FDF9F5] rounded text-left"><Save size={14} /><span>Save Locally</span></button>
+                                    <button onClick={() => handleSaveGame()} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#293351] hover:bg-[#FDF9F5] rounded text-left"><Save size={14} /><span>Save Locally</span></button>
                                     <button onClick={handleLoadGame} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[#293351] hover:bg-[#FDF9F5] rounded text-left"><FolderOpen size={14} /><span>Load Locally</span></button>
                                   </>
                                 )}
@@ -784,13 +1008,14 @@ const AppContent: React.FC = () => {
                 const isAI = msg.role === 'assistant';
                 const isLast = index === history.length - 1;
                 const isLatestUser = index === actualLastUserIdx;
+                const isDimmed = isLoading && !isLast && !isLatestUser;
 
                 if (!isAI && msg.role !== 'system') {
                 return (
                     <div 
                       key={index} 
                       ref={isLatestUser ? lastUserMessageRef : null}
-                      className="my-8 animate-in slide-in-from-bottom-2 duration-300 scroll-mt-[100px]"
+                      className={`my-8 animate-in slide-in-from-bottom-2 duration-500 scroll-mt-[120px] transition-opacity ${isDimmed ? 'opacity-30' : 'opacity-100'}`}
                     >
                     <div className="pl-6 border-l-[3px] border-[#CD7B00]">
                         <span className="text-[#CD7B00] font-sans font-medium text-[14px] md:text-[20px] leading-relaxed">
@@ -803,7 +1028,7 @@ const AppContent: React.FC = () => {
 
                 if (isLast && isAI && msg.text !== "") {
                      return (
-                        <div key={index} className="mb-8">
+                        <div key={index} className="mb-8 transition-opacity duration-500">
                             <TypewriterBlock text={msg.text} />
                         </div>
                     );
@@ -811,7 +1036,7 @@ const AppContent: React.FC = () => {
 
                 if (msg.text !== "") {
                   return (
-                      <div key={index} className="mb-8">
+                      <div key={index} className={`mb-8 transition-opacity duration-500 ${isDimmed ? 'opacity-30' : 'opacity-100'}`}>
                           <StoryRenderer text={msg.text} />
                       </div>
                   );
@@ -848,7 +1073,7 @@ const AppContent: React.FC = () => {
         </div>
 
         {!isGameOver && (
-          <div className="absolute bottom-0 left-0 right-0 px-8 pb-8 pt-32 md:px-16 md:pb-12 md:pt-48 bg-gradient-to-t from-[#FDF9F5] via-[#FDF9F5] to-transparent pointer-events-none">
+          <div className="absolute bottom-0 left-0 right-0 px-8 pb-8 pt-16 md:px-16 md:pb-12 md:pt-24 bg-gradient-to-t from-[#FDF9F5] via-[#FDF9F5]/80 to-transparent pointer-events-none">
             <form onSubmit={handleAction} className="relative pointer-events-auto max-w-3xl mx-auto">
               {isLoading && (isConsultingHolmes || (history.length > 0 && history[history.length-1].role === 'assistant' && history[history.length-1].text === "")) && (
                   <div className="absolute bottom-full left-4 mb-2 flex items-center gap-2 text-[#CD7B00] animate-in fade-in zoom-in-95 duration-300 z-20">
@@ -898,9 +1123,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
-      <FirebaseProvider>
+      <SupabaseProvider>
         <AppContent />
-      </FirebaseProvider>
+      </SupabaseProvider>
     </ErrorBoundary>
   );
 };

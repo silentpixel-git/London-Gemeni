@@ -1,32 +1,13 @@
 
-import { 
-  doc, 
-  setDoc, 
-  getDoc, 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  orderBy, 
-  limit, 
-  writeBatch,
-  Timestamp,
-  serverTimestamp,
-  deleteDoc
-} from 'firebase/firestore';
-import { db, auth, OperationType, handleFirestoreError } from '../firebase';
+import { supabase } from '../supabase';
 import { 
   Investigation, 
   LocationState, 
   NPCState, 
   Clue, 
   LogEntry, 
-  GameState,
   InvestigationStatus
 } from '../types';
-
-const INVESTIGATIONS_COLLECTION = 'investigations';
-const SAVES_COLLECTION = 'saves';
 
 export class InvestigationService {
   /**
@@ -34,22 +15,36 @@ export class InvestigationService {
    */
   static async getActiveInvestigation(userId: string): Promise<Investigation | null> {
     try {
-      const q = query(
-        collection(db, INVESTIGATIONS_COLLECTION),
-        where('ownerId', '==', userId),
-        where('status', '==', 'active'),
-        orderBy('updatedAt', 'desc'),
-        limit(1)
-      );
+      const { data, error } = await supabase
+        .from('investigations')
+        .select('*')
+        .eq('owner_id', userId)
+        .eq('status', 'active')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
       
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const docSnap = querySnapshot.docs[0];
-        return { id: docSnap.id, ...docSnap.data() } as Investigation;
+      if (error) {
+        if (error.code === 'PGRST116') return null; // No rows found
+        throw error;
       }
-      return null;
+      
+      // Map snake_case to camelCase
+      return {
+        id: data.id,
+        ownerId: data.owner_id,
+        status: data.status,
+        currentLocation: data.current_location,
+        sanity: data.sanity,
+        medicalPoints: data.medical_points,
+        moralPoints: data.moral_points,
+        globalFlags: data.global_flags,
+        journalNotes: data.journal_notes,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      } as Investigation;
     } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, INVESTIGATIONS_COLLECTION);
+      console.error('Supabase Error (getActiveInvestigation):', error);
       return null;
     }
   }
@@ -59,76 +54,45 @@ export class InvestigationService {
    */
   static async startNewInvestigation(userId: string, initialData: Partial<Investigation>): Promise<Investigation> {
     try {
-      const investigationRef = doc(collection(db, INVESTIGATIONS_COLLECTION));
       const now = new Date().toISOString();
       
-      const newInvestigation: Investigation = {
-        id: investigationRef.id,
-        ownerId: userId,
+      const newInvestigation = {
+        owner_id: userId,
         status: 'active',
-        currentLocation: initialData.currentLocation || 'miller_court',
+        current_location: initialData.currentLocation || 'miller_court',
         sanity: initialData.sanity ?? 100,
-        medicalPoints: initialData.medicalPoints || 0,
-        moralPoints: initialData.moralPoints || 0,
-        globalFlags: initialData.globalFlags || {},
-        journalNotes: initialData.journalNotes || '',
-        createdAt: now,
-        updatedAt: now,
+        medical_points: initialData.medicalPoints || 0,
+        moral_points: initialData.moralPoints || 0,
+        global_flags: initialData.globalFlags || {},
+        journal_notes: initialData.journalNotes || '',
+        created_at: now,
+        updated_at: now,
       };
 
-      await setDoc(investigationRef, newInvestigation);
-      return newInvestigation;
+      const { data, error } = await supabase
+        .from('investigations')
+        .insert(newInvestigation)
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      // Map snake_case to camelCase
+      return {
+        id: data.id,
+        ownerId: data.owner_id,
+        status: data.status,
+        currentLocation: data.current_location,
+        sanity: data.sanity,
+        medicalPoints: data.medical_points,
+        moralPoints: data.moral_points,
+        globalFlags: data.global_flags,
+        journalNotes: data.journal_notes,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      } as Investigation;
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, INVESTIGATIONS_COLLECTION);
-      throw error;
-    }
-  }
-
-  /**
-   * Migrates an old save blob to the new granular structure.
-   */
-  static async migrateOldSave(userId: string, oldSave: GameState): Promise<Investigation> {
-    const batch = writeBatch(db);
-    const investigationRef = doc(collection(db, INVESTIGATIONS_COLLECTION));
-    const now = new Date().toISOString();
-
-    const investigation: Investigation = {
-      id: investigationRef.id,
-      ownerId: userId,
-      status: 'active',
-      currentLocation: oldSave.location,
-      sanity: oldSave.sanity,
-      medicalPoints: 0,
-      moralPoints: 0,
-      globalFlags: oldSave.flags,
-      journalNotes: oldSave.journalNotes,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    batch.set(investigationRef, investigation);
-
-    // Migrate History to Log
-    oldSave.history.forEach((item, index) => {
-      const logRef = doc(collection(db, `${INVESTIGATIONS_COLLECTION}/${investigation.id}/log`));
-      const logEntry: LogEntry = {
-        id: logRef.id,
-        timestamp: new Date(Date.now() - (oldSave.history.length - index) * 1000).toISOString(),
-        type: item.role === 'user' ? 'action' : 'narration',
-        content: item.text,
-      };
-      batch.set(logRef, logEntry);
-    });
-
-    // Mark old save as migrated
-    const oldSaveRef = doc(db, SAVES_COLLECTION, `${userId}_latest`);
-    batch.update(oldSaveRef, { isMigrated: true, migratedTo: investigation.id });
-
-    try {
-      await batch.commit();
-      return investigation;
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'migration_batch');
+      console.error('Supabase Error (startNewInvestigation):', error);
       throw error;
     }
   }
@@ -138,15 +102,22 @@ export class InvestigationService {
    */
   static async getRecentLogs(investigationId: string, limitCount = 20): Promise<LogEntry[]> {
     try {
-      const q = query(
-        collection(db, `${INVESTIGATIONS_COLLECTION}/${investigationId}/log`),
-        orderBy('timestamp', 'asc') // We want them in order for the UI
-      );
+      const { data, error } = await supabase
+        .from('logs')
+        .select('*')
+        .eq('investigation_id', investigationId)
+        .order('timestamp', { ascending: true });
       
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LogEntry));
+      if (error) throw error;
+      return data.map((l: any) => ({
+        id: l.id,
+        investigationId: l.investigation_id,
+        timestamp: l.timestamp,
+        type: l.type,
+        content: l.content
+      })) as LogEntry[];
     } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, `${INVESTIGATIONS_COLLECTION}/${investigationId}/log`);
+      console.error('Supabase Error (getRecentLogs):', error);
       return [];
     }
   }
@@ -156,26 +127,65 @@ export class InvestigationService {
    */
   static async addLogEntry(investigationId: string, entry: Omit<LogEntry, 'id'>): Promise<void> {
     try {
-      const logRef = doc(collection(db, `${INVESTIGATIONS_COLLECTION}/${investigationId}/log`));
-      await setDoc(logRef, { ...entry, id: logRef.id });
+      const { error } = await supabase
+        .from('logs')
+        .insert({ 
+          investigation_id: investigationId,
+          timestamp: entry.timestamp,
+          type: entry.type,
+          content: entry.content
+        });
+      
+      if (error) throw error;
       
       // Update investigation timestamp
-      const investigationRef = doc(db, INVESTIGATIONS_COLLECTION, investigationId);
-      await setDoc(investigationRef, { updatedAt: new Date().toISOString() }, { merge: true });
+      await InvestigationService.updateInvestigation(investigationId, { updatedAt: new Date().toISOString() });
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `${INVESTIGATIONS_COLLECTION}/${investigationId}/log`);
+      console.error('Supabase Error (addLogEntry):', error);
     }
   }
 
   /**
    * Updates investigation state.
    */
-  static async updateInvestigation(investigationId: string, updates: Partial<Investigation>): Promise<void> {
+  static async updateInvestigation(investigationId: string, updates: Partial<Investigation>): Promise<Investigation | null> {
     try {
-      const investigationRef = doc(db, INVESTIGATIONS_COLLECTION, investigationId);
-      await setDoc(investigationRef, { ...updates, updatedAt: new Date().toISOString() }, { merge: true });
+      const snakeUpdates: any = {};
+      if (updates.status) snakeUpdates.status = updates.status;
+      if (updates.currentLocation) snakeUpdates.current_location = updates.currentLocation;
+      if (updates.sanity !== undefined) snakeUpdates.sanity = updates.sanity;
+      if (updates.medicalPoints !== undefined) snakeUpdates.medical_points = updates.medicalPoints;
+      if (updates.moralPoints !== undefined) snakeUpdates.moral_points = updates.moralPoints;
+      if (updates.globalFlags) snakeUpdates.global_flags = updates.globalFlags;
+      if (updates.journalNotes !== undefined) snakeUpdates.journal_notes = updates.journalNotes;
+      
+      snakeUpdates.updated_at = new Date().toISOString();
+
+      const { data, error } = await supabase
+        .from('investigations')
+        .update(snakeUpdates)
+        .eq('id', investigationId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+
+      return {
+        id: data.id,
+        ownerId: data.owner_id,
+        status: data.status,
+        currentLocation: data.current_location,
+        sanity: data.sanity,
+        medicalPoints: data.medical_points,
+        moralPoints: data.moral_points,
+        globalFlags: data.global_flags,
+        journalNotes: data.journal_notes,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      } as Investigation;
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `${INVESTIGATIONS_COLLECTION}/${investigationId}`);
+      console.error('Supabase Error (updateInvestigation):', error);
+      return null;
     }
   }
 
@@ -184,10 +194,22 @@ export class InvestigationService {
    */
   static async upsertLocationState(investigationId: string, locationId: string, updates: Partial<LocationState>): Promise<void> {
     try {
-      const locRef = doc(db, `${INVESTIGATIONS_COLLECTION}/${investigationId}/locations`, locationId);
-      await setDoc(locRef, { ...updates, locationId, updatedAt: new Date().toISOString() }, { merge: true });
+      const snakeUpdates: any = {
+        investigation_id: investigationId,
+        location_id: locationId,
+        updated_at: new Date().toISOString()
+      };
+      if (updates.isCrimeScene !== undefined) snakeUpdates.is_crime_scene = updates.isCrimeScene;
+      if (updates.isLocked !== undefined) snakeUpdates.is_locked = updates.isLocked;
+      if (updates.mutations) snakeUpdates.mutations = updates.mutations;
+
+      const { error } = await supabase
+        .from('location_states')
+        .upsert(snakeUpdates, { onConflict: 'investigation_id,location_id' });
+      
+      if (error) throw error;
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `${INVESTIGATIONS_COLLECTION}/${investigationId}/locations/${locationId}`);
+      console.error('Supabase Error (upsertLocationState):', error);
     }
   }
 
@@ -196,11 +218,26 @@ export class InvestigationService {
    */
   static async getLocationState(investigationId: string, locationId: string): Promise<LocationState | null> {
     try {
-      const locRef = doc(db, `${INVESTIGATIONS_COLLECTION}/${investigationId}/locations`, locationId);
-      const snap = await getDoc(locRef);
-      return snap.exists() ? snap.data() as LocationState : null;
+      const { data, error } = await supabase
+        .from('location_states')
+        .select('*')
+        .eq('investigation_id', investigationId)
+        .eq('location_id', locationId)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') return null;
+        throw error;
+      }
+      return {
+        locationId: data.location_id,
+        isCrimeScene: data.is_crime_scene,
+        isLocked: data.is_locked,
+        mutations: data.mutations,
+        updatedAt: data.updated_at
+      } as LocationState;
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, `${INVESTIGATIONS_COLLECTION}/${investigationId}/locations/${locationId}`);
+      console.error('Supabase Error (getLocationState):', error);
       return null;
     }
   }
@@ -210,10 +247,54 @@ export class InvestigationService {
    */
   static async upsertNPCState(investigationId: string, npcId: string, updates: Partial<NPCState>): Promise<void> {
     try {
-      const npcRef = doc(db, `${INVESTIGATIONS_COLLECTION}/${investigationId}/npcs`, npcId);
-      await setDoc(npcRef, { ...updates, npcId, updatedAt: new Date().toISOString() }, { merge: true });
+      const snakeUpdates: any = {
+        investigation_id: investigationId,
+        npc_id: npcId,
+        updated_at: new Date().toISOString()
+      };
+      if (updates.disposition !== undefined) snakeUpdates.disposition = updates.disposition;
+      if (updates.status !== undefined) snakeUpdates.status = updates.status;
+      if (updates.currentLocation !== undefined) snakeUpdates.current_location = updates.currentLocation;
+      if (updates.lastInteraction !== undefined) snakeUpdates.last_interaction = updates.lastInteraction;
+      if (updates.memory) snakeUpdates.memory = updates.memory;
+
+      const { error } = await supabase
+        .from('npc_states')
+        .upsert(snakeUpdates, { onConflict: 'investigation_id,npc_id' });
+      
+      if (error) throw error;
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `${INVESTIGATIONS_COLLECTION}/${investigationId}/npcs/${npcId}`);
+      console.error('Supabase Error (upsertNPCState):', error);
+    }
+  }
+
+  /**
+   * Gets all NPC states for an investigation.
+   */
+  static async getAllNPCStates(investigationId: string): Promise<Record<string, NPCState>> {
+    try {
+      const { data, error } = await supabase
+        .from('npc_states')
+        .select('*')
+        .eq('investigation_id', investigationId);
+      
+      if (error) throw error;
+      
+      const npcMap: Record<string, NPCState> = {};
+      data.forEach((s: any) => {
+        npcMap[s.npc_id] = {
+          npcId: s.npc_id,
+          disposition: s.disposition,
+          currentLocation: s.current_location,
+          status: s.status,
+          lastInteraction: s.last_interaction,
+          memory: s.memory
+        } as NPCState;
+      });
+      return npcMap;
+    } catch (error) {
+      console.error('Supabase Error (getAllNPCStates):', error);
+      return {};
     }
   }
 
@@ -222,11 +303,27 @@ export class InvestigationService {
    */
   static async getNPCState(investigationId: string, npcId: string): Promise<NPCState | null> {
     try {
-      const npcRef = doc(db, `${INVESTIGATIONS_COLLECTION}/${investigationId}/npcs`, npcId);
-      const snap = await getDoc(npcRef);
-      return snap.exists() ? snap.data() as NPCState : null;
+      const { data, error } = await supabase
+        .from('npc_states')
+        .select('*')
+        .eq('investigation_id', investigationId)
+        .eq('npc_id', npcId)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') return null;
+        throw error;
+      }
+      return {
+        npcId: data.npc_id,
+        disposition: data.disposition,
+        currentLocation: data.current_location,
+        status: data.status,
+        lastInteraction: data.last_interaction,
+        memory: data.memory
+      } as NPCState;
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, `${INVESTIGATIONS_COLLECTION}/${investigationId}/npcs/${npcId}`);
+      console.error('Supabase Error (getNPCState):', error);
       return null;
     }
   }
@@ -236,10 +333,21 @@ export class InvestigationService {
    */
   static async addClue(investigationId: string, clue: Clue): Promise<void> {
     try {
-      const clueRef = doc(db, `${INVESTIGATIONS_COLLECTION}/${investigationId}/clues`, clue.clueId);
-      await setDoc(clueRef, { ...clue, discoveredAt: new Date().toISOString() }, { merge: true });
+      const { error } = await supabase
+        .from('clues')
+        .upsert({ 
+          investigation_id: investigationId,
+          clue_id: clue.clueId,
+          name: clue.name,
+          description: clue.description,
+          discovered_at: new Date().toISOString(),
+          location_found: clue.locationFound,
+          connections: clue.connections || []
+        }, { onConflict: 'investigation_id,clue_id' });
+      
+      if (error) throw error;
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `${INVESTIGATIONS_COLLECTION}/${investigationId}/clues/${clue.clueId}`);
+      console.error('Supabase Error (addClue):', error);
     }
   }
 
@@ -248,11 +356,23 @@ export class InvestigationService {
    */
   static async getClues(investigationId: string): Promise<Clue[]> {
     try {
-      const q = query(collection(db, `${INVESTIGATIONS_COLLECTION}/${investigationId}/clues`), orderBy('discoveredAt', 'desc'));
-      const snap = await getDocs(q);
-      return snap.docs.map(doc => doc.data() as Clue);
+      const { data, error } = await supabase
+        .from('clues')
+        .select('*')
+        .eq('investigation_id', investigationId)
+        .order('discovered_at', { ascending: false });
+      
+      if (error) throw error;
+      return data.map((c: any) => ({
+        clueId: c.clue_id,
+        name: c.name,
+        description: c.description,
+        discoveredAt: c.discovered_at,
+        locationFound: c.location_found,
+        connections: c.connections
+      })) as Clue[];
     } catch (error) {
-      handleFirestoreError(error, OperationType.LIST, `${INVESTIGATIONS_COLLECTION}/${investigationId}/clues`);
+      console.error('Supabase Error (getClues):', error);
       return [];
     }
   }

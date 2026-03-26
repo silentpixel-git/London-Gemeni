@@ -78,7 +78,10 @@ export interface GameState {
   location: string;
   inventory: string[];
   sanity: number;
+  medicalPoints: number;
+  moralPoints: number;
   disposition: GameDispositions;
+  npcStates?: Record<string, NPCState>;
   flags: Record<string, boolean>;
   journalNotes: string;
   timestamp: string;

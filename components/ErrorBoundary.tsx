@@ -27,14 +27,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render() {
     if (this.state.hasError) {
       let errorMessage = "An unexpected error occurred.";
-      let isFirebaseError = false;
+      let isCloudSyncError = false;
 
       try {
         if (this.state.error?.message) {
           const parsed = JSON.parse(this.state.error.message);
           if (parsed.error && parsed.operationType) {
             errorMessage = `Investigation Interrupted: ${parsed.error}`;
-            isFirebaseError = true;
+            isCloudSyncError = true;
           }
         }
       } catch (e) {
@@ -70,7 +70,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               </button>
             </div>
             
-            {isFirebaseError && (
+            {isCloudSyncError && (
               <p className="mt-6 text-[10px] uppercase tracking-widest text-[#929DBF] text-center">
                 Cloud Sync Error Detected
               </p>
