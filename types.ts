@@ -90,6 +90,7 @@ export interface GameState {
 export interface WorldLocation {
   name: string;
   shortName?: string;
+  act: number;
   atmosphere: string;
   description: string;
   exits: string[];

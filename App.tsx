@@ -5,6 +5,7 @@ import {
   PanelLeftOpen, ChevronDown, LogOut, DoorOpen, ArrowDown, LogIn, Cloud
 } from 'lucide-react';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { StoryRenderer } from './components/StoryRenderer';
 import { JournalRenderer } from './components/JournalRenderer';
 import { TypewriterBlock } from './components/TypewriterBlock';
@@ -59,6 +60,7 @@ const AppContent: React.FC = () => {
   const [flags, setFlags] = useState<Record<string, boolean>>({});
   const [npcStates, setNpcStates] = useState<Record<string, NPCState>>(INITIAL_NPC_STATES as Record<string, NPCState>);
   const [activeInvestigation, setActiveInvestigation] = useState<Investigation | null>(null);
+  const [currentAct, setCurrentAct] = useState(1);
   
   const [journalNotes, setJournalNotes] = useState("**Found:**\n* Reports of a new murder in Miller's Court.\n\n**Sanity Note:**\n* The fog of Whitechapel feels heavier today.");
   
@@ -132,11 +134,10 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     const lastMsg = history[history.length - 1];
-    const secondLastMsg = history[history.length - 2];
     
-    // Trigger scroll to active turn when a user message is submitted
-    // (Note: handleAction adds both user and empty assistant message at once)
-    if (lastMsg?.role === 'user' || (lastMsg?.role === 'assistant' && secondLastMsg?.role === 'user' && lastMsg.text === "")) {
+    // Trigger scroll to top of command when a new user message is added
+    // even if an empty assistant message follows it immediately (start of stream)
+    if (lastMsg?.role === 'assistant' && lastMsg.text === "" && history.length > 1 && history[history.length - 2].role === 'user') {
       requestAnimationFrame(() => {
         scrollToActiveTurn();
       });
@@ -416,6 +417,7 @@ const AppContent: React.FC = () => {
     try {
       const currentLocationData = WORLD_DATA[location as keyof typeof WORLD_DATA] || { 
         name: "Unknown Location", 
+        act: 1,
         atmosphere: "Void",
         description: "You are in a place that is not mapped.", 
         exits: [], 
@@ -423,6 +425,12 @@ const AppContent: React.FC = () => {
         keyClues: [],
         criticalPathLead: ""
       };
+
+      // Filter exits based on current act
+      const filteredExits = currentLocationData.exits.filter(exitId => {
+        const exitData = WORLD_DATA[exitId as keyof typeof WORLD_DATA];
+        return exitData && exitData.act <= currentAct;
+      });
 
       // --- Phase 3: Fetch Dynamic Context ---
       let dynamicContext = "";
@@ -475,19 +483,15 @@ const AppContent: React.FC = () => {
       const isDeductionAttempt = input.toLowerCase().includes("deduce") || input.toLowerCase().includes("theory") || input.toLowerCase().includes("killer is");
 
       const contextPrompt = `
-        ${GAME_ENGINE_PROMPT}
-
-        === DISPLAY NAMES ===
-        NPCs: ${JSON.stringify(NPC_DISPLAY_NAMES)}
-        Objects: ${JSON.stringify(OBJECT_DISPLAY_NAMES)}
-
         === CURRENT LOCATION DATA ===
         Name: ${currentLocationData.name}
         Key Clues: ${currentLocationData.keyClues.join(', ')}
         CRITICAL PROGRESSION LEAD: ${currentLocationData.criticalPathLead}
+        Available Exits (Filtered for Act ${currentAct}): ${filteredExits.join(', ')}
         ${dynamicContext}
 
         === WATSON'S STATUS ===
+        - Current Act: ${currentAct}
         - Sanity: ${sanity}/100
         - Medical Path Points: ${medicalPoints}
         - Moral Path Points: ${moralPoints}
@@ -495,61 +499,49 @@ const AppContent: React.FC = () => {
         - Active Flags: ${JSON.stringify(flags)}
         - Is Deduction Attempt: ${isDeductionAttempt ? "YES" : "NO"}
 
-        REMINDER: If this is a deduction attempt, evaluate it against the Secret Truth (Edmund Halward). 
-        If they are correct, reveal the path to the Private Asylum or trigger the Finale.
-        If they are wrong, provide a chilling narrative setback.
-        Use Watson's medical/moral style based on the points.
-
         === NARRATIVE HISTORY ===
         ${narrativeHistory}
 
-        === CURRENT STATE ===
-        - Location: ${location}
-        - Inventory: ${inventory.join(', ')}
-        - Sanity: ${sanity}/100
-        - Flags: ${JSON.stringify(flags)}
-        
         PLAYER ACTION: "${userAction}"
       `;
 
       let fullAccumulatedText = "";
-      let foundSeparatorAt = -1;
-      const separator = "<<<GAME_STATE>>>";
       
-      const stream = streamGemini(contextPrompt);
+      const stream = streamGemini(contextPrompt, GAME_ENGINE_PROMPT);
 
-      for await (const chunk of stream) {
-        fullAccumulatedText += chunk;
+      for await (const update of stream) {
+        const { narrative, fullJson, isComplete } = update;
+        fullAccumulatedText = fullJson;
         
-        if (foundSeparatorAt === -1) {
-          const idx = fullAccumulatedText.indexOf(separator);
-          if (idx !== -1) {
-            foundSeparatorAt = idx;
-            const narrativePart = fullAccumulatedText.substring(0, idx);
-            setHistory(prev => {
-              const newHistory = [...prev];
-              newHistory[newHistory.length - 1] = { ...newHistory[newHistory.length - 1], text: narrativePart };
-              return newHistory;
-            });
+        setHistory(prev => {
+          const newHistory = [...prev];
+          newHistory[newHistory.length - 1] = { ...newHistory[newHistory.length - 1], text: narrative };
+          return newHistory;
+        });
 
-            // Persist AI response to granular log
-            if (user && activeInvestigation) {
-              InvestigationService.addLogEntry(activeInvestigation.id, {
-                timestamp: new Date().toISOString(),
-                type: 'narration',
-                content: narrativePart
-              });
+        if (isComplete) {
+          // Detect Act Change
+          const actMatch = narrative.match(/### ACT\s+([IVXLCDM]+|[0-9]+)/i);
+          if (actMatch) {
+            const actStr = actMatch[1].toUpperCase();
+            let actNum = parseInt(actStr);
+            if (isNaN(actNum)) {
+              const romanMap: Record<string, number> = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6 };
+              actNum = romanMap[actStr] || currentAct;
             }
-          } else {
-            setHistory(prev => {
-              const newHistory = [...prev];
-              newHistory[newHistory.length - 1] = { ...newHistory[newHistory.length - 1], text: fullAccumulatedText };
-              return newHistory;
+            if (actNum !== currentAct) {
+              setCurrentAct(actNum);
+            }
+          }
+
+          // Persist AI response to granular log
+          if (user && activeInvestigation) {
+            InvestigationService.addLogEntry(activeInvestigation.id, {
+              timestamp: new Date().toISOString(),
+              type: 'narration',
+              content: narrative
             });
           }
-          
-          // Task 1: Continuous auto-scroll during streaming
-          requestAnimationFrame(() => scrollToBottom(true));
         }
       }
 
@@ -557,12 +549,10 @@ const AppContent: React.FC = () => {
         throw new Error("The engine returned an empty response.");
       }
       
-      if (foundSeparatorAt !== -1) {
-        const finalJsonData = fullAccumulatedText.substring(foundSeparatorAt + separator.length).trim();
-        if (finalJsonData) {
-          try {
-              const aiData = JSON.parse(finalJsonData) as GameResponse;
-              // --- Update Game State from AI Response ---
+      // Parse the final JSON data
+      try {
+          const aiData = JSON.parse(fullAccumulatedText) as GameResponse;
+          // --- Update Game State from AI Response ---
               if (aiData.newLocationId && WORLD_DATA[aiData.newLocationId as keyof typeof WORLD_DATA]) {
                   const newLoc = aiData.newLocationId;
                   const oldLoc = location;
@@ -700,8 +690,6 @@ const AppContent: React.FC = () => {
           } catch (parseError) {
               console.error("Failed to parse game state JSON", parseError);
           }
-        }
-      }
 
     } catch (error) {
       console.error(error);
@@ -722,7 +710,6 @@ const AppContent: React.FC = () => {
       const context = history.slice(-4).map(m => `${m.role}: ${m.text || ""}`).join('\n');
       
       const prompt = `
-        You are Sherlock Holmes. Watson (the player) is stuck.
         Location: ${currentLocationData?.name}
         Progression Goal: ${currentLocationData?.criticalPathLead}
         Watson's Style: ${medicalPoints > moralPoints ? "Highly analytical and medical" : moralPoints > medicalPoints ? "Deeply moral and empathetic" : "Balanced"}
@@ -732,7 +719,8 @@ const AppContent: React.FC = () => {
         Max 40 words. No fluff. Use Holmes's intellectual but respectful tone toward Watson.
       `;
       
-      const hint = await callGemini(prompt, false, 0);
+      const systemInstruction = "You are Sherlock Holmes. Watson (the player) is stuck. Give a sharp, brief, cryptic deduction.";
+      const hint = await callGemini(prompt, false, 0, systemInstruction);
       setHistory(prev => [...prev, { 
         role: 'assistant', 
         text: `> *Holmes leans in, his eyes sharp and analytical...*\n\n**Sherlock Holmes**: "${hint || "Focus on the facts at hand, Watson!"}"` 
@@ -757,16 +745,15 @@ const AppContent: React.FC = () => {
         .map(h => h.text || "")
         .join('\n');
 
-      const prompt = `You are Dr. Watson. Update your diary entries based on the case progress. 
+      const prompt = `Source Material: ${fullStory}`;
+      const systemInstruction = `You are Dr. Watson. Update your diary entries based on the case progress. 
       STRICT CONSTRAINTS:
       1. Keep the sections: **Found:** and **Sanity Note:**.
       2. Provide a TOTAL of only 2 to 3 bullet points across the entire notes.
       3. Focus on medical findings and systemic observations.
-      4. Be brief. No narrative re-telling.
+      4. Be brief. No narrative re-telling.`;
       
-      Source Material: ${fullStory}`;
-      
-      const notes = await callGemini(prompt, false, 0);
+      const notes = await callGemini(prompt, false, 0, systemInstruction);
       setJournalNotes(notes || "No updates available.");
     } catch (error) {
       console.error("Notes update failed", error);
@@ -834,7 +821,12 @@ const AppContent: React.FC = () => {
                     <span className="uppercase tracking-widest text-xs font-bold">Avenues</span>
                 </div>
                 <ul className="space-y-3">
-                    {WORLD_DATA[location as keyof typeof WORLD_DATA]?.exits.map((exitId, idx) => {
+                    {WORLD_DATA[location as keyof typeof WORLD_DATA]?.exits
+                      .filter(exitId => {
+                        const exitData = WORLD_DATA[exitId as keyof typeof WORLD_DATA];
+                        return exitData && exitData.act <= currentAct;
+                      })
+                      .map((exitId, idx) => {
                          const exitData = WORLD_DATA[exitId as keyof typeof WORLD_DATA];
                          return (
                             <li key={idx} className="flex items-center gap-3 text-[#293351] opacity-90">
@@ -871,9 +863,6 @@ const AppContent: React.FC = () => {
                                       <div className="w-1.5 h-1.5 rounded-full bg-[#CD7B00]" />
                                       <span className="font-sans text-md capitalize">{displayName}</span>
                                     </div>
-                                    {state?.memory && state.memory.length > 0 && (
-                                      <p className="text-[10px] italic pl-4.5 opacity-60">Last: {state.memory[0]}</p>
-                                    )}
                                 </li>
                             );
                         });
@@ -1004,45 +993,59 @@ const AppContent: React.FC = () => {
           </div>
 
           <div className="max-w-3xl mx-auto">
-            {history.map((msg, index) => {
-                const isAI = msg.role === 'assistant';
-                const isLast = index === history.length - 1;
-                const isLatestUser = index === actualLastUserIdx;
-                const isDimmed = isLoading && !isLast && !isLatestUser;
+            <AnimatePresence initial={false}>
+              {history.map((msg, index) => {
+                  const isAI = msg.role === 'assistant';
+                  const isLast = index === history.length - 1;
+                  const isLatestUser = index === actualLastUserIdx;
 
-                if (!isAI && msg.role !== 'system') {
-                return (
-                    <div 
-                      key={index} 
-                      ref={isLatestUser ? lastUserMessageRef : null}
-                      className={`my-8 animate-in slide-in-from-bottom-2 duration-500 scroll-mt-[120px] transition-opacity ${isDimmed ? 'opacity-30' : 'opacity-100'}`}
-                    >
-                    <div className="pl-6 border-l-[3px] border-[#CD7B00]">
-                        <span className="text-[#CD7B00] font-sans font-medium text-[14px] md:text-[20px] leading-relaxed">
-                        {msg.text}
-                        </span>
-                    </div>
-                    </div>
-                );
-                }
-
-                if (isLast && isAI && msg.text !== "") {
-                     return (
-                        <div key={index} className="mb-8 transition-opacity duration-500">
-                            <TypewriterBlock text={msg.text} />
-                        </div>
-                    );
-                }
-
-                if (msg.text !== "") {
+                  if (!isAI && msg.role !== 'system') {
                   return (
-                      <div key={index} className={`mb-8 transition-opacity duration-500 ${isDimmed ? 'opacity-30' : 'opacity-100'}`}>
-                          <StoryRenderer text={msg.text} />
+                      <motion.div 
+                        key={index} 
+                        ref={isLatestUser ? lastUserMessageRef : null}
+                        initial={isLatestUser ? { y: 300, opacity: 0 } : { opacity: 1 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ type: 'spring', stiffness: 120, damping: 20, mass: 0.8 }}
+                        className="my-8 scroll-mt-[120px]"
+                      >
+                      <div className="pl-6 border-l-[3px] border-[#CD7B00]">
+                          <span className="text-[#CD7B00] font-sans font-medium text-[14px] md:text-[20px] leading-relaxed">
+                          {msg.text}
+                          </span>
                       </div>
+                      </motion.div>
                   );
-                }
-                return null;
-            })}
+                  }
+
+                  if (isLast && isAI && msg.text !== "") {
+                       return (
+                          <motion.div 
+                            key={index} 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="mb-8"
+                          >
+                              <TypewriterBlock text={msg.text} />
+                          </motion.div>
+                      );
+                  }
+
+                  if (msg.text !== "") {
+                    return (
+                        <motion.div 
+                          key={index} 
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="mb-8"
+                        >
+                            <StoryRenderer text={msg.text} />
+                        </motion.div>
+                    );
+                  }
+                  return null;
+              })}
+            </AnimatePresence>
             
             {isGameOver && (
                 <div className="flex flex-col items-center justify-center py-16 border-t border-[#CD7B00]/20 mt-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
@@ -1073,7 +1076,7 @@ const AppContent: React.FC = () => {
         </div>
 
         {!isGameOver && (
-          <div className="absolute bottom-0 left-0 right-0 px-8 pb-8 pt-16 md:px-16 md:pb-12 md:pt-24 bg-gradient-to-t from-[#FDF9F5] via-[#FDF9F5]/80 to-transparent pointer-events-none">
+          <div className="absolute bottom-0 left-0 right-0 px-8 pb-8 pt-10 md:px-16 md:pb-12 md:pt-16 lg:pt-18 bg-gradient-to-t from-[#FDF9F5] to-transparent pointer-events-none">
             <form onSubmit={handleAction} className="relative pointer-events-auto max-w-3xl mx-auto">
               {isLoading && (isConsultingHolmes || (history.length > 0 && history[history.length-1].role === 'assistant' && history[history.length-1].text === "")) && (
                   <div className="absolute bottom-full left-4 mb-2 flex items-center gap-2 text-[#CD7B00] animate-in fade-in zoom-in-95 duration-300 z-20">

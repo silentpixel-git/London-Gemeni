@@ -88,6 +88,7 @@ export const WORLD_DATA: Record<string, WorldLocation> = {
   dorset_street: {
     name: "Dorset Street",
     shortName: "Dorset Street",
+    act: 1,
     atmosphere: "Foggy mornings, muddy roads, constant noise from vendors and carts. A crowded and impoverished street in Whitechapel.",
     description: "The air is thick with the smell of coal smoke and the press of humanity. A crowd has gathered outside Miller’s Court, their whispers a low hum against the city's noise.",
     exits: ['millers_court', 'bucks_row'],
@@ -96,8 +97,9 @@ export const WORLD_DATA: Record<string, WorldLocation> = {
     criticalPathLead: "Speak with Inspector Abberline or enter Miller’s Court to begin the investigation."
   },
   millers_court: {
-    name: "Miller’s Court",
-    shortName: "Miller’s Court",
+    name: "13 Miller’s Court",
+    shortName: "13 Miller’s Court",
+    act: 1,
     atmosphere: "Claustrophobic, quiet, and deeply unsettling. The room where Mary Jane Kelly was found.",
     description: "A small rented room, barely large enough for the bed that dominates it. The fireplace is cold, but the air feels heavy with the weight of what occurred here.",
     exits: ['dorset_street'],
@@ -108,6 +110,7 @@ export const WORLD_DATA: Record<string, WorldLocation> = {
   bucks_row: {
     name: "Buck’s Row",
     shortName: "Buck’s Row",
+    act: 2,
     atmosphere: "Quiet and industrial. A narrow street lined with warehouses where Mary Ann Nichols was found.",
     description: "The cobblestones are slick with damp. The warehouses loom like silent sentinels over the spot where the first victim was discovered.",
     exits: ['dorset_street', 'hanbury_street'],
@@ -118,6 +121,7 @@ export const WORLD_DATA: Record<string, WorldLocation> = {
   hanbury_street: {
     name: "Hanbury Street",
     shortName: "Hanbury Street",
+    act: 2,
     atmosphere: "Crowded working-class neighborhood. The backyard behind 29 Hanbury Street where Annie Chapman was found.",
     description: "The yard is small, enclosed by a wooden fence. It feels far too public for such a private horror.",
     exits: ['bucks_row', 'dutfields_yard'],
@@ -128,6 +132,7 @@ export const WORLD_DATA: Record<string, WorldLocation> = {
   dutfields_yard: {
     name: "Dutfield’s Yard",
     shortName: "Dutfield’s Yard",
+    act: 3,
     atmosphere: "Lively due to the nearby club, but quiet within the yard itself. Where Elizabeth Stride was found.",
     description: "A small yard beside the International Working Men’s Club. The sounds of political discussion drift from the open windows above.",
     exits: ['hanbury_street', 'working_mens_club', 'mitre_square'],
@@ -138,6 +143,7 @@ export const WORLD_DATA: Record<string, WorldLocation> = {
   working_mens_club: {
     name: "International Working Men’s Club",
     shortName: "Working Men's Club",
+    act: 3,
     atmosphere: "Political discussions, cigarette smoke, crowded benches. A meeting hall for socialist workers.",
     description: "The room is filled with the scent of cheap tobacco and the energy of debate. Posters and newspapers line the walls.",
     exits: ['dutfields_yard'],
@@ -148,6 +154,7 @@ export const WORLD_DATA: Record<string, WorldLocation> = {
   mitre_square: {
     name: "Mitre Square",
     shortName: "Mitre Square",
+    act: 3,
     atmosphere: "Cold and isolated with echoing footsteps. Where Catherine Eddowes was murdered.",
     description: "A stone square within the City of London. The dark alleyways seem to swallow the light from the police lanterns.",
     exits: ['dutfields_yard', 'goulston_street'],
@@ -158,6 +165,7 @@ export const WORLD_DATA: Record<string, WorldLocation> = {
   goulston_street: {
     name: "Goulston Street",
     shortName: "Goulston Street",
+    act: 4,
     atmosphere: "Busy street with tension due to recent unrest. Where a piece of Eddowes’ apron was found.",
     description: "The street is bustling, but the wall where the graffiti was discovered remains a point of grim fascination.",
     exits: ['mitre_square', 'lusk_office'],
@@ -168,6 +176,7 @@ export const WORLD_DATA: Record<string, WorldLocation> = {
   lusk_office: {
     name: "George Lusk’s Office",
     shortName: "Lusk Office",
+    act: 4,
     atmosphere: "Cluttered with papers and letters. Meeting room of the Whitechapel Vigilance Committee.",
     description: "The office is small and cramped, filled with the correspondence of a terrified district.",
     exits: ['goulston_street', 'bond_office'],
@@ -178,6 +187,7 @@ export const WORLD_DATA: Record<string, WorldLocation> = {
   bond_office: {
     name: "Dr. Bond’s Office",
     shortName: "Bond Office",
+    act: 5,
     atmosphere: "Clinical and quiet. Contains forensic records and anatomical specimens.",
     description: "The room smells of formaldehyde and old paper. Medical reports are stacked neatly on the desk.",
     exits: ['lusk_office', 'private_asylum', 'baker_street'],
@@ -188,6 +198,7 @@ export const WORLD_DATA: Record<string, WorldLocation> = {
   private_asylum: {
     name: "The Private Asylum",
     shortName: "Private Asylum",
+    act: 6,
     atmosphere: "Quiet, sterile, and unsettlingly calm. An institution outside London.",
     description: "The grounds are well-kept, but the high walls and locked doors speak of a different kind of poverty—the poverty of the mind.",
     exits: ['bond_office', 'baker_street'],
@@ -198,6 +209,7 @@ export const WORLD_DATA: Record<string, WorldLocation> = {
   baker_street: {
     name: "221B Baker Street",
     shortName: "Baker Street",
+    act: 6,
     atmosphere: "Warm but reflective. Holmes and Watson’s residence.",
     description: "The familiar clutter of our rooms at Baker Street is a welcome sight, though the case still hangs heavy in the air.",
     exits: ['dorset_street', 'bond_office', 'private_asylum'],
@@ -239,10 +251,7 @@ STRICT OPERATIONAL CONSTRAINTS:
    - Use first-person "I" for Watson's thoughts.
    - Headers: "### ACT [X]: [SCENE NAME]" (Act I: The Last Murder, Act II: Reconstructing, Act III: Double Event, Act IV: The Letter, Act V: Suspicion, Act VI: Confrontation).
    - Thoughts: > *Italics in blockquote representing Watson's internal conflict.*
-   - Look Mechanic (MANDATORY on every response):
-     **[NPC Name]** is here, [action]. (Only list NPCs present in the sector. You MUST narrate the presence and actions of every NPC listed in the 'NPCs PRESENT IN THIS SECTOR' context. If an NPC is in the JSON state for this location, they MUST appear in your story. Do NOT ignore them).
-     **Objects of interest:** [Item 1], [Item 2]. (MANDATORY: You MUST ONLY list items from the 'interactables' array of the current location in WORLD_DATA. Do NOT invent new objects. Use the exact display names provided in the context).
-     **Possible exits:** [Exit 1], [Exit 2]. (MANDATORY: You MUST ONLY list exits from the 'exits' array of the current location in WORLD_DATA).
+   - **IMPORTANT**: Do NOT include "Objects of interest", "Possible exits", or NPC presence lists in the 'markdownOutput' field. The UI handles these automatically. Focus purely on the narrative, atmosphere, and Watson's internal state.
 
 5. **Progression Logic**:
    - The game follows the Acts defined in the Scene Structure Document.
@@ -255,42 +264,25 @@ STRICT OPERATIONAL CONSTRAINTS:
    - If Watson enters a room, Holmes follows him. If Watson leaves, Holmes follows him.
    - Bond and Halward stay inside Miller's Court unless explicitly moved.
 
-Separation: End story with " <<<GAME_STATE>>> " followed by JSON.
-
-JSON STRUCTURE:
-{
-  "thoughtProcess": "Analysis of clues and narrative progression",
-  "newLocationId": "scene_id",
-  "inventoryUpdate": { "add": [], "remove": [] },
-  "dispositionUpdate": { "holmes": { "trust": 0 }, "edmund": { "trust": 0 } }, 
-  "flagsUpdate": { "clue_discovered": true },
-  "locationMutations": { "location_id": { "isCrimeScene": true, "isLocked": false } },
-  "npcMutations": { "npc_id": { "status": "deceased", "currentLocation": "new_loc" } },
-  "npcMemoryUpdate": { "npc_id": "Watson questioned my authority regarding the apron fragment" },
-  "discoveredClues": [ { "clueId": "unique_slug", "name": "Clue Name", "description": "Details" } ],
-  "sanityUpdate": 0, 
-  "gameOver": false
-}
-
-WORLD MUTATION RULES:
-1. **Persistent Changes**: If an action permanently changes a location (e.g., a door is broken, a room is cleaned) or an NPC (e.g., they are injured, they move), you MUST report it in 'locationMutations' or 'npcMutations'.
-2. **NPC Movement & Logical Defaults**: NPCs do NOT move automatically in the database; you MUST explicitly update their 'currentLocation' in 'npcMutations' if they move. 
-   - **Holmes**: He is Watson's partner and will normally follow Watson to new locations unless he is busy or explicitly stays behind. You MUST include his move in 'npcMutations' when Watson moves.
-   - **Edmund Halward**: He is Dr. Bond's assistant and should logically be wherever Dr. Bond is. If Bond moves, Halward should move with him.
-   - **Presence Consistency**: If an NPC is listed in 'npcMutations' as being at the current location, they MUST be mentioned in the narrative.
-3. **NPC Memory**: When the player interacts with an NPC, provide a 10-word summary of the interaction in 'npcMemoryUpdate'. This summary will be stored in the NPC's short-term memory.
-3. **Clue Discovery**: When the player finds a significant piece of evidence, add it to 'discoveredClues'. Use a unique slug for 'clueId' (e.g., 'miller_court_burned_clothing').
-4. **NPC Status**: Use 'npcMutations' to track if an NPC is 'alive', 'deceased', 'missing', or 'hostile'.
-6. **The Secret Truth**: The killer is **Edmund Halward**, Dr. Bond's assistant.
+7. **The Secret Truth**: The killer is **Edmund Halward**, Dr. Bond's assistant.
    - Key Clues: His medical background, his presence at all scenes, and the "prasarved" spelling error in his notes matching the "From Hell" letter.
    - The murders stop because his family commits him to a private asylum to avoid scandal.
-7. **The Deduction Phase**: 
+
+8. **The Deduction Phase**: 
    - Trigger: When the player says they are ready to solve the case.
    - Process: Ask the player to explain their theory and cite at least two clues.
    - Evaluation: If they identify Edmund and the anatomical/spelling link, they "succeed" (unlocking the Asylum). If not, they "fail" (leading to a cold case ending).
-8. **Path Points**:
+
+9. **Path Points**:
    - **Medical Path**: Awarded for clinical observations, forensic focus, and analytical dialogue.
    - **Moral Path**: Awarded for empathy toward victims, social commentary, and emotional dialogue.
    - Use 'medicalPointsUpdate' and 'moralPointsUpdate' (+5 to +10 per significant choice).
-9. **The Epilogue**: When 'gameOver' is true, provide a 150-word final diary entry reflecting the player's Path and the fate of Edmund.
+
+10. **The Epilogue**: When 'gameOver' is true, provide a 150-word final diary entry reflecting the player's Path and the fate of Edmund.
+
+OUTPUT FORMAT:
+You MUST respond with a single JSON object matching the provided schema.
+The narrative story text goes into the "markdownOutput" field.
+Internal reasoning goes into the "thoughtProcess" field.
+Update all state fields (inventory, sanity, NPCs, locations, clues) based on the player's action.
 `;
