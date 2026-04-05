@@ -80,7 +80,6 @@ export interface GameState {
   sanity: number;
   medicalPoints: number;
   moralPoints: number;
-  disposition: GameDispositions;
   npcStates?: Record<string, NPCState>;
   flags: Record<string, boolean>;
   journalNotes: string;
@@ -125,4 +124,84 @@ export interface GameResponse {
   };
   discoveredClues?: Clue[];
   gameOver?: boolean;
+}
+
+// ============================================================
+// ENGINE TYPES — added for database-first architecture
+// ============================================================
+
+/** The type of action the player is attempting */
+export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'inventory' | 'deduce' | 'help' | 'other';
+
+/**
+ * The result of the GameEngine resolving a player action.
+ * All state changes are decided here BEFORE the AI is consulted.
+ * The AI only narrates what the engine has already determined.
+ */
+export interface EngineResult {
+  // Was the action valid and successful?
+  actionSuccess: boolean;
+  actionType: IntentType;
+
+  // If blocked, why?
+  blockedReason?: string;
+
+  // Deterministic state changes (applied to DB before AI call)
+  newLocation?: string;
+  inventoryAdd?: string[];
+  inventoryRemove?: string[];
+  npcUpdates?: Record<string, Partial<NPCState>>;
+  flagsUpdate?: Record<string, boolean>;
+  sanityDelta?: number;
+  medicalPointsDelta?: number;
+  moralPointsDelta?: number;
+  discoveredClueIds?: string[];
+  newAct?: number;
+  gameOver?: boolean;
+
+  // Context passed to AIService for narration (verified facts only)
+  aiContext: NarrationContext;
+}
+
+/**
+ * Verified, authoritative context passed to the AI for narration.
+ * The AI must not contradict or extend this context.
+ */
+export interface NarrationContext {
+  locationName: string;
+  locationAtmosphere: string;
+  locationDescription: string;
+  act: number;
+  actName: string;
+  npcsPresent: string[];          // Display names of NPCs in this location
+  availableObjects: string[];     // Display names of interactable objects
+  availableExits: string[];       // Display names of accessible exits
+  inventory: string[];
+  watsonStats: {
+    sanity: number;
+    medicalPoints: number;
+    moralPoints: number;
+  };
+  // What just happened (for AI to narrate)
+  actionType: IntentType;
+  actionSuccess: boolean;
+  actionDescription: string;       // e.g. "Watson examined the burned clothing"
+  actionResultNote: string;        // e.g. "SUCCESS — found evidence of killer's confidence" or "BLOCKED — ..."
+  newCluesDiscovered: Array<{      // Newly triggered clues for this action
+    name: string;
+    description: string;
+    holmesDeduction: string;
+  }>;
+  // Recent NPC memory for present NPCs (max 2 entries each)
+  npcRecentMemory?: Record<string, string[]>;
+  // Controls how much the AI writes:
+  //   'full'    — move or look: Act header + location prose + atmosphere + exits/objects/NPCs
+  //   'compact' — examine/talk/take/etc: short observation + NPC response, no header or location listing
+  narrationMode: 'full' | 'compact';
+}
+
+/** Simplified AI response schema — narration only, no state mutations */
+export interface NarrationResponse {
+  markdownOutput: string;
+  npcMemoryUpdate?: Record<string, string>; // Optional: short summaries keyed by npcId
 }

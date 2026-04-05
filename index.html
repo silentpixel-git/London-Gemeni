@@ -9,9 +9,17 @@
       tailwind.config = {
         theme: {
           extend: {
+            colors: {
+              'lb-bg':      'rgb(var(--lb-bg)      / <alpha-value>)',
+              'lb-paper':   'rgb(var(--lb-paper)   / <alpha-value>)',
+              'lb-primary': 'rgb(var(--lb-primary) / <alpha-value>)',
+              'lb-accent':  'rgb(var(--lb-accent)  / <alpha-value>)',
+              'lb-muted':   'rgb(var(--lb-muted)   / <alpha-value>)',
+              'lb-border':  'rgb(var(--lb-border)  / <alpha-value>)',
+            },
             fontFamily: {
-              sans: ['"Open Sans"', 'sans-serif'],
-              serif: ['"Playfair Display"', 'serif'],
+              sans:     ['"Open Sans"', 'sans-serif'],
+              serif:    ['"Playfair Display"', 'serif'],
               playfair: ['"Playfair"', 'serif'],
             }
           }
