@@ -118,6 +118,43 @@ const NARRATION_SCHEMA = {
 
 const ACT_ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
 
+// ── Atmospheric micro-event seeds ────────────────────────────────────────────
+// One is chosen at random each call so the AI never defaults to the same detail
+// (the "scrawny ginger cat" problem). The AI is instructed to use this as a
+// starting point — it may vary freely, as long as it picks something different.
+
+const ATMOSPHERIC_SEEDS = [
+  'A match scraping against brick somewhere unseen',
+  'A child\'s cough from behind a closed door',
+  'The distant clatter of a handcart on cobblestones',
+  'The smell of boiled cabbage drifting from an upper window',
+  'A gas lamp guttering in the wind, its flame turning blue',
+  'A woman arguing in a low, urgent voice two streets over',
+  'The tap of a blind man\'s cane receding into the fog',
+  'A loose shutter banging rhythmically somewhere above',
+  'The distant moan of a foghorn on the Thames',
+  'Wet newspaper clinging to the base of a wall',
+  'A horse snorting somewhere in the dark, unseen',
+  'The smell of coal smoke settling low in the fog',
+  'A single church bell tolling the quarter-hour',
+  'Footsteps on a wooden floor directly above, then silence',
+  'The drip of a gutter, metronomic in the quiet',
+  'A drunk\'s muffled singing fading around a corner',
+  'The rustle of pigeons disturbed on a nearby roof',
+  'A constable\'s whistle, far off, answered by silence',
+  'The distant rumble of a late goods train',
+  'A door opening, then closing without anyone appearing',
+  'The flare of a match in an upstairs window, briefly illuminating a face',
+  'Broken glass crunching underfoot somewhere off to the left',
+  'The sour smell of the tannery carried on the night air',
+  'A baby crying briefly, then nothing',
+  'Steam rising from a grate in the pavement',
+];
+
+function pickAtmosphericSeed(): string {
+  return ATMOSPHERIC_SEEDS[Math.floor(Math.random() * ATMOSPHERIC_SEEDS.length)];
+}
+
 function buildNarrationPrompt(ctx: NarrationContext): string {
   const isFull = ctx.narrationMode === 'full';
 
@@ -166,9 +203,11 @@ Paragraph 1 — ATMOSPHERE: Vivid sensory description of the location. Regular p
 
 Paragraph 2 — WATSON'S INNER THOUGHTS: Watson's brief reflection on the case, his anxiety, or moral state. Regular prose, 1–2 sentences.
 
-Paragraph 3 — ATMOSPHERIC DETAIL (you may invent this — pure flavor, not game state): One vivid sensory micro-event: a sound, a smell, a passerby, a flickering gaslight, a distant cry. Format this paragraph as a Markdown blockquote EXACTLY like this:
+Paragraph 3 — ATMOSPHERIC DETAIL (pure flavor — invent freely, not game state): One vivid sensory micro-event. Use the seed below as a starting point — you may expand, transform, or discard it entirely in favour of something else. Never repeat something already mentioned in Paragraph 1.
+Seed: "${pickAtmosphericSeed()}"
+Format EXACTLY as a Markdown blockquote:
 > *Your atmospheric sentence here.*
-This is mandatory in full mode. The renderer will display it with a gold left border.
+This blockquote is mandatory in full mode. The renderer displays it with a gold left border.
 
 Paragraph 4 — WHAT WATSON NOTICES: In prose (not a list), mention who is present, what objects catch his eye, and which directions he could go — using ONLY the verified NPCs, objects, and exits above.`;
   }
