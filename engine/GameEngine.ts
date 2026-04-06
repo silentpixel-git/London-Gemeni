@@ -171,9 +171,41 @@ export class GameEngine {
 
     // Is the object actually in this location?
     if (!currentLoc.interactables.includes(targetId)) {
-      // Check if it's an NPC — redirect to talk
+      // Check if it's an NPC — organic physical examination rather than talk redirect
       if (NPCS[targetId]) {
-        return this.resolveTalk({ ...intent, type: 'talk' }, session);
+        const npcState = session.npcStates[targetId];
+        const npcLoc = npcState?.currentLocation ?? NPCS[targetId]?.canonicalLocationByAct[session.currentAct];
+        const npcName = NPC_DISPLAY_NAMES[targetId] || targetId;
+
+        if (npcLoc !== session.location) {
+          return this.blocked(
+            intent,
+            session,
+            `${npcName} is not here at the moment.`,
+            `Watson attempted to examine ${npcName} but they are not at ${currentLoc.name}.`
+          );
+        }
+
+        // NPC is present — physical/sensory examination (not dialogue)
+        // The AI uses CHARACTER PROFILES + STIM for a consistent, doctor-eye description
+        const what = intent.targetRaw || npcName;
+        return {
+          actionSuccess: true,
+          actionType: 'examine',
+          discoveredClueIds: [],
+          aiContext: this.buildContext(intent, session, {
+            success: true,
+            actionDescription: `Watson examined ${what} at ${currentLoc.name}.`,
+            actionResultNote:
+              `SUCCESS — ORGANIC PHYSICAL EXAMINATION of ${npcName}. ` +
+              `Watson is looking at ${what} — this is a sensory observation by a trained surgeon, NOT a conversation. ` +
+              `Do NOT write dialogue. Use the CHARACTER PROFILES section to inform physical details (build, manner, staining, wear). ` +
+              `Check SESSION OBSERVATIONS (STIM) first — if this subject is already there, reproduce it exactly. ` +
+              `If not in STIM, invent one vivid 10-15 word medical/forensic observation Watson would notice, ` +
+              `then return it in stimUpdate with a stable snake_case key (e.g. "holmes_coat", "abberline_hands").`,
+            newClueDefs: [],
+          }),
+        };
       }
       const objectName = OBJECT_DISPLAY_NAMES[targetId] || intent.targetRaw;
       return this.blocked(
@@ -617,13 +649,14 @@ export class GameEngine {
       }
     }
 
-    const npcsPresent = Object.entries(NPCS)
+    const presentNPCEntries = Object.entries(NPCS)
       .filter(([npcId]) => {
         const state = resolvedNpcStates[npcId];
         const npcLoc = state?.currentLocation ?? NPCS[npcId]?.canonicalLocationByAct[session.currentAct];
         return npcLoc === locationId && state?.status !== 'deceased';
-      })
-      .map(([, npc]) => npc.displayName);
+      });
+    const npcsPresent = presentNPCEntries.map(([, npc]) => npc.displayName);
+    const npcIds      = presentNPCEntries.map(([id]) => id);
 
     // Available exits (filtered by act)
     const availableExits = (loc.exits || [])
@@ -662,6 +695,7 @@ export class GameEngine {
       act,
       actName: ACT_NAMES[act] || `Act ${act}`,
       npcsPresent,
+      npcIds,
       availableObjects,
       availableExits,
       inventory: session.inventory,

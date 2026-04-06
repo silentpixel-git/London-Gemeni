@@ -26,7 +26,7 @@ import {
   INITIAL_NPC_STATES,
   NPC_DISPLAY_NAMES,
 } from '../constants';
-import { GameHistoryItem, GameState, Investigation, NPCState } from '../types';
+import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry } from '../types';
 import { supabase } from '../supabase';
 
 // ── Public interface ──────────────────────────────────────────────────────────
@@ -96,6 +96,8 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
   );
   const [activeInvestigation, setActiveInvestigation] = useState<Investigation | null>(null);
   const [currentAct, setCurrentAct] = useState(1);
+  const [stim, setStim] = useState<Record<string, STIMEntry>>({});
+  const [turnCount, setTurnCount] = useState(0);
 
   // ── Journal / sidebar ───────────────────────────────────────────────────
   const [journalNotes, setJournalNotes] = useState(
@@ -257,6 +259,7 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
           inventory,
           globalFlags: flags,
           journalNotes,
+          stim,
         });
         if (updated) setActiveInvestigation(updated as Investigation);
         if (!silent) setNotification({ message: 'Game Saved to Cloud!', type: 'success' });
@@ -303,6 +306,8 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
           if (Object.keys(npcMap).length > 0) {
             setNpcStates(prev => ({ ...prev, ...npcMap }));
           }
+
+          if ((investigation as any).stim) setStim((investigation as any).stim);
 
           setNotification({ message: 'Investigation Resumed!', type: 'success' });
           return;
@@ -539,7 +544,10 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
         }
       }
 
-      // STEP 6: Stream AI narration
+      // STEP 6: Inject session STIM into AI context (not part of engine — lives in hook)
+      result.aiContext.stim = stim;
+
+      // STEP 7: Stream AI narration
       for await (const update of aiService.stream(result.aiContext)) {
         const { narrative, isComplete, parsed } = update;
 
@@ -575,6 +583,24 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
                 return next;
               });
             }
+          }
+
+          // Handle STIM updates (session memory — first observation wins, never overwrite)
+          if (parsed.stimUpdate && Object.keys(parsed.stimUpdate).length > 0) {
+            setStim(prev => {
+              const next = { ...prev };
+              (Object.entries(parsed.stimUpdate!) as [string, STIMEntry][]).forEach(([id, entry]) => {
+                if (!next[id]) {
+                  next[id] = { ...entry, turnCreated: turnCount };
+                }
+              });
+              // Evict oldest beyond 25
+              const sorted = (Object.entries(next) as [string, STIMEntry][])
+                .sort(([, a], [, b]) => b.turnCreated - a.turnCreated)
+                .slice(0, 25);
+              return Object.fromEntries(sorted);
+            });
+            setTurnCount(t => t + 1);
           }
 
           // Silent auto-save after every completed turn

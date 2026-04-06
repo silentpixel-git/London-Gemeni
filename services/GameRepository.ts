@@ -218,6 +218,7 @@ export class GameRepository {
     globalFlags?: Record<string, boolean>;
     journalNotes?: string;
     status?: string;
+    stim?: Record<string, unknown>;
   }): Promise<Investigation | null> {
     try {
       const snakeUpdates: Record<string, unknown> = {
@@ -232,6 +233,7 @@ export class GameRepository {
       if (updates.globalFlags !== undefined) snakeUpdates.global_flags = updates.globalFlags;
       if (updates.journalNotes !== undefined) snakeUpdates.journal_notes = updates.journalNotes;
       if (updates.status !== undefined) snakeUpdates.status = updates.status;
+      if (updates.stim !== undefined) snakeUpdates.stim = updates.stim;
 
       const { data, error } = await supabase
         .from('investigations')
@@ -460,6 +462,7 @@ export class GameRepository {
       // New fields (may not exist on old rows — graceful fallback)
       currentAct: (data.current_act as number) || 1,
       inventory: (data.inventory as string[]) || [],
+      stim: (data.stim as Record<string, unknown>) || undefined,
     } as Investigation & { currentAct: number; inventory: string[] };
   }
 }

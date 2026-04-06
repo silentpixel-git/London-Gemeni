@@ -13,7 +13,8 @@
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
-import { NarrationContext, NarrationResponse } from '../types';
+import { NarrationContext, NarrationResponse, STIMEntry } from '../types';
+import { NPCS } from '../engine/gameData';
 
 // ============================================================
 // MODEL CONFIG
@@ -55,7 +56,7 @@ YOUR SOLE PURPOSE: Write atmospheric, period-accurate prose. You are a narrator,
 The prompt you receive will specify either FULL MODE or COMPACT MODE.
 
 --- FULL MODE (player moves to a new location or surveys surroundings) ---
-This is a location arrival or survey. Write 3–4 paragraphs, maximum 220 words:
+This is a location arrival or survey. Write 3–4 paragraphs, maximum 150-200 words:
 
   Paragraph 1 — ARRIVAL / ATMOSPHERE: Describe the location vividly through Watson's senses. Set the mood. Begin the response with:
     ### ACT [Roman numeral]: [Act Name]
@@ -76,10 +77,52 @@ This is a focused action. Write 1–2 short paragraphs, maximum 100 words:
   - If blocked: In-character explanation of why Watson could not proceed.
   - Optional: one brief inner thought.
 
+=== ORGANIC INTERACTION RULES ===
+Watson is a former army surgeon. Physical examinations reflect his trained eye: pallor, posture, chemical staining, wear patterns, signs of fatigue or tension — he notes what a doctor notices, not what a narrator describes generically.
+
+CRITICAL DISTINCTION — EXAMINE vs. TALK:
+- If the action result says "ORGANIC PHYSICAL EXAMINATION": Watson is LOOKING at something or someone. Write Watson's sensory observation. NO dialogue. NO NPC speaking. Watson's trained surgeon's eye assessing build, colour, wear, chemical staining, signs of tension or fatigue.
+- If the action result says "Watson engaged [NPC] in conversation": Watson is TALKING. Write what the NPC says and Watson's reaction.
+- These are mutually exclusive. Never mix them.
+
+STIM RULES (Short-Term Instance Memory):
+1. Before describing any examined subject, CHECK SESSION OBSERVATIONS (STIM) in the context.
+   If the subject is listed there, reproduce that description EXACTLY and wrap Watson's reaction or commentary around it. Do NOT reinvent a different detail.
+2. If the subject is NOT in STIM, invent one vivid 10-15 word sensory detail Watson would observe, then return it in stimUpdate so it is stored for future consistency:
+   "stimUpdate": { "subject_id": { "summary": "...", "scope": "npc|object|environment", "turnCreated": 0 } }
+   Use stable snake_case subject_ids (e.g. "holmes_coat", "abberline_hands", "millers_court_fireplace").
+3. Organic examinations — environment, clothing, ambient objects, NPC appearance — must NOT add to npcMemoryUpdate or reference plot progression. Return only stimUpdate for these.
+4. Edmund Halward must remain entirely ordinary in organic interactions. Your knowledge of his guilt must never color his physical descriptions or manner.
+
+NPC VOICE ANCHORS (use CHARACTER PROFILES in context for full detail):
+- Holmes: clipped, confident half-observations — assumes Watson is already most of the way there
+- Abberline: exhausted professional, speaks in case-file shorthand, weary of politics and press
+- Bond: clinical anatomical precision, uncomfortable with speculation beyond the evidence
+- Edmund: polite, quiet, offers nothing unprompted — the calm of the utterly contained
+- Lusk: community anger barely held in check, specific and bitter about the parcel he received
+
+=== NPC FREE CONVERSATION ===
+When the action result says Watson engaged an NPC in conversation, the NPC can discuss ANYTHING:
+- Case facts (using the knowledge listed under their CHARACTER PROFILE)
+- Personal life (family, opinions, daily life, weather, food)
+- Anything the player asks about
+
+If the NPC is asked about something personal not specified in their profile, improvise plausible period-accurate details consistent with their class, personality, and role. These improvised details are session-local and do not need to be persistent across sessions.
+
+PERIOD CONSTRAINT: NPCs have no knowledge of events or technology after November 1888. If asked about something anachronistic (e.g., automobiles, electricity), they respond from within the period as that person would — with genuine confusion or unfamiliarity, never a deflection or fourth-wall acknowledgement.
+
+EDMUND EXCEPTION: His dialogue stays brief, polite, and withholding. He answers direct questions but volunteers nothing and reveals nothing about himself beyond his professional role.
+
+Structure NPC dialogue as:
+1. NPC speaks first in direct quoted dialogue — specific and grounded, not generic
+2. Watson's brief internal reaction in italicized blockquote
+3. One short atmospheric detail
+
 === OUTPUT FORMAT ===
 Return a JSON object with:
 - "markdownOutput": The narrative text (Markdown). Full mode max 220 words. Compact mode max 100 words.
-- "npcMemoryUpdate": Optional. If Watson had a meaningful interaction with an NPC, provide a 10-word summary keyed by npcId (e.g. {"holmes": "Watson and Holmes discussed the burned clothing clue."})
+- "npcMemoryUpdate": Optional. If Watson had a meaningful plot-relevant interaction with an NPC, provide a 10-word summary keyed by npcId (e.g. {"holmes": "Watson and Holmes discussed the burned clothing clue."})
+- "stimUpdate": Optional. New sensory observations established this turn. One entry per newly examined subject, keyed by stable snake_case subject_id.
 
 Example npcIds: holmes, abberline, bond, edmund, lusk, diemschutz, superintendent
 `;
@@ -97,7 +140,7 @@ const NARRATION_SCHEMA = {
     },
     npcMemoryUpdate: {
       type: Type.OBJECT,
-      description: 'Optional. Short (10-word) summaries of NPC interactions, keyed by npcId.',
+      description: 'Optional. Short (10-word) summaries of plot-relevant NPC interactions, keyed by npcId.',
       properties: {
         holmes: { type: Type.STRING },
         abberline: { type: Type.STRING },
@@ -106,6 +149,19 @@ const NARRATION_SCHEMA = {
         lusk: { type: Type.STRING },
         diemschutz: { type: Type.STRING },
         superintendent: { type: Type.STRING },
+      },
+    },
+    stimUpdate: {
+      type: Type.OBJECT,
+      description: 'Optional. New sensory observations established this turn. One entry per newly examined subject, keyed by stable snake_case subject_id (e.g. "holmes_coat", "abberline_hands"). Each value has summary (string), scope ("npc"|"object"|"environment"), and turnCreated (number, always 0).',
+      additionalProperties: {
+        type: Type.OBJECT,
+        properties: {
+          summary:     { type: Type.STRING },
+          scope:       { type: Type.STRING },
+          turnCreated: { type: Type.NUMBER },
+        },
+        required: ['summary', 'scope', 'turnCreated'],
       },
     },
   },
@@ -158,6 +214,28 @@ function pickAtmosphericSeed(): string {
 function buildNarrationPrompt(ctx: NarrationContext): string {
   const isFull = ctx.narrationMode === 'full';
 
+  // NPC character profiles (cap at 3, never expose hidden knowledge)
+  const npcProfileSection = (ctx.npcIds ?? [])
+    .filter(id => id !== 'watson')
+    .slice(0, 3)
+    .map(id => NPCS[id])
+    .filter(Boolean)
+    .map(n =>
+      `**${n.displayName}** — ${n.role}\n` +
+      `Background: ${n.description}\n` +
+      `Speaks: ${n.speakingStyle}\n` +
+      `Personality: ${n.personality.join('; ')}.\n` +
+      `Knows and can discuss:\n  - ${n.publicKnowledge.join('\n  - ')}`
+    )
+    .join('\n\n');
+
+  // STIM block: most recent first, capped at 20 entries
+  const stimBlock = (Object.entries(ctx.stim ?? {}) as [string, STIMEntry][])
+    .sort(([, a], [, b]) => b.turnCreated - a.turnCreated)
+    .slice(0, 20)
+    .map(([id, entry]) => `- ${id}: ${entry.summary}`)
+    .join('\n') || 'None yet.';
+
   // Clues section (both modes — clue details are always narrated when found)
   const clueSection =
     ctx.newCluesDiscovered.length > 0
@@ -193,6 +271,14 @@ Exits Watson can take (verified): ${ctx.availableExits.length > 0 ? ctx.availabl
 Watson's state — Sanity: ${ctx.watsonStats.sanity}/100 | Medical: ${ctx.watsonStats.medicalPoints}pts | Moral: ${ctx.watsonStats.moralPoints}pts
 Watson's inventory: ${ctx.inventory.length > 0 ? ctx.inventory.join(', ') : 'empty'}
 ${memorySection}
+=== CHARACTER PROFILES ===
+Use these for NPC voice, manner, and physical descriptions. Never expose hidden knowledge.
+${npcProfileSection || 'No named characters present.'}
+
+=== SESSION OBSERVATIONS (STIM) ===
+Watson has already established these sensory details this session. Reproduce them exactly if the subject is re-examined.
+${stimBlock}
+
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
@@ -220,6 +306,14 @@ Write 1–2 short paragraphs (max 100 words). NO act header. NO location descrip
 Location: ${ctx.locationName} (Act ${ctx.act}: ${ctx.actName})
 NPCs present: ${ctx.npcsPresent.length > 0 ? ctx.npcsPresent.join(', ') : 'None'}
 ${memorySection}
+=== CHARACTER PROFILES ===
+Use these for NPC voice, manner, and physical descriptions. Never expose hidden knowledge.
+${npcProfileSection || 'No named characters present.'}
+
+=== SESSION OBSERVATIONS (STIM) ===
+Watson has already established these sensory details this session. Reproduce them exactly if the subject is re-examined.
+${stimBlock}
+
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}

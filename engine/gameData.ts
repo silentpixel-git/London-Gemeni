@@ -32,6 +32,7 @@ export interface NPCDefinition {
   description: string;
   speakingStyle: string;
   personality: string[];
+  publicKnowledge: string[];  // Facts/topics this NPC knows and can discuss
   followingRule: 'follows_watson' | 'follows_bond' | 'location_based' | 'fixed';
   canonicalLocationByAct: Record<number, string>;  // Act number → location ID
 }
@@ -219,6 +220,33 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
 };
 
 // ============================================================
+// WHITECHAPEL HISTORICAL FACTS
+// ============================================================
+// Canonical facts for case-related dialogue. The AI uses these when NPCs speak about the investigation.
+
+export const WHITECHAPEL_FACTS = {
+  victims: [
+    { name: 'Mary Ann Nichols', location: "Buck's Row", date: '31 August 1888' },
+    { name: 'Annie Chapman', location: '29 Hanbury Street', date: '8 September 1888' },
+    { name: 'Elizabeth Stride', location: "Dutfield's Yard", date: '30 September 1888 (interrupted)' },
+    { name: 'Catherine Eddowes', location: 'Mitre Square', date: '30 September 1888 (double event, ~45 min after Stride)' },
+    { name: 'Mary Jane Kelly', location: "Miller's Court", date: '9 November 1888 (killer had uninterrupted hours)' },
+  ],
+  forensics: {
+    Chapman: 'Uterus removed; anatomical knowledge evident but not surgical mastery',
+    Eddowes: 'Left kidney and uterus removed within minutes; consistent with repeated anatomical familiarity',
+    Kelly: 'Most extensive injuries; fire burned through the night, providing light for the killer',
+  },
+  investigation: 'Over 2,000 people interviewed; Metropolitan Police (Abberline, H Division) and City Police (Eddowes scene) coordination has been problematic',
+  pressureDynamics: 'The Star and Times printing speculation as fact; witnesses terrified into silence',
+  fromHellLetter: {
+    received: 'George Lusk, 16 October 1888',
+    contents: 'Half a human kidney preserved in spirits of wine, letter beginning "From hell"',
+    spelling: 'The word "prasarved" (for preserved) is idiosyncratic and consistent across the letter and other documents',
+  },
+};
+
+// ============================================================
 // NPC DEFINITIONS
 // ============================================================
 
@@ -230,6 +258,15 @@ export const NPCS: Record<string, NPCDefinition> = {
     description: 'Holmes investigates the Whitechapel murders unofficially, approaching the Ripper case as an intellectual problem. He follows Watson everywhere.',
     speakingStyle: 'Precise and controlled. Short observations and carefully constructed deductions.',
     personality: ['Analytical', 'Calm under pressure', 'Intensely curious', 'Occasionally aloof'],
+    publicKnowledge: [
+      'Visited all five crime scenes and conducted independent forensic analysis',
+      'The killer appeared non-threatening to victims — respectable-looking or known to them',
+      'Anatomical removals required knowledge of organ location, not surgical mastery — the knowledge of a student',
+      'Not panicked by Stride\'s interruption — completed a second murder same night within 45 minutes',
+      'The "prasarved" spelling in the From Hell letter is a specific cognitive habit, matching other documents',
+      'The killer has legitimate professional access to crime scenes and forensic records',
+      'Murders stopped after Kelly — suggests capture, death, confinement, or removal from London',
+    ],
     followingRule: 'follows_watson',
     canonicalLocationByAct: {
       1: 'dorset_street',
@@ -247,6 +284,17 @@ export const NPCS: Record<string, NPCDefinition> = {
     description: 'Lead investigator for Scotland Yard. Experienced, honest, and deeply fatigued by the lack of progress.',
     speakingStyle: 'Direct and conversational. Practical rather than theoretical.',
     personality: ['Practical', 'Honest', 'Determined', 'Fatigued'],
+    publicKnowledge: [
+      'Leads the Metropolitan Police investigation from Commercial Street station',
+      'Five victims: Mary Ann Nichols (31 Aug), Annie Chapman (8 Sep), Elizabeth Stride and Catherine Eddowes (30 Sep, double event), Mary Jane Kelly (9 Nov)',
+      'The double event on 30 September was the worst night — two murders in 45 minutes, two different police jurisdictions',
+      'City Police handled Eddowes at Mitre Square — inter-force coordination has been problematic throughout',
+      'Commissioner Warren ordered the Goulston Street graffiti wiped before it could be photographed, to prevent anti-Jewish riots',
+      'Over 2,000 people interviewed; no conclusive forensic link established to any individual',
+      'The press — Star and Times in particular — prints speculation as fact and terrifies witnesses into silence',
+      'No reliable witness has seen the killer with any victim; every description is contradictory',
+      'George Lusk and the Vigilance Committee provide ground coverage but also pressure from below',
+    ],
     followingRule: 'location_based',
     canonicalLocationByAct: {
       1: 'dorset_street',
@@ -264,6 +312,15 @@ export const NPCS: Record<string, NPCDefinition> = {
     description: 'Responsible for examining the victims. Clinical, professional, and rarely speculates beyond medical facts.',
     speakingStyle: 'Technical and precise. Medical terminology.',
     personality: ['Clinical', 'Professional', 'Reserved'],
+    publicKnowledge: [
+      'Annie Chapman: uterus removed cleanly, incision shows familiarity with abdominal anatomy but not surgical mastery',
+      'Catherine Eddowes: left kidney and uterus removed within minutes, efficiency consistent with prior practice',
+      'Mary Jane Kelly: most extensive injuries, killer had several uninterrupted hours, fire burned for light',
+      'Wrote a formal psychological profile in November 1888 for Assistant Commissioner Anderson',
+      'His assessment: killer works alone, operates at night, has anatomical knowledge but no professional medical qualification',
+      'Edmund Halward transcribed and catalogued all post-mortem reports',
+      'Committed to reporting only what evidence substantiates — will not speculate beyond the record',
+    ],
     followingRule: 'location_based',
     canonicalLocationByAct: {
       1: 'millers_court',
@@ -281,6 +338,11 @@ export const NPCS: Record<string, NPCDefinition> = {
     description: 'Young, quiet, and outwardly respectable. Son of a physician. Studied medicine but left unexpectedly. Almost invisible. Never speaks unless directly addressed.',
     speakingStyle: 'Soft and measured. Avoids emotional language. Mundane and functional.',
     personality: ['Quiet', 'Polite', 'Reserved', 'Observant'],
+    publicKnowledge: [
+      'Medical assistant to Dr. Bond; present during post-mortem examinations',
+      'Studied medicine but left formal training unexpectedly',
+      'Quiet, polite, reserved — well-regarded by those who work with him',
+    ],
     followingRule: 'follows_bond',
     canonicalLocationByAct: {
       1: 'millers_court',
@@ -298,6 +360,15 @@ export const NPCS: Record<string, NPCDefinition> = {
     description: 'Recipient of the From Hell letter and the kidney parcel. Cautious and skeptical of hoaxes.',
     speakingStyle: 'Concerned but practical.',
     personality: ['Cautious', 'Uneasy about publicity', 'Skeptical'],
+    publicKnowledge: [
+      'Received the kidney parcel on 16 October 1888 — half a human kidney preserved in spirits of wine',
+      'Initially assumed it was a prank by medical students; had it examined only after delay',
+      'Dr. Openshaw confirmed the kidney was human tissue, female, approximately 45 years old, consistent with Bright\'s disease (matching Eddowes)',
+      'The letter\'s phrasing stays with him: "I send you half the Kidne I took from one women prasarved it for you tother piece I fried and ate it was very nise"',
+      'Founded the Whitechapel Vigilance Committee out of anger that the police were failing the neighbourhood',
+      'Conducts nightly patrols; lobbied the Home Secretary for a government reward (refused)',
+      'Distrusts the official investigation — not the men, but the machinery and inter-force politics',
+    ],
     followingRule: 'fixed',
     canonicalLocationByAct: {
       1: 'lusk_office',
@@ -315,6 +386,11 @@ export const NPCS: Record<string, NPCDefinition> = {
     description: 'Discovered Elizabeth Stride\'s body. Distressed witness.',
     speakingStyle: 'Shaken and direct.',
     personality: ['Distressed', 'Cooperative'],
+    publicKnowledge: [
+      'Found Elizabeth Stride\'s body in Dutfield\'s Yard on the night of 30 September',
+      'His cart may have interrupted the killer mid-act — no mutilation followed the throat wound',
+      'Witnessed or heard sounds that night; testimony was crucial to reconstructing the killer\'s timeline',
+    ],
     followingRule: 'fixed',
     canonicalLocationByAct: {
       1: 'working_mens_club',
@@ -332,6 +408,12 @@ export const NPCS: Record<string, NPCDefinition> = {
     description: 'Professional but cautious about discussing patients.',
     speakingStyle: 'Measured and diplomatic.',
     personality: ['Professional', 'Guarded'],
+    publicKnowledge: [
+      'Manages a private asylum for those whose families wish discretion',
+      'Edmund Halward has been a patient here following a family arrangement',
+      'Speaks minimally about patients; will not volunteer information beyond what professional courtesy requires',
+      'Believes private confinement is a humane solution for certain situations',
+    ],
     followingRule: 'fixed',
     canonicalLocationByAct: {
       1: 'private_asylum',

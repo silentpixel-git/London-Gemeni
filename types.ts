@@ -21,6 +21,12 @@ export interface GameDispositions {
 
 export type InvestigationStatus = 'active' | 'cold_case' | 'solved' | 'archived';
 
+export interface STIMEntry {
+  summary: string;       // 10-15 word sensory description established this session
+  turnCreated: number;
+  scope: 'npc' | 'object' | 'environment';
+}
+
 export interface Investigation {
   id: string;
   ownerId: string;
@@ -31,6 +37,7 @@ export interface Investigation {
   medicalPoints: number;
   moralPoints: number;
   journalNotes: string;
+  stim?: Record<string, STIMEntry>;
   createdAt: string;
   updatedAt: string;
 }
@@ -174,6 +181,7 @@ export interface NarrationContext {
   act: number;
   actName: string;
   npcsPresent: string[];          // Display names of NPCs in this location
+  npcIds: string[];               // Raw NPC IDs — used by AIService to look up profiles
   availableObjects: string[];     // Display names of interactable objects
   availableExits: string[];       // Display names of accessible exits
   inventory: string[];
@@ -194,6 +202,8 @@ export interface NarrationContext {
   }>;
   // Recent NPC memory for present NPCs (max 2 entries each)
   npcRecentMemory?: Record<string, string[]>;
+  // Session observations (STIM) — injected by useGameState before AI call
+  stim?: Record<string, STIMEntry>;
   // Controls how much the AI writes:
   //   'full'    — move or look: Act header + location prose + atmosphere + exits/objects/NPCs
   //   'compact' — examine/talk/take/etc: short observation + NPC response, no header or location listing
@@ -204,4 +214,5 @@ export interface NarrationContext {
 export interface NarrationResponse {
   markdownOutput: string;
   npcMemoryUpdate?: Record<string, string>; // Optional: short summaries keyed by npcId
+  stimUpdate?: Record<string, STIMEntry>;   // New sensory observations to store in STIM
 }
