@@ -20,13 +20,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("ErrorBoundary caught an error", error, errorInfo);
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('ErrorBoundary caught an error', error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
-      let errorMessage = "An unexpected error occurred.";
+      let errorMessage = 'An unexpected error occurred.';
       let isCloudSyncError = false;
 
       try {
@@ -42,36 +42,36 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#293351]/80 backdrop-blur-sm p-4">
-          <div className="bg-white border-2 border-[#CD7B00] rounded-2xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-300">
-            <div className="flex items-center gap-4 mb-6 text-[#CD7B00]">
-              <div className="p-3 bg-[#CD7B00]/10 rounded-full">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-lb-primary/80 backdrop-blur-sm p-4">
+          <div className="bg-lb-paper border-2 border-lb-accent rounded-2xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="flex items-center gap-4 mb-6 text-lb-accent">
+              <div className="p-3 bg-lb-accent/10 rounded-full">
                 <AlertCircle size={32} />
               </div>
-              <h2 className="font-serif text-2xl font-bold text-[#293351]">Case File Error</h2>
+              <h2 className="font-serif text-2xl font-bold text-lb-primary">Case File Error</h2>
             </div>
-            
-            <p className="text-[#293351] opacity-80 mb-8 leading-relaxed font-sans">
+
+            <p className="text-lb-primary opacity-80 mb-8 leading-relaxed font-sans">
               {errorMessage}
             </p>
 
             <div className="flex flex-col gap-3">
-              <button 
+              <button
                 onClick={() => window.location.reload()}
-                className="w-full py-3 bg-[#293351] text-white rounded-xl font-bold hover:bg-[#1a2238] transition-all shadow-lg active:scale-95"
+                className="w-full py-3 bg-lb-primary text-white rounded-xl font-bold hover:bg-lb-primary/80 transition-all shadow-lg active:scale-95"
               >
                 Restart Investigation
               </button>
-              <button 
+              <button
                 onClick={() => this.setState({ hasError: false, error: null })}
-                className="w-full py-3 border border-[#C5CBDD] text-[#293351] rounded-xl font-medium hover:bg-[#FDF9F5] transition-all"
+                className="w-full py-3 border border-lb-border text-lb-primary rounded-xl font-medium hover:bg-lb-bg transition-all"
               >
                 Dismiss
               </button>
             </div>
-            
+
             {isCloudSyncError && (
-              <p className="mt-6 text-[10px] uppercase tracking-widest text-[#929DBF] text-center">
+              <p className="mt-6 text-[10px] uppercase tracking-widest text-lb-muted text-center">
                 Cloud Sync Error Detected
               </p>
             )}

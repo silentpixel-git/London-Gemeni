@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   LONDON BLEEDS — Design Tokens
+
+   Colours are defined as raw RGB channels (no rgb() wrapper)
+   so Tailwind opacity modifiers work correctly, e.g.:
+     bg-lb-primary/50  →  rgb(41 51 81 / 0.5)
+   ============================================================ */
+
+:root {
+  /* Light theme (default) — Victorian parchment */
+  --lb-bg:       253 249 245;   /* #FDF9F5  warm parchment page  */
+  --lb-paper:    255 255 255;   /* #FFFFFF  pure white cards      */
+  --lb-primary:   41  51  81;   /* #293351  deep Victorian navy   */
+  --lb-accent:   205 123   0;   /* #CD7B00  aged brass / amber    */
+  --lb-muted:    146 157 191;   /* #929DBF  slate blue-grey       */
+  --lb-border:   197 203 221;   /* #C5CBDD  periwinkle separator  */
+}
+
+[data-theme="dark"] {
+  /* Dark theme — candlelit midnight */
+  --lb-bg:        21  24  31;   /* #15181f  deep ink              */
+  --lb-paper:     30  35  48;   /* #1e2330  dark card surface     */
+  --lb-primary:  228 221 212;   /* #e4ddd4  warm ivory text       */
+  --lb-accent:   212 146  10;   /* #d4920a  brighter brass        */
+  --lb-muted:     94 106 136;   /* #5e6a88  dimmed slate          */
+  --lb-border:    42  48  64;   /* #2a3040  dark separator        */
+}
+
+/* Smooth theme transition on all elements */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
+}
+
+/* Preserve animation-only transitions from being overridden */
+.animate-in, .animate-pulse, .animate-spin, .animate-bounce {
+  transition: none;
+}
