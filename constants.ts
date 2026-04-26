@@ -17,6 +17,10 @@ export const INITIAL_LOCATION = 'dorset_street';
 export const INITIAL_INVENTORY = ['Medical Bag', 'Watson\'s Diary', 'Pocket Watch'];
 export const INITIAL_SANITY = 100;
 
+/** Safe fallback shown immediately on new game while the AI-generated diary loads. */
+export const INITIAL_JOURNAL =
+  "**Found:**\n* Arrived at Dorset Street. The investigation begins.\n\n**Sanity Note:**\n* The fog of Whitechapel weighs upon the spirit.";
+
 export const INITIAL_NPC_STATES: Record<string, any> = {
   abberline: { npcId: 'abberline', currentLocation: 'dorset_street', status: 'alive', memory: [] },
   bond: { npcId: 'bond', currentLocation: 'millers_court', status: 'alive', memory: [] },

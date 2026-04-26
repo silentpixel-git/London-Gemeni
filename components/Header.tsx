@@ -5,32 +5,33 @@
  *   - Sidebar toggle
  *   - Connection status indicators (Engine / Cloud / Saving)
  *   - Dark mode toggle
- *   - Profile dropdown (save, load, sign in/out)
- *
- * Owns isProfileMenuOpen locally — it is purely UI state with no effect
- * on game logic or other components.
+ *   - Profile dropdown (save, load, edit profile, sign out)
+ *   - "Sign In" pill button when unauthenticated
  */
 
 import React, { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
+import type { UserProfile } from '../services/GameRepository';
 import {
   PanelLeftClose, PanelLeftOpen, Sun, Moon, User as UserIcon,
-  ChevronDown, Save, FolderOpen, LogOut, LogIn,
+  ChevronDown, Save, FolderOpen, LogOut, LogIn, Pencil, RefreshCw,
 } from 'lucide-react';
 
 interface HeaderProps {
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
   connectionStatus: { gemini: boolean | null; supabase: boolean | null };
+  onRetryConnection: () => void;
   isSaving: boolean;
   isDark: boolean;
   onToggleDark: () => void;
   user: User | null;
-  authError: string | null;
-  onClearAuthError: () => void;
+  userProfile: UserProfile | null;
   onSave: () => void;
   onLoad: () => void;
-  onLogin: () => void;
+  onNewGame: () => void;
+  onOpenAuth: () => void;
+  onOpenEditProfile: () => void;
   onLogout: () => void;
 }
 
@@ -38,18 +39,24 @@ export const Header: React.FC<HeaderProps> = ({
   isSidebarOpen,
   onToggleSidebar,
   connectionStatus,
+  onRetryConnection,
   isSaving,
   isDark,
   onToggleDark,
   user,
-  authError,
-  onClearAuthError,
+  userProfile,
   onSave,
   onLoad,
-  onLogin,
+  onNewGame,
+  onOpenAuth,
+  onOpenEditProfile,
   onLogout,
 }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isConfirmingNewGame, setIsConfirmingNewGame] = useState(false);
+
+  const displayName = userProfile?.displayName || user?.user_metadata?.full_name || user?.email;
+  const displayRole = userProfile?.role || 'Field Surgeon';
 
   return (
     <header className="sticky top-0 z-30 px-8 md:px-16 py-4 flex items-center justify-between bg-lb-bg/90 backdrop-blur-sm border-b border-lb-border">
@@ -83,12 +90,15 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div className="w-px h-3 bg-lb-border/50" />
 
-          {/* Cloud dot */}
-          <div
-            className="flex items-center gap-1.5"
+          {/* Cloud dot — clickable to retry when disconnected */}
+          <button
+            type="button"
+            onClick={connectionStatus.supabase === false ? onRetryConnection : undefined}
+            disabled={connectionStatus.supabase !== false}
+            className={`flex items-center gap-1.5 ${connectionStatus.supabase === false ? 'cursor-pointer hover:opacity-70' : 'cursor-default'}`}
             title={
-              connectionStatus.supabase === true  ? 'Cloud Connected'    :
-              connectionStatus.supabase === false ? 'Cloud Disconnected' :
+              connectionStatus.supabase === true  ? 'Cloud Connected'           :
+              connectionStatus.supabase === false ? 'Cloud Disconnected — click to retry' :
               'Checking Cloud...'
             }
           >
@@ -97,8 +107,13 @@ export const Header: React.FC<HeaderProps> = ({
               connectionStatus.supabase === false ? 'bg-red-500'   :
               'bg-yellow-500 animate-pulse'
             }`} />
-            <span className="text-[9px] uppercase tracking-widest text-lb-muted font-bold">Cloud</span>
-          </div>
+            <span className={`text-[9px] uppercase tracking-widest font-bold ${
+              connectionStatus.supabase === false ? 'text-red-400' : 'text-lb-muted'
+            }`}>Cloud</span>
+            {connectionStatus.supabase === false && (
+              <RefreshCw size={8} className="text-red-400" />
+            )}
+          </button>
 
           {/* Saving dot */}
           {isSaving && (
@@ -126,121 +141,135 @@ export const Header: React.FC<HeaderProps> = ({
           {isDark ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
-        {/* Profile dropdown */}
-        <div className="relative">
+        {/* Unauthenticated: Sign In pill */}
+        {!user && (
           <button
-            onClick={() => setIsProfileMenuOpen(o => !o)}
-            className="flex items-center gap-3 text-lb-primary group"
+            onClick={onOpenAuth}
+            className="flex items-center gap-2 px-4 py-2 bg-lb-primary text-white rounded-full text-xs font-bold tracking-widest uppercase hover:bg-lb-accent transition-colors"
           >
-            <div className="text-right hidden sm:block">
-              <span className="block text-sm font-bold group-hover:text-lb-accent">
-                {user ? (user.user_metadata?.full_name || user.email) : 'Dr. John Watson'}
-              </span>
-              <span className="text-[10px] uppercase tracking-widest opacity-60">
-                {user ? 'Cloud Profile' : 'Medical Profile'}
-              </span>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-lb-primary text-white flex items-center justify-center overflow-hidden">
-              {user?.user_metadata?.avatar_url ? (
-                <img
-                  src={user.user_metadata.avatar_url}
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <UserIcon size={16} />
-              )}
-            </div>
-            <ChevronDown
-              size={14}
-              className={`transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180' : ''}`}
-            />
+            <LogIn size={14} />
+            <span className="hidden sm:inline">Sign In</span>
           </button>
+        )}
 
-          {isProfileMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setIsProfileMenuOpen(false)} />
-              <div className="absolute right-0 top-full mt-2 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 overflow-hidden">
-                <div className="p-1">
-                  {user ? (
-                    <>
-                      <div className="px-3 py-2 border-b border-lb-border mb-1">
-                        <p className="text-[10px] uppercase tracking-widest text-lb-muted font-bold">Logged In As</p>
-                        <p className="text-xs font-medium text-lb-primary truncate">
-                          {user.user_metadata?.full_name || user.email}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => { onSave(); setIsProfileMenuOpen(false); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                      >
-                        <Save size={14} /><span>Save to Cloud</span>
-                      </button>
-                      <button
-                        onClick={() => { onLoad(); setIsProfileMenuOpen(false); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                      >
-                        <FolderOpen size={14} /><span>Load from Cloud</span>
-                      </button>
-                      <div className="h-px bg-lb-border my-1" />
-                      <button
-                        onClick={() => { onLogout(); setIsProfileMenuOpen(false); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded text-left"
-                      >
-                        <LogOut size={14} /><span>Sign Out</span>
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => { onLogin(); setIsProfileMenuOpen(false); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left font-bold"
-                      >
-                        <LogIn size={14} /><span>Sign In with Google</span>
-                      </button>
+        {/* Authenticated: Profile dropdown */}
+        {user && (
+          <div className="relative">
+            <button
+              onClick={() => setIsProfileMenuOpen(o => !o)}
+              className="flex items-center gap-3 text-lb-primary group"
+            >
+              <div className="text-right hidden sm:block">
+                <span className="block text-sm font-bold group-hover:text-lb-accent truncate max-w-[140px]">
+                  {displayName}
+                </span>
+                <span className="text-[10px] uppercase tracking-widest opacity-60">
+                  {displayRole}
+                </span>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-lb-primary text-white flex items-center justify-center overflow-hidden shrink-0">
+                {user.user_metadata?.avatar_url ? (
+                  <img
+                    src={user.user_metadata.avatar_url}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <UserIcon size={16} />
+                )}
+              </div>
+              <ChevronDown
+                size={14}
+                className={`transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
 
-                      {authError && (
-                        <div className="px-3 py-2 bg-red-50 border border-red-100 rounded mx-2 my-1">
-                          <p className="text-[10px] text-red-600 leading-tight">{authError}</p>
+            {isProfileMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => { setIsProfileMenuOpen(false); setIsConfirmingNewGame(false); }} />
+                <div className="absolute right-0 top-full mt-2 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 overflow-hidden">
+                  <div className="p-1">
+                    {/* User info */}
+                    <div className="px-3 py-2 border-b border-lb-border mb-1">
+                      <p className="text-[10px] uppercase tracking-widest text-lb-muted font-bold">Signed In As</p>
+                      <p className="text-xs font-medium text-lb-primary truncate">{displayName}</p>
+                      <p className="text-[10px] text-lb-muted truncate">{user.email}</p>
+                    </div>
+
+                    {/* Edit Profile */}
+                    <button
+                      onClick={() => { onOpenEditProfile(); setIsProfileMenuOpen(false); setIsConfirmingNewGame(false); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
+                    >
+                      <Pencil size={14} /><span>Edit Profile</span>
+                    </button>
+
+                    <div className="h-px bg-lb-border my-1" />
+
+                    {/* Save / Load */}
+                    <button
+                      onClick={() => { onSave(); setIsProfileMenuOpen(false); setIsConfirmingNewGame(false); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
+                    >
+                      <Save size={14} /><span>Save to Cloud</span>
+                    </button>
+                    <button
+                      onClick={() => { onLoad(); setIsProfileMenuOpen(false); setIsConfirmingNewGame(false); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
+                    >
+                      <FolderOpen size={14} /><span>Load from Cloud</span>
+                    </button>
+
+                    <div className="h-px bg-lb-border my-1" />
+
+                    {/* New Game */}
+                    {isConfirmingNewGame ? (
+                      <div className="px-3 py-2">
+                        <p className="text-xs text-lb-muted mb-2">Archive current progress and start fresh?</p>
+                        <div className="flex gap-2">
                           <button
-                            onClick={onClearAuthError}
-                            className="text-[9px] text-red-400 underline mt-1"
+                            onClick={() => {
+                              setIsConfirmingNewGame(false);
+                              setIsProfileMenuOpen(false);
+                              onNewGame();
+                            }}
+                            className="flex-1 px-2 py-1.5 bg-lb-primary text-white text-xs font-semibold rounded hover:bg-lb-accent transition-colors"
                           >
-                            Clear
+                            Yes, start fresh
+                          </button>
+                          <button
+                            onClick={() => setIsConfirmingNewGame(false)}
+                            className="flex-1 px-2 py-1.5 border border-lb-border text-lb-primary text-xs font-semibold rounded hover:bg-lb-bg transition-colors"
+                          >
+                            Cancel
                           </button>
                         </div>
-                      )}
-
-                      {((import.meta as any).env.VITE_SUPABASE_URL === 'https://itjnzcqapohnoqfnxtat.supabase.co' ||
-                        !(import.meta as any).env.VITE_SUPABASE_URL) && (
-                        <div className="px-3 py-2 bg-amber-50 border border-amber-100 rounded mx-2 my-1">
-                          <p className="text-[9px] text-amber-700 leading-tight">
-                            Using fallback project. To enable Google Login, please set your own Supabase credentials in Settings.
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="h-px bg-lb-border my-1" />
+                      </div>
+                    ) : (
                       <button
-                        onClick={() => { onSave(); setIsProfileMenuOpen(false); }}
+                        onClick={() => setIsConfirmingNewGame(true)}
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
                       >
-                        <Save size={14} /><span>Save Locally</span>
+                        <RefreshCw size={14} /><span>New Game</span>
                       </button>
-                      <button
-                        onClick={() => { onLoad(); setIsProfileMenuOpen(false); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                      >
-                        <FolderOpen size={14} /><span>Load Locally</span>
-                      </button>
-                    </>
-                  )}
+                    )}
+
+                    <div className="h-px bg-lb-border my-1" />
+
+                    {/* Sign out */}
+                    <button
+                      onClick={() => { onLogout(); setIsProfileMenuOpen(false); setIsConfirmingNewGame(false); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded text-left"
+                    >
+                      <LogOut size={14} /><span>Sign Out</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-        </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );

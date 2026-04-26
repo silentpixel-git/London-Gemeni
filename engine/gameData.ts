@@ -34,6 +34,7 @@ export interface NPCDefinition {
   personality: string[];
   publicKnowledge: string[];  // Facts/topics this NPC knows and can discuss
   followingRule: 'follows_watson' | 'follows_bond' | 'location_based' | 'fixed';
+  followsNpcId?: string;       // For follows_watson/'follows_bond': the entity ID to shadow ('watson' = player)
   canonicalLocationByAct: Record<number, string>;  // Act number → location ID
 }
 
@@ -268,6 +269,7 @@ export const NPCS: Record<string, NPCDefinition> = {
       'Murders stopped after Kelly — suggests capture, death, confinement, or removal from London',
     ],
     followingRule: 'follows_watson',
+    followsNpcId: 'watson',
     canonicalLocationByAct: {
       1: 'dorset_street',
       2: 'bucks_row',
@@ -344,6 +346,7 @@ export const NPCS: Record<string, NPCDefinition> = {
       'Quiet, polite, reserved — well-regarded by those who work with him',
     ],
     followingRule: 'follows_bond',
+    followsNpcId: 'bond',
     canonicalLocationByAct: {
       1: 'millers_court',
       2: 'bucks_row',
@@ -719,6 +722,79 @@ export const ACT_PROGRESSION: Record<number, ActCondition> = {
 
 // Minimum clues required for a successful deduction attempt
 export const DEDUCTION_THRESHOLD = 5;
+
+// ============================================================
+// SUSPECT PROFILES
+// Data-driven deduction resolution. The engine checks the
+// player's theory against each profile's aliases to determine
+// success or failure — no character names are hardcoded in
+// the engine itself.
+// ============================================================
+
+export interface SuspectProfile {
+  npcId: string;
+  aliases: string[];           // lowercase name variants the player might type
+  isGuilty: boolean;
+  successFlags: Record<string, boolean>;
+  successAct: number;
+  successVisitFlag: string;    // if this flag is already set, the game ends on correct deduction
+}
+
+export const SUSPECT_PROFILES: SuspectProfile[] = [
+  {
+    npcId: 'edmund',
+    aliases: ['edmund', 'halward', "bond's assistant", 'the assistant', 'the young man'],
+    isGuilty: true,
+    successFlags: { 'deduction_correct': true, 'asylum_unlocked': true },
+    successAct: 6,
+    successVisitFlag: 'visited_private_asylum',
+  },
+];
+
+// ============================================================
+// ATMOSPHERIC SEEDS
+// One is chosen at random per narration call so the AI never
+// defaults to the same micro-detail. Centralised here so the
+// list can be extended without touching AIService.
+// ============================================================
+
+export const ATMOSPHERIC_SEEDS: string[] = [
+  'A match scraping against brick somewhere unseen',
+  "A child's cough from behind a closed door",
+  'The distant clatter of a handcart on cobblestones',
+  'The smell of boiled cabbage drifting from an upper window',
+  'A gas lamp guttering in the wind, its flame turning blue',
+  'A woman arguing in a low, urgent voice two streets over',
+  "The tap of a blind man's cane receding into the fog",
+  'A loose shutter banging rhythmically somewhere above',
+  'The distant moan of a foghorn on the Thames',
+  'Wet newspaper clinging to the base of a wall',
+  'A horse snorting somewhere in the dark, unseen',
+  'The smell of coal smoke settling low in the fog',
+  'A single church bell tolling the quarter-hour',
+  'Footsteps on a wooden floor directly above, then silence',
+  'The drip of a gutter, metronomic in the quiet',
+  "A drunk's muffled singing fading around a corner",
+  'The rustle of pigeons disturbed on a nearby roof',
+  "A constable's whistle, far off, answered by silence",
+  'The distant rumble of a late goods train',
+  'A door opening, then closing without anyone appearing',
+  'The flare of a match in an upstairs window, briefly illuminating a face',
+  'Broken glass crunching underfoot somewhere off to the left',
+  'The sour smell of the tannery carried on the night air',
+  'A baby crying briefly, then nothing',
+  'Steam rising from a grate in the pavement',
+  'A stray dog nosing at something in the gutter, then fleeing',
+  'The creak of a sign-board swinging overhead in the wind',
+  'A pair of boots ascending iron stairs somewhere above',
+  "Children's voices from a court, suddenly hushed",
+  "The scratch of a pen behind a lighted window",
+  'A wheel-barrow abandoned at the kerb, one handle broken',
+  "The acrid smell of an extinguished tallow candle drifting past",
+  'Laughter from inside a public house — low, uncomfortable',
+  'A pigeon with a broken wing circling the lamp-post',
+  'The echo of a dropped tin pail two streets away',
+];
 
 // Keywords that suggest a deduction attempt
 export const DEDUCTION_KEYWORDS = [

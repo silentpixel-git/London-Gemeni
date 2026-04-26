@@ -14,7 +14,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
 import { callGemini } from '../services/geminiService';
-import { GameRepository } from '../services/GameRepository';
+import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
@@ -24,10 +24,11 @@ import {
   INITIAL_INVENTORY,
   INITIAL_SANITY,
   INITIAL_NPC_STATES,
+  INITIAL_JOURNAL,
   NPC_DISPLAY_NAMES,
 } from '../constants';
 import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry } from '../types';
-import { supabase } from '../supabase';
+import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
 
 // ── Public interface ──────────────────────────────────────────────────────────
 
@@ -60,6 +61,7 @@ export interface GameStateReturn {
   notification: { message: string; type: 'success' | 'error' } | null;
   setNotification: React.Dispatch<React.SetStateAction<{ message: string; type: 'success' | 'error' } | null>>;
   connectionStatus: { gemini: boolean | null; supabase: boolean | null };
+  retryConnections: () => Promise<void>;
 
   // Refs
   scrollRef: React.RefObject<HTMLDivElement>;
@@ -71,12 +73,16 @@ export interface GameStateReturn {
   handleLoadGame: () => Promise<void>;
   handleConsultHolmes: () => Promise<void>;
   handleUpdateJournal: () => Promise<void>;
+  handleNewGame: () => Promise<void>;
   handleScroll: () => void;
 }
 
+const OPENING_FALLBACK_NARRATIVE =
+  "> *The fog of Whitechapel hangs heavy over Dorset Street. A crowd has gathered outside Miller's Court.*\n\nHolmes stands beside you, his gaze sharp as ever. Inspector Abberline approaches, his face drawn with fatigue.\n\n**Sherlock Holmes** and **Inspector Abberline** are here.\n**Objects of interest:** Police Barricade, Street Lamps, Lodging House Entrances.\n**Possible exits:** Miller's Court.";
+
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useGameState({ user, isAuthReady }: { user: User | null; isAuthReady: boolean }): GameStateReturn {
+export function useGameState({ user, isAuthReady, userProfile }: { user: User | null; isAuthReady: boolean; userProfile: UserProfile | null }): GameStateReturn {
 
   // ── Narrative state ─────────────────────────────────────────────────────
   const [history, setHistory] = useState<GameHistoryItem[]>([]);
@@ -100,9 +106,7 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
   const [turnCount, setTurnCount] = useState(0);
 
   // ── Journal / sidebar ───────────────────────────────────────────────────
-  const [journalNotes, setJournalNotes] = useState(
-    "**Found:**\n* Reports of a new murder in Miller's Court.\n\n**Sanity Note:**\n* The fog of Whitechapel feels heavier today."
-  );
+  const [journalNotes, setJournalNotes] = useState(INITIAL_JOURNAL);
   const [isUpdatingJournal, setIsUpdatingJournal] = useState(false);
   const [isConsultingHolmes, setIsConsultingHolmes] = useState(false);
 
@@ -121,6 +125,7 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
   const hasGeneratedOpening = useRef(false);
+  const needsJournalUpdate = useRef(false);
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const lastUserMsgIdx = [...history].reverse().findIndex(m => m.role === 'user');
@@ -128,30 +133,90 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
 
   // ── Effects ───────────────────────────────────────────────────────────────
 
-  // Resize + connection checks on mount
-  useEffect(() => {
-    const checkConnections = async () => {
-      try {
-        const { error } = await supabase.from('investigations').select('id').limit(1);
-        setConnectionStatus(prev => ({ ...prev, supabase: !error }));
-      } catch {
-        setConnectionStatus(prev => ({ ...prev, supabase: false }));
-      }
-      try {
-        const test = await callGemini("Say 'ok'", false, 0);
-        setConnectionStatus(prev => ({ ...prev, gemini: test.toLowerCase().includes('ok') }));
-      } catch {
-        setConnectionStatus(prev => ({ ...prev, gemini: false }));
-      }
-    };
-    checkConnections();
+  // ── Supabase connectivity ping ────────────────────────────────────────────
+  // Uses a direct fetch to GoTrue's public /health endpoint instead of the
+  // Supabase SDK. This avoids the SDK's internal storage-lock mechanism, which
+  // can block or error during automatic token-refresh cycles and cause false
+  // "cloud down" readings even when the project is perfectly healthy.
+  const pingSupabase = useCallback(async (): Promise<boolean> => {
+    if (!isSupabaseConfigured) return false;
+    try {
+      const res = await fetch(`${supabaseUrl}/auth/v1/health`, {
+        headers: { apikey: supabaseAnonKey },
+        signal: AbortSignal.timeout(5000),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
   }, []);
 
-  // Theme persistence
+  // Full connection check (Supabase + Gemini) — used on mount and manual retry
+  const checkConnections = useCallback(async () => {
+    setConnectionStatus({ gemini: null, supabase: null });
+
+    const supabaseOk = await pingSupabase();
+    setConnectionStatus(prev => ({ ...prev, supabase: supabaseOk }));
+    if (!supabaseOk) {
+      setNotification({ message: 'Cloud unavailable — progress will save locally.', type: 'error' });
+    }
+
+    try {
+      const test = await callGemini("Say 'ok'", false, 0);
+      setConnectionStatus(prev => ({ ...prev, gemini: test.toLowerCase().includes('ok') }));
+    } catch {
+      setConnectionStatus(prev => ({ ...prev, gemini: false }));
+    }
+  }, [pingSupabase]);
+
+  // Run once when auth state is first known
+  useEffect(() => {
+    if (isAuthReady) checkConnections();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthReady]);
+
+  // Silent background monitor — re-checks every 60 s so the dot stays accurate
+  // throughout the session without needing the user to click retry.
+  useEffect(() => {
+    if (!isAuthReady) return;
+    const monitor = setInterval(async () => {
+      const ok = await pingSupabase();
+      setConnectionStatus(prev =>
+        prev.supabase === ok ? prev : { ...prev, supabase: ok }
+      );
+    }, 60_000);
+    return () => clearInterval(monitor);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthReady, pingSupabase]);
+
+  // Theme persistence — localStorage + Supabase cloud sync
   useEffect(() => {
     document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
     try { localStorage.setItem('lb-theme', isDark ? 'dark' : 'light'); } catch {}
+    // Sync to cloud when logged in (user accessed via closure — intentionally omitted from deps)
+    if (user) {
+      GameRepository.upsertProfile(user.id, { themePreference: isDark ? 'dark' : 'light' });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDark]);
+
+  // Load theme preference from cloud when user profile becomes available
+  useEffect(() => {
+    if (userProfile?.themePreference) {
+      setIsDark(userProfile.themePreference === 'dark');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userProfile?.id]); // only fire when user identity changes, not on every profile update
+
+  // Auto-generate diary when history has real (non-empty) content
+  useEffect(() => {
+    const hasContent = history.some(h => h.text && h.text.trim().length > 0);
+    if (needsJournalUpdate.current && hasContent && !isUpdatingJournal) {
+      needsJournalUpdate.current = false;
+      handleUpdateJournal();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [history.length]);
 
   // Scroll to active turn when new assistant placeholder appears
   const scrollToActiveTurn = useCallback(() => {
@@ -214,15 +279,17 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
       };
       const result = gameEngine.resolve(intent, snapshot);
 
+      let lastText = '';
       for await (const update of aiService.stream(result.aiContext)) {
-        setHistory([{ role: 'assistant', text: update.narrative }]);
+        if (update.narrative) {
+          lastText = update.narrative;
+          setHistory([{ role: 'assistant', text: lastText }]);
+        }
       }
+      if (!lastText) setHistory([{ role: 'assistant', text: OPENING_FALLBACK_NARRATIVE }]);
     } catch (error) {
       console.error('Opening scene generation failed:', error);
-      setHistory([{
-        role: 'assistant',
-        text: "> *The fog of Whitechapel hangs heavy over Dorset Street. A crowd has gathered outside Miller's Court.*\n\nHolmes stands beside you, his gaze sharp as ever. Inspector Abberline approaches, his face drawn with fatigue.\n\n**Sherlock Holmes** and **Inspector Abberline** are here.\n**Objects of interest:** Police Barricade, Street Lamps, Lodging House Entrances.\n**Possible exits:** Miller's Court.",
-      }]);
+      setHistory([{ role: 'assistant', text: OPENING_FALLBACK_NARRATIVE }]);
     } finally {
       setIsLoading(false);
     }
@@ -290,7 +357,6 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
           const inv = (investigation as any).inventory || INITIAL_INVENTORY;
           const act = (investigation as any).currentAct || 1;
 
-          setHistory(historyItems.length > 0 ? historyItems : history);
           setLocation(investigation.currentLocation);
           setInventory(inv);
           setSanity(investigation.sanity);
@@ -299,7 +365,10 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
           setCurrentAct(act);
           setIsGameOver(investigation.status === 'solved');
           setFlags(investigation.globalFlags as Record<string, boolean>);
-          setJournalNotes(investigation.journalNotes);
+          setJournalNotes(investigation.journalNotes || INITIAL_JOURNAL);
+          if (!investigation.journalNotes && historyItems.length > 0) {
+            needsJournalUpdate.current = true;
+          }
           setActiveInvestigation(investigation);
 
           const npcMap = await GameRepository.getAllNPCStates(investigation.id);
@@ -309,7 +378,15 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
 
           if ((investigation as any).stim) setStim((investigation as any).stim);
 
-          setNotification({ message: 'Investigation Resumed!', type: 'success' });
+          if (historyItems.length > 0) {
+            setHistory(historyItems);
+            setNotification({ message: 'Investigation Resumed!', type: 'success' });
+          } else {
+            // Investigation exists but no logs yet — generate opening scene
+            hasGeneratedOpening.current = false;
+            needsJournalUpdate.current = true;
+            generateOpeningScene();
+          }
           return;
         }
 
@@ -320,11 +397,12 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
           sanity: INITIAL_SANITY,
           currentAct: 1,
           globalFlags: {},
-          journalNotes: '',
+          journalNotes: INITIAL_JOURNAL,
         });
         setActiveInvestigation(investigation);
 
         hasGeneratedOpening.current = false;
+        needsJournalUpdate.current = true;
         generateOpeningScene();
 
         setNotification({ message: 'New Investigation Started!', type: 'success' });
@@ -346,7 +424,33 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
       }
     } catch (e) {
       console.error('Load failed', e);
-      setNotification({ message: 'Failed to load game save.', type: 'error' });
+
+      // Cloud unreachable — attempt local save fallback so the game is never stuck
+      try {
+        const savedData = localStorage.getItem('londonBleedsSave');
+        if (savedData) {
+          const state = JSON.parse(savedData) as GameState;
+          if (state.history && state.history.length > 0) {
+            setHistory(state.history);
+            setLocation(state.location);
+            setInventory(state.inventory);
+            setSanity(state.sanity || 100);
+            setFlags(state.flags || {});
+            setJournalNotes(state.journalNotes || INITIAL_JOURNAL);
+            if (state.npcStates) setNpcStates(state.npcStates);
+            setNotification({ message: 'Cloud unavailable — local save loaded.', type: 'error' });
+            return;
+          }
+        }
+      } catch {}
+
+      // No local save either — generate a fresh opening scene so the screen is never blank
+      setNotification({ message: 'Cloud unavailable — starting fresh locally.', type: 'error' });
+      if (history.length === 0) {
+        hasGeneratedOpening.current = false;
+        needsJournalUpdate.current = true;
+        generateOpeningScene();
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, generateOpeningScene]);
@@ -379,30 +483,29 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
         filter: `id=eq.${activeInvestigation.id}`,
       }, (payload) => {
         const data = payload.new as any;
-        if (data.updated_at > activeInvestigation.updatedAt) {
-          setLocation(data.current_location);
-          setInventory(data.inventory || []);
-          setSanity(data.sanity);
-          setMedicalPoints(data.medical_points);
-          setMoralPoints(data.moral_points);
-          setCurrentAct(data.current_act || 1);
-          setFlags(data.global_flags || {});
-          setJournalNotes(data.journal_notes || '');
-          setActiveInvestigation(prev =>
-            prev
-              ? {
-                  ...prev,
-                  currentLocation: data.current_location,
-                  sanity: data.sanity,
-                  medicalPoints: data.medical_points,
-                  moralPoints: data.moral_points,
-                  globalFlags: data.global_flags,
-                  journalNotes: data.journal_notes,
-                  updatedAt: data.updated_at,
-                }
-              : null
-          );
-        }
+        // Apply all incoming DB updates — subscription only fires on genuine changes.
+        setLocation(data.current_location);
+        setInventory(data.inventory || []);
+        setSanity(data.sanity);
+        setMedicalPoints(data.medical_points);
+        setMoralPoints(data.moral_points);
+        setCurrentAct(data.current_act || 1);
+        setFlags(data.global_flags || {});
+        setJournalNotes(data.journal_notes || INITIAL_JOURNAL);
+        setActiveInvestigation(prev =>
+          prev
+            ? {
+                ...prev,
+                currentLocation: data.current_location,
+                sanity: data.sanity,
+                medicalPoints: data.medical_points,
+                moralPoints: data.moral_points,
+                globalFlags: data.global_flags,
+                journalNotes: data.journal_notes,
+                updatedAt: data.updated_at,
+              }
+            : null
+        );
       })
       .on('postgres_changes', {
         event: '*',
@@ -452,7 +555,9 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user, activeInvestigation?.id, activeInvestigation?.updatedAt]);
+  // Only recreate channel when investigation identity changes, not on every save.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, activeInvestigation?.id]);
 
   // ── Main action handler ────────────────────────────────────────────────────
 
@@ -695,6 +800,63 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
     }
   }, [isUpdatingJournal, history]);
 
+  // ── New Game ──────────────────────────────────────────────────────────────
+
+  const handleNewGame = useCallback(async () => {
+    // Archive current investigation so it isn't lost
+    if (user && activeInvestigation) {
+      try {
+        await GameRepository.updateInvestigation(activeInvestigation.id, { status: 'archived' });
+      } catch (e) {
+        console.error('Could not archive investigation:', e);
+      }
+    }
+
+    // Clear local save slot
+    try { localStorage.removeItem('londonBleedsSave'); } catch {}
+
+    // Reset all game state to initial values
+    setHistory([]);
+    setLocation(INITIAL_LOCATION);
+    setInventory(INITIAL_INVENTORY);
+    setSanity(INITIAL_SANITY);
+    setMedicalPoints(0);
+    setMoralPoints(0);
+    setIsGameOver(false);
+    setFlags({});
+    setNpcStates(INITIAL_NPC_STATES as Record<string, NPCState>);
+    setCurrentAct(1);
+    setStim({});
+    setTurnCount(0);
+    setJournalNotes(INITIAL_JOURNAL);
+    setActiveInvestigation(null);
+
+    // Create a fresh investigation for logged-in users
+    if (user) {
+      try {
+        const newInv = await GameRepository.createInvestigation(user.id, {
+          currentLocation: INITIAL_LOCATION,
+          inventory: INITIAL_INVENTORY,
+          sanity: INITIAL_SANITY,
+          currentAct: 1,
+          globalFlags: {},
+          journalNotes: INITIAL_JOURNAL,
+        });
+        setActiveInvestigation(newInv);
+      } catch (e) {
+        console.error('Could not create new investigation:', e);
+      }
+    }
+
+    // Trigger fresh opening scene + auto-diary
+    hasGeneratedOpening.current = false;
+    needsJournalUpdate.current = true;
+    generateOpeningScene();
+
+    setNotification({ message: 'New Investigation Started!', type: 'success' });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, activeInvestigation?.id, generateOpeningScene]);
+
   // ── Return ────────────────────────────────────────────────────────────────
 
   return {
@@ -723,6 +885,7 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
     notification,
     setNotification,
     connectionStatus,
+    retryConnections: checkConnections,
 
     scrollRef,
     lastUserMessageRef,
@@ -732,6 +895,7 @@ export function useGameState({ user, isAuthReady }: { user: User | null; isAuthR
     handleLoadGame,
     handleConsultHolmes,
     handleUpdateJournal,
+    handleNewGame,
     handleScroll,
   };
 }

@@ -17,6 +17,7 @@ import {
   NPCS,
   CLUE_TRIGGERS,
   CLUE_DEFINITIONS,
+  ClueDefinition,
   TAKEABLE_OBJECTS,
   ACT_PROGRESSION,
   ACT_NAMES,
@@ -25,6 +26,7 @@ import {
   DEDUCTION_THRESHOLD,
   SANITY_PENALTIES,
   USE_INTERACTIONS,
+  SUSPECT_PROFILES,
 } from './gameData';
 
 // ============================================================
@@ -72,6 +74,8 @@ export class GameEngine {
         return this.resolveDeduce(intent, session);
       case 'help':
         return this.resolveHelp(intent, session);
+      case 'query':
+        return this.resolveQuery(intent, session);
       case 'other':
       default:
         return this.resolveOther(intent, session);
@@ -220,20 +224,8 @@ export class GameEngine {
     const alreadyExaminedFlag = `examined_${session.location}_${targetId}`;
     const alreadyExamined = session.flags[alreadyExaminedFlag] === true;
 
-    // Trigger clues
-    const locationTriggers = CLUE_TRIGGERS[session.location] || {};
-    const objectTriggers = locationTriggers[targetId] || [];
-    const newClueIds = alreadyExamined
-      ? []
-      : objectTriggers.filter(id => !session.discoveredClueIds.includes(id));
-
-    const newClueDefs = newClueIds
-      .map(id => CLUE_DEFINITIONS[id])
-      .filter(Boolean);
-
-    // Calculate points
-    const medicalDelta = newClueDefs.reduce((sum, c) => sum + c.medicalPoints, 0);
-    const moralDelta = newClueDefs.reduce((sum, c) => sum + c.moralPoints, 0);
+    const { newClueIds, newClueDefs, medicalDelta, moralDelta } =
+      this.triggerClues(session.location, targetId, alreadyExamined, session.discoveredClueIds);
 
     // Apply sanity penalty on first examination of horrific scenes
     const sanityDelta = !alreadyExamined
@@ -325,7 +317,7 @@ export class GameEngine {
       discoveredClueIds: [],
       aiContext: this.buildContext(intent, session, {
         success: true,
-        actionDescription: `Watson spoke with ${npcName} at ${currentLoc.name}.`,
+        actionDescription: `Watson addressed ${npcName} at ${currentLoc.name}. Watson said: "${intent.raw}"`,
         actionResultNote: `SUCCESS — Watson engaged ${npcName} in conversation.`,
         newClueDefs: [],
         targetNpcId: targetId,
@@ -376,20 +368,14 @@ export class GameEngine {
       };
     }
 
-    // Trigger any clues attached to this object via examine
-    const locationTriggers = CLUE_TRIGGERS[session.location] || {};
-    const objectTriggers = (locationTriggers[targetId] || []).filter(
-      id => !session.discoveredClueIds.includes(id)
-    );
-    const newClueDefs = objectTriggers.map(id => CLUE_DEFINITIONS[id]).filter(Boolean);
-    const medicalDelta = newClueDefs.reduce((sum, c) => sum + c.medicalPoints, 0);
-    const moralDelta = newClueDefs.reduce((sum, c) => sum + c.moralPoints, 0);
+    const { newClueIds, newClueDefs, medicalDelta, moralDelta } =
+      this.triggerClues(session.location, targetId, false, session.discoveredClueIds);
 
     return {
       actionSuccess: true,
       actionType: 'take',
       inventoryAdd: [inventoryItem],
-      discoveredClueIds: objectTriggers,
+      discoveredClueIds: newClueIds,
       medicalPointsDelta: medicalDelta || undefined,
       moralPointsDelta: moralDelta || undefined,
       aiContext: this.buildContext(intent, session, {
@@ -422,16 +408,11 @@ export class GameEngine {
 
       if (isInLocation || isInInventory) {
         const objectName = OBJECT_DISPLAY_NAMES[targetId] || intent.targetRaw;
-        // Trigger any clues this object would normally trigger (same as examine, first time only)
         const alreadyExaminedFlag = `examined_${session.location}_${targetId}`;
         const alreadyExamined = session.flags[alreadyExaminedFlag] === true;
-        const locationTriggers = CLUE_TRIGGERS[session.location] || {};
-        const objectTriggers = alreadyExamined
-          ? []
-          : (locationTriggers[targetId] || []).filter(id => !session.discoveredClueIds.includes(id));
-        const newClueDefs = objectTriggers.map(id => CLUE_DEFINITIONS[id]).filter(Boolean);
-        const medicalDelta = newClueDefs.reduce((sum, c) => sum + c.medicalPoints, 0);
-        const moralDelta = newClueDefs.reduce((sum, c) => sum + c.moralPoints, 0);
+
+        const { newClueIds, newClueDefs, medicalDelta, moralDelta } =
+          this.triggerClues(session.location, targetId, alreadyExamined, session.discoveredClueIds);
 
         const locationFlag = currentLoc.locationExaminedFlag;
         const flagsUpdate: Record<string, boolean> = {
@@ -446,7 +427,7 @@ export class GameEngine {
           actionType: 'use',
           flagsUpdate: { ...flagsUpdate, ...(actCheck.flagsUpdate || {}) },
           newAct: actCheck.newAct,
-          discoveredClueIds: objectTriggers,
+          discoveredClueIds: newClueIds,
           medicalPointsDelta: medicalDelta || undefined,
           moralPointsDelta: moralDelta || undefined,
           aiContext: this.buildContext(intent, session, {
@@ -505,35 +486,25 @@ export class GameEngine {
       };
     }
 
-    // Check if theory mentions Edmund (or Halward)
-    const mentionsEdmund =
-      theory.includes('edmund') ||
-      theory.includes('halward') ||
-      theory.includes('bond\'s assistant') ||
-      theory.includes("bond's assistant") ||
-      theory.includes('the assistant') ||
-      theory.includes('the young man');
+    // Check theory against all suspect profiles
+    const matchedProfile = SUSPECT_PROFILES.find(profile =>
+      profile.aliases.some(alias => theory.includes(alias))
+    );
 
-    if (mentionsEdmund) {
-      // Successful deduction — unlock asylum if not already accessible
-      const flagsUpdate: Record<string, boolean> = {
-        'deduction_correct': true,
-        'asylum_unlocked': true,
-      };
-
-      // If already visited asylum, this is the final resolution
-      const isGameOver = session.flags['visited_private_asylum'] === true;
+    if (matchedProfile?.isGuilty) {
+      const isGameOver = session.flags[matchedProfile.successVisitFlag] === true;
+      const npcName = NPCS[matchedProfile.npcId]?.displayName ?? matchedProfile.npcId;
 
       return {
         actionSuccess: true,
         actionType: 'deduce',
-        flagsUpdate,
-        newAct: session.currentAct < 6 ? 6 : undefined,
+        flagsUpdate: matchedProfile.successFlags,
+        newAct: session.currentAct < matchedProfile.successAct ? matchedProfile.successAct : undefined,
         gameOver: isGameOver,
         discoveredClueIds: [],
         aiContext: this.buildContext(intent, session, {
           success: true,
-          actionDescription: `Watson named Edmund Halward as the suspect: "${intent.raw}"`,
+          actionDescription: `Watson named ${npcName} as the suspect: "${intent.raw}"`,
           actionResultNote: isGameOver
             ? 'DEDUCTION COMPLETE — Holmes agrees. The case is resolved, though without legal proof. Game concludes.'
             : 'SUCCESS — Holmes concurs with the theory. The Private Asylum must be visited to confirm.',
@@ -596,6 +567,32 @@ export class GameEngine {
   }
 
   // --------------------------------------------------------
+  // QUERY (atmospheric / world question — no state change)
+  // --------------------------------------------------------
+
+  private resolveQuery(intent: ParsedIntent, session: SessionSnapshot): EngineResult {
+    return {
+      actionSuccess: true,
+      actionType: 'query',
+      discoveredClueIds: [],
+      aiContext: this.buildContext(intent, session, {
+        success: true,
+        actionDescription: `Watson observed: "${intent.raw}"`,
+        actionResultNote:
+          `WORLD QUERY — Answer Watson's specific question or observation in 1–2 sentences, Watson's first-person voice. ` +
+          `Draw on: (1) the location atmosphere and description for immediate scene detail; ` +
+          `(2) Watson's knowledge as a Victorian doctor and gentleman for questions about 1888 London life, ` +
+          `customs, trades, objects, and period context — he need not limit himself to the immediate scene. ` +
+          `If the question concerns something that did not exist in 1888 London — modern technology, post-1888 events, ` +
+          `or concepts foreign to a Victorian gentleman — Watson should briefly and gracefully acknowledge he has no ` +
+          `knowledge of such a thing, in character. Do not invent anachronistic answers. ` +
+          `Do not list exits, objects, or NPCs unless directly relevant to the question.`,
+        newClueDefs: [],
+      }),
+    };
+  }
+
+  // --------------------------------------------------------
   // OTHER (free-text, no recognised intent)
   // --------------------------------------------------------
 
@@ -617,6 +614,30 @@ export class GameEngine {
   // ============================================================
   // HELPERS
   // ============================================================
+
+  /**
+   * Look up clues triggered by examining objectId at locationId.
+   * Filters out clues already discovered or suppressed by alreadyExamined.
+   * Returns the clue list plus pre-calculated point deltas.
+   */
+  private triggerClues(
+    locationId: string,
+    objectId: string,
+    alreadyExamined: boolean,
+    discoveredClueIds: string[]
+  ): { newClueIds: string[]; newClueDefs: ClueDefinition[]; medicalDelta: number; moralDelta: number } {
+    const candidates = CLUE_TRIGGERS[locationId]?.[objectId] ?? [];
+    const newClueIds = alreadyExamined
+      ? []
+      : candidates.filter(id => !discoveredClueIds.includes(id));
+    const newClueDefs = newClueIds.map(id => CLUE_DEFINITIONS[id]).filter(Boolean) as ClueDefinition[];
+    return {
+      newClueIds,
+      newClueDefs,
+      medicalDelta: newClueDefs.reduce((sum, c) => sum + c.medicalPoints, 0),
+      moralDelta: newClueDefs.reduce((sum, c) => sum + c.moralPoints, 0),
+    };
+  }
 
   /**
    * Build the NarrationContext that gets sent to the AI.
@@ -743,8 +764,10 @@ export class GameEngine {
 
   /**
    * When Watson moves, compute which NPCs follow.
-   * - Holmes always follows Watson
-   * - Edmund follows Bond; Bond is location-based by act
+   * Behaviour is driven entirely by NPCDefinition fields:
+   *   followsNpcId === 'watson'  → shadow the player destination
+   *   followsNpcId === <npcId>   → shadow that NPC's resolved location
+   *   location_based / fixed     → snap to canonicalLocationByAct
    */
   private computeNpcMovements(
     newLocationId: string,
@@ -752,24 +775,34 @@ export class GameEngine {
   ): Record<string, Partial<NPCState>> {
     const updates: Record<string, Partial<NPCState>> = {};
 
-    // Holmes follows Watson
-    const holmesState = session.npcStates['holmes'];
-    if (!holmesState || holmesState.currentLocation !== newLocationId) {
-      updates['holmes'] = { currentLocation: newLocationId };
+    // First pass: location-based and fixed NPCs (establish canonical positions)
+    for (const [npcId, npc] of Object.entries(NPCS)) {
+      if (npc.followingRule === 'location_based' || npc.followingRule === 'fixed') {
+        const canonical = npc.canonicalLocationByAct[session.currentAct];
+        if (canonical && canonical !== session.npcStates[npcId]?.currentLocation) {
+          updates[npcId] = { currentLocation: canonical };
+        }
+      }
     }
 
-    // Bond moves to canonical location for current act
-    const bondCanonical = NPCS['bond']?.canonicalLocationByAct[session.currentAct];
-    if (bondCanonical && bondCanonical !== session.npcStates['bond']?.currentLocation) {
-      updates['bond'] = { currentLocation: bondCanonical };
-      // Edmund follows Bond
-      updates['edmund'] = { currentLocation: bondCanonical };
-    }
+    // Second pass: NPCs that shadow another entity
+    for (const [npcId, npc] of Object.entries(NPCS)) {
+      if (!npc.followsNpcId) continue;
 
-    // Abberline moves to canonical location for current act
-    const abberlineCanonical = NPCS['abberline']?.canonicalLocationByAct[session.currentAct];
-    if (abberlineCanonical && abberlineCanonical !== session.npcStates['abberline']?.currentLocation) {
-      updates['abberline'] = { currentLocation: abberlineCanonical };
+      let destination: string | undefined;
+      if (npc.followsNpcId === 'watson') {
+        destination = newLocationId;
+      } else {
+        // Resolve the followed NPC's location from this turn's updates, then session, then canonical
+        destination =
+          (updates[npc.followsNpcId]?.currentLocation as string | undefined) ??
+          session.npcStates[npc.followsNpcId]?.currentLocation ??
+          NPCS[npc.followsNpcId]?.canonicalLocationByAct[session.currentAct];
+      }
+
+      if (destination && destination !== session.npcStates[npcId]?.currentLocation) {
+        updates[npcId] = { currentLocation: destination };
+      }
     }
 
     return updates;

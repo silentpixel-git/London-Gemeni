@@ -3,12 +3,13 @@
  *
  * Owns:
  *   - isSidebarOpen (affects root layout; both Sidebar and Header need it)
+ *   - isAuthModalOpen / isEditProfileOpen / isFirstRunProfile (modal orchestration)
  *   - SupabaseProvider / ErrorBoundary wrappers
  *
  * Everything else lives in hooks/useGameState.ts and the focused components.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SupabaseProvider, useSupabase } from './components/SupabaseProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Notification } from './components/Notification';
@@ -16,14 +17,39 @@ import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { NarrativeFeed } from './components/NarrativeFeed';
 import { CommandInput } from './components/CommandInput';
+import { AuthModal } from './components/AuthModal';
+import { EditProfileModal } from './components/EditProfileModal';
 import { useGameState } from './hooks/useGameState';
 
 // ── Inner app (has access to Supabase context) ──────────────────────────────
 
 const AppContent: React.FC = () => {
-  const { user, isAuthReady, authError, loginWithGoogle, logout, clearAuthError } = useSupabase();
+  const { user, isAuthReady, isNewUser, userProfile, logout } = useSupabase();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const gs = useGameState({ user, isAuthReady });
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [isFirstRunProfile, setIsFirstRunProfile] = useState(false);
+
+  const gs = useGameState({ user, isAuthReady, userProfile });
+
+  useEffect(() => {
+    if (!user) return;
+    setIsAuthModalOpen(false);
+    if (isNewUser) {
+      setIsFirstRunProfile(true);
+      setIsEditProfileOpen(true);
+    }
+  }, [user, isNewUser]);
+
+  const handleOpenEditProfile = () => {
+    setIsFirstRunProfile(false);
+    setIsEditProfileOpen(true);
+  };
+
+  const handleCloseEditProfile = () => {
+    setIsEditProfileOpen(false);
+    setIsFirstRunProfile(false);
+  };
 
   return (
     <div className="flex h-screen w-full overflow-hidden font-sans selection:bg-lb-accent selection:text-white bg-lb-bg text-lb-primary">
@@ -61,15 +87,17 @@ const AppContent: React.FC = () => {
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={() => setIsSidebarOpen(s => !s)}
           connectionStatus={gs.connectionStatus}
+          onRetryConnection={gs.retryConnections}
           isSaving={gs.isSaving}
           isDark={gs.isDark}
           onToggleDark={() => gs.setIsDark(d => !d)}
           user={user}
-          authError={authError}
-          onClearAuthError={clearAuthError}
+          userProfile={userProfile}
           onSave={() => gs.handleSaveGame()}
           onLoad={gs.handleLoadGame}
-          onLogin={loginWithGoogle}
+          onNewGame={() => gs.handleNewGame()}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
+          onOpenEditProfile={handleOpenEditProfile}
           onLogout={logout}
         />
 
@@ -91,6 +119,17 @@ const AppContent: React.FC = () => {
           onConsultHolmes={gs.handleConsultHolmes}
         />
       </div>
+
+      {/* Modals */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+      />
+      <EditProfileModal
+        isOpen={isEditProfileOpen}
+        onClose={handleCloseEditProfile}
+        isFirstRun={isFirstRunProfile}
+      />
     </div>
   );
 };

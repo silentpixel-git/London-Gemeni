@@ -9,8 +9,8 @@
  */
 
 import { LOCATIONS, NPCS, OBJECT_DISPLAY_NAMES, DEDUCTION_KEYWORDS } from './gameData';
-
-export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'inventory' | 'deduce' | 'help' | 'other';
+import type { IntentType } from '../types';
+export type { IntentType };
 
 export interface ParsedIntent {
   type: IntentType;
@@ -354,6 +354,15 @@ export function parseIntent(rawInput: string): ParsedIntent {
       const targetId = targetRaw
         ? matchObjectId(targetRaw) || matchNpcId(targetRaw) || matchLocationId(targetRaw)
         : undefined;
+      // Examine verb + unresolvable target (e.g. "examine the fog") → world query, not a look-around
+      if (targetRaw && !targetId) {
+        return { type: 'query', targetRaw, raw: rawInput };
+      }
+      // Examine verb + location target (e.g. "describe dorset street") → world query;
+      // locations are not interactable objects and can't be examined by the engine
+      if (targetId && LOCATIONS[targetId] && !OBJECT_DISPLAY_NAMES[targetId]) {
+        return { type: 'query', targetRaw, raw: rawInput };
+      }
       return {
         type: 'examine',
         targetId,
@@ -363,7 +372,15 @@ export function parseIntent(rawInput: string): ParsedIntent {
     }
   }
 
-  // 8. Implicit movement: if the whole input matches a location name
+  // 8. Natural-language question — must come before implicit matching so that
+  //    inputs like "what is dorset street" are not swallowed by the location matcher.
+  //    Bare entity names ("dorset street", "holmes") still reach implicit matching below.
+  const QUESTION_PREFIXES = /^(what|how|why|where|when|which|who|does|is|are|can|tell me|describe)/;
+  if (QUESTION_PREFIXES.test(norm)) {
+    return { type: 'query', targetRaw: rawInput, raw: rawInput };
+  }
+
+  // 9. Implicit movement: if the whole input matches a location name
   const directLocationMatch = matchLocationId(rawInput);
   if (directLocationMatch) {
     return {
@@ -374,7 +391,7 @@ export function parseIntent(rawInput: string): ParsedIntent {
     };
   }
 
-  // 9. Implicit examine: if the whole input matches an object or NPC
+  // 10. Implicit examine: if the whole input matches an object or NPC
   const directObjectMatch = matchObjectId(rawInput);
   if (directObjectMatch) {
     return {
@@ -395,7 +412,7 @@ export function parseIntent(rawInput: string): ParsedIntent {
     };
   }
 
-  // 10. Fallback
+  // 11. Fallback
   return {
     type: 'other',
     raw: rawInput,
