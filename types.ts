@@ -204,10 +204,13 @@ export interface NarrationContext {
   npcRecentMemory?: Record<string, string[]>;
   // Session observations (STIM) — injected by useGameState before AI call
   stim?: Record<string, STIMEntry>;
+  // Cross-clue Holmes synthesis — injected by useGameState after consultHolmesMultiClue()
+  holmesSynthesis?: string;
   // Controls how much the AI writes:
   //   'full'    — move or look: Act header + location prose + atmosphere + exits/objects/NPCs
   //   'compact' — examine/talk/take/etc: short observation + NPC response, no header or location listing
-  narrationMode: 'full' | 'compact';
+  //   'opening' — game start only: 2 tight paragraphs, max 130 words, hook only
+  narrationMode: 'full' | 'compact' | 'opening';
 }
 
 /** Simplified AI response schema — narration only, no state mutations */

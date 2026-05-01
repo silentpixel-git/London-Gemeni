@@ -7,6 +7,7 @@
  */
 
 import React from 'react';
+import { Feather } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { StoryRenderer } from './StoryRenderer';
 import { TypewriterBlock } from './TypewriterBlock';
@@ -15,6 +16,7 @@ import { GameHistoryItem } from '../types';
 
 interface NarrativeFeedProps {
   history: GameHistoryItem[];
+  isLoading: boolean;
   isGameOver: boolean;
   actualLastUserIdx: number;
   lastUserMessageRef: React.RefObject<HTMLDivElement>;
@@ -24,6 +26,7 @@ interface NarrativeFeedProps {
 
 export const NarrativeFeed: React.FC<NarrativeFeedProps> = ({
   history,
+  isLoading,
   isGameOver,
   actualLastUserIdx,
   lastUserMessageRef,
@@ -103,6 +106,22 @@ export const NarrativeFeed: React.FC<NarrativeFeedProps> = ({
 
           return null;
         })}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isLoading && history.length > 0 && history[history.length - 1]?.role === 'assistant' && history[history.length - 1]?.text === '' && (
+          <motion.div
+            key="opening-loader"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            className="mb-8 flex items-center gap-3 text-lb-muted"
+          >
+            <Feather size={16} className="animate-bounce text-lb-accent" />
+            <span className="text-sm italic font-serif">Watson opens his notebook...</span>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {isGameOver && <GameOverScreen />}

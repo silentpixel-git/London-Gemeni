@@ -18,7 +18,7 @@ export const Notification: React.FC<NotificationProps> = ({ message, type, onClo
       fixed top-6 left-1/2 -translate-x-1/2 z-[100]
       flex items-center gap-3 px-6 py-3 rounded-full shadow-xl
       animate-in fade-in slide-in-from-top-4 duration-300
-      ${type === 'error' ? 'bg-red-900 text-white' : 'bg-lb-primary text-white'}
+      ${type === 'error' ? 'bg-red-900 text-white' : 'bg-lb-primary text-lb-bg'}
     `}>
       {type === 'error'
         ? <AlertCircle size={20} />

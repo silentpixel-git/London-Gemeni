@@ -167,7 +167,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {displayRole}
                 </span>
               </div>
-              <div className="w-8 h-8 rounded-full bg-lb-primary text-white flex items-center justify-center overflow-hidden shrink-0">
+              <div className="w-8 h-8 rounded-full bg-lb-primary text-lb-bg flex items-center justify-center overflow-hidden shrink-0">
                 {user.user_metadata?.avatar_url ? (
                   <img
                     src={user.user_metadata.avatar_url}
