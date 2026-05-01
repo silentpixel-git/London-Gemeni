@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { MapPin, Briefcase, DoorOpen, User, ScrollText, Sparkles, Brain, X } from 'lucide-react';
+import { MapPin, Briefcase, DoorOpen, User, ScrollText, Feather, Brain, X } from 'lucide-react';
 import { JournalRenderer } from './JournalRenderer';
 import { LOCATIONS } from '../engine/gameData';
 import { INITIAL_NPC_STATES, NPC_DISPLAY_NAMES } from '../constants';
@@ -143,10 +143,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={onUpdateJournal}
               disabled={isUpdatingJournal}
-              className="p-1 hover:bg-lb-accent/10 rounded-full transition-colors"
-              title="Refine Diary"
+              className="p-1.5 border border-lb-border bg-lb-paper hover:bg-lb-accent/10 rounded transition-colors disabled:opacity-50"
+              title="Update Watson's Diary"
             >
-              <Sparkles size={14} className={isUpdatingJournal ? 'animate-spin' : ''} />
+              <Feather size={16} className={isUpdatingJournal ? 'animate-pulse' : ''} />
             </button>
           </div>
           <div className="bg-lb-paper border border-lb-border rounded-lg p-6 shadow-sm relative">

@@ -123,7 +123,18 @@ function pickAtmosphericSeed(): string {
   return ATMOSPHERIC_SEEDS[Math.floor(Math.random() * ATMOSPHERIC_SEEDS.length)];
 }
 
+function getSanityTierNote(sanity: number): string {
+  if (sanity <= 39) {
+    return `\n=== WATSON'S MENTAL STATE: FRAGMENTED (${sanity}/100) ===\nCRITICAL — this is mandatory, not a suggestion: Watson's prose MUST visibly fragment. Short, broken sentences interrupt longer ones. He questions his own perceptions mid-thought ("Or was it?", "No — no, that cannot be right.", "I cannot be certain"). Intrusive, unwanted thoughts surface. The clinical detachment is gone. A normal reader must notice that something is wrong with the narrator.\n`;
+  }
+  if (sanity <= 69) {
+    return `\n=== WATSON'S MENTAL STATE: STRAINED (${sanity}/100) ===\nWatson is unsettled. His prose shows subtle strain — one sentence that trails or hesitates, a thought he does not complete, a single moment of visible discomfort breaking through his military composure. He is functional, but the weight of what he has witnessed is present.\n`;
+  }
+  return '';
+}
+
 function buildNarrationPrompt(ctx: NarrationContext): string {
+  const isOpening = ctx.narrationMode === 'opening';
   const isFull = ctx.narrationMode === 'full';
 
   // Clues section (both modes — clue details are always narrated when found)
@@ -144,11 +155,40 @@ function buildNarrationPrompt(ctx: NarrationContext): string {
 
   const roman = ACT_ROMAN[ctx.act] ?? String(ctx.act);
 
+  const sanityNote = getSanityTierNote(ctx.watsonStats.sanity);
+
+  const synthesisSection = ctx.holmesSynthesis
+    ? `\n=== HOLMES' CROSS-CASE DEDUCTION (incorporate naturally into prose) ===\n"${ctx.holmesSynthesis}"\n`
+    : '';
+
+  if (isOpening) {
+    // OPENING MODE — game start only: tight hook, no inventory of scene elements
+    return `=== NARRATION MODE: OPENING ===
+Write exactly 2 short paragraphs (max 130 words total). Begin with: ### ACT ${roman}: ${ctx.actName}
+${sanityNote}
+=== VERIFIED LOCATION ===
+Location: ${ctx.locationName}
+Atmosphere: ${ctx.locationAtmosphere}
+Description: ${ctx.locationDescription}
+
+Watson's state — Sanity: ${ctx.watsonStats.sanity}/100
+
+=== ACTION ===
+${ctx.actionDescription}
+Result: ${ctx.actionResultNote}
+
+Paragraph 1 — ATMOSPHERE: 2–3 tight sentences. Vivid sensory hook. Do NOT list NPCs, objects, or exits.
+
+Paragraph 2 — MYSTERY HOOK: One sentence that raises a question or creates dread. Leave the player wanting to look around.
+
+NO blockquote. NO exits listing. NO character roster. NPCs, objects, and exits will be appended separately.`;
+  }
+
   if (isFull) {
     // FULL MODE — location arrival or look-around
     return `=== NARRATION MODE: FULL ===
 Write 3–4 paragraphs (max 220 words). Begin with: ### ACT ${roman}: ${ctx.actName}
-
+${sanityNote}
 === VERIFIED LOCATION ===
 Location: ${ctx.locationName}
 Atmosphere: ${ctx.locationAtmosphere}
@@ -164,7 +204,7 @@ ${memorySection}
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
-${clueSection}
+${clueSection}${synthesisSection}
 Narrate Watson's arrival / survey of this location using exactly this structure:
 
 Paragraph 1 — ATMOSPHERE: Vivid sensory description of the location. Regular prose.
@@ -183,7 +223,7 @@ Paragraph 4 — WHAT WATSON NOTICES: In prose (not a list), mention who is prese
   // COMPACT MODE — examine, talk, take, use, inventory, deduce, blocked action
   return `=== NARRATION MODE: COMPACT ===
 Write 1–2 short paragraphs (max 100 words). NO act header. NO location description. NO exits listing.
-
+${sanityNote}
 === VERIFIED CONTEXT ===
 Location: ${ctx.locationName} (Act ${ctx.act}: ${ctx.actName})
 NPCs present: ${ctx.npcsPresent.length > 0 ? ctx.npcsPresent.join(', ') : 'None'}
@@ -191,7 +231,7 @@ ${memorySection}
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
-${clueSection}
+${clueSection}${synthesisSection}
 Narrate only this specific action. If talking: write the NPC's response then Watson's reaction. If examining: Watson's direct observation and any forensic detail. If blocked: why Watson could not proceed, in character. One brief inner thought is optional.`;
 }
 
@@ -305,7 +345,7 @@ export class AIService {
 
     // For full-mode turns (move / look-around), append a verified data summary.
     // This block is built from engine-confirmed data — the AI cannot hallucinate it.
-    if (ctx.narrationMode === 'full') {
+    if (ctx.narrationMode === 'full' || ctx.narrationMode === 'opening') {
       const lines: string[] = [];
       if (ctx.npcsPresent.length > 0) {
         const named = ctx.npcsPresent.map(n => `**${n}**`);
@@ -329,6 +369,40 @@ export class AIService {
     }
 
     yield { narrative: parsed.markdownOutput, fullJson: fullJsonText, isComplete: true, parsed };
+  }
+
+  /**
+   * Non-streaming call that reasons across ALL discovered clues to produce
+   * a cross-case Holmesian synthesis. Called after new clues are found.
+   * Result is injected into NarrationContext.holmesSynthesis before Watson narrates.
+   */
+  async consultHolmesMultiClue(
+    allDiscoveredClues: Array<{ name: string; description: string; holmesDeduction: string }>,
+    newlyFoundNames: string[],
+    currentAct: number,
+  ): Promise<string> {
+    const clueList = allDiscoveredClues
+      .map((c, i) => `${i + 1}. ${c.name}: ${c.description}`)
+      .join('\n');
+
+    const prompt = `Watson has just uncovered: ${newlyFoundNames.join(', ')}.
+
+All evidence gathered so far (Act ${currentAct}):
+${clueList}
+
+Reason across ALL of this evidence as Sherlock Holmes. Deliver a sharp cross-referencing deduction — 2 to 3 sentences maximum — that connects the new evidence to prior findings and meaningfully advances the theory about the killer's identity, method, or psychology. Be specific. No preamble. No pleasantries.`;
+
+    const response = await this.ai.models.generateContent({
+      model: MODEL_ID,
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+        systemInstruction:
+          'You are Sherlock Holmes in 1888 London. You reason across evidence with cold precision. Your deductions connect multiple clues and narrow the suspect profile with each new piece of evidence. Maximum 3 sentences. Do not name Edmund Halward directly until Act V or VI.',
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    });
+
+    return response.text?.trim() || 'There is a pattern here, Watson. I am not yet ready to name it.';
   }
 
   /**

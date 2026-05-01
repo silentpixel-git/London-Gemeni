@@ -103,6 +103,7 @@ const AppContent: React.FC = () => {
 
         <NarrativeFeed
           history={gs.history}
+          isLoading={gs.isLoading}
           isGameOver={gs.isGameOver}
           actualLastUserIdx={gs.actualLastUserIdx}
           lastUserMessageRef={gs.lastUserMessageRef}

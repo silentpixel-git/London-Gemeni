@@ -18,7 +18,7 @@ import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
   INITIAL_INVENTORY,
@@ -208,15 +208,18 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userProfile?.id]); // only fire when user identity changes, not on every profile update
 
-  // Auto-generate diary when history has real (non-empty) content
+  // Auto-generate diary once after the opening scene finishes streaming.
+  // Guard on isLoading: history.length changes to 1 while text is still empty
+  // (streaming), so we wait until loading is false before checking hasContent.
   useEffect(() => {
+    if (isLoading) return;
     const hasContent = history.some(h => h.text && h.text.trim().length > 0);
     if (needsJournalUpdate.current && hasContent && !isUpdatingJournal) {
       needsJournalUpdate.current = false;
       handleUpdateJournal();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history.length]);
+  }, [history.length, isLoading]);
 
   // Scroll to active turn when new assistant placeholder appears
   const scrollToActiveTurn = useCallback(() => {
@@ -280,7 +283,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const result = gameEngine.resolve(intent, snapshot);
 
       let lastText = '';
-      for await (const update of aiService.stream(result.aiContext)) {
+      for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening' })) {
         if (update.narrative) {
           lastText = update.narrative;
           setHistory([{ role: 'assistant', text: lastText }]);
@@ -649,7 +652,28 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         }
       }
 
-      // STEP 6: Inject session STIM into AI context (not part of engine — lives in hook)
+      // STEP 6a: Holmes multi-clue synthesis — runs in parallel with STIM inject, before Watson narrates
+      if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
+        const allDiscoveredIds = [...discoveredClueIds, ...result.discoveredClueIds];
+        const allClueObjects = allDiscoveredIds
+          .map(id => CLUE_DEFINITIONS[id])
+          .filter(Boolean)
+          .map(c => ({ name: c.name, description: c.description, holmesDeduction: c.holmesDeduction }));
+        const newClueNames = result.discoveredClueIds
+          .map(id => CLUE_DEFINITIONS[id]?.name)
+          .filter(Boolean) as string[];
+        try {
+          result.aiContext.holmesSynthesis = await aiService.consultHolmesMultiClue(
+            allClueObjects,
+            newClueNames,
+            result.aiContext.act,
+          );
+        } catch {
+          // Graceful fallback — Watson narrates with the hardcoded holmesDeduction per clue
+        }
+      }
+
+      // STEP 6b: Inject session STIM into AI context (not part of engine — lives in hook)
       result.aiContext.stim = stim;
 
       // STEP 7: Stream AI narration
@@ -848,9 +872,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       }
     }
 
-    // Trigger fresh opening scene + auto-diary
+    // Trigger fresh opening scene (diary starts empty — player writes manually)
     hasGeneratedOpening.current = false;
-    needsJournalUpdate.current = true;
     generateOpeningScene();
 
     setNotification({ message: 'New Investigation Started!', type: 'success' });

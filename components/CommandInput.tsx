@@ -11,6 +11,26 @@ import React, { useState } from 'react';
 import { Feather, Lightbulb, Send } from 'lucide-react';
 import { GameHistoryItem } from '../types';
 
+const PROMPTS_DESKTOP = [
+  'How do you choose to proceed, Doctor?',
+  'The game is afoot. What next?',
+  'The fog thickens. What will you do?',
+  'Holmes waits. Proceed, Doctor.',
+  'What does your instinct tell you?',
+  'Every second counts. Your move.',
+  'The night is watching. Choose carefully.',
+];
+
+const PROMPTS_MOBILE = [
+  'Your move, Doctor.',
+  'The game is afoot.',
+  'Proceed, Doctor.',
+  'Holmes waits.',
+  'What next?',
+  'Choose carefully.',
+  'Every second counts.',
+];
+
 interface CommandInputProps {
   isLoading: boolean;
   isGameOver: boolean;
@@ -29,6 +49,10 @@ export const CommandInput: React.FC<CommandInputProps> = ({
   onConsultHolmes,
 }) => {
   const [input, setInput] = useState('');
+
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+  const prompts = isMobile ? PROMPTS_MOBILE : PROMPTS_DESKTOP;
+  const placeholder = prompts[history.length % prompts.length];
 
   if (isGameOver) return null;
 
@@ -67,7 +91,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
-            placeholder="How do you choose to proceed, Doctor?"
+            placeholder={placeholder}
             className="w-full bg-lb-paper border border-lb-border rounded-full py-4 pl-6 pr-24 text-lb-primary placeholder-lb-muted text-lg focus:outline-none focus:border-lb-accent shadow-sm relative z-10"
             autoFocus
           />
