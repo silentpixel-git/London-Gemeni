@@ -2,6 +2,7 @@
 export interface GameHistoryItem {
   role: 'user' | 'assistant' | 'system';
   text: string;
+  type?: 'journal'; // marks act-closing journal entries in the narrative feed
 }
 
 export interface DispositionStats {
@@ -206,11 +207,39 @@ export interface NarrationContext {
   stim?: Record<string, STIMEntry>;
   // Cross-clue Holmes synthesis — injected by useGameState after consultHolmesMultiClue()
   holmesSynthesis?: string;
+  // Dynamic Witness Interrogation — populated by engine when action type is 'talk'
+  targetNpcInterview?: {
+    npcId: string;
+    displayName: string;
+    role: string;
+    speakingStyle: string;
+    personality: string[];
+    knowledgeEnvelope: string[]; // publicKnowledge — AI hard ceiling
+    playerQuestion: string;      // intent.raw
+  };
+  // Proactive Holmes Nudge — populated by engine when player is stuck
+  holmesNudge?: {
+    locationKeyClues: string[];
+    turnsStuck: number;
+  };
   // Controls how much the AI writes:
   //   'full'    — move or look: Act header + location prose + atmosphere + exits/objects/NPCs
   //   'compact' — examine/talk/take/etc: short observation + NPC response, no header or location listing
   //   'opening' — game start only: 2 tight paragraphs, max 130 words, hook only
   narrationMode: 'full' | 'compact' | 'opening';
+  // Tells the AI what kind of blockquote to use this turn (or none):
+  //   'world_event'   — sensory micro-event from the world (always in full mode)
+  //   'inner_thought' — Watson's fleeting thought/memory triggered by the action (compact ~50%)
+  //   'none'          — omit blockquote this turn (compact ~50%)
+  blockquoteHint: 'world_event' | 'inner_thought' | 'none';
+}
+
+/** Summary passed to AIService.generateJournalEntry() when an act closes */
+export interface ActJournalSummary {
+  actNumber: number;
+  actName: string;
+  cluesFound: Array<{ name: string; description: string }>;
+  sanityAtClose: number;
 }
 
 /** Simplified AI response schema — narration only, no state mutations */

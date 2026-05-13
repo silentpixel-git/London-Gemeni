@@ -18,7 +18,7 @@ import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS, CLUE_DEFINITIONS } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
   INITIAL_INVENTORY,
@@ -27,7 +27,7 @@ import {
   INITIAL_JOURNAL,
   NPC_DISPLAY_NAMES,
 } from '../constants';
-import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry } from '../types';
+import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
 
 // ── Public interface ──────────────────────────────────────────────────────────
@@ -104,6 +104,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const [currentAct, setCurrentAct] = useState(1);
   const [stim, setStim] = useState<Record<string, STIMEntry>>({});
   const [turnCount, setTurnCount] = useState(0);
+
+  // Proactive Holmes nudge — turns at current location without discovering a clue
+  const [turnsAtLocationWithoutProgress, setTurnsAtLocationWithoutProgress] = useState(0);
+  // Procedural act journals — clue IDs accumulated since last act advance
+  const [cluesFoundThisAct, setCluesFoundThisAct] = useState<string[]>([]);
 
   // ── Journal / sidebar ───────────────────────────────────────────────────
   const [journalNotes, setJournalNotes] = useState(INITIAL_JOURNAL);
@@ -279,11 +284,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         moralPoints: 0,
         discoveredClueIds: [],
         investigationId: undefined,
+        turnsAtLocationWithoutProgress: 0,
       };
       const result = gameEngine.resolve(intent, snapshot);
 
       let lastText = '';
-      for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening' })) {
+      for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening', blockquoteHint: 'none' })) {
         if (update.narrative) {
           lastText = update.narrative;
           setHistory([{ role: 'assistant', text: lastText }]);
@@ -469,6 +475,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // Generate opening scene for fresh unauthenticated starts
   useEffect(() => {
     if (!user && isAuthReady && history.length === 0) {
+      needsJournalUpdate.current = true;
       generateOpeningScene();
     }
   }, [isAuthReady, user, generateOpeningScene, history.length]);
@@ -602,6 +609,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         moralPoints,
         discoveredClueIds,
         investigationId: activeInvestigation?.id,
+        turnsAtLocationWithoutProgress,
       };
 
       // STEP 3: Engine resolves — no AI yet
@@ -637,6 +645,36 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           });
           return next;
         });
+      }
+
+      // Update turns-without-progress counter (for Holmes nudge)
+      const madeProgress = !!(result.newLocation || result.newAct ||
+        (result.discoveredClueIds && result.discoveredClueIds.length > 0));
+      if (madeProgress) {
+        setTurnsAtLocationWithoutProgress(0);
+      } else {
+        setTurnsAtLocationWithoutProgress(prev => prev + 1);
+      }
+
+      // Capture journal data before resetting per-act tracking (if act is advancing)
+      let pendingJournalSummary: ActJournalSummary | null = null;
+      if (result.newAct) {
+        const allActClueIds = [
+          ...cluesFoundThisAct,
+          ...(result.discoveredClueIds || []),
+        ];
+        pendingJournalSummary = {
+          actNumber: currentAct,
+          actName: ACT_NAMES[currentAct] || `Act ${currentAct}`,
+          cluesFound: allActClueIds
+            .map(id => CLUE_DEFINITIONS[id])
+            .filter(Boolean)
+            .map(c => ({ name: c.name, description: c.description })),
+          sanityAtClose: newSanity,
+        };
+        setCluesFoundThisAct([]); // reset for the new act
+      } else if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
+        setCluesFoundThisAct(prev => [...prev, ...result.discoveredClueIds!]);
       }
 
       // STEP 5: Persist engine result to Supabase
@@ -737,6 +775,21 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         }
       }
 
+      // STEP 8: Generate act journal after narration stream completes (act advance only)
+      if (pendingJournalSummary) {
+        try {
+          const journalText = await aiService.generateJournalEntry(pendingJournalSummary);
+          if (journalText) {
+            setHistory(prev => [
+              ...prev,
+              { role: 'assistant', text: journalText, type: 'journal' },
+            ]);
+          }
+        } catch {
+          // Journal is bonus content — never block the game on failure
+        }
+      }
+
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error('handleAction error:', errorMsg, error);
@@ -809,16 +862,18 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const prompt = `Source Material: ${fullStory}`;
       const systemInstruction = `You are Dr. Watson. Update your diary entries based on the case progress.
       STRICT CONSTRAINTS:
-      1. Keep the sections: **Found:** and **Sanity Note:**.
-      2. Provide a TOTAL of only 2 to 3 bullet points across the entire notes.
-      3. Focus on medical findings and systemic observations.
-      4. Be brief. No narrative re-telling.`;
+      1. Use only this section: **Observed:**
+      2. Provide a TOTAL of only 2 to 3 bullet points under Observed.
+      3. Focus on physical evidence, witness accounts, and factual case observations.
+      4. Be brief. No narrative re-telling. No sanity or mental-state commentary.`;
 
       const notes = await callGemini(prompt, false, 0, systemInstruction);
       setJournalNotes(notes || 'No updates available.');
     } catch (error) {
       console.error('Notes update failed', error);
       setNotification({ message: 'Notes update failed. Try again.', type: 'error' });
+      // Ensure the diary never stays in the empty/loading state on failure
+      setJournalNotes(prev => prev || '**Observed:**\n* Investigation underway.');
     } finally {
       setIsUpdatingJournal(false);
     }

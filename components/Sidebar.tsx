@@ -153,7 +153,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="absolute top-2 right-2 opacity-30">
               <Brain size={16} />
             </div>
-            <JournalRenderer text={journalNotes} />
+            {journalNotes === "" ? (
+              <div className="flex items-center gap-2 text-lb-muted">
+                <Feather size={13} className="animate-bounce text-lb-accent" />
+                <span className="text-xs italic font-serif">Opening diary...</span>
+              </div>
+            ) : (
+              <JournalRenderer text={journalNotes} />
+            )}
           </div>
         </div>
 
