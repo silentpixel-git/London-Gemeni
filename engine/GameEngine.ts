@@ -44,6 +44,7 @@ export interface SessionSnapshot {
   moralPoints: number;
   discoveredClueIds: string[];
   investigationId?: string;
+  turnsAtLocationWithoutProgress: number; // for proactive Holmes nudge
 }
 
 // ============================================================
@@ -57,29 +58,43 @@ export class GameEngine {
    * snapshot and returns a fully resolved EngineResult.
    */
   resolve(intent: ParsedIntent, session: SessionSnapshot): EngineResult {
+    let result: EngineResult;
     switch (intent.type) {
-      case 'move':
-        return this.resolveMove(intent, session);
-      case 'examine':
-        return this.resolveExamine(intent, session);
-      case 'talk':
-        return this.resolveTalk(intent, session);
-      case 'take':
-        return this.resolveTake(intent, session);
-      case 'use':
-        return this.resolveUse(intent, session);
-      case 'inventory':
-        return this.resolveInventory(intent, session);
-      case 'deduce':
-        return this.resolveDeduce(intent, session);
-      case 'help':
-        return this.resolveHelp(intent, session);
-      case 'query':
-        return this.resolveQuery(intent, session);
+      case 'move':      result = this.resolveMove(intent, session); break;
+      case 'examine':   result = this.resolveExamine(intent, session); break;
+      case 'talk':      result = this.resolveTalk(intent, session); break;
+      case 'take':      result = this.resolveTake(intent, session); break;
+      case 'use':       result = this.resolveUse(intent, session); break;
+      case 'inventory': result = this.resolveInventory(intent, session); break;
+      case 'deduce':    result = this.resolveDeduce(intent, session); break;
+      case 'help':      result = this.resolveHelp(intent, session); break;
+      case 'query':     result = this.resolveQuery(intent, session); break;
       case 'other':
-      default:
-        return this.resolveOther(intent, session);
+      default:          result = this.resolveOther(intent, session); break;
     }
+
+    // Proactive Holmes nudge — fires once per location when player is stuck
+    if (this.shouldFireHolmesNudge(session, result)) {
+      result.aiContext.holmesNudge = {
+        locationKeyClues: LOCATIONS[session.location].keyClues,
+        turnsStuck: session.turnsAtLocationWithoutProgress,
+      };
+      result.flagsUpdate = {
+        ...result.flagsUpdate,
+        [`holmes_nudged_at_${session.location}`]: true,
+      };
+    }
+
+    return result;
+  }
+
+  private shouldFireHolmesNudge(session: SessionSnapshot, result: EngineResult): boolean {
+    if (result.newLocation) return false;   // player is moving
+    if (result.newAct) return false;         // act just advanced — progress made
+    if (result.gameOver) return false;
+    if (session.flags[`holmes_nudged_at_${session.location}`]) return false; // already nudged here
+    if (result.discoveredClueIds && result.discoveredClueIds.length > 0) return false; // clue found
+    return session.turnsAtLocationWithoutProgress >= 4;
   }
 
   // --------------------------------------------------------
@@ -708,6 +723,28 @@ export class GameEngine {
         ? 'full'
         : 'compact';
 
+    // Full mode always gets a world_event blockquote.
+    // Compact mode gets an inner_thought ~50% of the time for variety.
+    const blockquoteHint: NarrationContext['blockquoteHint'] =
+      narrationMode === 'full'
+        ? 'world_event'
+        : Math.random() < 0.5 ? 'inner_thought' : 'none';
+
+    // Dynamic Witness Interrogation — include NPC knowledge envelope for talk actions
+    let targetNpcInterview: NarrationContext['targetNpcInterview'] | undefined;
+    if (outcome.targetNpcId && NPCS[outcome.targetNpcId]) {
+      const npc = NPCS[outcome.targetNpcId];
+      targetNpcInterview = {
+        npcId: outcome.targetNpcId,
+        displayName: npc.displayName,
+        role: npc.role,
+        speakingStyle: npc.speakingStyle,
+        personality: npc.personality,
+        knowledgeEnvelope: npc.publicKnowledge,
+        playerQuestion: intent.raw,
+      };
+    }
+
     const act = session.currentAct;
     return {
       locationName: loc.name,
@@ -735,7 +772,9 @@ export class GameEngine {
         holmesDeduction: c.holmesDeduction,
       })),
       npcRecentMemory: Object.keys(npcRecentMemory).length > 0 ? npcRecentMemory : undefined,
+      targetNpcInterview,
       narrationMode,
+      blockquoteHint,
     };
   }
 

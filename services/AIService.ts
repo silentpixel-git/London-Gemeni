@@ -13,7 +13,7 @@
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
-import { NarrationContext, NarrationResponse } from '../types';
+import { NarrationContext, NarrationResponse, ActJournalSummary } from '../types';
 import { ATMOSPHERIC_SEEDS } from '../engine/gameData';
 
 // ============================================================
@@ -211,18 +211,18 @@ Paragraph 1 — ATMOSPHERE: Vivid sensory description of the location. Regular p
 
 Paragraph 2 — WATSON'S INNER THOUGHTS: Watson's brief reflection on the case, his anxiety, or moral state. Regular prose, 1–2 sentences.
 
-Paragraph 3 — ATMOSPHERIC DETAIL (pure flavor — invent freely, not game state): One vivid sensory micro-event. Use the seed below as a starting point — you may expand, transform, or discard it entirely in favour of something else. Never repeat something already mentioned in Paragraph 1.
+Paragraph 3 — BLOCKQUOTE: A world micro-event that makes this street feel alive. Use the seed below as a starting point — you may expand, transform, or discard it entirely in favour of something more vivid. Never repeat something already mentioned in Paragraph 1. This must be different every time.
 Seed: "${pickAtmosphericSeed()}"
-Format EXACTLY as a Markdown blockquote:
-> *Your atmospheric sentence here.*
-This blockquote is mandatory in full mode. The renderer displays it with a gold left border.
+Format EXACTLY as a Markdown blockquote (renderer shows gold left border):
+> *Your world event sentence here.*
 
 Paragraph 4 — WHAT WATSON NOTICES: In prose (not a list), mention who is present, what objects catch his eye, and which directions he could go — using ONLY the verified NPCs, objects, and exits above.`;
   }
 
   // COMPACT MODE — examine, talk, take, use, inventory, deduce, blocked action
-  return `=== NARRATION MODE: COMPACT ===
-Write 1–2 short paragraphs (max 100 words). NO act header. NO location description. NO exits listing.
+  const compactWordLimit = ctx.blockquoteHint !== 'none' ? 130 : 100;
+  let compactPrompt = `=== NARRATION MODE: COMPACT ===
+Write 1–2 short paragraphs (max ${compactWordLimit} words). NO act header. NO location description. NO exits listing.
 ${sanityNote}
 === VERIFIED CONTEXT ===
 Location: ${ctx.locationName} (Act ${ctx.act}: ${ctx.actName})
@@ -231,8 +231,70 @@ ${memorySection}
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
-${clueSection}${synthesisSection}
-Narrate only this specific action. If talking: write the NPC's response then Watson's reaction. If examining: Watson's direct observation and any forensic detail. If blocked: why Watson could not proceed, in character. One brief inner thought is optional.`;
+${clueSection}${synthesisSection}`;
+
+  if (ctx.targetNpcInterview) {
+    const { displayName, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion } = ctx.targetNpcInterview;
+    compactPrompt += `
+=== NPC INTERVIEW ===
+Watson is speaking with: ${displayName} (${role})
+Speaking style: ${speakingStyle}
+Personality: ${personality.join(', ')}
+Watson's question / statement: "${playerQuestion}"
+
+WHAT THIS CHARACTER KNOWS (hard ceiling — do not invent facts beyond this list):
+${knowledgeEnvelope.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+
+Write this character's spoken response in dialogue, then Watson's brief reaction.
+- If the question touches something in the knowledge list, answer directly in character.
+- If asked something outside their knowledge, deflect naturally — stay in character.
+- Express personality through HOW they answer. Do NOT invent clues or facts not listed above.`;
+
+    if (ctx.blockquoteHint === 'inner_thought') {
+      compactPrompt += `
+
+BLOCKQUOTE — WATSON'S INNER THOUGHT (max ONE, place it where it lands most naturally after the dialogue):
+Something this character said — or the way they said it — triggers a fleeting thought in Watson. A memory, a suspicion, a moment of unease.
+Format EXACTLY as a Markdown blockquote (renderer shows gold left border):
+> *Watson's inner thought here.*
+Keep it terse. Victorian register. Do NOT include two blockquotes.`;
+    } else if (ctx.blockquoteHint === 'none') {
+      compactPrompt += `
+
+NO blockquote this turn.`;
+    }
+  } else {
+    compactPrompt += `
+Narrate only this specific action. If talking: write the NPC's response then Watson's reaction. If examining: Watson's direct observation and any forensic detail. If blocked: why Watson could not proceed, in character.`;
+
+    if (ctx.blockquoteHint === 'inner_thought') {
+      compactPrompt += `
+
+BLOCKQUOTE — WATSON'S INNER THOUGHT (max ONE, place it where it lands most naturally):
+Something about this action triggers a fleeting thought in Watson — a physical sensation, a memory, a half-formed suspicion, or a moment of self-awareness. It must be directly connected to what he just perceived or heard.
+Format EXACTLY as a Markdown blockquote (renderer shows gold left border):
+> *Watson's inner thought here.*
+Keep it terse. Victorian register. Do NOT include two blockquotes.`;
+    } else if (ctx.blockquoteHint === 'none') {
+      compactPrompt += `
+
+NO blockquote this turn.`;
+    }
+  }
+
+  if (ctx.holmesNudge) {
+    const { locationKeyClues, turnsStuck } = ctx.holmesNudge;
+    compactPrompt += `
+
+=== HOLMES INTERJECTS (mandatory — append as the final paragraph) ===
+Watson has spent ${turnsStuck} turns here without new evidence. Holmes notices.
+Add ONE brief, cryptic observation from Holmes as the closing paragraph.
+He nudges Watson toward what hasn't been found, using only these verified leads:
+${locationKeyClues.map(c => `• ${c}`).join('\n')}
+Holmes does NOT give direct answers. 2–3 sentences. No act header.`;
+  }
+
+  return compactPrompt;
 }
 
 // ============================================================
@@ -442,6 +504,45 @@ Deliver a single sharp, cryptic Holmesian observation — maximum 40 words. No p
     });
 
     return response.text?.trim() || 'Observe more carefully, Watson.';
+  }
+
+  /**
+   * Non-streaming call that generates a Watson diary entry when an act closes.
+   * Output is appended to the narrative feed as a type:'journal' history item.
+   */
+  async generateJournalEntry(summary: ActJournalSummary): Promise<string> {
+    const clueList = summary.cluesFound.length > 0
+      ? summary.cluesFound.map((c, i) => `${i + 1}. ${c.name}: ${c.description}`).join('\n')
+      : 'No new evidence was formally recorded this act.';
+
+    const sanityNote =
+      summary.sanityAtClose <= 39 ? 'Watson is severely shaken — his writing is fragmented and unreliable.' :
+      summary.sanityAtClose <= 69 ? 'Watson is unsettled — a quiet strain runs beneath his measured prose.' :
+      'Watson is composed — his entries are clear and clinically observed.';
+
+    const prompt = `Watson is writing a private diary entry closing Act ${summary.actNumber}: "${summary.actName}".
+
+Evidence recorded this act:
+${clueList}
+
+Watson's state: Sanity ${summary.sanityAtClose}/100. ${sanityNote}
+
+Write a diary entry in Watson's voice. First-person past tense. Reflective and understated. Under 120 words.
+Begin with: **${summary.actName} — Watson's Journal**
+Then 2–3 short paragraphs. Weave the evidence into personal reflection — do not list clues mechanically.
+No action instructions. No game language. Pure Victorian diary prose.`;
+
+    const response = await this.ai.models.generateContent({
+      model: MODEL_ID,
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+        systemInstruction:
+          'You are Dr. John H. Watson writing a private diary entry. First-person past tense. Reflective, understated, and historically authentic. Under 120 words total.',
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    });
+
+    return response.text?.trim() || '';
   }
 }
 
