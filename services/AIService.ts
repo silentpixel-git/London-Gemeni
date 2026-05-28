@@ -161,7 +161,9 @@ function buildNarrationPrompt(ctx: NarrationContext): string {
           .join('\n')}\n`
       : '';
 
-  const roman = ACT_ROMAN[ctx.act] ?? String(ctx.act);
+  const actHeader = ctx.act === 0
+    ? `PROLOGUE`
+    : `ACT ${ACT_ROMAN[ctx.act] ?? String(ctx.act)}`;
 
   const synthesisSection = ctx.holmesSynthesis
     ? `\n=== HOLMES' CROSS-CASE DEDUCTION (incorporate naturally into prose) ===\n"${ctx.holmesSynthesis}"\n`
@@ -183,7 +185,7 @@ function buildNarrationPrompt(ctx: NarrationContext): string {
   if (isOpening) {
     // OPENING MODE — game start only: tight hook, no inventory of scene elements
     return `=== NARRATION MODE: OPENING ===
-Write exactly 2 short paragraphs (max 130 words total). Begin with: ### ACT ${roman}: ${ctx.actName}
+Write exactly 2 short paragraphs (max 130 words total). Begin with: ### ${actHeader}: ${ctx.actName}
 ${temporalSection}
 === VERIFIED LOCATION ===
 Location: ${ctx.locationName}
@@ -204,7 +206,7 @@ NO blockquote. NO exits listing. NO character roster. NPCs, objects, and exits w
   if (isFull) {
     // FULL MODE — location arrival or look-around
     return `=== NARRATION MODE: FULL ===
-Write 3–4 paragraphs (max 220 words). Begin with: ### ACT ${roman}: ${ctx.actName}
+Write 3–4 paragraphs (max 220 words). Begin with: ### ${actHeader}: ${ctx.actName}
 ${temporalSection}
 === VERIFIED LOCATION ===
 Location: ${ctx.locationName}
