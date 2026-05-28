@@ -3,12 +3,12 @@
 // or import individual named exports for direct access.
 
 export { LOCATIONS, OBJECT_DISPLAY_NAMES } from './locations';
-export { NPCS, NPC_DISPLAY_NAMES } from './npcs';
+export { NPCS, NPC_DISPLAY_NAMES, NPC_ALIASES } from './npcs';
 export {
   CLUE_DEFINITIONS,
   CLUE_TRIGGERS,
+  ATMOSPHERIC_NOTES,
   TAKEABLE_OBJECTS,
-  SANITY_PENALTIES,
   USE_INTERACTIONS,
 } from './clues';
 export {

@@ -21,10 +21,11 @@ import { parseIntent } from '../engine/intentParser';
 import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
+  INITIAL_ACT,
   INITIAL_INVENTORY,
-  INITIAL_SANITY,
   INITIAL_NPC_STATES,
   INITIAL_JOURNAL,
+  INITIAL_INTRODUCED_NPCS,
   NPC_DISPLAY_NAMES,
 } from '../constants';
 import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary } from '../types';
@@ -44,7 +45,6 @@ export interface GameStateReturn {
   // World state
   location: string;
   inventory: string[];
-  sanity: number;
   medicalPoints: number;
   moralPoints: number;
   currentAct: number;
@@ -78,7 +78,7 @@ export interface GameStateReturn {
 }
 
 const OPENING_FALLBACK_NARRATIVE =
-  "> *The fog of Whitechapel hangs heavy over Dorset Street. A crowd has gathered outside Miller's Court.*\n\nHolmes stands beside you, his gaze sharp as ever. Inspector Abberline approaches, his face drawn with fatigue.\n\n**Sherlock Holmes** and **Inspector Abberline** are here.\n**Objects of interest:** Police Barricade, Street Lamps, Lodging House Entrances.\n**Possible exits:** Miller's Court.";
+  "> *221B Baker Street. November 1888. The sitting room is no longer quite a sitting room.*\n\nHolmes paces before the fire, his pipe cold in his hand. The case files are everywhere — pinned, spread, stacked. Five murders. Eleven weeks. Scotland Yard is floundering.\n\n**Sherlock Holmes** is here.\n**Objects of interest:** Case Files Wall, Newspapers, Chemistry Table, Watson's Armchair.\n**Possible exits:** Dorset Street.";
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -92,7 +92,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // ── World state ─────────────────────────────────────────────────────────
   const [location, setLocation] = useState(INITIAL_LOCATION);
   const [inventory, setInventory] = useState(INITIAL_INVENTORY);
-  const [sanity, setSanity] = useState(INITIAL_SANITY);
   const [medicalPoints, setMedicalPoints] = useState(0);
   const [moralPoints, setMoralPoints] = useState(0);
   const [isGameOver, setIsGameOver] = useState(false);
@@ -101,9 +100,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     INITIAL_NPC_STATES as Record<string, NPCState>
   );
   const [activeInvestigation, setActiveInvestigation] = useState<Investigation | null>(null);
-  const [currentAct, setCurrentAct] = useState(1);
+  const [currentAct, setCurrentAct] = useState(INITIAL_ACT);
   const [stim, setStim] = useState<Record<string, STIMEntry>>({});
   const [turnCount, setTurnCount] = useState(0);
+  // NPC introduction tracking — IDs of NPCs whose real names Watson now knows.
+  // Pre-seeded with professional acquaintances Watson already knows at game start.
+  const [introducedNpcs, setIntroducedNpcs] = useState<string[]>(INITIAL_INTRODUCED_NPCS);
 
   // Proactive Holmes nudge — turns at current location without discovering a clue
   const [turnsAtLocationWithoutProgress, setTurnsAtLocationWithoutProgress] = useState(0);
@@ -278,13 +280,13 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         inventory: INITIAL_INVENTORY,
         flags: {},
         npcStates: INITIAL_NPC_STATES as Record<string, NPCState>,
-        currentAct: 1,
-        sanity: INITIAL_SANITY,
+        currentAct: INITIAL_ACT,
         medicalPoints: 0,
         moralPoints: 0,
         discoveredClueIds: [],
         investigationId: undefined,
         turnsAtLocationWithoutProgress: 0,
+        introducedNpcs: INITIAL_INTRODUCED_NPCS,
       };
       const result = gameEngine.resolve(intent, snapshot);
 
@@ -313,12 +315,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       history,
       location,
       inventory,
-      sanity,
       medicalPoints,
       moralPoints,
       npcStates,
       flags,
       journalNotes,
+      introducedNpcs,
       timestamp: new Date().toLocaleString(),
     };
 
@@ -328,7 +330,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       if (user && activeInvestigation) {
         const updated = await GameRepository.updateInvestigation(activeInvestigation.id, {
           currentLocation: location,
-          sanity,
           medicalPoints,
           moralPoints,
           currentAct,
@@ -336,6 +337,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           globalFlags: flags,
           journalNotes,
           stim,
+          introducedNpcs,
         });
         if (updated) setActiveInvestigation(updated as Investigation);
         if (!silent) setNotification({ message: 'Game Saved to Cloud!', type: 'success' });
@@ -349,7 +351,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsSaving(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, activeInvestigation, history, location, inventory, sanity, medicalPoints, moralPoints, npcStates, flags, journalNotes, currentAct]);
+  }, [user, activeInvestigation, history, location, inventory, medicalPoints, moralPoints, npcStates, flags, journalNotes, currentAct, introducedNpcs]);
 
   const handleLoadGame = useCallback(async () => {
     try {
@@ -368,13 +370,15 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
           setLocation(investigation.currentLocation);
           setInventory(inv);
-          setSanity(investigation.sanity);
           setMedicalPoints(investigation.medicalPoints || 0);
           setMoralPoints(investigation.moralPoints || 0);
           setCurrentAct(act);
           setIsGameOver(investigation.status === 'solved');
           setFlags(investigation.globalFlags as Record<string, boolean>);
           setJournalNotes(investigation.journalNotes || INITIAL_JOURNAL);
+          if ((investigation as any).introducedNpcs) {
+            setIntroducedNpcs((investigation as any).introducedNpcs as string[]);
+          }
           if (!investigation.journalNotes && historyItems.length > 0) {
             needsJournalUpdate.current = true;
           }
@@ -403,8 +407,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         investigation = await GameRepository.createInvestigation(user.id, {
           currentLocation: INITIAL_LOCATION,
           inventory: INITIAL_INVENTORY,
-          sanity: INITIAL_SANITY,
-          currentAct: 1,
+          currentAct: INITIAL_ACT,
           globalFlags: {},
           journalNotes: INITIAL_JOURNAL,
         });
@@ -426,7 +429,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setHistory(state.history);
         setLocation(state.location);
         setInventory(state.inventory);
-        setSanity(state.sanity || 100);
         setFlags(state.flags || {});
         setJournalNotes(state.journalNotes || journalNotes);
         if (state.npcStates) setNpcStates(state.npcStates);
@@ -443,7 +445,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
             setHistory(state.history);
             setLocation(state.location);
             setInventory(state.inventory);
-            setSanity(state.sanity || 100);
             setFlags(state.flags || {});
             setJournalNotes(state.journalNotes || INITIAL_JOURNAL);
             if (state.npcStates) setNpcStates(state.npcStates);
@@ -496,7 +497,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         // Apply all incoming DB updates — subscription only fires on genuine changes.
         setLocation(data.current_location);
         setInventory(data.inventory || []);
-        setSanity(data.sanity);
         setMedicalPoints(data.medical_points);
         setMoralPoints(data.moral_points);
         setCurrentAct(data.current_act || 1);
@@ -507,7 +507,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
             ? {
                 ...prev,
                 currentLocation: data.current_location,
-                sanity: data.sanity,
                 medicalPoints: data.medical_points,
                 moralPoints: data.moral_points,
                 globalFlags: data.global_flags,
@@ -604,16 +603,35 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         flags,
         npcStates,
         currentAct,
-        sanity,
         medicalPoints,
         moralPoints,
         discoveredClueIds,
         investigationId: activeInvestigation?.id,
         turnsAtLocationWithoutProgress,
+        introducedNpcs,
       };
 
       // STEP 3: Engine resolves — no AI yet
       const result = gameEngine.resolve(intent, snapshot);
+
+      // STEP 3b: Process NPC introduction flags (alias system)
+      // The engine attaches _introductionFlagsUpdate to aiContext as a side-channel.
+      // Extract npc_introduced_* keys and update introducedNpcs[] state.
+      const introFlags = (result.aiContext as any)._introductionFlagsUpdate as Record<string, boolean> | undefined;
+      if (introFlags) {
+        const newIntros = Object.keys(introFlags)
+          .filter(k => k.startsWith('npc_introduced_') && introFlags[k])
+          .map(k => k.replace('npc_introduced_', ''));
+        if (newIntros.length > 0) {
+          setIntroducedNpcs(prev => {
+            const next = [...prev];
+            for (const npcId of newIntros) {
+              if (!next.includes(npcId)) next.push(npcId);
+            }
+            return next;
+          });
+        }
+      }
 
       // STEP 4: Apply state changes optimistically
       const newLocation  = result.newLocation || location;
@@ -623,14 +641,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         if (result.inventoryRemove) inv = inv.filter(i => !result.inventoryRemove!.includes(i));
         return inv;
       })();
-      const newSanity        = result.sanityDelta        ? Math.max(0, Math.min(100, sanity + result.sanityDelta)) : sanity;
       const newMedicalPoints = result.medicalPointsDelta ? medicalPoints + result.medicalPointsDelta : medicalPoints;
       const newMoralPoints   = result.moralPointsDelta   ? moralPoints  + result.moralPointsDelta   : moralPoints;
       const newFlags         = result.flagsUpdate        ? { ...flags, ...result.flagsUpdate }      : flags;
 
       setLocation(newLocation);
       setInventory(newInventory);
-      setSanity(newSanity);
       setMedicalPoints(newMedicalPoints);
       setMoralPoints(newMoralPoints);
       setFlags(newFlags);
@@ -670,7 +686,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
             .map(id => CLUE_DEFINITIONS[id])
             .filter(Boolean)
             .map(c => ({ name: c.name, description: c.description })),
-          sanityAtClose: newSanity,
         };
         setCluesFoundThisAct([]); // reset for the new act
       } else if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
@@ -680,7 +695,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // STEP 5: Persist engine result to Supabase
       if (user && activeInvestigation) {
         await GameRepository.applyEngineResult(activeInvestigation.id, result, {
-          location, inventory, sanity, medicalPoints, moralPoints, currentAct, flags,
+          location, inventory, medicalPoints, moralPoints, currentAct, flags,
         });
         if (result.npcUpdates) {
           GameRepository.applyNPCUpdates(activeInvestigation.id, result.npcUpdates);
@@ -806,7 +821,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsAutoScrollLocked(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, sanity, medicalPoints, moralPoints, handleSaveGame]);
+  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, handleSaveGame]);
 
   // ── Holmes hint ───────────────────────────────────────────────────────────
 
@@ -898,15 +913,15 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setHistory([]);
     setLocation(INITIAL_LOCATION);
     setInventory(INITIAL_INVENTORY);
-    setSanity(INITIAL_SANITY);
     setMedicalPoints(0);
     setMoralPoints(0);
     setIsGameOver(false);
     setFlags({});
     setNpcStates(INITIAL_NPC_STATES as Record<string, NPCState>);
-    setCurrentAct(1);
+    setCurrentAct(INITIAL_ACT);
     setStim({});
     setTurnCount(0);
+    setIntroducedNpcs(INITIAL_INTRODUCED_NPCS);
     setJournalNotes(INITIAL_JOURNAL);
     setActiveInvestigation(null);
 
@@ -916,8 +931,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         const newInv = await GameRepository.createInvestigation(user.id, {
           currentLocation: INITIAL_LOCATION,
           inventory: INITIAL_INVENTORY,
-          sanity: INITIAL_SANITY,
-          currentAct: 1,
+          currentAct: INITIAL_ACT,
           globalFlags: {},
           journalNotes: INITIAL_JOURNAL,
         });
@@ -947,7 +961,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     location,
     inventory,
-    sanity,
     medicalPoints,
     moralPoints,
     currentAct,

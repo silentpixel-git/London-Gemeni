@@ -13,6 +13,11 @@ export interface LocationDefinition {
   keyClues: string[];              // Hint text for critical path
   criticalPathLead: string;
   locationExaminedFlag: string;    // Flag set when player examines anything here
+  // Temporal framing — drives AI narration register
+  timeframe: 'present' | 'reconstruction';
+  // Used by AI when timeframe === 'reconstruction'. Explains to the AI exactly
+  // how Watson is visiting this past crime scene (from reports, from memory, etc.)
+  reconstitutionNote?: string;
 }
 
 export interface NPCDefinition {
@@ -26,6 +31,18 @@ export interface NPCDefinition {
   followingRule: 'follows_watson' | 'follows_bond' | 'location_based' | 'fixed';
   followsNpcId?: string;       // For follows_watson/'follows_bond': the entity ID to shadow ('watson' = player)
   canonicalLocationByAct: Record<number, string>;  // Act number → location ID
+  // NPC introduction system — hides identity until Watson learns their name
+  alias?: string;                  // e.g. "Bond's assistant", "a police inspector"
+  aliasDescription?: string;       // Brief sensory description shown before introduction
+  requiresIntroduction?: boolean;  // If true, shown as alias until introduced via flag
+  // Scripted presence moments — directorial instructions injected into AI context
+  // when this NPC is present at the specified location (and optional flag is satisfied).
+  // The AI works them in naturally; they are spirit-of-the-moment guidance, not fixed lines.
+  scriptedLines?: Array<{
+    locationId: string;    // Only fire at this location
+    triggerFlag?: string;  // Optional: only fire if session.flags[triggerFlag] is true
+    instruction: string;   // Directorial instruction for the AI
+  }>;
 }
 
 export interface ClueDefinition {

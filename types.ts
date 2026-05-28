@@ -33,7 +33,6 @@ export interface Investigation {
   ownerId: string;
   status: InvestigationStatus;
   currentLocation: string;
-  sanity: number;
   globalFlags: Record<string, any>;
   medicalPoints: number;
   moralPoints: number;
@@ -85,13 +84,14 @@ export interface GameState {
   history: GameHistoryItem[];
   location: string;
   inventory: string[];
-  sanity: number;
   medicalPoints: number;
   moralPoints: number;
   npcStates?: Record<string, NPCState>;
   flags: Record<string, boolean>;
   journalNotes: string;
   timestamp: string;
+  // NPC introduction tracking — IDs of NPCs whose real names Watson now knows
+  introducedNpcs: string[];
 }
 
 export interface WorldLocation {
@@ -139,7 +139,7 @@ export interface GameResponse {
 // ============================================================
 
 /** The type of action the player is attempting */
-export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'inventory' | 'deduce' | 'help' | 'query' | 'other';
+export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'inventory' | 'deduce' | 'help' | 'query' | 'notebook' | 'other';
 
 /**
  * The result of the GameEngine resolving a player action.
@@ -160,7 +160,6 @@ export interface EngineResult {
   inventoryRemove?: string[];
   npcUpdates?: Record<string, Partial<NPCState>>;
   flagsUpdate?: Record<string, boolean>;
-  sanityDelta?: number;
   medicalPointsDelta?: number;
   moralPointsDelta?: number;
   discoveredClueIds?: string[];
@@ -179,15 +178,25 @@ export interface NarrationContext {
   locationName: string;
   locationAtmosphere: string;
   locationDescription: string;
+  // Temporal framing — drives Watson's emotional register in narration
+  // 'present'        — Watson is here now (November 1888, live investigation)
+  // 'reconstruction' — Watson is revisiting a past crime scene weeks/months later
+  locationTimeframe: 'present' | 'reconstruction';
+  // Only set when timeframe === 'reconstruction'. Explains how Watson is visiting.
+  locationReconstitutionNote?: string;
   act: number;
   actName: string;
-  npcsPresent: string[];          // Display names of NPCs in this location
-  npcIds: string[];               // Raw NPC IDs — used by AIService to look up profiles
+  // Each NPC entry carries its display label (alias if not yet introduced, real name if introduced)
+  // plus a flag so the AI knows whether to use the real name in prose.
+  npcsPresent: Array<{
+    label: string;        // What the AI should call this NPC (alias OR displayName)
+    npcId: string;
+    isIntroduced: boolean;
+  }>;
   availableObjects: string[];     // Display names of interactable objects
   availableExits: string[];       // Display names of accessible exits
   inventory: string[];
   watsonStats: {
-    sanity: number;
     medicalPoints: number;
     moralPoints: number;
   };
@@ -201,6 +210,8 @@ export interface NarrationContext {
     description: string;
     holmesDeduction: string;
   }>;
+  // Atmospheric fallback note for the examined object (if no clue triggered)
+  atmosphericNote?: string;
   // Recent NPC memory for present NPCs (max 2 entries each)
   npcRecentMemory?: Record<string, string[]>;
   // Session observations (STIM) — injected by useGameState before AI call
@@ -210,7 +221,8 @@ export interface NarrationContext {
   // Dynamic Witness Interrogation — populated by engine when action type is 'talk'
   targetNpcInterview?: {
     npcId: string;
-    displayName: string;
+    label: string;        // Alias or displayName depending on introduction state
+    isIntroduced: boolean;
     role: string;
     speakingStyle: string;
     personality: string[];
@@ -221,7 +233,21 @@ export interface NarrationContext {
   holmesNudge?: {
     locationKeyClues: string[];
     turnsStuck: number;
+    // Set when all interactables at current location are already examined —
+    // redirects Watson to another accessible location instead of repeating local hints
+    crossLocationTarget?: {
+      locationName: string;
+      locationId: string;
+    };
   };
+  // Scripted NPC presence moments — directorial instructions for the AI.
+  // Populated by engine when a present NPC has a scriptedLine that matches
+  // the current location (and optional trigger flag).
+  npcScriptedLines?: Array<{
+    npcId: string;
+    label: string;       // Alias or displayName depending on introduction state
+    instruction: string; // What the AI should naturally work into the narration
+  }>;
   // Controls how much the AI writes:
   //   'full'    — move or look: Act header + location prose + atmosphere + exits/objects/NPCs
   //   'compact' — examine/talk/take/etc: short observation + NPC response, no header or location listing
@@ -239,7 +265,6 @@ export interface ActJournalSummary {
   actNumber: number;
   actName: string;
   cluesFound: Array<{ name: string; description: string }>;
-  sanityAtClose: number;
 }
 
 /** Simplified AI response schema — narration only, no state mutations */

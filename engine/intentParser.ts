@@ -66,6 +66,14 @@ const HELP_VERBS = [
   'show commands', 'list commands', 'options', 'what can watson do',
 ];
 
+// Notebook trigger words — review discovered clues and investigation progress
+const NOTEBOOK_VERBS = [
+  'notebook', 'notes', 'clues', 'evidence', 'what have i found',
+  'what do i know', 'review clues', 'review evidence', 'list clues',
+  'show clues', 'show evidence', 'my clues', 'case notes',
+  'show notes', 'case progress', 'what clues',
+];
+
 /**
  * Normalise a string: lowercase, collapse spaces, remove punctuation.
  */
@@ -273,6 +281,13 @@ export function parseIntent(rawInput: string): ParsedIntent {
   for (const verb of INVENTORY_VERBS) {
     if (norm.includes(verb)) {
       return { type: 'inventory', raw: rawInput };
+    }
+  }
+
+  // 2b. Notebook / clue review check
+  for (const verb of NOTEBOOK_VERBS) {
+    if (norm === verb || norm.startsWith(verb + ' ') || norm.includes(verb)) {
+      return { type: 'notebook', raw: rawInput };
     }
   }
 

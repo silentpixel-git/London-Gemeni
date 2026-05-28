@@ -126,7 +126,6 @@ export class GameRepository {
   static async createInvestigation(userId: string, initial: {
     currentLocation: string;
     inventory: string[];
-    sanity: number;
     currentAct: number;
     globalFlags: Record<string, boolean>;
     journalNotes: string;
@@ -139,7 +138,6 @@ export class GameRepository {
         status: 'active',
         current_location: initial.currentLocation,
         inventory: initial.inventory,
-        sanity: initial.sanity,
         current_act: initial.currentAct,
         medical_points: 0,
         moral_points: 0,
@@ -166,7 +164,6 @@ export class GameRepository {
     currentState: {
       location: string;
       inventory: string[];
-      sanity: number;
       medicalPoints: number;
       moralPoints: number;
       currentAct: number;
@@ -191,10 +188,6 @@ export class GameRepository {
           inv = inv.filter(i => !result.inventoryRemove!.includes(i));
         }
         updates.inventory = inv;
-      }
-
-      if (result.sanityDelta !== undefined) {
-        updates.sanity = Math.max(0, Math.min(100, currentState.sanity + result.sanityDelta));
       }
 
       if (result.medicalPointsDelta !== undefined) {
@@ -230,7 +223,6 @@ export class GameRepository {
 
   static async updateInvestigation(investigationId: string, updates: {
     currentLocation?: string;
-    sanity?: number;
     medicalPoints?: number;
     moralPoints?: number;
     currentAct?: number;
@@ -239,13 +231,13 @@ export class GameRepository {
     journalNotes?: string;
     status?: string;
     stim?: Record<string, unknown>;
+    introducedNpcs?: string[];
   }): Promise<Investigation | null> {
     try {
       const snakeUpdates: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       };
       if (updates.currentLocation !== undefined) snakeUpdates.current_location = updates.currentLocation;
-      if (updates.sanity !== undefined) snakeUpdates.sanity = updates.sanity;
       if (updates.medicalPoints !== undefined) snakeUpdates.medical_points = updates.medicalPoints;
       if (updates.moralPoints !== undefined) snakeUpdates.moral_points = updates.moralPoints;
       if (updates.currentAct !== undefined) snakeUpdates.current_act = updates.currentAct;
@@ -254,6 +246,7 @@ export class GameRepository {
       if (updates.journalNotes !== undefined) snakeUpdates.journal_notes = updates.journalNotes;
       if (updates.status !== undefined) snakeUpdates.status = updates.status;
       if (updates.stim !== undefined) snakeUpdates.stim = updates.stim;
+      if (updates.introducedNpcs !== undefined) snakeUpdates.introduced_npcs = updates.introducedNpcs;
 
       const { data, error } = await supabase
         .from('investigations')
@@ -472,7 +465,6 @@ export class GameRepository {
       ownerId: data.owner_id as string,
       status: data.status as Investigation['status'],
       currentLocation: data.current_location as string,
-      sanity: data.sanity as number,
       medicalPoints: (data.medical_points as number) || 0,
       moralPoints: (data.moral_points as number) || 0,
       globalFlags: (data.global_flags as Record<string, unknown>) || {},
@@ -480,9 +472,10 @@ export class GameRepository {
       createdAt: data.created_at as string,
       updatedAt: data.updated_at as string,
       // New fields (may not exist on old rows — graceful fallback)
-      currentAct: (data.current_act as number) || 1,
+      currentAct: (data.current_act as number) ?? 0,
       inventory: (data.inventory as string[]) || [],
       stim: (data.stim as Record<string, unknown>) || undefined,
-    } as Investigation & { currentAct: number; inventory: string[] };
+      introducedNpcs: (data.introduced_npcs as string[]) || [],
+    } as Investigation & { currentAct: number; inventory: string[]; introducedNpcs: string[] };
   }
 }

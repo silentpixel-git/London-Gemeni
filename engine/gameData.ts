@@ -17,13 +17,14 @@ export {
 export {
   NPCS,
   NPC_DISPLAY_NAMES,
+  NPC_ALIASES,
 } from './stories/whitechapel-1888/npcs';
 
 export {
   CLUE_DEFINITIONS,
   CLUE_TRIGGERS,
+  ATMOSPHERIC_NOTES,
   TAKEABLE_OBJECTS,
-  SANITY_PENALTIES,
   USE_INTERACTIONS,
 } from './stories/whitechapel-1888/clues';
 
