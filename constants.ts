@@ -26,9 +26,9 @@ export const INITIAL_INTRODUCED_NPCS: string[] = ['abberline', 'bond'];
 export const INITIAL_JOURNAL = "";
 
 export const INITIAL_NPC_STATES: Record<string, any> = {
-  // Act 0 Prologue — Holmes and Watson are at Baker Street
+  // Act 0 Prologue — Holmes is at Baker Street; Abberline is at H Division (telegram contact only)
   holmes: { npcId: 'holmes', currentLocation: 'baker_street', status: 'alive', memory: [] },
-  abberline: { npcId: 'abberline', currentLocation: 'baker_street', status: 'alive', memory: [] },
+  abberline: { npcId: 'abberline', currentLocation: 'h_division_station', status: 'alive', memory: [] },
   bond: { npcId: 'bond', currentLocation: 'whitechapel_mortuary', status: 'alive', memory: [] },
   edmund: { npcId: 'edmund', currentLocation: 'whitechapel_mortuary', status: 'alive', memory: [] },
   lusk: { npcId: 'lusk', currentLocation: 'lusk_office', status: 'alive', memory: [] },

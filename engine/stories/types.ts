@@ -18,6 +18,9 @@ export interface LocationDefinition {
   // Used by AI when timeframe === 'reconstruction'. Explains to the AI exactly
   // how Watson is visiting this past crime scene (from reports, from memory, etc.)
   reconstitutionNote?: string;
+  // Time of day for this location — drives UI colour theming (CSS deferred to user design pass)
+  // Reconstruction locations use the original crime's time, not Watson's visit time.
+  timeOfDay: 'morning' | 'midday' | 'afternoon' | 'night';
 }
 
 export interface NPCDefinition {
