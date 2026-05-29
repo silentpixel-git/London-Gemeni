@@ -16,7 +16,11 @@ export const ACT_PROGRESSION: Record<number, ActCondition> = {
   // Prologue — Watson and Holmes at Baker Street, building the case map
   0: {
     name: 'The Baker Street Vigil',
-    requireFlags: ['examined_baker_street_case_files_wall'],
+    requireFlags: [
+      'examined_baker_street_case_files_wall', // Watson reads the full case map
+      'examined_baker_street_telegrams_pile',   // Watson reads Abberline's messages
+      'talked_to_holmes_at_baker_street',       // Holmes briefs Watson before they leave
+    ],
     advanceTo: 1,
   },
   // Act 1 — The fresh Kelly murder scene at Miller's Court

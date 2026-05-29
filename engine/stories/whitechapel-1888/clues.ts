@@ -1,6 +1,19 @@
 import type { ClueDefinition } from '../types';
 
 export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
+  // GROUP 0 — Prologue: Baker Street framework clue
+  clue_00_campaign_timeline: {
+    id: 'clue_00_campaign_timeline',
+    name: 'The Eleven Weeks',
+    description: "Watson reads the case files wall. Five names in chronological order: Nichols. Chapman. Stride. Eddowes. Kelly. August through November — eleven weeks, five murders, an accelerating frequency. The last three in six weeks. Holmes's note beside the final card reads simply: 'Acceleration. He is growing less cautious. Or more confident.'",
+    holmesDeduction: "An eleven-week campaign, Watson. Not compulsion — calculation. A man who began slowly and grew bolder as he understood he would not be caught. That is our frame. We are not looking for an impulsive man. We are looking for a patient one.",
+    locationFound: 'baker_street',
+    triggerObject: 'case_files_wall',
+    connections: ['clue_02b_campaign_pattern'],
+    clueGroup: 0,
+    medicalPoints: 0,
+    moralPoints: 5,
+  },
   // GROUP 1 — Victim Approach Pattern
   clue_01_respectable_approach: {
     id: 'clue_01_respectable_approach',
@@ -204,7 +217,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
 
 export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
   baker_street: {
-    case_files_wall: [],        // Gate for Act 0 → 1 (flag-based, no clue)
+    case_files_wall: ['clue_00_campaign_timeline'],
     whitechapel_map: [],
     holmes_chemistry_table: [],
     telegrams_pile: [],

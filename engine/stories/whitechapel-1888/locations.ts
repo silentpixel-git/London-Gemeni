@@ -13,9 +13,9 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     atmosphere: 'Warm lamplight, tobacco smoke, and the familiar disorder of a working mind. Holmes\' sitting room in the grip of an urgent case.',
     description: 'The sitting room is barely recognisable. Case files have colonised the mantelpiece, the armchairs, and most of the floor. A large map of Whitechapel is pinned to the wall with coloured threads running between locations. Holmes stands at the window, his back to the room.',
     exits: ['dorset_street'],
-    interactables: ['case_files_wall', 'whitechapel_map', 'holmes_chemistry_table', 'telegrams_pile', 'watson_armchair', 'newspaper_pile'],
+    interactables: ['whitechapel_map', 'holmes_chemistry_table', 'telegrams_pile', 'watson_armchair', 'newspaper_pile', 'case_files_wall'],
     keyClues: ['Holmes has been building a case map', 'The newspapers document public panic and press speculation'],
-    criticalPathLead: 'Examine the case files on the wall. Holmes has been working. There is a great deal here to understand before venturing out.',
+    criticalPathLead: 'Speak with Holmes. He has been at this for weeks — Watson is catching up. Examine the room. The case files wall is the last thing to read, not the first.',
     locationExaminedFlag: 'examined_baker_street',
   },
 
