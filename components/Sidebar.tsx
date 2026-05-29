@@ -94,17 +94,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <DoorOpen size={18} />
             <span className="uppercase tracking-widest text-xs font-bold">Avenues</span>
           </div>
-          <ul className="space-y-3">
-            {visibleExits.map((exitId, idx) => {
-              const exitData = LOCATIONS[exitId];
-              return (
-                <li key={idx} className="flex items-center gap-3 text-lb-primary opacity-90">
-                  <div className="w-1.5 h-1.5 rounded-full bg-lb-accent" />
-                  <span className="font-sans text-md">{exitData?.shortName || exitId}</span>
-                </li>
-              );
-            })}
-          </ul>
+          {visibleExits.length > 0 ? (
+            <ul className="space-y-3">
+              {visibleExits.map((exitId, idx) => {
+                const exitData = LOCATIONS[exitId];
+                return (
+                  <li key={idx} className="flex items-center gap-3 text-lb-primary opacity-90">
+                    <div className="w-1.5 h-1.5 rounded-full bg-lb-accent" />
+                    <span className="font-sans text-md">{exitData?.shortName || exitId}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="font-sans text-sm text-lb-primary opacity-40 italic">Investigate further before leaving</p>
+          )}
         </div>
 
         {/* Present NPCs */}
