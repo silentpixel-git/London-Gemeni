@@ -291,11 +291,16 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const result = gameEngine.resolve(intent, snapshot);
 
       const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 — three months after the business had begun, and the day before it concluded.\n\n";
+      // Inject fixed line AFTER the ### heading, not before it
+      const injectAfterHeading = (text: string) => {
+        const match = text.match(/^(###[^\n]*\n\n?)/);
+        return match ? match[1] + OPENING_FIXED_LINE + text.slice(match[1].length) : OPENING_FIXED_LINE + text;
+      };
       let lastText = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening', blockquoteHint: 'none' })) {
         if (update.narrative) {
           lastText = update.narrative;
-          setHistory([{ role: 'assistant', text: OPENING_FIXED_LINE + lastText }]);
+          setHistory([{ role: 'assistant', text: injectAfterHeading(lastText) }]);
         }
       }
       if (!lastText) setHistory([{ role: 'assistant', text: OPENING_FIXED_LINE + OPENING_FALLBACK_NARRATIVE }]);
