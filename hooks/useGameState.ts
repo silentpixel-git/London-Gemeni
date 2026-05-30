@@ -18,7 +18,7 @@ import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG } from '../engine/gameData';
 import type { IntentType } from '../types';
 import {
   INITIAL_LOCATION,
@@ -63,6 +63,9 @@ export interface GameStateReturn {
   setNotification: React.Dispatch<React.SetStateAction<{ message: string; type: 'success' | 'error' } | null>>;
   connectionStatus: { gemini: boolean | null; supabase: boolean | null };
   retryConnections: () => Promise<void>;
+
+  // Derived UI values
+  displayTime: string; // short in-game clock, e.g. "10:45 AM"
 
   // Refs
   scrollRef: React.RefObject<HTMLDivElement>;
@@ -992,6 +995,17 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     scrollRef,
     lastUserMessageRef,
+
+    // Derived in-game clock for UI display (short form, e.g. "10:45 AM")
+    displayTime: (() => {
+      const cfg  = ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1];
+      const m    = (cfg.canonicalMinutes + elapsedMinutes) % 1440;
+      const h24  = Math.floor(m / 60);
+      const mins = m % 60;
+      const ampm = h24 < 12 ? 'AM' : 'PM';
+      const h12  = h24 % 12 === 0 ? 12 : h24 % 12;
+      return `${h12}:${mins.toString().padStart(2, '0')} ${ampm}`;
+    })(),
 
     handleAction,
     handleSaveGame,
