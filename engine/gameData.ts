@@ -30,10 +30,14 @@ export {
 export {
   ACT_NAMES,
   ACT_PROGRESSION,
+  ACT_TIME_CONFIG,
   DEDUCTION_THRESHOLD,
   DEDUCTION_KEYWORDS,
 } from './stories/whitechapel-1888/acts';
 
+export type { ActTimeConfig } from './stories/whitechapel-1888/acts';
+
 export { SUSPECT_PROFILES } from './stories/whitechapel-1888/suspects';
 
 export { ATMOSPHERIC_SEEDS, WHITECHAPEL_FACTS } from './stories/whitechapel-1888/atmosphere';
+export type { AtmosphericSeed } from './stories/whitechapel-1888/atmosphere';

@@ -22,42 +22,59 @@ export const WHITECHAPEL_FACTS = {
   },
 };
 
-// One is chosen at random per narration call so the AI never
-// defaults to the same micro-detail.
-export const ATMOSPHERIC_SEEDS: string[] = [
-  'A match scraping against brick somewhere unseen',
-  "A child's cough from behind a closed door",
-  'The distant clatter of a handcart on cobblestones',
-  'The smell of boiled cabbage drifting from an upper window',
-  'A gas lamp guttering in the wind, its flame turning blue',
-  'A woman arguing in a low, urgent voice two streets over',
-  "The tap of a blind man's cane receding into the fog",
-  'A loose shutter banging rhythmically somewhere above',
-  'The distant moan of a foghorn on the Thames',
-  'Wet newspaper clinging to the base of a wall',
-  'A horse snorting somewhere in the dark, unseen',
-  'The smell of coal smoke settling low in the fog',
-  'A single church bell tolling the quarter-hour',
-  'Footsteps on a wooden floor directly above, then silence',
-  'The drip of a gutter, metronomic in the quiet',
-  "A drunk's muffled singing fading around a corner",
-  'The rustle of pigeons disturbed on a nearby roof',
-  "A constable's whistle, far off, answered by silence",
-  'The distant rumble of a late goods train',
-  'A door opening, then closing without anyone appearing',
-  'The flare of a match in an upstairs window, briefly illuminating a face',
-  'Broken glass crunching underfoot somewhere off to the left',
-  'The sour smell of the tannery carried on the night air',
-  'A baby crying briefly, then nothing',
-  'Steam rising from a grate in the pavement',
-  'A stray dog nosing at something in the gutter, then fleeing',
-  'The creak of a sign-board swinging overhead in the wind',
-  'A pair of boots ascending iron stairs somewhere above',
-  "Children's voices from a court, suddenly hushed",
-  "The scratch of a pen behind a lighted window",
-  'A wheel-barrow abandoned at the kerb, one handle broken',
-  "The acrid smell of an extinguished tallow candle drifting past",
-  'Laughter from inside a public house — low, uncomfortable',
-  'A pigeon with a broken wing circling the lamp-post',
-  'The echo of a dropped tin pail two streets away',
+import type { TimePeriod } from '../../../types';
+
+// Each seed is tagged with the time periods it is valid for.
+// An empty periods array means it works for any time of day.
+export interface AtmosphericSeed {
+  text: string;
+  periods: TimePeriod[]; // empty = all periods
+}
+
+// One is chosen at random per narration call, filtered to the current time period,
+// so the AI never defaults to the same micro-detail or contradicts the time of day.
+export const ATMOSPHERIC_SEEDS: AtmosphericSeed[] = [
+  // ── ALL PERIODS ──────────────────────────────────────────────────────────
+  { text: 'A match scraping against brick somewhere unseen',                             periods: [] },
+  { text: "A child's cough from behind a closed door",                                  periods: [] },
+  { text: 'The distant clatter of a handcart on cobblestones',                          periods: [] },
+  { text: 'The smell of boiled cabbage drifting from an upper window',                  periods: [] },
+  { text: 'A woman arguing in a low, urgent voice two streets over',                    periods: [] },
+  { text: 'A loose shutter banging rhythmically somewhere above',                       periods: [] },
+  { text: 'Wet newspaper clinging to the base of a wall',                               periods: [] },
+  { text: 'The smell of coal smoke settling low in the fog',                            periods: [] },
+  { text: 'A single church bell tolling the quarter-hour',                              periods: [] },
+  { text: 'Footsteps on a wooden floor directly above, then silence',                   periods: [] },
+  { text: 'The drip of a gutter, metronomic in the quiet',                              periods: [] },
+  { text: 'Steam rising from a grate in the pavement',                                  periods: [] },
+  { text: 'The creak of a sign-board swinging overhead in the wind',                    periods: [] },
+  { text: 'A wheel-barrow abandoned at the kerb, one handle broken',                    periods: [] },
+  { text: 'The echo of a dropped tin pail two streets away',                            periods: [] },
+  { text: 'A baby crying briefly, then nothing',                                        periods: [] },
+
+  // ── DAY ONLY (dawn / morning / afternoon) ────────────────────────────────
+  { text: "Children's voices from a court, suddenly hushed",                            periods: ['dawn', 'morning', 'afternoon'] },
+  { text: "The scratch of a pen behind a lighted window",                               periods: ['morning', 'afternoon'] },
+  { text: 'The rustle of pigeons disturbed on a nearby roof',                           periods: ['dawn', 'morning', 'afternoon'] },
+  { text: 'The distant rumble of a goods train',                                        periods: ['morning', 'afternoon'] },
+  { text: 'A pigeon with a broken wing circling the lamp-post',                         periods: ['dawn', 'morning', 'afternoon'] },
+  { text: 'A costermonger calling his wares two streets over',                          periods: ['morning', 'afternoon'] },
+  { text: 'The clatter of milk churns being unloaded from a cart',                      periods: ['dawn', 'morning'] },
+
+  // ── NIGHT ONLY (evening / night / lateNight) ─────────────────────────────
+  { text: 'A gas lamp guttering in the wind, its flame turning blue',                   periods: ['evening', 'night', 'lateNight'] },
+  { text: "The tap of a blind man's cane receding into the fog",                        periods: ['evening', 'night', 'lateNight'] },
+  { text: 'The distant moan of a foghorn on the Thames',                                periods: ['night', 'lateNight'] },
+  { text: "A drunk's muffled singing fading around a corner",                           periods: ['evening', 'night', 'lateNight'] },
+  { text: "A constable's whistle, far off, answered by silence",                        periods: ['evening', 'night', 'lateNight'] },
+  { text: 'The sour smell of the tannery carried on the night air',                     periods: ['night', 'lateNight'] },
+  { text: 'A stray dog nosing at something in the gutter, then fleeing',                periods: ['night', 'lateNight'] },
+  { text: 'A pair of boots ascending iron stairs somewhere above',                      periods: ['evening', 'night', 'lateNight'] },
+  { text: 'Laughter from inside a public house — low, uncomfortable',                   periods: ['evening', 'night'] },
+  { text: 'A door opening, then closing without anyone appearing',                      periods: ['evening', 'night', 'lateNight'] },
+  { text: 'The flare of a match in an upstairs window, briefly illuminating a face',    periods: ['night', 'lateNight'] },
+  { text: 'Broken glass crunching underfoot somewhere off to the left',                 periods: ['night', 'lateNight'] },
+  { text: 'A horse snorting somewhere in the dark, unseen',                             periods: ['night', 'lateNight'] },
+  { text: "The acrid smell of an extinguished tallow candle drifting past",             periods: ['evening', 'night', 'lateNight'] },
+  { text: 'A figure crossing the end of the street without looking up',                 periods: ['night', 'lateNight'] },
 ];
