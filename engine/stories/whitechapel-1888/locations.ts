@@ -143,7 +143,7 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     exits: ['bond_office', 'baker_street'],
     interactables: ['patient_records', 'edmund_room_furnishings'],
     keyClues: ["Edmund committed after Kelly's murder", 'Family discovered disturbing medical evidence — a preserved kidney'],
-    criticalPathLead: "Speak with the superintendent and examine the patient records. The truth of this case ends here.",
+    criticalPathLead: "Speak with the superintendent, examine the patient records, and look over the furnishings of Edmund's room. The truth of this case ends here.",
     locationExaminedFlag: 'visited_private_asylum',
     timeOfDay: 'afternoon',
   },
