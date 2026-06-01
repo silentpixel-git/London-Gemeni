@@ -429,7 +429,7 @@ export const USE_INTERACTIONS: Record<string, Record<string, string>> = {
   },
   baker_street: {
     case_files_wall:
-      "Watson reads Holmes' case map carefully. The five murder sites, the dates, the connecting threads. A note in Holmes' hand reads: 'Access to victims — non-threatening. Knowledge of organs — studied but not qualified. Present at investigation — professional role. Spelling: prasarved.' The last word is circled.",
+      "Watson reads Holmes' case map carefully. The five murder sites, the dates, the connecting threads. A note in Holmes' hand reads: 'Access to victims — non-threatening. Knowledge of organs — studied but not qualified. Present at investigation — professional role.' Beside the last line, a question mark.",
     newspaper_pile:
       "Watson reads the progression of newspaper coverage: confusion, then panic, then the naming of 'Jack the Ripper' — a name the police never used, invented by a letter-writer who was almost certainly not the killer. Holmes has annotated the margins: 'Misdirection. Public panic serves the killer's anonymity.'",
   },

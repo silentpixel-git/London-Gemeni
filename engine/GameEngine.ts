@@ -175,6 +175,7 @@ export class GameEngine {
       npcUpdates: newNpcUpdates,
       flagsUpdate: actCheck.flagsUpdate,
       newAct: actCheck.newAct,
+      gameOver: actCheck.gameOver,
       discoveredClueIds: [],
       aiContext: this.buildContext(intent, session, {
         success: true,
@@ -205,6 +206,7 @@ export class GameEngine {
         actionType: 'examine',
         flagsUpdate: { ...flagsUpdate, ...(actCheck.flagsUpdate || {}) },
         newAct: actCheck.newAct,
+        gameOver: actCheck.gameOver,
         discoveredClueIds: [],
         aiContext: this.buildContext(intent, session, {
           success: true,
@@ -292,6 +294,7 @@ export class GameEngine {
       actionType: 'examine',
       flagsUpdate: { ...flagsUpdate, ...(actCheck.flagsUpdate || {}) },
       newAct: actCheck.newAct,
+      gameOver: actCheck.gameOver,
       discoveredClueIds: newClueIds,
       medicalPointsDelta: medicalDelta || undefined,
       moralPointsDelta: moralDelta || undefined,
@@ -463,6 +466,7 @@ export class GameEngine {
           actionType: 'use',
           flagsUpdate: { ...flagsUpdate, ...(actCheck.flagsUpdate || {}) },
           newAct: actCheck.newAct,
+          gameOver: actCheck.gameOver,
           discoveredClueIds: newClueIds,
           medicalPointsDelta: medicalDelta || undefined,
           moralPointsDelta: moralDelta || undefined,
@@ -973,7 +977,7 @@ export class GameEngine {
   private checkActProgression(
     session: SessionSnapshot,
     currentFlags: Record<string, boolean>
-  ): { newAct?: number; flagsUpdate?: Record<string, boolean> } {
+  ): { newAct?: number; flagsUpdate?: Record<string, boolean>; gameOver?: boolean } {
     const condition = ACT_PROGRESSION[session.currentAct];
     if (!condition) return {};
 
@@ -984,10 +988,15 @@ export class GameEngine {
     const advanceTo = condition.advanceTo;
     if (advanceTo <= session.currentAct) return {}; // Prevent regression
 
+    // Advancing past the final playable act (no further progression defined)
+    // concludes the game — e.g. visiting the Private Asylum in Act VI.
+    const isFinalAct = !ACT_PROGRESSION[advanceTo];
+
     // Sync NPC locations for new act
     return {
       newAct: advanceTo,
       flagsUpdate: { [`act_${advanceTo}_started`]: true },
+      gameOver: isFinalAct || undefined,
     };
   }
 }
