@@ -14,8 +14,10 @@ export {
 export {
   ACT_NAMES,
   ACT_PROGRESSION,
+  ACT_TIME_CONFIG,
   DEDUCTION_THRESHOLD,
   DEDUCTION_KEYWORDS,
 } from './acts';
+export type { ActTimeConfig } from './acts';
 export { SUSPECT_PROFILES } from './suspects';
 export { ATMOSPHERIC_SEEDS, WHITECHAPEL_FACTS } from './atmosphere';

@@ -22,6 +22,7 @@ interface SidebarProps {
   journalNotes: string;
   isUpdatingJournal: boolean;
   onUpdateJournal: () => void;
+  displayTime: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -34,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   journalNotes,
   isUpdatingJournal,
   onUpdateJournal,
+  displayTime,
 }) => {
   // NPCs visible in the current location
   const presentNpcs = Object.values(npcStates).filter(s => {
@@ -70,6 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <h2 className="font-serif text-2xl leading-tight text-lb-primary">
             {LOCATIONS[location]?.name || 'Unknown Location'}
           </h2>
+          <p className="mt-1 text-xs text-lb-muted font-sans opacity-50 tracking-wide">{displayTime}</p>
         </div>
 
         {/* Inventory */}

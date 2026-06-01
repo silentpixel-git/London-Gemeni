@@ -18,7 +18,7 @@ import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
   INITIAL_ACT,
@@ -51,6 +51,9 @@ export interface GameStateReturn {
   flags: Record<string, boolean>;
   npcStates: Record<string, NPCState>;
   activeInvestigation: Investigation | null;
+
+  // In-game clock
+  displayTime: string;
 
   // UI / persistence
   journalNotes: string;
@@ -106,6 +109,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // NPC introduction tracking — IDs of NPCs whose real names Watson now knows.
   // Pre-seeded with professional acquaintances Watson already knows at game start.
   const [introducedNpcs, setIntroducedNpcs] = useState<string[]>(INITIAL_INTRODUCED_NPCS);
+
+  // In-game clock — minutes elapsed since act's canonical start time
+  const [elapsedMinutes, setElapsedMinutes] = useState(0);
 
   // Proactive Holmes nudge — turns at current location without discovering a clue
   const [turnsAtLocationWithoutProgress, setTurnsAtLocationWithoutProgress] = useState(0);
@@ -678,6 +684,17 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setTurnsAtLocationWithoutProgress(prev => prev + 1);
       }
 
+      // Advance in-game clock
+      if (result.newAct) {
+        setElapsedMinutes(0); // Reset to new act's canonical start time
+      } else {
+        const ACTION_TIME_MINUTES: Partial<Record<typeof result.actionType, number>> = {
+          move: 10, talk: 5, deduce: 5, examine: 2,
+          use: 2, take: 1, inventory: 0, query: 1, help: 0, other: 2,
+        };
+        setElapsedMinutes(prev => prev + (ACTION_TIME_MINUTES[result.actionType] ?? 2));
+      }
+
       // Capture journal data before resetting per-act tracking (if act is advancing)
       let pendingJournalSummary: ActJournalSummary | null = null;
       if (result.newAct) {
@@ -973,6 +990,16 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     flags,
     npcStates,
     activeInvestigation,
+
+    displayTime: (() => {
+      const cfg = ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1];
+      const m = (cfg.canonicalMinutes + elapsedMinutes) % 1440;
+      const h24 = Math.floor(m / 60);
+      const mins = m % 60;
+      const ampm = h24 < 12 ? 'AM' : 'PM';
+      const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+      return `${h12}:${mins.toString().padStart(2, '0')} ${ampm}`;
+    })(),
 
     journalNotes,
     isUpdatingJournal,

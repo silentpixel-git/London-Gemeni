@@ -1,5 +1,31 @@
 import type { ActCondition } from '../types';
 
+// ============================================================
+// ACT TIME CONFIGURATION
+// Canonical in-game clock anchor for each act.
+// Acts 0   = Evening of 8 November 1888 (Baker Street vigil)
+// Acts 1–3 = 9 November 1888 (Kelly's murder day)
+// Acts 4–6 = 10 November 1888 (follow-up investigation day)
+// Reconstruction locations use the original crime's time, not
+// Watson's visit time — see locations.ts timeOfDay field.
+// ============================================================
+
+export interface ActTimeConfig {
+  canonicalMinutes: number; // Minutes from midnight at act start
+  dayOfWeek: string;
+  displayDate: string;      // e.g. "9 November 1888"
+}
+
+export const ACT_TIME_CONFIG: Record<number, ActTimeConfig> = {
+  0: { canonicalMinutes: 1260, dayOfWeek: 'Thursday', displayDate: '8 November 1888' },  // 9:00 PM  — Baker Street evening vigil
+  1: { canonicalMinutes: 645,  dayOfWeek: 'Friday',   displayDate: '9 November 1888' },  // 10:45 AM — Kelly's body discovered
+  2: { canonicalMinutes: 780,  dayOfWeek: 'Friday',   displayDate: '9 November 1888' },  // 1:00 PM  — afternoon review
+  3: { canonicalMinutes: 1380, dayOfWeek: 'Friday',   displayDate: '9 November 1888' },  // 11:00 PM — night investigation
+  4: { canonicalMinutes: 540,  dayOfWeek: 'Saturday', displayDate: '10 November 1888' }, // 9:00 AM  — next morning, the letter trail
+  5: { canonicalMinutes: 840,  dayOfWeek: 'Saturday', displayDate: '10 November 1888' }, // 2:00 PM  — afternoon, Dr. Bond's office
+  6: { canonicalMinutes: 990,  dayOfWeek: 'Saturday', displayDate: '10 November 1888' }, // 4:30 PM  — dusk, the confrontation
+};
+
 export const ACT_NAMES: Record<number, string> = {
   0: 'The Baker Street Vigil',
   1: 'The Last Murder',
