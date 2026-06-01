@@ -292,6 +292,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         discoveredClueIds: [],
         investigationId: undefined,
         turnsAtLocationWithoutProgress: 0,
+        elapsedMinutes: 0,
         introducedNpcs: INITIAL_INTRODUCED_NPCS,
       };
       const result = gameEngine.resolve(intent, snapshot);
@@ -620,6 +621,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         discoveredClueIds,
         investigationId: activeInvestigation?.id,
         turnsAtLocationWithoutProgress,
+        elapsedMinutes,
         introducedNpcs,
       };
 

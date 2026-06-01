@@ -1,4 +1,6 @@
 
+export type TimePeriod = 'dawn' | 'morning' | 'afternoon' | 'evening' | 'night' | 'lateNight';
+
 export interface GameHistoryItem {
   role: 'user' | 'assistant' | 'system';
   text: string;
@@ -256,6 +258,9 @@ export interface NarrationContext {
   //   'compact' — examine/talk/take/etc: short observation + NPC response, no header or location listing
   //   'opening' — game start only: 2 tight paragraphs, max 130 words, hook only
   narrationMode: 'full' | 'compact' | 'opening';
+  // Current in-game time — anchored to canonical act start, advances per action type
+  timeLabel: string;      // e.g. "10:45 AM — Friday, 9 November 1888"
+  timePeriod: TimePeriod; // e.g. 'morning'
   // Tells the AI what kind of blockquote to use this turn (or none):
   //   'world_event'   — sensory micro-event from the world (always in full mode)
   //   'inner_thought' — Watson's fleeting thought/memory triggered by the action (compact ~50%)

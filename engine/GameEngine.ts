@@ -10,7 +10,7 @@
  * The engine NEVER hallucinate — it only knows what's in gameData.ts.
  */
 
-import { NPCState, EngineResult, NarrationContext, IntentType } from '../types';
+import { NPCState, EngineResult, NarrationContext, IntentType, TimePeriod } from '../types';
 import { ParsedIntent } from './intentParser';
 import {
   LOCATIONS,
@@ -23,12 +23,34 @@ import {
   TAKEABLE_OBJECTS,
   ACT_PROGRESSION,
   ACT_NAMES,
+  ACT_TIME_CONFIG,
   OBJECT_DISPLAY_NAMES,
   NPC_DISPLAY_NAMES,
   DEDUCTION_THRESHOLD,
   USE_INTERACTIONS,
   SUSPECT_PROFILES,
 } from './gameData';
+
+// ── Time helpers ──────────────────────────────────────────────────────────────
+
+function computeTimePeriod(totalMinutes: number): TimePeriod {
+  const m = totalMinutes % 1440;
+  if (m >= 300  && m < 420)  return 'dawn';
+  if (m >= 420  && m < 720)  return 'morning';
+  if (m >= 720  && m < 1020) return 'afternoon';
+  if (m >= 1020 && m < 1200) return 'evening';
+  if (m >= 1200 && m < 1380) return 'night';
+  return 'lateNight'; // 1380–1439 and 0–299
+}
+
+function formatTimeLabel(totalMinutes: number, dayOfWeek: string, displayDate: string): string {
+  const m    = totalMinutes % 1440;
+  const h24  = Math.floor(m / 60);
+  const mins = m % 60;
+  const ampm = h24 < 12 ? 'AM' : 'PM';
+  const h12  = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${mins.toString().padStart(2, '0')} ${ampm} — ${dayOfWeek}, ${displayDate}`;
+}
 
 // ============================================================
 // Current session state snapshot passed to the engine
@@ -45,6 +67,7 @@ export interface SessionSnapshot {
   discoveredClueIds: string[];
   investigationId?: string;
   turnsAtLocationWithoutProgress: number; // for proactive Holmes nudge
+  elapsedMinutes: number;                 // minutes elapsed since act's canonical start
   // NPC IDs whose real names Watson now knows (alias system)
   introducedNpcs: string[];
   // Note: sanity has been removed. Watson's prose register is now fixed
@@ -891,6 +914,14 @@ export class GameEngine {
     }
 
     const act = session.currentAct;
+
+    // Compute current in-game time — anchored to the act's canonical start,
+    // advanced by the minutes elapsed this act (tracked in the hook).
+    const actTimeCfg   = ACT_TIME_CONFIG[act] ?? ACT_TIME_CONFIG[1];
+    const totalMinutes = actTimeCfg.canonicalMinutes + session.elapsedMinutes;
+    const timePeriod   = computeTimePeriod(totalMinutes);
+    const timeLabel    = formatTimeLabel(totalMinutes, actTimeCfg.dayOfWeek, actTimeCfg.displayDate);
+
     return {
       locationName: loc.name,
       locationAtmosphere: loc.atmosphere,
@@ -899,6 +930,8 @@ export class GameEngine {
       locationReconstitutionNote: loc.reconstitutionNote,
       act,
       actName: ACT_NAMES[act] || `Act ${act}`,
+      timeLabel,
+      timePeriod,
       npcsPresent,
       availableObjects,
       availableExits,

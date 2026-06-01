@@ -13,7 +13,7 @@
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
-import { NarrationContext, NarrationResponse, ActJournalSummary } from '../types';
+import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod } from '../types';
 import { ATMOSPHERIC_SEEDS } from '../engine/gameData';
 
 // ============================================================
@@ -36,7 +36,9 @@ YOUR SOLE PURPOSE: Write atmospheric, period-accurate prose. You are a narrator,
 
 1. VERIFIED STATE ONLY: You receive a verified game state. Do NOT invent exits, items, characters, or locations not listed in your context.
 
-2. WATSON'S VOICE: Military doctor — notices medical and forensic details. Writes with measured authority. Never melodramatic.
+2. TIME ACCURACY: The prompt provides a verified current time. Your prose must be fully consistent with that time of day. Do not write morning sunlight or street bustle during night-time scenes. Do not write gas lamps or darkness during a morning scene.
+
+3. WATSON'S VOICE: Military doctor — notices medical and forensic details. Writes with measured authority. Never melodramatic.
 
 3. NPC NAMES — ALIAS RULE (CRITICAL):
    Each NPC in your context carries a "label" and an "isIntroduced" flag.
@@ -137,8 +139,12 @@ const NARRATION_SCHEMA = {
 
 const ACT_ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
 
-function pickAtmosphericSeed(): string {
-  return ATMOSPHERIC_SEEDS[Math.floor(Math.random() * ATMOSPHERIC_SEEDS.length)];
+function pickAtmosphericSeed(period: TimePeriod): string {
+  const candidates = ATMOSPHERIC_SEEDS.filter(
+    s => s.periods.length === 0 || s.periods.includes(period)
+  );
+  const pool = candidates.length > 0 ? candidates : ATMOSPHERIC_SEEDS;
+  return pool[Math.floor(Math.random() * pool.length)].text;
 }
 
 function buildNarrationPrompt(ctx: NarrationContext): string {
@@ -174,9 +180,10 @@ function buildNarrationPrompt(ctx: NarrationContext): string {
     ? ctx.npcsPresent.map(n => n.label).join(', ')
     : 'None';
 
-  const temporalSection = ctx.locationTimeframe === 'reconstruction'
+  const timeSection = `\nCURRENT TIME: ${ctx.timeLabel} (${ctx.timePeriod}). Your prose must be fully consistent with this time of day.\n`;
+  const temporalSection = (ctx.locationTimeframe === 'reconstruction'
     ? `\nTEMPORAL FRAMING: RECONSTRUCTION — Watson is revisiting this cold crime scene (weeks/months after the murder). Apply retrospective dread register — NOT live investigation shock.${ctx.locationReconstitutionNote ? `\nContext: ${ctx.locationReconstitutionNote}` : ''}\n`
-    : `\nTEMPORAL FRAMING: PRESENT — Watson is here now, November 1888. Apply immediate, live-investigation register.\n`;
+    : `\nTEMPORAL FRAMING: PRESENT — Watson is here now, November 1888. Apply immediate, live-investigation register.\n`) + timeSection;
 
   const atmosphericNoteSection = ctx.atmosphericNote
     ? `\n=== ATMOSPHERIC NOTE (use as basis for this examination — expand in Watson's voice) ===\n${ctx.atmosphericNote}\n`
@@ -231,7 +238,7 @@ Paragraph 1 — ATMOSPHERE: Vivid sensory description. Apply the temporal regist
 Paragraph 2 — WATSON'S INNER THOUGHTS: Brief reflection on the case, his anxiety, or moral state. 1–2 sentences. For reconstruction visits, this may reach backward in time.
 
 Paragraph 3 — BLOCKQUOTE: A world micro-event that makes this place feel alive. Use the seed below as a starting point.
-Seed: "${pickAtmosphericSeed()}"
+Seed: "${pickAtmosphericSeed(ctx.timePeriod)}"
 Format EXACTLY as a Markdown blockquote:
 > *Your world event sentence here.*
 
