@@ -66,6 +66,14 @@ const HELP_VERBS = [
   'show commands', 'list commands', 'options', 'what can watson do',
 ];
 
+// Notebook trigger words — review discovered clues and investigation progress
+const NOTEBOOK_VERBS = [
+  'notebook', 'notes', 'clues', 'evidence', 'what have i found',
+  'what do i know', 'review clues', 'review evidence', 'list clues',
+  'show clues', 'show evidence', 'my clues', 'case notes',
+  'show notes', 'case progress', 'what clues',
+];
+
 /**
  * Normalise a string: lowercase, collapse spaces, remove punctuation.
  */
@@ -276,7 +284,9 @@ export function parseIntent(rawInput: string): ParsedIntent {
     }
   }
 
-  // 3. Deduction attempt
+  // 2b. Deduction attempt — checked before the notebook review so that a
+  // theory phrased with words like "evidence"/"clues" (e.g. "I believe the
+  // evidence points to Edmund") is treated as a deduction, not a notebook open.
   for (const keyword of DEDUCTION_KEYWORDS) {
     if (norm.includes(keyword)) {
       return {
@@ -284,6 +294,13 @@ export function parseIntent(rawInput: string): ParsedIntent {
         deductionText: rawInput,
         raw: rawInput,
       };
+    }
+  }
+
+  // 3. Notebook / clue review check
+  for (const verb of NOTEBOOK_VERBS) {
+    if (norm === verb || norm.startsWith(verb + ' ') || norm.includes(verb)) {
+      return { type: 'notebook', raw: rawInput };
     }
   }
 

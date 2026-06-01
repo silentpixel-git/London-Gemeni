@@ -17,13 +17,14 @@ export {
 export {
   NPCS,
   NPC_DISPLAY_NAMES,
+  NPC_ALIASES,
 } from './stories/whitechapel-1888/npcs';
 
 export {
   CLUE_DEFINITIONS,
   CLUE_TRIGGERS,
+  ATMOSPHERIC_NOTES,
   TAKEABLE_OBJECTS,
-  SANITY_PENALTIES,
   USE_INTERACTIONS,
 } from './stories/whitechapel-1888/clues';
 
@@ -34,10 +35,8 @@ export {
   DEDUCTION_THRESHOLD,
   DEDUCTION_KEYWORDS,
 } from './stories/whitechapel-1888/acts';
-
 export type { ActTimeConfig } from './stories/whitechapel-1888/acts';
 
 export { SUSPECT_PROFILES } from './stories/whitechapel-1888/suspects';
 
 export { ATMOSPHERIC_SEEDS, WHITECHAPEL_FACTS } from './stories/whitechapel-1888/atmosphere';
-export type { AtmosphericSeed } from './stories/whitechapel-1888/atmosphere';

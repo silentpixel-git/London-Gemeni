@@ -13,20 +13,26 @@ export const THEME = {
   }
 };
 
-export const INITIAL_LOCATION = 'dorset_street';
+export const INITIAL_LOCATION = 'baker_street';
+export const INITIAL_ACT = 0;
 export const INITIAL_INVENTORY = ['Watson\'s Diary', 'Pocket Watch'];
-export const INITIAL_SANITY = 100;
+
+// NPC IDs Watson already knows at investigation start (professional acquaintances).
+// These are pre-populated into introducedNpcs[] so their real names show from turn 1.
+// Edmund must NEVER appear here — his identity is the mystery.
+export const INITIAL_INTRODUCED_NPCS: string[] = ['abberline', 'bond'];
 
 /** Empty on start — Sidebar renders its own "Opening diary..." animation until AI fills this in. */
 export const INITIAL_JOURNAL = "";
 
 export const INITIAL_NPC_STATES: Record<string, any> = {
-  abberline: { npcId: 'abberline', currentLocation: 'dorset_street', status: 'alive', memory: [] },
-  bond: { npcId: 'bond', currentLocation: 'millers_court', status: 'alive', memory: [] },
-  edmund: { npcId: 'edmund', currentLocation: 'millers_court', status: 'alive', memory: [] },
+  // Act 0 Prologue — Holmes is at Baker Street; Abberline is at H Division (telegram contact only)
+  holmes: { npcId: 'holmes', currentLocation: 'baker_street', status: 'alive', memory: [] },
+  abberline: { npcId: 'abberline', currentLocation: 'h_division_station', status: 'alive', memory: [] },
+  bond: { npcId: 'bond', currentLocation: 'whitechapel_mortuary', status: 'alive', memory: [] },
+  edmund: { npcId: 'edmund', currentLocation: 'whitechapel_mortuary', status: 'alive', memory: [] },
   lusk: { npcId: 'lusk', currentLocation: 'lusk_office', status: 'alive', memory: [] },
   diemschutz: { npcId: 'diemschutz', currentLocation: 'dutfields_yard', status: 'alive', memory: [] },
-  holmes: { npcId: 'holmes', currentLocation: 'dorset_street', status: 'alive', memory: [] },
   superintendent: { npcId: 'superintendent', currentLocation: 'private_asylum', status: 'alive', memory: [] },
 };
 
