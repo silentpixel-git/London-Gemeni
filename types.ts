@@ -33,7 +33,7 @@ export interface Investigation {
   ownerId: string;
   status: InvestigationStatus;
   currentLocation: string;
-  globalFlags: Record<string, any>;
+  globalFlags: Record<string, boolean>;
   medicalPoints: number;
   moralPoints: number;
   journalNotes: string;

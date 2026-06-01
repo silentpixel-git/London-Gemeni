@@ -331,7 +331,7 @@ export class GameEngine {
 
     // Check NPC is actually in this location
     const npcState = session.npcStates[targetId];
-    const npcLoc = npcState?.currentLocation || NPCS[targetId]?.canonicalLocationByAct[session.currentAct];
+    const npcLoc = npcState?.currentLocation ?? NPCS[targetId]?.canonicalLocationByAct[session.currentAct];
 
     if (npcLoc !== session.location) {
       const npcName = NPC_DISPLAY_NAMES[targetId] || targetId;
@@ -441,9 +441,9 @@ export class GameEngine {
       // Verify the object is present (either in location or in inventory via a takeable mapping)
       const isInLocation = currentLoc.interactables.includes(targetId);
       // Also allow using inventory items that map back to their original object IDs
-      const isInInventory = session.inventory.some(item =>
-        Object.entries(TAKEABLE_OBJECTS).some(([id, name]) => id === targetId && session.inventory.includes(name))
-      ) || currentLoc.interactables.includes(targetId);
+      const isInInventory =
+        TAKEABLE_OBJECTS[targetId] !== undefined &&
+        session.inventory.includes(TAKEABLE_OBJECTS[targetId]);
 
       if (isInLocation || isInInventory) {
         const objectName = OBJECT_DISPLAY_NAMES[targetId] || intent.targetRaw;
