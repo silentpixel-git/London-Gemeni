@@ -121,6 +121,9 @@ export const NPCS: Record<string, NPCDefinition> = {
     ],
     followingRule: 'follows_bond',
     followsNpcId: 'bond',
+    // Edmund is committed to the asylum in Act 6 — he stops following Bond and
+    // remains at his canonical location (the asylum) from then on.
+    followsUntilAct: 5,
     canonicalLocationByAct: {
       // Edmund follows Bond. Where Bond is not present at reconstruction
       // locations (Acts 2-3), Edmund is also absent.
@@ -208,7 +211,7 @@ export const NPCS: Record<string, NPCDefinition> = {
       0: 'working_mens_club',
       1: 'working_mens_club',
       2: 'working_mens_club',
-      3: 'dutfields_yard',
+      3: 'working_mens_club',
       4: 'working_mens_club',
       5: 'working_mens_club',
       6: 'working_mens_club',

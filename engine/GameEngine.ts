@@ -961,6 +961,16 @@ export class GameEngine {
     for (const [npcId, npc] of Object.entries(NPCS)) {
       if (!npc.followsNpcId) continue;
 
+      // Once an NPC stops following (e.g. Edmund committed in Act 6), it
+      // reverts to its canonical location for the current act.
+      if (npc.followsUntilAct !== undefined && session.currentAct > npc.followsUntilAct) {
+        const canonical = npc.canonicalLocationByAct[session.currentAct];
+        if (canonical && canonical !== session.npcStates[npcId]?.currentLocation) {
+          updates[npcId] = { currentLocation: canonical };
+        }
+        continue;
+      }
+
       let destination: string | undefined;
       if (npc.followsNpcId === 'watson') {
         destination = newLocationId;
