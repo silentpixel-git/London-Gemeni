@@ -1,5 +1,27 @@
 import type { ActCondition } from '../types';
 
+// ============================================================
+// ACT TIME CONFIGURATION
+// Canonical in-game clock anchor for each act.
+// Acts 1–3 = 9 November 1888 (Kelly's murder day)
+// Acts 4–6 = 10 November 1888 (follow-up investigation day)
+// ============================================================
+
+export interface ActTimeConfig {
+  canonicalMinutes: number; // Minutes from midnight at act start
+  dayOfWeek: string;
+  displayDate: string;      // e.g. "9 November 1888"
+}
+
+export const ACT_TIME_CONFIG: Record<number, ActTimeConfig> = {
+  1: { canonicalMinutes: 645,  dayOfWeek: 'Wednesday', displayDate: '9 November 1888' },  // 10:45 AM — Kelly's body discovered
+  2: { canonicalMinutes: 780,  dayOfWeek: 'Wednesday', displayDate: '9 November 1888' },  // 1:00 PM  — afternoon review of earlier crime scenes
+  3: { canonicalMinutes: 1380, dayOfWeek: 'Wednesday', displayDate: '9 November 1888' },  // 11:00 PM — night investigation; double event was at midnight
+  4: { canonicalMinutes: 540,  dayOfWeek: 'Thursday',  displayDate: '10 November 1888' }, // 9:00 AM  — next morning, the letter trail
+  5: { canonicalMinutes: 840,  dayOfWeek: 'Thursday',  displayDate: '10 November 1888' }, // 2:00 PM  — afternoon, Dr. Bond's office
+  6: { canonicalMinutes: 990,  dayOfWeek: 'Thursday',  displayDate: '10 November 1888' }, // 4:30 PM  — dusk, the confrontation
+};
+
 export const ACT_NAMES: Record<number, string> = {
   1: 'The Last Murder',
   2: 'Reconstructing the Murders',

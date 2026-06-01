@@ -13,7 +13,7 @@
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
-import { NarrationContext, NarrationResponse, ActJournalSummary } from '../types';
+import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod } from '../types';
 import { ATMOSPHERIC_SEEDS } from '../engine/gameData';
 
 // ============================================================
@@ -36,21 +36,23 @@ YOUR SOLE PURPOSE: Write atmospheric, period-accurate prose. You are a narrator,
 
 1. VERIFIED STATE ONLY: You receive a verified game state. Do NOT invent exits, items, characters, or locations that are not listed in your context.
 
-2. WATSON'S VOICE: Military doctor — notices medical and forensic details. Writes with measured authority. Never melodramatic.
+2. TIME ACCURACY: The prompt provides a verified current time. Your prose must be fully consistent with that time of day. Do not write morning sunlight or street bustle during night-time scenes. Do not write gas lamps or darkness during a morning scene.
 
-3. EDMUND HALWARD: Always in the background. He may hold a lantern or nod — never speaks or volunteers information unless Watson directly addresses him.
+3. WATSON'S VOICE: Military doctor — notices medical and forensic details. Writes with measured authority. Never melodramatic.
 
-4. HOLMES: May offer one brief, cryptic observation per FULL turn (optional). Never accuses Edmund directly until Act VI.
+4. EDMUND HALWARD: Always in the background. He may hold a lantern or nod — never speaks or volunteers information unless Watson directly addresses him.
 
-5. NO RAW LISTS: Do not write bullet lists of exits, objects, or NPCs. Weave them naturally into prose.
+5. HOLMES: May offer one brief, cryptic observation per FULL turn (optional). Never accuses Edmund directly until Act VI.
 
-6. BLOCKED ACTIONS: If result says BLOCKED, narrate the attempt and its failure in character. Never say "invalid command."
+6. NO RAW LISTS: Do not write bullet lists of exits, objects, or NPCs. Weave them naturally into prose.
 
-7. CLUES: Weave new clues naturally into the prose. Describe the observation — do not use the clue title literally.
+7. BLOCKED ACTIONS: If result says BLOCKED, narrate the attempt and its failure in character. Never say "invalid command."
 
-8. DEDUCTIONS: Holmes responds thoughtfully. Correct deduction: he agrees, notes absence of legal proof. COLD CASE (wrong deduction + actionResultNote says "COLD CASE"): Write a 150-word diary entry epilogue — Watson closes the case unsolved, reflects on the questions that remain, and closes his diary. Tone: sombre and resigned, not melodramatic.
+8. CLUES: Weave new clues naturally into the prose. Describe the observation — do not use the clue title literally.
 
-9. TONE: Somber, measured, atmospheric. Victorian London in the grip of a serial killer.
+9. DEDUCTIONS: Holmes responds thoughtfully. Correct deduction: he agrees, notes absence of legal proof. COLD CASE (wrong deduction + actionResultNote says "COLD CASE"): Write a 150-word diary entry epilogue — Watson closes the case unsolved, reflects on the questions that remain, and closes his diary. Tone: sombre and resigned, not melodramatic.
+
+10. TONE: Somber, measured, atmospheric. Victorian London in the grip of a serial killer.
 
 === TWO NARRATION MODES ===
 The prompt you receive will specify either FULL MODE or COMPACT MODE.
@@ -119,8 +121,12 @@ const NARRATION_SCHEMA = {
 
 const ACT_ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
 
-function pickAtmosphericSeed(): string {
-  return ATMOSPHERIC_SEEDS[Math.floor(Math.random() * ATMOSPHERIC_SEEDS.length)];
+function pickAtmosphericSeed(period: TimePeriod): string {
+  const candidates = ATMOSPHERIC_SEEDS.filter(
+    s => s.periods.length === 0 || s.periods.includes(period)
+  );
+  const pool = candidates.length > 0 ? candidates : ATMOSPHERIC_SEEDS;
+  return pool[Math.floor(Math.random() * pool.length)].text;
 }
 
 function getSanityTierNote(sanity: number): string {
@@ -167,6 +173,7 @@ function buildNarrationPrompt(ctx: NarrationContext): string {
 Write exactly 2 short paragraphs (max 130 words total). Begin with: ### ACT ${roman}: ${ctx.actName}
 ${sanityNote}
 === VERIFIED LOCATION ===
+Time: ${ctx.timeLabel}
 Location: ${ctx.locationName}
 Atmosphere: ${ctx.locationAtmosphere}
 Description: ${ctx.locationDescription}
@@ -190,6 +197,7 @@ NO blockquote. NO exits listing. NO character roster. NPCs, objects, and exits w
 Write 3–4 paragraphs (max 220 words). Begin with: ### ACT ${roman}: ${ctx.actName}
 ${sanityNote}
 === VERIFIED LOCATION ===
+Time: ${ctx.timeLabel}
 Location: ${ctx.locationName}
 Atmosphere: ${ctx.locationAtmosphere}
 Description: ${ctx.locationDescription}
@@ -212,7 +220,7 @@ Paragraph 1 — ATMOSPHERE: Vivid sensory description of the location. Regular p
 Paragraph 2 — WATSON'S INNER THOUGHTS: Watson's brief reflection on the case, his anxiety, or moral state. Regular prose, 1–2 sentences.
 
 Paragraph 3 — BLOCKQUOTE: A world micro-event that makes this street feel alive. Use the seed below as a starting point — you may expand, transform, or discard it entirely in favour of something more vivid. Never repeat something already mentioned in Paragraph 1. This must be different every time.
-Seed: "${pickAtmosphericSeed()}"
+Seed: "${pickAtmosphericSeed(ctx.timePeriod)}"
 Format EXACTLY as a Markdown blockquote (renderer shows gold left border):
 > *Your world event sentence here.*
 
@@ -225,6 +233,7 @@ Paragraph 4 — WHAT WATSON NOTICES: In prose (not a list), mention who is prese
 Write 1–2 short paragraphs (max ${compactWordLimit} words). NO act header. NO location description. NO exits listing.
 ${sanityNote}
 === VERIFIED CONTEXT ===
+Time: ${ctx.timeLabel}
 Location: ${ctx.locationName} (Act ${ctx.act}: ${ctx.actName})
 NPCs present: ${ctx.npcsPresent.length > 0 ? ctx.npcsPresent.join(', ') : 'None'}
 ${memorySection}

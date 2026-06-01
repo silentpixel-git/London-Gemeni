@@ -18,7 +18,8 @@ import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG } from '../engine/gameData';
+import type { IntentType } from '../types';
 import {
   INITIAL_LOCATION,
   INITIAL_INVENTORY,
@@ -62,6 +63,9 @@ export interface GameStateReturn {
   setNotification: React.Dispatch<React.SetStateAction<{ message: string; type: 'success' | 'error' } | null>>;
   connectionStatus: { gemini: boolean | null; supabase: boolean | null };
   retryConnections: () => Promise<void>;
+
+  // Derived UI values
+  displayTime: string; // short in-game clock, e.g. "10:45 AM"
 
   // Refs
   scrollRef: React.RefObject<HTMLDivElement>;
@@ -109,6 +113,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const [turnsAtLocationWithoutProgress, setTurnsAtLocationWithoutProgress] = useState(0);
   // Procedural act journals — clue IDs accumulated since last act advance
   const [cluesFoundThisAct, setCluesFoundThisAct] = useState<string[]>([]);
+  // In-game clock — minutes elapsed since the current act's canonical start time
+  const [elapsedMinutes, setElapsedMinutes] = useState(0);
 
   // ── Journal / sidebar ───────────────────────────────────────────────────
   const [journalNotes, setJournalNotes] = useState(INITIAL_JOURNAL);
@@ -285,6 +291,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         discoveredClueIds: [],
         investigationId: undefined,
         turnsAtLocationWithoutProgress: 0,
+        elapsedMinutes: 0,
       };
       const result = gameEngine.resolve(intent, snapshot);
 
@@ -372,6 +379,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           setMedicalPoints(investigation.medicalPoints || 0);
           setMoralPoints(investigation.moralPoints || 0);
           setCurrentAct(act);
+          setElapsedMinutes(0); // Re-initialize from act's canonical start on resume
           setIsGameOver(investigation.status === 'solved');
           setFlags(investigation.globalFlags as Record<string, boolean>);
           setJournalNotes(investigation.journalNotes || INITIAL_JOURNAL);
@@ -610,6 +618,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         discoveredClueIds,
         investigationId: activeInvestigation?.id,
         turnsAtLocationWithoutProgress,
+        elapsedMinutes,
       };
 
       // STEP 3: Engine resolves — no AI yet
@@ -634,7 +643,25 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setMedicalPoints(newMedicalPoints);
       setMoralPoints(newMoralPoints);
       setFlags(newFlags);
-      if (result.newAct)   setCurrentAct(result.newAct);
+      if (result.newAct) {
+        setCurrentAct(result.newAct);
+        setElapsedMinutes(0); // Reset to new act's canonical start time
+      } else {
+        // Advance in-game clock by action type — different actions take different amounts of time
+        const ACTION_TIME_MINUTES: Partial<Record<IntentType, number>> = {
+          move:      10, // walking across Whitechapel takes real time
+          talk:       5, // a conversation with a witness or colleague
+          deduce:     5, // working through evidence requires reflection
+          examine:    2, // a quick inspection of an object
+          use:        2, // handling or comparing an item
+          take:       1, // picking something up
+          inventory:  0, // instant — Watson glances at his bag
+          query:      1, // a brief question
+          help:       0, // no time cost
+          other:      2, // default
+        };
+        setElapsedMinutes(prev => prev + (ACTION_TIME_MINUTES[intent.type] ?? 2));
+      }
       if (result.gameOver) setIsGameOver(true);
 
       if (result.npcUpdates) {
@@ -905,6 +932,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setFlags({});
     setNpcStates(INITIAL_NPC_STATES as Record<string, NPCState>);
     setCurrentAct(1);
+    setElapsedMinutes(0);
     setStim({});
     setTurnCount(0);
     setJournalNotes(INITIAL_JOURNAL);
@@ -967,6 +995,17 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     scrollRef,
     lastUserMessageRef,
+
+    // Derived in-game clock for UI display (short form, e.g. "10:45 AM")
+    displayTime: (() => {
+      const cfg  = ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1];
+      const m    = (cfg.canonicalMinutes + elapsedMinutes) % 1440;
+      const h24  = Math.floor(m / 60);
+      const mins = m % 60;
+      const ampm = h24 < 12 ? 'AM' : 'PM';
+      const h12  = h24 % 12 === 0 ? 12 : h24 % 12;
+      return `${h12}:${mins.toString().padStart(2, '0')} ${ampm}`;
+    })(),
 
     handleAction,
     handleSaveGame,

@@ -1,4 +1,6 @@
 
+export type TimePeriod = 'dawn' | 'morning' | 'afternoon' | 'evening' | 'night' | 'lateNight';
+
 export interface GameHistoryItem {
   role: 'user' | 'assistant' | 'system';
   text: string;
@@ -232,6 +234,9 @@ export interface NarrationContext {
   //   'inner_thought' — Watson's fleeting thought/memory triggered by the action (compact ~50%)
   //   'none'          — omit blockquote this turn (compact ~50%)
   blockquoteHint: 'world_event' | 'inner_thought' | 'none';
+  // Current in-game time — anchored to canonical act start, advances per action type
+  timeLabel: string;      // e.g. "10:45 AM — Wednesday, 9 November 1888"
+  timePeriod: TimePeriod; // e.g. 'morning'
 }
 
 /** Summary passed to AIService.generateJournalEntry() when an act closes */
