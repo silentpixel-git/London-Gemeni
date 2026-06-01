@@ -6,6 +6,7 @@ export interface LocationDefinition {
   name: string;
   shortName: string;
   act: number;                     // Minimum act required to access this location
+  requiresFlag?: string;           // If set, this flag must be true to enter (e.g. asylum requires a correct deduction)
   atmosphere: string;
   description: string;
   exits: string[];                 // Location IDs. Engine validates these.

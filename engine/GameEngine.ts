@@ -174,6 +174,17 @@ export class GameEngine {
       );
     }
 
+    // Check flag gate — some locations open only after a specific milestone
+    // (e.g. the asylum requires a correct deduction first).
+    if (targetLoc.requiresFlag && session.flags[targetLoc.requiresFlag] !== true) {
+      return this.blocked(
+        intent,
+        session,
+        `Holmes shakes his head. "We cannot present ourselves there without a name, Watson. We must be certain first."`,
+        `Watson attempted to travel to ${targetLoc.name} but it requires a correct deduction first (flag '${targetLoc.requiresFlag}' not set).`
+      );
+    }
+
     // Success — move to new location
     const newNpcUpdates = this.computeNpcMovements(targetId, session);
     const actCheck = this.checkActProgression({ ...session, location: targetId }, session.flags);

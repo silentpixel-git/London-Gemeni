@@ -284,14 +284,9 @@ export function parseIntent(rawInput: string): ParsedIntent {
     }
   }
 
-  // 2b. Notebook / clue review check
-  for (const verb of NOTEBOOK_VERBS) {
-    if (norm === verb || norm.startsWith(verb + ' ') || norm.includes(verb)) {
-      return { type: 'notebook', raw: rawInput };
-    }
-  }
-
-  // 3. Deduction attempt
+  // 2b. Deduction attempt — checked before the notebook review so that a
+  // theory phrased with words like "evidence"/"clues" (e.g. "I believe the
+  // evidence points to Edmund") is treated as a deduction, not a notebook open.
   for (const keyword of DEDUCTION_KEYWORDS) {
     if (norm.includes(keyword)) {
       return {
@@ -299,6 +294,13 @@ export function parseIntent(rawInput: string): ParsedIntent {
         deductionText: rawInput,
         raw: rawInput,
       };
+    }
+  }
+
+  // 3. Notebook / clue review check
+  for (const verb of NOTEBOOK_VERBS) {
+    if (norm === verb || norm.startsWith(verb + ' ') || norm.includes(verb)) {
+      return { type: 'notebook', raw: rawInput };
     }
   }
 
