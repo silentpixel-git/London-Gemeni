@@ -166,6 +166,9 @@ export interface EngineResult {
   newAct?: number;
   gameOver?: boolean;
 
+  // NPC alias-system flags (npc_introduced_*) for the hook to apply.
+  introductionFlagsUpdate?: Record<string, boolean>;
+
   // Context passed to AIService for narration (verified facts only)
   aiContext: NarrationContext;
 }

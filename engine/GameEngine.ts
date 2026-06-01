@@ -112,6 +112,16 @@ export class GameEngine {
       }
     }
 
+    // Lift NPC introduction flags off the narration context onto the result
+    // proper, so the AI context that leaves the engine carries verified facts only.
+    const ctxWithIntro = result.aiContext as NarrationContext & {
+      _introductionFlagsUpdate?: Record<string, boolean>;
+    };
+    if (ctxWithIntro._introductionFlagsUpdate) {
+      result.introductionFlagsUpdate = ctxWithIntro._introductionFlagsUpdate;
+      delete ctxWithIntro._introductionFlagsUpdate;
+    }
+
     return result;
   }
 

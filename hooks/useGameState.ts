@@ -28,7 +28,7 @@ import {
   INITIAL_INTRODUCED_NPCS,
   NPC_DISPLAY_NAMES,
 } from '../constants';
-import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary } from '../types';
+import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
 
 // ── Public interface ──────────────────────────────────────────────────────────
@@ -627,9 +627,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const result = gameEngine.resolve(intent, snapshot);
 
       // STEP 3b: Process NPC introduction flags (alias system)
-      // The engine attaches _introductionFlagsUpdate to aiContext as a side-channel.
       // Extract npc_introduced_* keys and update introducedNpcs[] state.
-      const introFlags = (result.aiContext as any)._introductionFlagsUpdate as Record<string, boolean> | undefined;
+      const introFlags = result.introductionFlagsUpdate;
       if (introFlags) {
         const newIntros = Object.keys(introFlags)
           .filter(k => k.startsWith('npc_introduced_') && introFlags[k])
@@ -728,7 +727,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         }
       }
 
-      // STEP 6a: Holmes multi-clue synthesis — runs in parallel with STIM inject, before Watson narrates
+      // STEP 6: Enrich a copy of the engine's context with hook-owned data
+      // (STIM, Holmes synthesis). The engine's aiContext is treated as immutable.
+      const aiContext: NarrationContext = { ...result.aiContext, stim };
+
+      // STEP 6a: Holmes multi-clue synthesis — before Watson narrates
       if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
         const allDiscoveredIds = [...discoveredClueIds, ...result.discoveredClueIds];
         const allClueObjects = allDiscoveredIds
@@ -739,21 +742,18 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           .map(id => CLUE_DEFINITIONS[id]?.name)
           .filter(Boolean) as string[];
         try {
-          result.aiContext.holmesSynthesis = await aiService.consultHolmesMultiClue(
+          aiContext.holmesSynthesis = await aiService.consultHolmesMultiClue(
             allClueObjects,
             newClueNames,
-            result.aiContext.act,
+            aiContext.act,
           );
         } catch {
           // Graceful fallback — Watson narrates with the hardcoded holmesDeduction per clue
         }
       }
 
-      // STEP 6b: Inject session STIM into AI context (not part of engine — lives in hook)
-      result.aiContext.stim = stim;
-
       // STEP 7: Stream AI narration
-      for await (const update of aiService.stream(result.aiContext)) {
+      for await (const update of aiService.stream(aiContext)) {
         const { narrative, isComplete, parsed } = update;
 
         setHistory(prev => {
