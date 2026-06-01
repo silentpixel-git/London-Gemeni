@@ -65,7 +65,7 @@ export const ACT_PROGRESSION: Record<number, ActCondition> = {
   // Act 3 — Reconstructing the Double Event of September 30th
   3: {
     name: 'The Double Event',
-    requireFlags: ['examined_dutfields_yard', 'examined_mitre_square'],
+    requireFlags: ['examined_dutfields_yard', 'examined_mitre_square', 'examined_working_mens_club'],
     advanceTo: 4,
   },
   // Act 4 — The From Hell letter and the kidney parcel

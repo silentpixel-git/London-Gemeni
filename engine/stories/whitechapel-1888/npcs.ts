@@ -179,11 +179,8 @@ export const NPCS: Record<string, NPCDefinition> = {
       'Distrusts the official investigation — not the men, but the machinery and inter-force politics',
     ],
     followingRule: 'fixed',
+    // Lusk's office is not reachable until Act 4; he is offstage before then.
     canonicalLocationByAct: {
-      0: 'lusk_office',
-      1: 'lusk_office',
-      2: 'lusk_office',
-      3: 'lusk_office',
       4: 'lusk_office',
       5: 'lusk_office',
       6: 'lusk_office',

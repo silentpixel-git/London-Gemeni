@@ -578,14 +578,18 @@ export class GameEngine {
     );
 
     if (matchedProfile?.isGuilty) {
-      const isGameOver = session.flags[matchedProfile.successVisitFlag] === true;
+      const isGameOver = matchedProfile.successVisitFlag
+        ? session.flags[matchedProfile.successVisitFlag] === true
+        : false;
       const npcName = NPCS[matchedProfile.npcId]?.displayName ?? matchedProfile.npcId;
 
       return {
         actionSuccess: true,
         actionType: 'deduce',
         flagsUpdate: matchedProfile.successFlags,
-        newAct: session.currentAct < matchedProfile.successAct ? matchedProfile.successAct : undefined,
+        newAct: matchedProfile.successAct && session.currentAct < matchedProfile.successAct
+          ? matchedProfile.successAct
+          : undefined,
         gameOver: isGameOver,
         discoveredClueIds: [],
         aiContext: this.buildContext(intent, session, {
@@ -603,6 +607,13 @@ export class GameEngine {
 
     // Wrong suspect — cold case ending.
     // The case goes unsolved; Watson closes his diary without a resolution.
+    // A named red herring (isGuilty:false profile) gets a tailored rebuttal.
+    const coldCaseNote = matchedProfile?.wrongDeductionNote ??
+      `COLD CASE — Watson's theory cannot be supported by the evidence. Holmes gently but firmly disagrees. ` +
+      `The Whitechapel murders will go unsolved. Write a 150-word final diary entry: Watson reflects on the ` +
+      `failure, the unanswered questions, and the shadow this case casts over London. Tone: sombre and resigned. ` +
+      `End with Watson closing his diary.`;
+
     return {
       actionSuccess: false,
       actionType: 'deduce',
@@ -612,11 +623,7 @@ export class GameEngine {
       aiContext: this.buildContext(intent, session, {
         success: false,
         actionDescription: `Watson named a wrong suspect: "${intent.raw}"`,
-        actionResultNote:
-          `COLD CASE — Watson's theory cannot be supported by the evidence. Holmes gently but firmly disagrees. ` +
-          `The Whitechapel murders will go unsolved. Write a 150-word final diary entry: Watson reflects on the ` +
-          `failure, the unanswered questions, and the shadow this case casts over London. Tone: sombre and resigned. ` +
-          `End with Watson closing his diary.`,
+        actionResultNote: coldCaseNote,
         newClueDefs: [],
         isDeduction: true,
         deductionCorrect: false,

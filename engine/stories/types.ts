@@ -72,7 +72,8 @@ export interface SuspectProfile {
   npcId: string;
   aliases: string[];           // lowercase name variants the player might type
   isGuilty: boolean;
-  successFlags: Record<string, boolean>;
-  successAct: number;
-  successVisitFlag: string;    // if this flag is already set, the game ends on correct deduction
+  successFlags?: Record<string, boolean>;
+  successAct?: number;
+  successVisitFlag?: string;   // if this flag is already set, the game ends on correct deduction
+  wrongDeductionNote?: string; // for isGuilty:false red herrings — tailored cold-case narration instruction
 }
