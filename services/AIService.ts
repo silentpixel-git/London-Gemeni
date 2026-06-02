@@ -220,35 +220,6 @@ Paragraph 2 — MYSTERY HOOK: One sentence that raises a question or creates dre
 NO blockquote. NO exits listing. NO character roster. NPCs, objects, and exits will be appended separately.`;
   }
 
-  const sanityNote = getSanityTierNote(ctx.watsonStats.sanity);
-
-  const synthesisSection = ctx.holmesSynthesis
-    ? `\n=== HOLMES' CROSS-CASE DEDUCTION (incorporate naturally into prose) ===\n"${ctx.holmesSynthesis}"\n`
-    : '';
-
-  if (isOpening) {
-    // OPENING MODE — game start only: tight hook, no inventory of scene elements
-    return `=== NARRATION MODE: OPENING ===
-Write exactly 2 short paragraphs (max 130 words total). Begin with: ### ACT ${roman}: ${ctx.actName}
-${sanityNote}
-=== VERIFIED LOCATION ===
-Location: ${ctx.locationName}
-Atmosphere: ${ctx.locationAtmosphere}
-Description: ${ctx.locationDescription}
-
-Watson's state — Sanity: ${ctx.watsonStats.sanity}/100
-
-=== ACTION ===
-${ctx.actionDescription}
-Result: ${ctx.actionResultNote}
-
-Paragraph 1 — ATMOSPHERE: 2–3 tight sentences. Vivid sensory hook. Do NOT list NPCs, objects, or exits.
-
-Paragraph 2 — MYSTERY HOOK: One sentence that raises a question or creates dread. Leave the player wanting to look around.
-
-NO blockquote. NO exits listing. NO character roster. NPCs, objects, and exits will be appended separately.`;
-  }
-
   if (isFull) {
     // FULL MODE — location arrival or look-around
     return `=== NARRATION MODE: FULL ===
