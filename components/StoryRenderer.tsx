@@ -32,13 +32,20 @@ const parseInlineMarkdown = (text: string, animate: boolean = false) => {
   });
 };
 
+// The narrator occasionally emits the world-event blockquote inline
+// (e.g. "...restless energy. > *quote.* Without...") instead of on its own
+// line, which Markdown does not treat as a blockquote. Pull any inline
+// "> *...*" onto its own line so it renders correctly.
+const normalizeInlineBlockquotes = (text: string): string =>
+  text.replace(/[ \t]*>[ \t]*(\*[^*\n]+\*)[ \t]*/g, '\n\n> $1\n\n');
+
 interface StoryRendererProps {
   text: string;
   animate?: boolean;
 }
 
 export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate = false }) => {
-  const safeText = text || "";
+  const safeText = normalizeInlineBlockquotes(text || "");
   const lines = safeText.split('\n');
 
   return (
