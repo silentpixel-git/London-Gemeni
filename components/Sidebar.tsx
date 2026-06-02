@@ -22,6 +22,7 @@ interface SidebarProps {
   journalNotes: string;
   isUpdatingJournal: boolean;
   onUpdateJournal: () => void;
+  displayTime: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -34,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   journalNotes,
   isUpdatingJournal,
   onUpdateJournal,
+  displayTime,
 }) => {
   // NPCs visible in the current location
   const presentNpcs = Object.values(npcStates).filter(s => {
@@ -70,6 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <h2 className="font-serif text-2xl leading-tight text-lb-primary">
             {LOCATIONS[location]?.name || 'Unknown Location'}
           </h2>
+          <p className="mt-1 text-xs text-lb-muted font-sans opacity-50 tracking-wide">{displayTime}</p>
         </div>
 
         {/* Inventory */}
@@ -94,17 +97,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <DoorOpen size={18} />
             <span className="uppercase tracking-widest text-xs font-bold">Avenues</span>
           </div>
-          <ul className="space-y-3">
-            {visibleExits.map((exitId, idx) => {
-              const exitData = LOCATIONS[exitId];
-              return (
-                <li key={idx} className="flex items-center gap-3 text-lb-primary opacity-90">
-                  <div className="w-1.5 h-1.5 rounded-full bg-lb-accent" />
-                  <span className="font-sans text-md">{exitData?.shortName || exitId}</span>
-                </li>
-              );
-            })}
-          </ul>
+          {visibleExits.length > 0 ? (
+            <ul className="space-y-3">
+              {visibleExits.map((exitId, idx) => {
+                const exitData = LOCATIONS[exitId];
+                return (
+                  <li key={idx} className="flex items-center gap-3 text-lb-primary opacity-90">
+                    <div className="w-1.5 h-1.5 rounded-full bg-lb-accent" />
+                    <span className="font-sans text-md">{exitData?.shortName || exitId}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="font-sans text-sm text-lb-primary opacity-40 italic">Investigate further before leaving</p>
+          )}
         </div>
 
         {/* Present NPCs */}
@@ -153,7 +160,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="absolute top-2 right-2 opacity-30">
               <Brain size={16} />
             </div>
-            <JournalRenderer text={journalNotes} />
+            {journalNotes === "" ? (
+              <div className="flex items-center gap-2 text-lb-muted">
+                <Feather size={13} className="animate-bounce text-lb-accent" />
+                <span className="text-xs italic font-serif">Opening diary...</span>
+              </div>
+            ) : (
+              <JournalRenderer text={journalNotes} />
+            )}
           </div>
         </div>
 

@@ -60,7 +60,6 @@ export class InvestigationService {
         owner_id: userId,
         status: 'active',
         current_location: initialData.currentLocation || 'miller_court',
-        sanity: initialData.sanity ?? 100,
         medical_points: initialData.medicalPoints || 0,
         moral_points: initialData.moralPoints || 0,
         global_flags: initialData.globalFlags || {},
@@ -153,7 +152,6 @@ export class InvestigationService {
       const snakeUpdates: any = {};
       if (updates.status) snakeUpdates.status = updates.status;
       if (updates.currentLocation) snakeUpdates.current_location = updates.currentLocation;
-      if (updates.sanity !== undefined) snakeUpdates.sanity = updates.sanity;
       if (updates.medicalPoints !== undefined) snakeUpdates.medical_points = updates.medicalPoints;
       if (updates.moralPoints !== undefined) snakeUpdates.moral_points = updates.moralPoints;
       if (updates.globalFlags) snakeUpdates.global_flags = updates.globalFlags;

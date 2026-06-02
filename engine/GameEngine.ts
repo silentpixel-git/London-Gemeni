@@ -10,24 +10,47 @@
  * The engine NEVER hallucinate — it only knows what's in gameData.ts.
  */
 
-import { NPCState, EngineResult, NarrationContext, IntentType } from '../types';
+import { NPCState, EngineResult, NarrationContext, IntentType, TimePeriod } from '../types';
 import { ParsedIntent } from './intentParser';
 import {
   LOCATIONS,
   NPCS,
+  NPC_ALIASES,
   CLUE_TRIGGERS,
   CLUE_DEFINITIONS,
+  ATMOSPHERIC_NOTES,
   ClueDefinition,
   TAKEABLE_OBJECTS,
   ACT_PROGRESSION,
   ACT_NAMES,
+  ACT_TIME_CONFIG,
   OBJECT_DISPLAY_NAMES,
   NPC_DISPLAY_NAMES,
   DEDUCTION_THRESHOLD,
-  SANITY_PENALTIES,
   USE_INTERACTIONS,
   SUSPECT_PROFILES,
 } from './gameData';
+
+// ── Time helpers ──────────────────────────────────────────────────────────────
+
+function computeTimePeriod(totalMinutes: number): TimePeriod {
+  const m = totalMinutes % 1440;
+  if (m >= 300  && m < 420)  return 'dawn';
+  if (m >= 420  && m < 720)  return 'morning';
+  if (m >= 720  && m < 1020) return 'afternoon';
+  if (m >= 1020 && m < 1200) return 'evening';
+  if (m >= 1200 && m < 1380) return 'night';
+  return 'lateNight'; // 1380–1439 and 0–299
+}
+
+function formatTimeLabel(totalMinutes: number, dayOfWeek: string, displayDate: string): string {
+  const m    = totalMinutes % 1440;
+  const h24  = Math.floor(m / 60);
+  const mins = m % 60;
+  const ampm = h24 < 12 ? 'AM' : 'PM';
+  const h12  = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${mins.toString().padStart(2, '0')} ${ampm} — ${dayOfWeek}, ${displayDate}`;
+}
 
 // ============================================================
 // Current session state snapshot passed to the engine
@@ -39,11 +62,16 @@ export interface SessionSnapshot {
   flags: Record<string, boolean>;
   npcStates: Record<string, NPCState>;
   currentAct: number;
-  sanity: number;
   medicalPoints: number;
   moralPoints: number;
   discoveredClueIds: string[];
   investigationId?: string;
+  turnsAtLocationWithoutProgress: number; // for proactive Holmes nudge
+  elapsedMinutes: number;                 // minutes elapsed since act's canonical start
+  // NPC IDs whose real names Watson now knows (alias system)
+  introducedNpcs: string[];
+  // Note: sanity has been removed. Watson's prose register is now fixed
+  // at the professional-composure baseline defined in the AI system prompt.
 }
 
 // ============================================================
@@ -57,29 +85,76 @@ export class GameEngine {
    * snapshot and returns a fully resolved EngineResult.
    */
   resolve(intent: ParsedIntent, session: SessionSnapshot): EngineResult {
+    let result: EngineResult;
     switch (intent.type) {
-      case 'move':
-        return this.resolveMove(intent, session);
-      case 'examine':
-        return this.resolveExamine(intent, session);
-      case 'talk':
-        return this.resolveTalk(intent, session);
-      case 'take':
-        return this.resolveTake(intent, session);
-      case 'use':
-        return this.resolveUse(intent, session);
-      case 'inventory':
-        return this.resolveInventory(intent, session);
-      case 'deduce':
-        return this.resolveDeduce(intent, session);
-      case 'help':
-        return this.resolveHelp(intent, session);
-      case 'query':
-        return this.resolveQuery(intent, session);
+      case 'move':      result = this.resolveMove(intent, session); break;
+      case 'examine':   result = this.resolveExamine(intent, session); break;
+      case 'talk':      result = this.resolveTalk(intent, session); break;
+      case 'take':      result = this.resolveTake(intent, session); break;
+      case 'use':       result = this.resolveUse(intent, session); break;
+      case 'inventory': result = this.resolveInventory(intent, session); break;
+      case 'notebook':  result = this.resolveNotebook(intent, session); break;
+      case 'deduce':    result = this.resolveDeduce(intent, session); break;
+      case 'help':      result = this.resolveHelp(intent, session); break;
+      case 'query':     result = this.resolveQuery(intent, session); break;
       case 'other':
-      default:
-        return this.resolveOther(intent, session);
+      default:          result = this.resolveOther(intent, session); break;
     }
+
+    // Proactive Holmes nudge — fires once per location when player is stuck
+    if (this.shouldFireHolmesNudge(session, result)) {
+      result.aiContext.holmesNudge = {
+        locationKeyClues: LOCATIONS[session.location].keyClues,
+        turnsStuck: session.turnsAtLocationWithoutProgress,
+      };
+      result.flagsUpdate = {
+        ...result.flagsUpdate,
+        [`holmes_nudged_at_${session.location}`]: true,
+      };
+
+      // Cross-location redirect: if all interactables at the current location are already
+      // examined, Holmes redirects Watson toward another accessible location with work to do.
+      const currentInteractables = LOCATIONS[session.location].interactables || [];
+      const allExamined = currentInteractables.length > 0 && currentInteractables.every(
+        obj => session.flags[`examined_${session.location}_${obj}`]
+      );
+      if (allExamined) {
+        const crossTarget = Object.entries(LOCATIONS).find(([locId, loc]) => {
+          if ((loc as any).act > session.currentAct) return false;
+          if (locId === session.location) return false;
+          return ((loc as any).interactables || []).some(
+            (obj: string) => !session.flags[`examined_${locId}_${obj}`]
+          );
+        });
+        if (crossTarget) {
+          result.aiContext.holmesNudge!.crossLocationTarget = {
+            locationName: (crossTarget[1] as any).name,
+            locationId: crossTarget[0],
+          };
+        }
+      }
+    }
+
+    // Lift NPC introduction flags off the narration context onto the result
+    // proper, so the AI context that leaves the engine carries verified facts only.
+    const ctxWithIntro = result.aiContext as NarrationContext & {
+      _introductionFlagsUpdate?: Record<string, boolean>;
+    };
+    if (ctxWithIntro._introductionFlagsUpdate) {
+      result.introductionFlagsUpdate = ctxWithIntro._introductionFlagsUpdate;
+      delete ctxWithIntro._introductionFlagsUpdate;
+    }
+
+    return result;
+  }
+
+  private shouldFireHolmesNudge(session: SessionSnapshot, result: EngineResult): boolean {
+    if (result.newLocation) return false;   // player is moving
+    if (result.newAct) return false;         // act just advanced — progress made
+    if (result.gameOver) return false;
+    if (session.flags[`holmes_nudged_at_${session.location}`]) return false; // already nudged here
+    if (result.discoveredClueIds && result.discoveredClueIds.length > 0) return false; // clue found
+    return session.turnsAtLocationWithoutProgress >= 4;
   }
 
   // --------------------------------------------------------
@@ -122,6 +197,17 @@ export class GameEngine {
       );
     }
 
+    // Check flag gate — some locations open only after a specific milestone
+    // (e.g. the asylum requires a correct deduction first).
+    if (targetLoc.requiresFlag && session.flags[targetLoc.requiresFlag] !== true) {
+      return this.blocked(
+        intent,
+        session,
+        `Holmes shakes his head. "We cannot present ourselves there without a name, Watson. We must be certain first."`,
+        `Watson attempted to travel to ${targetLoc.name} but it requires a correct deduction first (flag '${targetLoc.requiresFlag}' not set).`
+      );
+    }
+
     // Success — move to new location
     const newNpcUpdates = this.computeNpcMovements(targetId, session);
     const actCheck = this.checkActProgression({ ...session, location: targetId }, session.flags);
@@ -133,6 +219,7 @@ export class GameEngine {
       npcUpdates: newNpcUpdates,
       flagsUpdate: actCheck.flagsUpdate,
       newAct: actCheck.newAct,
+      gameOver: actCheck.gameOver,
       discoveredClueIds: [],
       aiContext: this.buildContext(intent, session, {
         success: true,
@@ -163,6 +250,7 @@ export class GameEngine {
         actionType: 'examine',
         flagsUpdate: { ...flagsUpdate, ...(actCheck.flagsUpdate || {}) },
         newAct: actCheck.newAct,
+        gameOver: actCheck.gameOver,
         discoveredClueIds: [],
         aiContext: this.buildContext(intent, session, {
           success: true,
@@ -227,11 +315,6 @@ export class GameEngine {
     const { newClueIds, newClueDefs, medicalDelta, moralDelta } =
       this.triggerClues(session.location, targetId, alreadyExamined, session.discoveredClueIds);
 
-    // Apply sanity penalty on first examination of horrific scenes
-    const sanityDelta = !alreadyExamined
-      ? (SANITY_PENALTIES[session.location]?.[targetId] ?? 0)
-      : 0;
-
     // Set location-level "examined" flag for act progression
     const locationFlag = currentLoc.locationExaminedFlag;
     const flagsUpdate: Record<string, boolean> = {
@@ -255,19 +338,19 @@ export class GameEngine {
       actionType: 'examine',
       flagsUpdate: { ...flagsUpdate, ...(actCheck.flagsUpdate || {}) },
       newAct: actCheck.newAct,
+      gameOver: actCheck.gameOver,
       discoveredClueIds: newClueIds,
       medicalPointsDelta: medicalDelta || undefined,
       moralPointsDelta: moralDelta || undefined,
-      sanityDelta: sanityDelta !== 0 ? sanityDelta : undefined,
       inventoryAdd: inventoryAdd.length > 0 ? inventoryAdd : undefined,
       aiContext: this.buildContext(intent, session, {
         success: true,
         actionDescription: `Watson examined the ${objectName} at ${currentLoc.name}.`,
         actionResultNote: newClueIds.length > 0
-          ? `SUCCESS — Watson discovered ${newClueIds.length} new clue(s).${sanityDelta < 0 ? ` (Sanity cost: ${sanityDelta})` : ''}`
+          ? `SUCCESS — Watson discovered ${newClueIds.length} new clue(s).`
           : alreadyExamined
           ? `SUCCESS — Watson re-examined the ${objectName}. (Previously examined — no new clues.)`
-          : `SUCCESS — Watson examined the ${objectName}.${sanityDelta < 0 ? ` (Sanity cost: ${sanityDelta} — the horror of the scene.)` : ''}`,
+          : `SUCCESS — Watson examined the ${objectName}.`,
         newClueDefs,
       }),
     };
@@ -292,7 +375,7 @@ export class GameEngine {
 
     // Check NPC is actually in this location
     const npcState = session.npcStates[targetId];
-    const npcLoc = npcState?.currentLocation || NPCS[targetId]?.canonicalLocationByAct[session.currentAct];
+    const npcLoc = npcState?.currentLocation ?? NPCS[targetId]?.canonicalLocationByAct[session.currentAct];
 
     if (npcLoc !== session.location) {
       const npcName = NPC_DISPLAY_NAMES[targetId] || targetId;
@@ -402,9 +485,9 @@ export class GameEngine {
       // Verify the object is present (either in location or in inventory via a takeable mapping)
       const isInLocation = currentLoc.interactables.includes(targetId);
       // Also allow using inventory items that map back to their original object IDs
-      const isInInventory = session.inventory.some(item =>
-        Object.entries(TAKEABLE_OBJECTS).some(([id, name]) => id === targetId && session.inventory.includes(name))
-      ) || currentLoc.interactables.includes(targetId);
+      const isInInventory =
+        TAKEABLE_OBJECTS[targetId] !== undefined &&
+        session.inventory.includes(TAKEABLE_OBJECTS[targetId]);
 
       if (isInLocation || isInInventory) {
         const objectName = OBJECT_DISPLAY_NAMES[targetId] || intent.targetRaw;
@@ -427,6 +510,7 @@ export class GameEngine {
           actionType: 'use',
           flagsUpdate: { ...flagsUpdate, ...(actCheck.flagsUpdate || {}) },
           newAct: actCheck.newAct,
+          gameOver: actCheck.gameOver,
           discoveredClueIds: newClueIds,
           medicalPointsDelta: medicalDelta || undefined,
           moralPointsDelta: moralDelta || undefined,
@@ -463,6 +547,42 @@ export class GameEngine {
   }
 
   // --------------------------------------------------------
+  // NOTEBOOK — review discovered clues and progress
+  // --------------------------------------------------------
+
+  private resolveNotebook(intent: ParsedIntent, session: SessionSnapshot): EngineResult {
+    const clueCount = session.discoveredClueIds.length;
+    const foundClues = session.discoveredClueIds
+      .map(id => CLUE_DEFINITIONS[id])
+      .filter(Boolean);
+
+    const clueLines = foundClues.length > 0
+      ? foundClues.map((c, i) => `${i + 1}. ${c.name}: ${c.description}`).join('\n')
+      : 'No evidence formally recorded yet.';
+
+    const remaining = Math.max(0, DEDUCTION_THRESHOLD - clueCount);
+    const readinessNote = clueCount >= DEDUCTION_THRESHOLD
+      ? 'Watson has sufficient evidence to attempt a deduction. Type DEDUCE followed by your theory to name a suspect.'
+      : `Watson needs ${remaining} more piece${remaining === 1 ? '' : 's'} of evidence before a deduction is viable.`;
+
+    return {
+      actionSuccess: true,
+      actionType: 'notebook',
+      discoveredClueIds: [],
+      aiContext: this.buildContext(intent, session, {
+        success: true,
+        actionDescription: 'Watson consulted his investigative notebook.',
+        actionResultNote:
+          `NOTEBOOK — Watson reviews his accumulated evidence:\n${clueLines}\n\n${readinessNote}\n\n` +
+          `Write Watson opening his notebook and reflecting on the evidence in his own voice. ` +
+          `1–2 short paragraphs. Do not list clues mechanically — Watson draws brief connections between what he has found. ` +
+          `Close with the readiness note in Watson's voice, not as a system instruction.`,
+        newClueDefs: [],
+      }),
+    };
+  }
+
+  // --------------------------------------------------------
   // DEDUCE
   // --------------------------------------------------------
 
@@ -492,14 +612,18 @@ export class GameEngine {
     );
 
     if (matchedProfile?.isGuilty) {
-      const isGameOver = session.flags[matchedProfile.successVisitFlag] === true;
+      const isGameOver = matchedProfile.successVisitFlag
+        ? session.flags[matchedProfile.successVisitFlag] === true
+        : false;
       const npcName = NPCS[matchedProfile.npcId]?.displayName ?? matchedProfile.npcId;
 
       return {
         actionSuccess: true,
         actionType: 'deduce',
         flagsUpdate: matchedProfile.successFlags,
-        newAct: session.currentAct < matchedProfile.successAct ? matchedProfile.successAct : undefined,
+        newAct: matchedProfile.successAct && session.currentAct < matchedProfile.successAct
+          ? matchedProfile.successAct
+          : undefined,
         gameOver: isGameOver,
         discoveredClueIds: [],
         aiContext: this.buildContext(intent, session, {
@@ -517,6 +641,13 @@ export class GameEngine {
 
     // Wrong suspect — cold case ending.
     // The case goes unsolved; Watson closes his diary without a resolution.
+    // A named red herring (isGuilty:false profile) gets a tailored rebuttal.
+    const coldCaseNote = matchedProfile?.wrongDeductionNote ??
+      `COLD CASE — Watson's theory cannot be supported by the evidence. Holmes gently but firmly disagrees. ` +
+      `The Whitechapel murders will go unsolved. Write a 150-word final diary entry: Watson reflects on the ` +
+      `failure, the unanswered questions, and the shadow this case casts over London. Tone: sombre and resigned. ` +
+      `End with Watson closing his diary.`;
+
     return {
       actionSuccess: false,
       actionType: 'deduce',
@@ -526,11 +657,7 @@ export class GameEngine {
       aiContext: this.buildContext(intent, session, {
         success: false,
         actionDescription: `Watson named a wrong suspect: "${intent.raw}"`,
-        actionResultNote:
-          `COLD CASE — Watson's theory cannot be supported by the evidence. Holmes gently but firmly disagrees. ` +
-          `The Whitechapel murders will go unsolved. Write a 150-word final diary entry: Watson reflects on the ` +
-          `failure, the unanswered questions, and the shadow this case casts over London. Tone: sombre and resigned. ` +
-          `End with Watson closing his diary.`,
+        actionResultNote: coldCaseNote,
         newClueDefs: [],
         isDeduction: true,
         deductionCorrect: false,
@@ -557,7 +684,8 @@ export class GameEngine {
           `Available commands: LOOK (survey surroundings), GO [place] (move to a location), ` +
           `EXAMINE [object/person] (inspect something closely), TALK TO [person] (speak with someone), ` +
           `TAKE [object] (add evidence to your bag), USE [object] (interact with something), ` +
-          `INVENTORY (check your bag), DEDUCE / SOLVE (name the killer — requires ${DEDUCTION_THRESHOLD} clues; ` +
+          `INVENTORY (check your bag), NOTEBOOK (review discovered clues and case progress), ` +
+          `DEDUCE / SOLVE (name the killer — requires ${DEDUCTION_THRESHOLD} clues; ` +
           `${clueCount} discovered so far). ` +
           `Current location: ${currentLoc.name}. ` +
           `Write 2–3 sentences as Watson reminding himself of his options — keep it brief and in period voice.`,
@@ -676,8 +804,32 @@ export class GameEngine {
         const npcLoc = state?.currentLocation ?? NPCS[npcId]?.canonicalLocationByAct[session.currentAct];
         return npcLoc === locationId && state?.status !== 'deceased';
       });
-    const npcsPresent = presentNPCEntries.map(([, npc]) => npc.displayName);
-    const npcIds      = presentNPCEntries.map(([id]) => id);
+
+    // Build alias-aware NPC list for NarrationContext
+    const npcsPresent = presentNPCEntries.map(([npcId, npc]) => {
+      const isIntroduced = !npc.requiresIntroduction ||
+        session.introducedNpcs.includes(npcId);
+      const label = isIntroduced
+        ? npc.displayName
+        : (npc.alias ?? NPC_ALIASES[npcId] ?? npc.displayName);
+      return { label, npcId, isIntroduced };
+    });
+
+    // Legacy flat arrays kept for internal engine use (NPC memory lookup etc.)
+    const npcIds = presentNPCEntries.map(([id]) => id);
+
+    // Scripted NPC presence moments — fire when NPC present + location matches + flag satisfied.
+    // These are directorial instructions injected into the AI prompt; no state changes.
+    const npcScriptedLines: Array<{ npcId: string; label: string; instruction: string }> = [];
+    for (const { npcId, label } of npcsPresent) {
+      const npc = NPCS[npcId];
+      if (!npc.scriptedLines) continue;
+      for (const line of npc.scriptedLines) {
+        if (line.locationId !== locationId) continue;
+        if (line.triggerFlag && !session.flags[line.triggerFlag]) continue;
+        npcScriptedLines.push({ npcId, label, instruction: line.instruction });
+      }
+    }
 
     // Available exits (filtered by act)
     const availableExits = (loc.exits || [])
@@ -691,11 +843,12 @@ export class GameEngine {
     const availableObjects = (loc.interactables || [])
       .map(id => OBJECT_DISPLAY_NAMES[id] || id);
 
-    // Recent NPC memory for NPCs present
+    // Recent NPC memory for NPCs present (keyed by label — alias or displayName)
     const npcRecentMemory: Record<string, string[]> = {};
     for (const [npcId, state] of Object.entries(resolvedNpcStates)) {
-      if (npcsPresent.includes(NPC_DISPLAY_NAMES[npcId]) && state.memory && state.memory.length > 0) {
-        npcRecentMemory[NPC_DISPLAY_NAMES[npcId]] = state.memory.slice(0, 2);
+      const entry = npcsPresent.find(n => n.npcId === npcId);
+      if (entry && state.memory && state.memory.length > 0) {
+        npcRecentMemory[entry.label] = state.memory.slice(0, 2);
       }
     }
 
@@ -708,20 +861,82 @@ export class GameEngine {
         ? 'full'
         : 'compact';
 
+    // Full mode always gets a world_event blockquote.
+    // Compact mode gets an inner_thought ~30% of the time — less frequent so each one lands harder.
+    const blockquoteHint: NarrationContext['blockquoteHint'] =
+      narrationMode === 'full'
+        ? 'world_event'
+        : Math.random() < 0.3 ? 'inner_thought' : 'none';
+
+    // Dynamic Witness Interrogation — include NPC knowledge envelope for talk actions
+    let targetNpcInterview: NarrationContext['targetNpcInterview'] | undefined;
+    if (outcome.targetNpcId && NPCS[outcome.targetNpcId]) {
+      const npc = NPCS[outcome.targetNpcId];
+      const isIntroduced = !npc.requiresIntroduction ||
+        session.introducedNpcs.includes(outcome.targetNpcId);
+      const label = isIntroduced
+        ? npc.displayName
+        : (npc.alias ?? NPC_ALIASES[outcome.targetNpcId] ?? npc.displayName);
+      targetNpcInterview = {
+        npcId: outcome.targetNpcId,
+        label,
+        isIntroduced,
+        role: npc.role,
+        speakingStyle: npc.speakingStyle,
+        personality: npc.personality,
+        knowledgeEnvelope: npc.publicKnowledge,
+        playerQuestion: intent.raw,
+      };
+    }
+
+    // Atmospheric fallback note — used when examined object triggers no clue
+    const atmosphericNote =
+      intent.targetId && outcome.newClueDefs.length === 0
+        ? ATMOSPHERIC_NOTES[locationId]?.[intent.targetId]
+        : undefined;
+
+    // Introduction flags: talking to an NPC introduces them (if they self-introduce)
+    // Document-based introductions are handled by examine (see clue_06 / edmund_forensic_note)
+    const introductionFlagsUpdate: Record<string, boolean> = {};
+    if (outcome.targetNpcId) {
+      const npc = NPCS[outcome.targetNpcId];
+      if (npc?.requiresIntroduction &&
+          !session.introducedNpcs.includes(outcome.targetNpcId) &&
+          outcome.targetNpcId !== 'edmund') {
+        // NPC self-introduces on first TALK (everyone except Edmund)
+        introductionFlagsUpdate[`npc_introduced_${outcome.targetNpcId}`] = true;
+      }
+    }
+    // Edmund's name is revealed when the player examines his forensic note
+    if (intent.targetId === 'edmund_forensic_note' &&
+        !session.introducedNpcs.includes('edmund')) {
+      introductionFlagsUpdate['npc_introduced_edmund'] = true;
+    }
+
     const act = session.currentAct;
+
+    // Compute current in-game time — anchored to the act's canonical start,
+    // advanced by the minutes elapsed this act (tracked in the hook).
+    const actTimeCfg   = ACT_TIME_CONFIG[act] ?? ACT_TIME_CONFIG[1];
+    const totalMinutes = actTimeCfg.canonicalMinutes + session.elapsedMinutes;
+    const timePeriod   = computeTimePeriod(totalMinutes);
+    const timeLabel    = formatTimeLabel(totalMinutes, actTimeCfg.dayOfWeek, actTimeCfg.displayDate);
+
     return {
       locationName: loc.name,
       locationAtmosphere: loc.atmosphere,
       locationDescription: loc.description,
+      locationTimeframe: loc.timeframe ?? 'present',
+      locationReconstitutionNote: loc.reconstitutionNote,
       act,
       actName: ACT_NAMES[act] || `Act ${act}`,
+      timeLabel,
+      timePeriod,
       npcsPresent,
-      npcIds,
       availableObjects,
       availableExits,
       inventory: session.inventory,
       watsonStats: {
-        sanity: session.sanity,
         medicalPoints: session.medicalPoints,
         moralPoints: session.moralPoints,
       },
@@ -734,9 +949,17 @@ export class GameEngine {
         description: c.description,
         holmesDeduction: c.holmesDeduction,
       })),
+      atmosphericNote,
       npcRecentMemory: Object.keys(npcRecentMemory).length > 0 ? npcRecentMemory : undefined,
+      targetNpcInterview,
       narrationMode,
-    };
+      blockquoteHint,
+      npcScriptedLines: npcScriptedLines.length > 0 ? npcScriptedLines : undefined,
+      // Pass introduction flags so useGameState can update introducedNpcs
+      _introductionFlagsUpdate: Object.keys(introductionFlagsUpdate).length > 0
+        ? introductionFlagsUpdate
+        : undefined,
+    } as NarrationContext & { _introductionFlagsUpdate?: Record<string, boolean> };
   }
 
   /**
@@ -789,6 +1012,16 @@ export class GameEngine {
     for (const [npcId, npc] of Object.entries(NPCS)) {
       if (!npc.followsNpcId) continue;
 
+      // Once an NPC stops following (e.g. Edmund committed in Act 6), it
+      // reverts to its canonical location for the current act.
+      if (npc.followsUntilAct !== undefined && session.currentAct > npc.followsUntilAct) {
+        const canonical = npc.canonicalLocationByAct[session.currentAct];
+        if (canonical && canonical !== session.npcStates[npcId]?.currentLocation) {
+          updates[npcId] = { currentLocation: canonical };
+        }
+        continue;
+      }
+
       let destination: string | undefined;
       if (npc.followsNpcId === 'watson') {
         destination = newLocationId;
@@ -815,7 +1048,7 @@ export class GameEngine {
   private checkActProgression(
     session: SessionSnapshot,
     currentFlags: Record<string, boolean>
-  ): { newAct?: number; flagsUpdate?: Record<string, boolean> } {
+  ): { newAct?: number; flagsUpdate?: Record<string, boolean>; gameOver?: boolean } {
     const condition = ACT_PROGRESSION[session.currentAct];
     if (!condition) return {};
 
@@ -826,10 +1059,15 @@ export class GameEngine {
     const advanceTo = condition.advanceTo;
     if (advanceTo <= session.currentAct) return {}; // Prevent regression
 
+    // Advancing past the final playable act (no further progression defined)
+    // concludes the game — e.g. visiting the Private Asylum in Act VI.
+    const isFinalAct = !ACT_PROGRESSION[advanceTo];
+
     // Sync NPC locations for new act
     return {
       newAct: advanceTo,
       flagsUpdate: { [`act_${advanceTo}_started`]: true },
+      gameOver: isFinalAct || undefined,
     };
   }
 }

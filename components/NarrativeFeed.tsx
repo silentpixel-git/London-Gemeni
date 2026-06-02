@@ -6,13 +6,22 @@
  * AI narration), and the GameOverScreen when the case closes.
  */
 
-import React from 'react';
-import { Feather } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Eye, Search, Glasses, Compass, Brain, Microscope, Feather, type LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { StoryRenderer } from './StoryRenderer';
 import { TypewriterBlock } from './TypewriterBlock';
 import { GameOverScreen } from './GameOverScreen';
 import { GameHistoryItem } from '../types';
+
+const LOADING_VARIANTS: Array<{ icon: LucideIcon; text: string }> = [
+  { icon: Eye,        text: 'Surveying the scene...' },
+  { icon: Search,     text: 'Examining the evidence...' },
+  { icon: Glasses,    text: 'Scrutinising the details...' },
+  { icon: Compass,    text: 'Taking bearings...' },
+  { icon: Brain,      text: 'Cataloguing observations...' },
+  { icon: Microscope, text: 'Investigating closely...' },
+];
 
 interface NarrativeFeedProps {
   history: GameHistoryItem[];
@@ -24,7 +33,7 @@ interface NarrativeFeedProps {
   onScroll: () => void;
 }
 
-export const NarrativeFeed: React.FC<NarrativeFeedProps> = ({
+export function NarrativeFeed({
   history,
   isLoading,
   isGameOver,
@@ -32,7 +41,14 @@ export const NarrativeFeed: React.FC<NarrativeFeedProps> = ({
   lastUserMessageRef,
   scrollRef,
   onScroll,
-}) => (
+}: NarrativeFeedProps) {
+  // Pick a random loading variant once per loading session
+  const loadingVariant = useMemo(
+    () => LOADING_VARIANTS[Math.floor(Math.random() * LOADING_VARIANTS.length)],
+    [isLoading], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  return (
   <div
     ref={scrollRef}
     onScroll={onScroll}
@@ -53,6 +69,7 @@ export const NarrativeFeed: React.FC<NarrativeFeedProps> = ({
       <AnimatePresence initial={false}>
         {history.map((msg, index) => {
           const isAI = msg.role === 'assistant';
+          const isJournal = isAI && msg.type === 'journal';
           const isLast = index === history.length - 1;
           const isLatestUser = index === actualLastUserIdx;
 
@@ -76,8 +93,31 @@ export const NarrativeFeed: React.FC<NarrativeFeedProps> = ({
             );
           }
 
+          // Act-closing journal entry — always static, distinct diary styling
+          if (isJournal && msg.text !== '') {
+            return (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6 }}
+                className="my-10"
+              >
+                <div className="border-l-2 border-lb-muted/40 pl-6 py-1">
+                  <div className="flex items-center gap-2 mb-3 text-lb-muted opacity-50">
+                    <Feather size={11} />
+                    <span className="text-[10px] font-sans uppercase tracking-widest">Watson's Journal</span>
+                  </div>
+                  <div className="font-serif text-lb-primary/60 italic text-sm md:text-[15px] leading-relaxed">
+                    <StoryRenderer text={msg.text} />
+                  </div>
+                </div>
+              </motion.div>
+            );
+          }
+
           // Latest AI message — typewriter animation while streaming
-          if (isLast && isAI && msg.text !== '') {
+          if (isLast && isAI && !isJournal && msg.text !== '') {
             return (
               <motion.div
                 key={index}
@@ -91,7 +131,7 @@ export const NarrativeFeed: React.FC<NarrativeFeedProps> = ({
           }
 
           // Previous AI messages — static render
-          if (msg.text !== '') {
+          if (isAI && !isJournal && msg.text !== '') {
             return (
               <motion.div
                 key={index}
@@ -118,8 +158,8 @@ export const NarrativeFeed: React.FC<NarrativeFeedProps> = ({
             transition={{ duration: 0.4 }}
             className="mb-8 flex items-center gap-3 text-lb-muted"
           >
-            <Feather size={16} className="animate-bounce text-lb-accent" />
-            <span className="text-sm italic font-serif">Watson opens his notebook...</span>
+            <loadingVariant.icon size={16} className="animate-bounce text-lb-accent" />
+            <span className="text-sm italic font-serif">{loadingVariant.text}</span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -127,4 +167,5 @@ export const NarrativeFeed: React.FC<NarrativeFeedProps> = ({
       {isGameOver && <GameOverScreen />}
     </div>
   </div>
-);
+  );
+}

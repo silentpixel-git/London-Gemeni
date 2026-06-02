@@ -18,16 +18,17 @@ import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS, CLUE_DEFINITIONS } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
+  INITIAL_ACT,
   INITIAL_INVENTORY,
-  INITIAL_SANITY,
   INITIAL_NPC_STATES,
   INITIAL_JOURNAL,
+  INITIAL_INTRODUCED_NPCS,
   NPC_DISPLAY_NAMES,
 } from '../constants';
-import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry } from '../types';
+import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
 
 // ── Public interface ──────────────────────────────────────────────────────────
@@ -44,13 +45,15 @@ export interface GameStateReturn {
   // World state
   location: string;
   inventory: string[];
-  sanity: number;
   medicalPoints: number;
   moralPoints: number;
   currentAct: number;
   flags: Record<string, boolean>;
   npcStates: Record<string, NPCState>;
   activeInvestigation: Investigation | null;
+
+  // In-game clock
+  displayTime: string;
 
   // UI / persistence
   journalNotes: string;
@@ -78,7 +81,7 @@ export interface GameStateReturn {
 }
 
 const OPENING_FALLBACK_NARRATIVE =
-  "> *The fog of Whitechapel hangs heavy over Dorset Street. A crowd has gathered outside Miller's Court.*\n\nHolmes stands beside you, his gaze sharp as ever. Inspector Abberline approaches, his face drawn with fatigue.\n\n**Sherlock Holmes** and **Inspector Abberline** are here.\n**Objects of interest:** Police Barricade, Street Lamps, Lodging House Entrances.\n**Possible exits:** Miller's Court.";
+  "> *221B Baker Street. November 1888. The sitting room is no longer quite a sitting room.*\n\nHolmes paces before the fire, his pipe cold in his hand. The case files are everywhere — pinned, spread, stacked. Five murders. Eleven weeks. Scotland Yard is floundering.\n\n**Sherlock Holmes** is here.\n**Objects of interest:** Case Files Wall, Newspapers, Chemistry Table, Watson's Armchair.\n**Possible exits:** Dorset Street.";
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -92,7 +95,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // ── World state ─────────────────────────────────────────────────────────
   const [location, setLocation] = useState(INITIAL_LOCATION);
   const [inventory, setInventory] = useState(INITIAL_INVENTORY);
-  const [sanity, setSanity] = useState(INITIAL_SANITY);
   const [medicalPoints, setMedicalPoints] = useState(0);
   const [moralPoints, setMoralPoints] = useState(0);
   const [isGameOver, setIsGameOver] = useState(false);
@@ -101,9 +103,20 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     INITIAL_NPC_STATES as Record<string, NPCState>
   );
   const [activeInvestigation, setActiveInvestigation] = useState<Investigation | null>(null);
-  const [currentAct, setCurrentAct] = useState(1);
+  const [currentAct, setCurrentAct] = useState(INITIAL_ACT);
   const [stim, setStim] = useState<Record<string, STIMEntry>>({});
   const [turnCount, setTurnCount] = useState(0);
+  // NPC introduction tracking — IDs of NPCs whose real names Watson now knows.
+  // Pre-seeded with professional acquaintances Watson already knows at game start.
+  const [introducedNpcs, setIntroducedNpcs] = useState<string[]>(INITIAL_INTRODUCED_NPCS);
+
+  // In-game clock — minutes elapsed since act's canonical start time
+  const [elapsedMinutes, setElapsedMinutes] = useState(0);
+
+  // Proactive Holmes nudge — turns at current location without discovering a clue
+  const [turnsAtLocationWithoutProgress, setTurnsAtLocationWithoutProgress] = useState(0);
+  // Procedural act journals — clue IDs accumulated since last act advance
+  const [cluesFoundThisAct, setCluesFoundThisAct] = useState<string[]>([]);
 
   // ── Journal / sidebar ───────────────────────────────────────────────────
   const [journalNotes, setJournalNotes] = useState(INITIAL_JOURNAL);
@@ -273,23 +286,31 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         inventory: INITIAL_INVENTORY,
         flags: {},
         npcStates: INITIAL_NPC_STATES as Record<string, NPCState>,
-        currentAct: 1,
-        sanity: INITIAL_SANITY,
+        currentAct: INITIAL_ACT,
         medicalPoints: 0,
         moralPoints: 0,
         discoveredClueIds: [],
         investigationId: undefined,
+        turnsAtLocationWithoutProgress: 0,
+        elapsedMinutes: 0,
+        introducedNpcs: INITIAL_INTRODUCED_NPCS,
       };
       const result = gameEngine.resolve(intent, snapshot);
 
+      const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 — three months after the business had begun, and the day before it concluded.\n\n";
+      // Inject fixed line AFTER the ### heading, not before it
+      const injectAfterHeading = (text: string) => {
+        const match = text.match(/^(###[^\n]*\n\n?)/);
+        return match ? match[1] + OPENING_FIXED_LINE + text.slice(match[1].length) : OPENING_FIXED_LINE + text;
+      };
       let lastText = '';
-      for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening' })) {
+      for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening', blockquoteHint: 'none' })) {
         if (update.narrative) {
           lastText = update.narrative;
-          setHistory([{ role: 'assistant', text: lastText }]);
+          setHistory([{ role: 'assistant', text: injectAfterHeading(lastText) }]);
         }
       }
-      if (!lastText) setHistory([{ role: 'assistant', text: OPENING_FALLBACK_NARRATIVE }]);
+      if (!lastText) setHistory([{ role: 'assistant', text: OPENING_FIXED_LINE + OPENING_FALLBACK_NARRATIVE }]);
     } catch (error) {
       console.error('Opening scene generation failed:', error);
       setHistory([{ role: 'assistant', text: OPENING_FALLBACK_NARRATIVE }]);
@@ -307,12 +328,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       history,
       location,
       inventory,
-      sanity,
       medicalPoints,
       moralPoints,
       npcStates,
       flags,
       journalNotes,
+      introducedNpcs,
       timestamp: new Date().toLocaleString(),
     };
 
@@ -322,7 +343,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       if (user && activeInvestigation) {
         const updated = await GameRepository.updateInvestigation(activeInvestigation.id, {
           currentLocation: location,
-          sanity,
           medicalPoints,
           moralPoints,
           currentAct,
@@ -330,6 +350,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           globalFlags: flags,
           journalNotes,
           stim,
+          introducedNpcs,
         });
         if (updated) setActiveInvestigation(updated as Investigation);
         if (!silent) setNotification({ message: 'Game Saved to Cloud!', type: 'success' });
@@ -343,7 +364,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsSaving(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, activeInvestigation, history, location, inventory, sanity, medicalPoints, moralPoints, npcStates, flags, journalNotes, currentAct]);
+  }, [user, activeInvestigation, history, location, inventory, medicalPoints, moralPoints, npcStates, flags, journalNotes, currentAct, introducedNpcs]);
 
   const handleLoadGame = useCallback(async () => {
     try {
@@ -362,13 +383,15 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
           setLocation(investigation.currentLocation);
           setInventory(inv);
-          setSanity(investigation.sanity);
           setMedicalPoints(investigation.medicalPoints || 0);
           setMoralPoints(investigation.moralPoints || 0);
           setCurrentAct(act);
           setIsGameOver(investigation.status === 'solved');
           setFlags(investigation.globalFlags as Record<string, boolean>);
           setJournalNotes(investigation.journalNotes || INITIAL_JOURNAL);
+          if ((investigation as any).introducedNpcs) {
+            setIntroducedNpcs((investigation as any).introducedNpcs as string[]);
+          }
           if (!investigation.journalNotes && historyItems.length > 0) {
             needsJournalUpdate.current = true;
           }
@@ -397,8 +420,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         investigation = await GameRepository.createInvestigation(user.id, {
           currentLocation: INITIAL_LOCATION,
           inventory: INITIAL_INVENTORY,
-          sanity: INITIAL_SANITY,
-          currentAct: 1,
+          currentAct: INITIAL_ACT,
           globalFlags: {},
           journalNotes: INITIAL_JOURNAL,
         });
@@ -420,7 +442,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setHistory(state.history);
         setLocation(state.location);
         setInventory(state.inventory);
-        setSanity(state.sanity || 100);
         setFlags(state.flags || {});
         setJournalNotes(state.journalNotes || journalNotes);
         if (state.npcStates) setNpcStates(state.npcStates);
@@ -437,7 +458,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
             setHistory(state.history);
             setLocation(state.location);
             setInventory(state.inventory);
-            setSanity(state.sanity || 100);
             setFlags(state.flags || {});
             setJournalNotes(state.journalNotes || INITIAL_JOURNAL);
             if (state.npcStates) setNpcStates(state.npcStates);
@@ -469,6 +489,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // Generate opening scene for fresh unauthenticated starts
   useEffect(() => {
     if (!user && isAuthReady && history.length === 0) {
+      needsJournalUpdate.current = true;
       generateOpeningScene();
     }
   }, [isAuthReady, user, generateOpeningScene, history.length]);
@@ -489,7 +510,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         // Apply all incoming DB updates — subscription only fires on genuine changes.
         setLocation(data.current_location);
         setInventory(data.inventory || []);
-        setSanity(data.sanity);
         setMedicalPoints(data.medical_points);
         setMoralPoints(data.moral_points);
         setCurrentAct(data.current_act || 1);
@@ -500,7 +520,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
             ? {
                 ...prev,
                 currentLocation: data.current_location,
-                sanity: data.sanity,
                 medicalPoints: data.medical_points,
                 moralPoints: data.moral_points,
                 globalFlags: data.global_flags,
@@ -597,15 +616,35 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         flags,
         npcStates,
         currentAct,
-        sanity,
         medicalPoints,
         moralPoints,
         discoveredClueIds,
         investigationId: activeInvestigation?.id,
+        turnsAtLocationWithoutProgress,
+        elapsedMinutes,
+        introducedNpcs,
       };
 
       // STEP 3: Engine resolves — no AI yet
       const result = gameEngine.resolve(intent, snapshot);
+
+      // STEP 3b: Process NPC introduction flags (alias system)
+      // Extract npc_introduced_* keys and update introducedNpcs[] state.
+      const introFlags = result.introductionFlagsUpdate;
+      if (introFlags) {
+        const newIntros = Object.keys(introFlags)
+          .filter(k => k.startsWith('npc_introduced_') && introFlags[k])
+          .map(k => k.replace('npc_introduced_', ''));
+        if (newIntros.length > 0) {
+          setIntroducedNpcs(prev => {
+            const next = [...prev];
+            for (const npcId of newIntros) {
+              if (!next.includes(npcId)) next.push(npcId);
+            }
+            return next;
+          });
+        }
+      }
 
       // STEP 4: Apply state changes optimistically
       const newLocation  = result.newLocation || location;
@@ -615,14 +654,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         if (result.inventoryRemove) inv = inv.filter(i => !result.inventoryRemove!.includes(i));
         return inv;
       })();
-      const newSanity        = result.sanityDelta        ? Math.max(0, Math.min(100, sanity + result.sanityDelta)) : sanity;
       const newMedicalPoints = result.medicalPointsDelta ? medicalPoints + result.medicalPointsDelta : medicalPoints;
       const newMoralPoints   = result.moralPointsDelta   ? moralPoints  + result.moralPointsDelta   : moralPoints;
       const newFlags         = result.flagsUpdate        ? { ...flags, ...result.flagsUpdate }      : flags;
 
       setLocation(newLocation);
       setInventory(newInventory);
-      setSanity(newSanity);
       setMedicalPoints(newMedicalPoints);
       setMoralPoints(newMoralPoints);
       setFlags(newFlags);
@@ -639,10 +676,50 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         });
       }
 
+      // Update turns-without-progress counter (for Holmes nudge)
+      const madeProgress = !!(result.newLocation || result.newAct ||
+        (result.discoveredClueIds && result.discoveredClueIds.length > 0));
+      if (madeProgress) {
+        setTurnsAtLocationWithoutProgress(0);
+      } else {
+        setTurnsAtLocationWithoutProgress(prev => prev + 1);
+      }
+
+      // Advance in-game clock
+      if (result.newAct) {
+        setElapsedMinutes(0); // Reset to new act's canonical start time
+      } else {
+        const ACTION_TIME_MINUTES: Partial<Record<typeof result.actionType, number>> = {
+          move: 10, talk: 5, deduce: 5, examine: 2,
+          use: 2, take: 1, inventory: 0, query: 1, help: 0, other: 2,
+        };
+        setElapsedMinutes(prev => prev + (ACTION_TIME_MINUTES[result.actionType] ?? 2));
+      }
+
+      // Capture journal data before resetting per-act tracking (if act is advancing)
+      let pendingJournalSummary: ActJournalSummary | null = null;
+      if (result.newAct) {
+        const allActClueIds = [
+          ...cluesFoundThisAct,
+          ...(result.discoveredClueIds || []),
+        ];
+        pendingJournalSummary = {
+          actNumber: currentAct,
+          actName: ACT_NAMES[currentAct] || `Act ${currentAct}`,
+          cluesFound: allActClueIds
+            .map(id => CLUE_DEFINITIONS[id])
+            .filter(Boolean)
+            .map(c => ({ name: c.name, description: c.description })),
+        };
+        setCluesFoundThisAct([]); // reset for the new act
+      } else if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
+        setCluesFoundThisAct(prev => [...prev, ...result.discoveredClueIds!]);
+      }
+
       // STEP 5: Persist engine result to Supabase
       if (user && activeInvestigation) {
         await GameRepository.applyEngineResult(activeInvestigation.id, result, {
-          location, inventory, sanity, medicalPoints, moralPoints, currentAct, flags,
+          location, inventory, medicalPoints, moralPoints, currentAct, flags,
         });
         if (result.npcUpdates) {
           GameRepository.applyNPCUpdates(activeInvestigation.id, result.npcUpdates);
@@ -652,7 +729,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         }
       }
 
-      // STEP 6a: Holmes multi-clue synthesis — runs in parallel with STIM inject, before Watson narrates
+      // STEP 6: Enrich a copy of the engine's context with hook-owned data
+      // (STIM, Holmes synthesis). The engine's aiContext is treated as immutable.
+      const aiContext: NarrationContext = { ...result.aiContext, stim };
+
+      // STEP 6a: Holmes multi-clue synthesis — before Watson narrates
       if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
         const allDiscoveredIds = [...discoveredClueIds, ...result.discoveredClueIds];
         const allClueObjects = allDiscoveredIds
@@ -663,21 +744,18 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           .map(id => CLUE_DEFINITIONS[id]?.name)
           .filter(Boolean) as string[];
         try {
-          result.aiContext.holmesSynthesis = await aiService.consultHolmesMultiClue(
+          aiContext.holmesSynthesis = await aiService.consultHolmesMultiClue(
             allClueObjects,
             newClueNames,
-            result.aiContext.act,
+            aiContext.act,
           );
         } catch {
           // Graceful fallback — Watson narrates with the hardcoded holmesDeduction per clue
         }
       }
 
-      // STEP 6b: Inject session STIM into AI context (not part of engine — lives in hook)
-      result.aiContext.stim = stim;
-
       // STEP 7: Stream AI narration
-      for await (const update of aiService.stream(result.aiContext)) {
+      for await (const update of aiService.stream(aiContext)) {
         const { narrative, isComplete, parsed } = update;
 
         setHistory(prev => {
@@ -737,6 +815,21 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         }
       }
 
+      // STEP 8: Generate act journal after narration stream completes (act advance only)
+      if (pendingJournalSummary) {
+        try {
+          const journalText = await aiService.generateJournalEntry(pendingJournalSummary);
+          if (journalText) {
+            setHistory(prev => [
+              ...prev,
+              { role: 'assistant', text: journalText, type: 'journal' },
+            ]);
+          }
+        } catch {
+          // Journal is bonus content — never block the game on failure
+        }
+      }
+
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error('handleAction error:', errorMsg, error);
@@ -753,7 +846,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsAutoScrollLocked(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, sanity, medicalPoints, moralPoints, handleSaveGame]);
+  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, handleSaveGame]);
 
   // ── Holmes hint ───────────────────────────────────────────────────────────
 
@@ -809,16 +902,18 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const prompt = `Source Material: ${fullStory}`;
       const systemInstruction = `You are Dr. Watson. Update your diary entries based on the case progress.
       STRICT CONSTRAINTS:
-      1. Keep the sections: **Found:** and **Sanity Note:**.
-      2. Provide a TOTAL of only 2 to 3 bullet points across the entire notes.
-      3. Focus on medical findings and systemic observations.
-      4. Be brief. No narrative re-telling.`;
+      1. Use only this section: **Observed:**
+      2. Provide a TOTAL of only 2 to 3 bullet points under Observed.
+      3. Focus on physical evidence, witness accounts, and factual case observations.
+      4. Be brief. No narrative re-telling. No sanity or mental-state commentary.`;
 
       const notes = await callGemini(prompt, false, 0, systemInstruction);
       setJournalNotes(notes || 'No updates available.');
     } catch (error) {
       console.error('Notes update failed', error);
       setNotification({ message: 'Notes update failed. Try again.', type: 'error' });
+      // Ensure the diary never stays in the empty/loading state on failure
+      setJournalNotes(prev => prev || '**Observed:**\n* Investigation underway.');
     } finally {
       setIsUpdatingJournal(false);
     }
@@ -843,15 +938,15 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setHistory([]);
     setLocation(INITIAL_LOCATION);
     setInventory(INITIAL_INVENTORY);
-    setSanity(INITIAL_SANITY);
     setMedicalPoints(0);
     setMoralPoints(0);
     setIsGameOver(false);
     setFlags({});
     setNpcStates(INITIAL_NPC_STATES as Record<string, NPCState>);
-    setCurrentAct(1);
+    setCurrentAct(INITIAL_ACT);
     setStim({});
     setTurnCount(0);
+    setIntroducedNpcs(INITIAL_INTRODUCED_NPCS);
     setJournalNotes(INITIAL_JOURNAL);
     setActiveInvestigation(null);
 
@@ -861,8 +956,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         const newInv = await GameRepository.createInvestigation(user.id, {
           currentLocation: INITIAL_LOCATION,
           inventory: INITIAL_INVENTORY,
-          sanity: INITIAL_SANITY,
-          currentAct: 1,
+          currentAct: INITIAL_ACT,
           globalFlags: {},
           journalNotes: INITIAL_JOURNAL,
         });
@@ -892,13 +986,22 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     location,
     inventory,
-    sanity,
     medicalPoints,
     moralPoints,
     currentAct,
     flags,
     npcStates,
     activeInvestigation,
+
+    displayTime: (() => {
+      const cfg = ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1];
+      const m = (cfg.canonicalMinutes + elapsedMinutes) % 1440;
+      const h24 = Math.floor(m / 60);
+      const mins = m % 60;
+      const ampm = h24 < 12 ? 'AM' : 'PM';
+      const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+      return `${h12}:${mins.toString().padStart(2, '0')} ${ampm}`;
+    })(),
 
     journalNotes,
     isUpdatingJournal,
