@@ -25,7 +25,11 @@ import { useGameState } from './hooks/useGameState';
 
 const AppContent: React.FC = () => {
   const { user, isAuthReady, isNewUser, userProfile, logout } = useSupabase();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Open by default on desktop (lg+); closed on smaller devices where the
+  // sidebar is an overlay drawer that would otherwise cover the game.
+  const [isSidebarOpen, setIsSidebarOpen] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= 1024,
+  );
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isFirstRunProfile, setIsFirstRunProfile] = useState(false);

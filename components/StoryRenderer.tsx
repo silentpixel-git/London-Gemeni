@@ -74,7 +74,7 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
         if (line.startsWith('>')) {
           return (
             <div key={i} className="pl-6 border-l-[3px] border-lb-accent my-6 py-1">
-              <p className="italic text-lb-primary font-playfair text-[16px] md:text-[24px] leading-relaxed opacity-90">
+              <p className="italic text-lb-primary font-playfair text-[20px] md:text-[24px] leading-relaxed opacity-90">
                 {parseInlineMarkdown(line.replace(/>\s*/, ''), animate)}
               </p>
             </div>
