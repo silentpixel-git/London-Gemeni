@@ -6,26 +6,16 @@
  * AI narration), and the GameOverScreen when the case closes.
  */
 
-import React, { useMemo } from 'react';
-import { Eye, Search, Glasses, Compass, Brain, Microscope, Feather, type LucideIcon } from 'lucide-react';
+import React from 'react';
+import { Feather } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { StoryRenderer } from './StoryRenderer';
 import { TypewriterBlock } from './TypewriterBlock';
 import { GameOverScreen } from './GameOverScreen';
 import { GameHistoryItem } from '../types';
 
-const LOADING_VARIANTS: Array<{ icon: LucideIcon; text: string }> = [
-  { icon: Eye,        text: 'Surveying the scene...' },
-  { icon: Search,     text: 'Examining the evidence...' },
-  { icon: Glasses,    text: 'Scrutinising the details...' },
-  { icon: Compass,    text: 'Taking bearings...' },
-  { icon: Brain,      text: 'Cataloguing observations...' },
-  { icon: Microscope, text: 'Investigating closely...' },
-];
-
 interface NarrativeFeedProps {
   history: GameHistoryItem[];
-  isLoading: boolean;
   isGameOver: boolean;
   actualLastUserIdx: number;
   lastUserMessageRef: React.RefObject<HTMLDivElement>;
@@ -35,19 +25,12 @@ interface NarrativeFeedProps {
 
 export function NarrativeFeed({
   history,
-  isLoading,
   isGameOver,
   actualLastUserIdx,
   lastUserMessageRef,
   scrollRef,
   onScroll,
 }: NarrativeFeedProps) {
-  // Pick a random loading variant once per loading session
-  const loadingVariant = useMemo(
-    () => LOADING_VARIANTS[Math.floor(Math.random() * LOADING_VARIANTS.length)],
-    [isLoading], // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
   return (
   <div
     ref={scrollRef}
@@ -146,22 +129,6 @@ export function NarrativeFeed({
 
           return null;
         })}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isLoading && history.length > 0 && history[history.length - 1]?.role === 'assistant' && history[history.length - 1]?.text === '' && (
-          <motion.div
-            key="opening-loader"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
-            className="mb-8 flex items-center gap-3 text-lb-muted"
-          >
-            <loadingVariant.icon size={16} className="animate-bounce text-lb-accent" />
-            <span className="text-sm italic font-serif">{loadingVariant.text}</span>
-          </motion.div>
-        )}
       </AnimatePresence>
 
       {isGameOver && <GameOverScreen />}

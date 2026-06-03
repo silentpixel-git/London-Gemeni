@@ -7,9 +7,18 @@
  * know about the raw text field state.
  */
 
-import React, { useState } from 'react';
-import { Feather, Lightbulb, Send } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Feather, Lightbulb, Send, Eye, Search, Glasses, Compass, Brain, Microscope, type LucideIcon } from 'lucide-react';
 import { GameHistoryItem } from '../types';
+
+const LOADING_VARIANTS: Array<{ icon: LucideIcon; text: string }> = [
+  { icon: Eye,        text: 'Surveying the scene...' },
+  { icon: Search,     text: 'Examining the evidence...' },
+  { icon: Glasses,    text: 'Scrutinising the details...' },
+  { icon: Compass,    text: 'Taking bearings...' },
+  { icon: Brain,      text: 'Cataloguing observations...' },
+  { icon: Microscope, text: 'Investigating closely...' },
+];
 
 const PROMPTS_DESKTOP = [
   'How do you choose to proceed, Doctor?',
@@ -50,6 +59,12 @@ export const CommandInput: React.FC<CommandInputProps> = ({
 }) => {
   const [input, setInput] = useState('');
 
+  // Pick a random loading variant once per wait
+  const loadingVariant = useMemo(
+    () => LOADING_VARIANTS[Math.floor(Math.random() * LOADING_VARIANTS.length)],
+    [isLoading], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
   const prompts = isMobile ? PROMPTS_MOBILE : PROMPTS_DESKTOP;
   const placeholder = prompts[history.length % prompts.length];
@@ -79,10 +94,17 @@ export const CommandInput: React.FC<CommandInputProps> = ({
       >
         {isStreaming && (
           <div className="absolute bottom-full left-4 mb-2 flex items-center gap-2 text-lb-accent animate-in fade-in zoom-in-95 duration-300 z-20">
-            <Feather size={14} className="animate-bounce" />
-            <span className="text-sm italic font-serif">
-              {isConsultingHolmes ? 'Holmes is contemplating...' : 'The ink is drying...'}
-            </span>
+            {isConsultingHolmes ? (
+              <>
+                <Feather size={14} className="animate-bounce" />
+                <span className="text-sm italic font-serif">Holmes is contemplating...</span>
+              </>
+            ) : (
+              <>
+                <loadingVariant.icon size={14} className="animate-bounce" />
+                <span className="text-sm italic font-serif">{loadingVariant.text}</span>
+              </>
+            )}
           </div>
         )}
 
