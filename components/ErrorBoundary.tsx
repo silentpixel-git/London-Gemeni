@@ -58,7 +58,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             <div className="flex flex-col gap-3">
               <button
                 onClick={() => window.location.reload()}
-                className="w-full py-3 bg-lb-primary text-white rounded-xl font-bold hover:bg-lb-primary/80 transition-all shadow-lg active:scale-95"
+                className="w-full py-3 bg-lb-primary text-lb-bg rounded-xl font-bold hover:bg-lb-primary/80 transition-all shadow-lg active:scale-95"
               >
                 Restart Investigation
               </button>

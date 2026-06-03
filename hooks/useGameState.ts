@@ -297,7 +297,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       };
       const result = gameEngine.resolve(intent, snapshot);
 
-      const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 — three months after the business had begun, and the day before it concluded.\n\n";
+      const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 — three months after the Jack the Ripper murders had begun, and the day before it concluded.\n\n";
       // Inject fixed line AFTER the ### heading, not before it
       const injectAfterHeading = (text: string) => {
         const match = text.match(/^(###[^\n]*\n\n?)/);

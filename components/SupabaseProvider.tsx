@@ -13,6 +13,9 @@ interface SupabaseContextType {
   userProfile: UserProfile | null;
   loginWithGoogle: () => Promise<void>;
   loginWithEmail: (email: string) => Promise<void>;
+  loginWithPassword: (email: string, password: string) => Promise<boolean>;
+  signUpWithPassword: (email: string, password: string) => Promise<'session' | 'confirm' | 'error'>;
+  resetPassword: (email: string) => Promise<boolean>;
   logout: () => Promise<void>;
   clearAuthError: () => void;
   refreshProfile: () => Promise<void>;
@@ -88,6 +91,62 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (error) setAuthError(error.message);
   };
 
+  // Map Supabase's terse auth errors to player-facing copy.
+  const friendlyAuthError = (message: string): string => {
+    const m = message.toLowerCase();
+    if (m.includes('invalid login credentials')) return "That email and password don't match.";
+    if (m.includes('already registered') || m.includes('already been registered')) {
+      return 'An account with this email already exists — try signing in.';
+    }
+    if (m.includes('password') && (m.includes('at least') || m.includes('should be') || m.includes('weak'))) {
+      return 'Password must be at least 6 characters.';
+    }
+    if (m.includes('email') && m.includes('invalid')) return 'Please enter a valid email address.';
+    return message;
+  };
+
+  const loginWithPassword = async (email: string, password: string): Promise<boolean> => {
+    setAuthError(null);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setAuthError(friendlyAuthError(error.message));
+      return false;
+    }
+    return true;
+  };
+
+  const signUpWithPassword = async (
+    email: string,
+    password: string,
+  ): Promise<'session' | 'confirm' | 'error'> => {
+    setAuthError(null);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: window.location.origin },
+    });
+    if (error) {
+      setAuthError(friendlyAuthError(error.message));
+      return 'error';
+    }
+    // With "Confirm email" disabled, a session is returned and onAuthStateChange
+    // logs the player straight in. If it's still enabled, no session comes back
+    // and the caller should prompt the player to check their inbox.
+    return data.session ? 'session' : 'confirm';
+  };
+
+  const resetPassword = async (email: string): Promise<boolean> => {
+    setAuthError(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+    if (error) {
+      setAuthError(friendlyAuthError(error.message));
+      return false;
+    }
+    return true;
+  };
+
   const logout = async () => {
     try {
       // scope: 'local' clears the JWT from localStorage without a network round-trip,
@@ -113,7 +172,9 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     <SupabaseContext.Provider value={{
       user, session, isAuthReady, authError,
       isNewUser, userProfile,
-      loginWithGoogle, loginWithEmail, logout,
+      loginWithGoogle, loginWithEmail,
+      loginWithPassword, signUpWithPassword, resetPassword,
+      logout,
       clearAuthError, refreshProfile,
     }}>
       {children}

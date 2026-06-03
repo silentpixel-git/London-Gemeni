@@ -67,12 +67,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="mb-8">
           <div className="flex items-center gap-2 text-lb-accent mb-2">
             <MapPin size={18} />
-            <span className="uppercase tracking-widest text-xs font-bold">Current Sector</span>
+            <span className="uppercase tracking-widest text-xs font-bold">Current Location</span>
           </div>
           <h2 className="font-serif text-2xl leading-tight text-lb-primary">
             {LOCATIONS[location]?.name || 'Unknown Location'}
           </h2>
-          <p className="mt-1 text-xs text-lb-muted font-sans opacity-50 tracking-wide">{displayTime}</p>
+          <p className="mt-1 text-xs text-lb-primary font-sans opacity-70 tracking-wide italic">{displayTime}</p>
         </div>
 
         {/* Inventory */}
@@ -110,7 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               })}
             </ul>
           ) : (
-            <p className="font-sans text-sm text-lb-primary opacity-40 italic">Investigate further before leaving</p>
+            <p className="font-sans text-sm text-lb-primary opacity-70 italic">Investigate further before leaving</p>
           )}
         </div>
 
@@ -118,7 +118,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="mb-8">
           <div className="flex items-center gap-2 text-lb-accent mb-4">
             <User size={18} />
-            <span className="uppercase tracking-widest text-xs font-bold">Present in Sector</span>
+            <span className="uppercase tracking-widest text-xs font-bold">Present in Location</span>
           </div>
           <ul className="space-y-3">
             {presentNpcs.length === 0 ? (

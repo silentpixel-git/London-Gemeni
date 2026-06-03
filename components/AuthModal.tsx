@@ -1,19 +1,21 @@
 /**
  * components/AuthModal.tsx
  *
- * Full-screen overlay modal for Sign In and Create Account.
+ * Overlay modal for Sign In and Create Account, styled to match the
+ * London Bleeds case-file aesthetic.
  *
  * Tabs:
- *   - Sign In:        Google OAuth | Email magic link
- *   - Create Account: Google OAuth | Email magic link + name hint + T&C acceptance
+ *   - Sign In:        Google OAuth | email + password | forgot-password | magic-link fallback
+ *   - Create Account: Google OAuth | email + password (+ confirm) + T&C acceptance
  *
- * Auth state (loading, errors, emailSent) lives locally — the modal is
- * self-contained. Successful login is detected in App.tsx via the user
- * state change, which closes the modal.
+ * Password auth logs the player in entirely in-app (no email round-trip) when
+ * Supabase "Confirm email" is disabled. Auth state (loading, errors, notices)
+ * lives locally — the modal is self-contained. Successful login is detected in
+ * App.tsx via the user state change, which closes the modal.
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, Mail, Loader2, CheckCircle } from 'lucide-react';
+import { X, Mail, Loader2, CheckCircle, Eye, EyeOff, LogIn, UserPlus } from 'lucide-react';
 import { useSupabase } from './SupabaseProvider';
 import { TermsContent } from './TermsContent';
 
@@ -32,14 +34,32 @@ const GoogleLogo = () => (
   </svg>
 );
 
+const EMAIL_RE = /\S+@\S+\.\S+/;
+
+const inputClass =
+  'w-full border border-lb-border rounded-lg px-3 py-2.5 bg-lb-paper text-lb-primary text-sm ' +
+  'placeholder:text-lb-muted focus:outline-none focus:border-lb-accent focus:ring-1 focus:ring-lb-accent/40 transition-colors';
+
+const primaryBtnClass =
+  'w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-lb-primary text-lb-bg text-sm font-semibold ' +
+  'rounded-lg hover:bg-lb-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors';
+
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const { loginWithGoogle, loginWithEmail, authError, clearAuthError } = useSupabase();
+  const {
+    loginWithGoogle, loginWithEmail,
+    loginWithPassword, signUpWithPassword, resetPassword,
+    authError, clearAuthError,
+  } = useSupabase();
 
   const [activeTab, setActiveTab] = useState<'signin' | 'create'>('signin');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ title: string; body: React.ReactNode } | null>(null);
 
   // Lock body scroll while open; ESC to close
   useEffect(() => {
@@ -54,30 +74,97 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     };
   }, [isOpen]);
 
-  const handleClose = () => {
-    clearAuthError();
+  const resetState = () => {
     setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setShowPassword(false);
     setHasAcceptedTerms(false);
-    setEmailSent(false);
     setIsSubmitting(false);
+    setClientError(null);
+    setNotice(null);
+    clearAuthError();
+  };
+
+  const handleClose = () => {
+    resetState();
     onClose();
   };
 
   const handleTabChange = (tab: 'signin' | 'create') => {
     setActiveTab(tab);
-    setEmail('');
-    setEmailSent(false);
+    setPassword('');
+    setConfirmPassword('');
+    setShowPassword(false);
+    setClientError(null);
+    setNotice(null);
     clearAuthError();
   };
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
+  const emailValid = EMAIL_RE.test(email.trim());
+  const passwordsMatch = password === confirmPassword;
+  const canSignIn = emailValid && password.length > 0 && !isSubmitting;
+  const canCreate =
+    emailValid && password.length >= 6 && passwordsMatch && hasAcceptedTerms && !isSubmitting;
+
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
-    if (activeTab === 'create' && !hasAcceptedTerms) return;
+    if (!canSignIn) return;
+    setClientError(null);
+    setIsSubmitting(true);
+    await loginWithPassword(email.trim(), password);
+    setIsSubmitting(false);
+    // Success → App.tsx closes the modal on user change. Failure → authError shown.
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canCreate) return;
+    setClientError(null);
+    setIsSubmitting(true);
+    const result = await signUpWithPassword(email.trim(), password);
+    setIsSubmitting(false);
+    if (result === 'confirm') {
+      setNotice({
+        title: 'Confirm your email',
+        body: <>We&apos;ve sent a confirmation link to <span className="font-mono">{email.trim()}</span>. Click it to enter the investigation.</>,
+      });
+    }
+    // 'session' → App.tsx logs in & opens first-run profile. 'error' → authError shown.
+  };
+
+  const handleForgot = async () => {
+    clearAuthError();
+    if (!emailValid) {
+      setClientError('Enter your email above, then tap “Forgot password?”');
+      return;
+    }
+    setClientError(null);
+    setIsSubmitting(true);
+    const ok = await resetPassword(email.trim());
+    setIsSubmitting(false);
+    if (ok) {
+      setNotice({
+        title: 'Reset link sent',
+        body: <>Check <span className="font-mono">{email.trim()}</span> for a link to set a new password.</>,
+      });
+    }
+  };
+
+  const handleMagicLink = async () => {
+    clearAuthError();
+    if (!emailValid) {
+      setClientError('Enter your email above first.');
+      return;
+    }
+    setClientError(null);
     setIsSubmitting(true);
     await loginWithEmail(email.trim());
-    setEmailSent(true);
     setIsSubmitting(false);
+    setNotice({
+      title: 'Sign-in link sent',
+      body: <>A one-time link is on its way to <span className="font-mono">{email.trim()}</span>. It may take a minute.</>,
+    });
   };
 
   const handleGoogle = () => {
@@ -88,9 +175,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  const canSubmitEmail = email.trim().length > 0 &&
-    (activeTab === 'signin' || hasAcceptedTerms) &&
-    !isSubmitting;
+  const shownError = authError || clientError;
 
   return (
     <div
@@ -101,20 +186,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       <div className="absolute inset-0 backdrop-blur-sm" onClick={handleClose} />
 
       {/* Modal card */}
-      <div className="relative w-full max-w-md bg-lb-paper border border-lb-border rounded-xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-md bg-lb-bg border border-lb-border rounded-xl shadow-2xl overflow-hidden">
 
-        {/* Header */}
-        <div className="px-6 pt-6 pb-0 text-center">
-          <p className="font-serif text-lb-accent text-xs uppercase tracking-[0.2em] mb-1">London Bleeds</p>
-          <h2 className="font-serif text-2xl text-lb-primary italic mb-1">The Whitechapel Diaries</h2>
-          <p className="text-lb-muted text-xs mb-5">Sign in to save your investigation across devices</p>
+        {/* Brass top rule */}
+        <div className="h-1 bg-lb-accent" />
+
+        {/* Header / masthead */}
+        <div className="relative px-6 pt-7 pb-4 text-center">
           <button
             onClick={handleClose}
-            className="absolute top-4 right-4 p-1.5 text-lb-muted hover:text-lb-primary hover:bg-lb-bg rounded-md transition-colors"
+            className="absolute top-4 right-4 p-1.5 text-lb-muted hover:text-lb-primary hover:bg-lb-paper rounded-md transition-colors"
             aria-label="Close"
           >
             <X size={16} />
           </button>
+          <p className="font-serif text-lb-accent text-[11px] uppercase tracking-[0.25em] mb-1.5">London Bleeds</p>
+          <h2 className="font-serif italic text-2xl text-lb-primary leading-tight">The Whitechapel Diaries</h2>
+          <p className="text-lb-muted text-xs mt-2">
+            {activeTab === 'signin' ? 'Resume your investigation' : 'Open a new case file'}
+          </p>
+          {/* Ornamental divider */}
+          <div className="flex items-center justify-center gap-2 mt-4">
+            <div className="h-px w-12 bg-lb-border" />
+            <div className="w-1.5 h-1.5 rotate-45 bg-lb-accent/60" />
+            <div className="h-px w-12 bg-lb-border" />
+          </div>
         </div>
 
         {/* Tabs */}
@@ -137,81 +233,165 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         {/* Content */}
         <div className="p-6 space-y-4">
 
-          {/* Google OAuth */}
-          <button
-            onClick={handleGoogle}
-            className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-lb-border bg-lb-paper hover:bg-lb-bg rounded-lg text-sm font-medium text-lb-primary transition-colors"
-          >
-            <GoogleLogo />
-            Continue with Google
-          </button>
-
-          {/* Divider */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-lb-border" />
-            <span className="text-lb-muted text-xs">or</span>
-            <div className="flex-1 h-px bg-lb-border" />
-          </div>
-
-          {/* Email magic link */}
-          {emailSent ? (
-            <div className="flex items-start gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-lg">
-              <CheckCircle size={16} className="text-green-600 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-green-800">Check your inbox</p>
-                <p className="text-xs text-green-700 mt-0.5">A sign-in link is on its way to <span className="font-mono">{email}</span>. It may take a minute.</p>
+          {notice ? (
+            <>
+              <div className="flex items-start gap-3 rounded-lg border border-lb-accent/40 bg-lb-accent/10 px-4 py-3">
+                <CheckCircle size={16} className="text-lb-accent mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-lb-primary">{notice.title}</p>
+                  <p className="text-xs text-lb-muted mt-0.5">{notice.body}</p>
+                </div>
               </div>
-            </div>
+              <button
+                type="button"
+                onClick={() => setNotice(null)}
+                className="w-full text-center text-xs text-lb-muted hover:text-lb-primary transition-colors"
+              >
+                ← Back to {activeTab === 'signin' ? 'sign in' : 'sign up'}
+              </button>
+            </>
           ) : (
-            <form onSubmit={handleEmailSubmit} className="space-y-2">
-              <label className="block text-xs font-semibold text-lb-primary uppercase tracking-wider">
-                {activeTab === 'signin' ? 'Send me a magic link' : 'Or sign up with email'}
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="flex-1 border border-lb-border rounded-lg px-3 py-2 bg-lb-bg text-lb-primary text-sm placeholder:text-lb-muted focus:outline-none focus:border-lb-accent transition-colors"
-                  autoComplete="email"
-                />
-                <button
-                  type="submit"
-                  disabled={!canSubmitEmail}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-lb-primary text-white text-sm font-semibold rounded-lg hover:bg-lb-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
-                  Send
-                </button>
+            <>
+              {/* Google OAuth */}
+              <button
+                onClick={handleGoogle}
+                className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-lb-border bg-lb-paper hover:border-lb-accent/60 rounded-lg text-sm font-medium text-lb-primary transition-colors"
+              >
+                <GoogleLogo />
+                Continue with Google
+              </button>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-lb-border" />
+                <span className="text-lb-muted text-xs">or</span>
+                <div className="flex-1 h-px bg-lb-border" />
               </div>
-            </form>
+
+              {activeTab === 'signin' ? (
+                /* ---------------- Sign In ---------------- */
+                <form onSubmit={handleSignIn} className="space-y-3">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => { setEmail(e.target.value); setClientError(null); }}
+                    placeholder="your@email.com"
+                    className={inputClass}
+                    autoComplete="email"
+                    autoFocus
+                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="Password"
+                      className={`${inputClass} pr-10`}
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(s => !s)}
+                      tabIndex={-1}
+                      className="absolute inset-y-0 right-0 px-3 flex items-center text-lb-muted hover:text-lb-primary transition-colors"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleForgot}
+                      className="text-xs text-lb-accent hover:text-lb-primary transition-colors"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <button type="submit" disabled={!canSignIn} className={primaryBtnClass}>
+                    {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <LogIn size={14} />}
+                    Sign In
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleMagicLink}
+                    className="w-full flex items-center justify-center gap-1.5 text-xs text-lb-muted hover:text-lb-primary transition-colors"
+                  >
+                    <Mail size={12} />
+                    Email me a sign-in link instead
+                  </button>
+                </form>
+              ) : (
+                /* ---------------- Create Account ---------------- */
+                <form onSubmit={handleCreate} className="space-y-3">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => { setEmail(e.target.value); setClientError(null); }}
+                    placeholder="your@email.com"
+                    className={inputClass}
+                    autoComplete="email"
+                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="Password (min. 6 characters)"
+                      className={`${inputClass} pr-10`}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(s => !s)}
+                      tabIndex={-1}
+                      className="absolute inset-y-0 right-0 px-3 flex items-center text-lb-muted hover:text-lb-primary transition-colors"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm password"
+                    className={inputClass}
+                    autoComplete="new-password"
+                  />
+                  {confirmPassword.length > 0 && !passwordsMatch && (
+                    <p className="text-[11px] text-red-600">Passwords don&apos;t match.</p>
+                  )}
+
+                  {/* T&C */}
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hasAcceptedTerms}
+                      onChange={e => setHasAcceptedTerms(e.target.checked)}
+                      className="mt-0.5 accent-lb-accent"
+                    />
+                    <TermsContent compact />
+                  </label>
+
+                  <button type="submit" disabled={!canCreate} className={primaryBtnClass}>
+                    {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+                    Create Account
+                  </button>
+                </form>
+              )}
+            </>
           )}
 
-          {/* Auth error */}
-          {authError && (
-            <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-xs text-red-700">{authError}</p>
-            </div>
-          )}
-
-          {/* T&C for Create Account */}
-          {activeTab === 'create' && (
-            <div className="space-y-2">
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={hasAcceptedTerms}
-                  onChange={e => setHasAcceptedTerms(e.target.checked)}
-                  className="mt-0.5 accent-lb-accent"
-                />
-                <TermsContent compact />
-              </label>
+          {/* Auth / validation error */}
+          {shownError && (
+            <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2">
+              <p className="text-xs text-red-600">{shownError}</p>
             </div>
           )}
 
           {/* Sign In privacy note */}
-          {activeTab === 'signin' && (
+          {activeTab === 'signin' && !notice && (
             <p className="text-center text-[10px] text-lb-muted">
               By signing in you agree to our{' '}
               <button

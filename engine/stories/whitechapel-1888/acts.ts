@@ -17,7 +17,7 @@ export interface ActTimeConfig {
 }
 
 export const ACT_TIME_CONFIG: Record<number, ActTimeConfig> = {
-  0: { canonicalMinutes: 1260, dayOfWeek: 'Thursday', displayDate: '8 November 1888' },  // 9:00 PM  — Baker Street evening vigil
+  0: { canonicalMinutes: 1200, dayOfWeek: 'Thursday', displayDate: '8 November 1888' },  // 8:00 PM  — Baker Street evening vigil
   1: { canonicalMinutes: 645,  dayOfWeek: 'Friday',   displayDate: '9 November 1888' },  // 10:45 AM — Kelly's body discovered
   2: { canonicalMinutes: 780,  dayOfWeek: 'Friday',   displayDate: '9 November 1888' },  // 1:00 PM  — afternoon review
   3: { canonicalMinutes: 1380, dayOfWeek: 'Friday',   displayDate: '9 November 1888' },  // 11:00 PM — night investigation

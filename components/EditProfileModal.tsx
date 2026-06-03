@@ -131,7 +131,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
           {/* Avatar */}
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-lb-primary text-white flex items-center justify-center overflow-hidden shrink-0">
+            <div className="w-14 h-14 rounded-full bg-lb-primary text-lb-bg flex items-center justify-center overflow-hidden shrink-0">
               {user.user_metadata?.avatar_url ? (
                 <img
                   src={user.user_metadata.avatar_url}
@@ -220,7 +220,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             <button
               onClick={handleSave}
               disabled={!canSave}
-              className={`flex items-center justify-center gap-2 px-4 py-2.5 bg-lb-primary text-white text-sm font-semibold rounded-lg hover:bg-lb-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${isFirstRun ? 'w-full' : 'flex-1'}`}
+              className={`flex items-center justify-center gap-2 px-4 py-2.5 bg-lb-primary text-lb-bg text-sm font-semibold rounded-lg hover:bg-lb-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${isFirstRun ? 'w-full' : 'flex-1'}`}
             >
               {isSaving ? <Loader2 size={14} className="animate-spin" /> : (!isFirstRun && <Save size={14} />)}
               {isFirstRun ? 'Begin the Investigation' : 'Save Changes'}

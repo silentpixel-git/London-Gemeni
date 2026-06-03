@@ -145,7 +145,7 @@ export const Header: React.FC<HeaderProps> = ({
         {!user && (
           <button
             onClick={onOpenAuth}
-            className="flex items-center gap-2 px-4 py-2 bg-lb-primary text-white rounded-full text-xs font-bold tracking-widest uppercase hover:bg-lb-accent transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-lb-primary text-lb-bg rounded-full text-xs font-bold tracking-widest uppercase hover:bg-lb-accent transition-colors"
           >
             <LogIn size={14} />
             <span className="hidden sm:inline">Sign In</span>
@@ -234,7 +234,7 @@ export const Header: React.FC<HeaderProps> = ({
                               setIsProfileMenuOpen(false);
                               onNewGame();
                             }}
-                            className="flex-1 px-2 py-1.5 bg-lb-primary text-white text-xs font-semibold rounded hover:bg-lb-accent transition-colors"
+                            className="flex-1 px-2 py-1.5 bg-lb-primary text-lb-bg text-xs font-semibold rounded hover:bg-lb-accent transition-colors"
                           >
                             Yes, start fresh
                           </button>
