@@ -165,8 +165,11 @@ function runWinningPath() {
   // dorset_street.act=1, so now accessible
   s = step('Act1', s, 'go to dorset street',     { expectSuccess: true, expectLocation: 'dorset_street' });
   s = step('Act1', s, 'go to millers court',     { expectSuccess: true, expectLocation: 'millers_court' });
-  // burned_clothing sets examined_millers_court (via locationExaminedFlag) → last act 1 flag → act advances
-  s = step('Act1', s, 'examine burned clothing', { expectSuccess: true, expectFlag: 'examined_millers_court', expectClue: 'clue_01_killer_confidence', expectAct: 2 });
+  // Act 1 now requires BOTH burned_clothing AND the_bed (2-of-4 specific examines)
+  // burned_clothing sets examined_millers_court_burned_clothing (first gate flag)
+  s = step('Act1', s, 'examine burned clothing', { expectSuccess: true, expectFlag: 'examined_millers_court_burned_clothing', expectClue: 'clue_01_killer_confidence' });
+  // the_bed sets examined_millers_court_the_bed (second + last gate flag → act advances)
+  s = step('Act1', s, 'examine the bed',         { expectSuccess: true, expectFlag: 'examined_millers_court_the_bed', expectAct: 2 });
 
   // Act 2 — Mortuary + Buck's Row + Hanbury Street
   // Path: millers_court → dorset_street → h_division_station → whitechapel_pub → bucks_row
@@ -220,8 +223,8 @@ function runWinningPath() {
     expectAct: 6,
   });
 
-  // Act 6 — Correct deduction → sets asylum_unlocked → move to asylum → examine → gameOver
-  // NOTE: correct deduction sets 'asylum_unlocked' (not 'correct_deduction')
+  // Act 6 — Correct deduction requires clue_06 (prasarved spelling) as smoking gun.
+  // It is now in discoveredClueIds from the bond_office examine above.
   s = step('Act6', s, 'deduce Edmund Halward is the killer', {
     expectSuccess: true,
     expectFlag: 'asylum_unlocked',
@@ -384,8 +387,23 @@ function runBlockedActions() {
     ? pass('Blocked: deduce with 0 clues blocked (below threshold of 5)')
     : fail('Blocked: deduce with 0 clues should be blocked');
 
-  // Deduce with 4 clues (still below threshold)
-  const s4clues = buildSnapshot({
+  // Deduce with 3 clues (still below the new threshold of 4)
+  const s3clues = buildSnapshot({
+    currentAct: 5,
+    location: 'bond_office',
+    discoveredClueIds: [
+      'clue_00_campaign_timeline',
+      'clue_02_anatomical_knowledge',
+      'clue_04_kidney_removal',
+    ],
+  });
+  const r6 = gameEngine.resolve(parseIntent('deduce Edmund Halward is the killer'), s3clues);
+  !r6.actionSuccess
+    ? pass('Blocked: deduce with 3 clues blocked (below threshold of 4)')
+    : fail('Blocked: deduce with 3/4 clues should still be blocked');
+
+  // Deduce Edmund with 4 clues but WITHOUT clue_06 (smoking gun) — should be blocked
+  const s4noGun = buildSnapshot({
     currentAct: 5,
     location: 'bond_office',
     discoveredClueIds: [
@@ -393,12 +411,13 @@ function runBlockedActions() {
       'clue_02_anatomical_knowledge',
       'clue_04_kidney_removal',
       'clue_05_from_hell_letter',
+      // clue_06_prasarved_spelling missing
     ],
   });
-  const r6 = gameEngine.resolve(parseIntent('deduce Edmund Halward is the killer'), s4clues);
-  !r6.actionSuccess
-    ? pass('Blocked: deduce with 4 clues blocked (1 below threshold)')
-    : fail('Blocked: deduce with 4/5 clues should still be blocked');
+  const r7 = gameEngine.resolve(parseIntent('deduce Edmund Halward is the killer'), s4noGun);
+  !r7.actionSuccess
+    ? pass('Blocked: Edmund deduction blocked without smoking-gun clue_06')
+    : fail('Blocked: Edmund deduction should require clue_06 (prasarved spelling)');
 }
 
 // ── Scenario 6: NPC alias integrity ──────────────────────────────────────────
@@ -488,23 +507,34 @@ function runClueDedupe() {
 function runDeductionThreshold() {
   console.log('\n=== SCENARIO: deduction-threshold ===');
 
-  const fiveClues = [
-    'clue_00_campaign_timeline',
+  // Threshold is now 4. Must also include clue_06 for Edmund deduction.
+  const fourCluesWithGun = [
     'clue_02_anatomical_knowledge',
     'clue_04_kidney_removal',
     'clue_05_from_hell_letter',
-    'clue_06_prasarved_spelling',
+    'clue_06_prasarved_spelling', // smoking gun — required for Edmund
   ];
 
   const s = buildSnapshot({
     currentAct: 5,
     location: 'bond_office',
-    discoveredClueIds: fiveClues,
+    discoveredClueIds: fourCluesWithGun,
   });
   const result = gameEngine.resolve(parseIntent('deduce Edmund Halward is the killer'), s);
   result.actionSuccess
-    ? pass('DeductionThreshold: deduce succeeds at exactly 5 clues')
-    : fail('DeductionThreshold: deduce should succeed at exactly 5 clues', result.blockedReason);
+    ? pass('DeductionThreshold: deduce succeeds at exactly 4 clues (including clue_06)')
+    : fail('DeductionThreshold: deduce should succeed at exactly 4 clues with clue_06', result.blockedReason);
+
+  // Confirm 3 clues still blocked
+  const threeClues = buildSnapshot({
+    currentAct: 5,
+    location: 'bond_office',
+    discoveredClueIds: fourCluesWithGun.slice(0, 3),
+  });
+  const r2 = gameEngine.resolve(parseIntent('deduce Edmund Halward is the killer'), threeClues);
+  !r2.actionSuccess
+    ? pass('DeductionThreshold: 3 clues correctly blocked (below threshold of 4)')
+    : fail('DeductionThreshold: 3 clues should be blocked');
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

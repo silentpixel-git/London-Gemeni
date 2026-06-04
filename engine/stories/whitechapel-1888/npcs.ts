@@ -55,6 +55,11 @@ export const NPCS: Record<string, NPCDefinition> = {
       'No reliable witness has seen the killer with any victim; every description is contradictory',
       'George Lusk and the Vigilance Committee provide ground coverage but also pressure from below',
       'Has been under political pressure to investigate dock workers and the foreign community — resists it but cannot ignore it entirely',
+      // Historical accuracy: Bond explicitly concluded the killer lacked formal medical training.
+      // Abberline MUST NOT assert medical skill as investigative consensus — he reflects the dispute.
+      'Dr. Bond\'s formal assessment is that the killer had some rough anatomical knowledge but NO surgical training or professional medical qualification — Bond was explicit on this point and disagreed with other surgeons who suggested otherwise. Abberline respects Bond\'s conclusion and presents it as the official medical position, not as one view among many.',
+      // Bond alibi — exonerates him as a suspect if Watson asks the right questions.
+      'Dr. Thomas Bond\'s movements on the nights of the Stride and Eddowes murders (30 September) were fully accounted for — he was presenting a paper at a medical society dinner in the City and was seen by colleagues throughout the evening. He was called to the Eddowes scene after the fact. Abberline confirmed this personally.',
     ],
     followingRule: 'location_based',
     canonicalLocationByAct: {

@@ -50,9 +50,15 @@ export const ACT_PROGRESSION: Record<number, ActCondition> = {
     advanceTo: 1,
   },
   // Act 1 — The fresh Kelly murder scene at Miller's Court
+  // Requires engaging with the two most significant details:
+  //   burned_clothing — the killer lit clothing in the grate to work by; a specific, calculated act
+  //   the_bed         — the primary crime scene; Watson must face what happened here directly
   1: {
     name: 'The Last Murder',
-    requireFlags: ['examined_millers_court'],
+    requireFlags: [
+      'examined_millers_court_burned_clothing', // The fireplace grate — killer's use of light
+      'examined_millers_court_the_bed',         // The bed — the central horror of the scene
+    ],
     advanceTo: 2,
   },
   // Act 2 — Retrospective: the mortuary is mandatory (Bond's domain, Edmund present),
@@ -88,8 +94,10 @@ export const ACT_PROGRESSION: Record<number, ActCondition> = {
   },
 };
 
-// Minimum clues required for a successful deduction attempt
-export const DEDUCTION_THRESHOLD = 5;
+// Minimum clues required for a successful deduction attempt.
+// Set to 4 (not 5) to provide one clue of slack — the critical path yields 5+,
+// so a player who misses one non-mandatory examine can still reach a conclusion.
+export const DEDUCTION_THRESHOLD = 4;
 
 // Keywords that suggest a deduction attempt
 export const DEDUCTION_KEYWORDS = [

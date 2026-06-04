@@ -612,6 +612,25 @@ export class GameEngine {
     );
 
     if (matchedProfile?.isGuilty) {
+      // The smoking-gun clue (the 'prasarved' misspelling in Edmund's forensic note)
+      // is required to confirm the correct deduction. Without it, Watson has only
+      // circumstantial evidence and Holmes will not commit to a name.
+      const SMOKING_GUN_CLUE = 'clue_06_prasarved_spelling';
+      if (!session.discoveredClueIds.includes(SMOKING_GUN_CLUE)) {
+        return {
+          actionSuccess: false,
+          actionType: 'deduce',
+          blockedReason: `Holmes taps his fingers together. "The connexion exists, Watson — I have seen the shadow of it. But I will not name a man without the thread that ties him to the letters. There is something we have not yet found."`,
+          discoveredClueIds: [],
+          aiContext: this.buildContext(intent, session, {
+            success: false,
+            actionDescription: `Watson proposed a theory: "${intent.raw}"`,
+            actionResultNote: `BLOCKED — Holmes senses Watson is close but lacks the specific written evidence that links the suspect to the From Hell letter. The forensic connexion has not yet been established. Redirect Watson: the answer lies in written records, not witness accounts.`,
+            newClueDefs: [],
+          }),
+        };
+      }
+
       const isGameOver = matchedProfile.successVisitFlag
         ? session.flags[matchedProfile.successVisitFlag] === true
         : false;
