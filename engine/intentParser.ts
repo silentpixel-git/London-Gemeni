@@ -14,10 +14,12 @@ export type { IntentType };
 
 export interface ParsedIntent {
   type: IntentType;
-  targetId?: string;       // Resolved ID: location ID, NPC ID, or object ID
-  targetRaw?: string;      // What the player typed as the target
-  deductionText?: string;  // For 'deduce' type: the player's theory text
-  raw: string;             // Original input
+  targetId?: string;         // Resolved ID: location ID, NPC ID, or object ID
+  targetRaw?: string;        // What the player typed as the target
+  deductionText?: string;    // For 'deduce' type: the player's theory text
+  showTargetNpcId?: string;  // For 'show' type: the NPC to show the item to
+  useWithTargetId?: string;  // For 'use' type: the second item/object in "USE X WITH Y"
+  raw: string;               // Original input
 }
 
 // Movement trigger words
@@ -27,10 +29,10 @@ const MOVE_VERBS = [
   'visit', 'step into', 'step outside', 'run to', 'hurry to',
 ];
 
-// Examine trigger words
+// Examine trigger words (read is now a distinct verb with its own handler)
 const EXAMINE_VERBS = [
   'examine', 'look at', 'look', 'inspect', 'study', 'observe', 'check',
-  'search', 'review', 'read', 'view', 'scrutinise', 'scrutinize',
+  'search', 'review', 'view', 'scrutinise', 'scrutinize',
   'investigate', 'analyse', 'analyze', 'survey', 'peruse', 'open', 'smell',
 ];
 
@@ -49,8 +51,22 @@ const TAKE_VERBS = [
 
 // Use/interact trigger words
 const USE_VERBS = [
-  'use', 'interact with', 'activate', 'operate', 'show', 'give',
-  'apply', 'present',
+  'use', 'interact with', 'activate', 'operate', 'apply',
+];
+
+// Show item to NPC (Infocom: SHOW X TO Y)
+const SHOW_VERBS = [
+  'show', 'present', 'give', 'hand', 'display', 'reveal',
+];
+
+// Read a document (distinct from examine — reads the literal text)
+const READ_VERBS = [
+  'read',
+];
+
+// Drop / leave an item
+const DROP_VERBS = [
+  'drop', 'leave', 'put down', 'discard', 'place',
 ];
 
 // Inventory trigger words
@@ -346,17 +362,71 @@ export function parseIntent(rawInput: string): ParsedIntent {
     }
   }
 
-  // 6. Use / interact
+  // 6. Show item to NPC — "show letter to abberline" / "give note to holmes"
+  // Pattern: SHOW <item> TO <npc>
+  for (const verb of SHOW_VERBS.sort((a, b) => b.length - a.length)) {
+    if (norm.startsWith(verb + ' ') || norm === verb) {
+      const afterVerb = stripVerb(rawInput, SHOW_VERBS);
+      // Split on " to " to separate item from NPC
+      const toIdx = afterVerb.toLowerCase().search(/\bto\b/);
+      if (toIdx !== -1) {
+        const itemRaw = afterVerb.slice(0, toIdx).trim();
+        const npcRaw  = afterVerb.slice(toIdx + 2).trim();
+        const targetId = matchObjectId(itemRaw);
+        const showTargetNpcId = matchNpcId(npcRaw);
+        return {
+          type: 'show',
+          targetId,
+          targetRaw: itemRaw,
+          showTargetNpcId,
+          raw: rawInput,
+        };
+      }
+      // No "to" — treat as show <item> with no specific target
+      const targetId = matchObjectId(afterVerb) || matchNpcId(afterVerb);
+      return { type: 'show', targetId, targetRaw: afterVerb, raw: rawInput };
+    }
+  }
+
+  // 6b. Read <document> — distinct from examine: reads literal text
+  for (const verb of READ_VERBS) {
+    if (norm.startsWith(verb + ' ') || norm === verb) {
+      const targetRaw = stripVerb(rawInput, READ_VERBS);
+      const targetId = targetRaw ? matchObjectId(targetRaw) : undefined;
+      return { type: 'read', targetId, targetRaw, raw: rawInput };
+    }
+  }
+
+  // 6c. Drop <item>
+  for (const verb of DROP_VERBS.sort((a, b) => b.length - a.length)) {
+    if (norm.startsWith(verb + ' ') || norm === verb) {
+      const targetRaw = stripVerb(rawInput, DROP_VERBS);
+      const targetId = matchObjectId(targetRaw);
+      return { type: 'drop', targetId, targetRaw, raw: rawInput };
+    }
+  }
+
+  // 6d. Use / interact — also handles "USE X WITH Y" / "USE X ON Y"
   for (const verb of USE_VERBS.sort((a, b) => b.length - a.length)) {
     if (norm.startsWith(verb + ' ') || norm === verb) {
-      const targetRaw = stripVerb(rawInput, USE_VERBS);
-      const targetId = matchObjectId(targetRaw) || matchNpcId(targetRaw);
-      return {
-        type: 'use',
-        targetId,
-        targetRaw,
-        raw: rawInput,
-      };
+      const afterVerb = stripVerb(rawInput, USE_VERBS);
+      // Check for "X with Y" or "X on Y"
+      const withIdx = afterVerb.toLowerCase().search(/\b(with|on)\b/);
+      if (withIdx !== -1) {
+        const itemRaw  = afterVerb.slice(0, withIdx).trim();
+        const item2Raw = afterVerb.slice(withIdx).replace(/^(with|on)\s+/i, '').trim();
+        const targetId = matchObjectId(itemRaw) || matchNpcId(itemRaw);
+        const useWithTargetId = matchObjectId(item2Raw) || matchNpcId(item2Raw);
+        return {
+          type: 'use',
+          targetId,
+          targetRaw: itemRaw,
+          useWithTargetId,
+          raw: rawInput,
+        };
+      }
+      const targetId = matchObjectId(afterVerb) || matchNpcId(afterVerb);
+      return { type: 'use', targetId, targetRaw: afterVerb, raw: rawInput };
     }
   }
 

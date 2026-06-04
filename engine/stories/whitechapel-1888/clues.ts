@@ -433,3 +433,151 @@ export const USE_INTERACTIONS: Record<string, Record<string, string>> = {
       "Watson reads the progression of newspaper coverage: confusion, then panic, then the naming of 'Jack the Ripper' — a name the police never used, invented by a letter-writer who was almost certainly not the killer. Holmes has annotated the margins: 'Misdirection. Public panic serves the killer's anonymity.'",
   },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHOW INTERACTIONS (Infocom: SHOW X TO Y)
+// Watson shows an inventory item to an NPC. Keyed by inventoryItemId → npcId.
+// Each entry contains the clue triggered (if any) and the AI result note.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ShowInteraction {
+  clueId?: string;       // Clue unlocked by this show action (optional)
+  resultNote: string;    // Passed to AI as actionResultNote
+}
+
+export const SHOW_INTERACTIONS: Record<string, Record<string, ShowInteraction>> = {
+  // SHOW forensic note TO abberline
+  // Abberline recognises the handwriting style as matching letters from a witness — plants detail
+  'edmund_forensic_note': {
+    'abberline': {
+      clueId: 'clue_08_preserved_kidney', // reuse — links Edmund's cataloguing to the kidney parcel
+      resultNote: "SUCCESS — Abberline examines the forensic note carefully. He notes the precise, unhurried cataloguing style — the same clinical brevity he has seen in anonymous letters that arrived during the investigation. He does not yet name anyone, but he does not hand it back immediately.",
+    },
+    'holmes': {
+      clueId: 'clue_06_prasarved_spelling', // alternate path to the smoking-gun clue
+      resultNote: "SUCCESS — Holmes takes the note without a word and holds it beside the From Hell letter. After thirty seconds he says: 'There. The vowel. It is the same man, Watson.' He places both documents side by side on the table.",
+    },
+  },
+  // SHOW from hell letter TO bond
+  // Bond identifies the preservation knowledge in the letter as matching his assistant's practice
+  'from_hell_letter': {
+    'bond': {
+      resultNote: "SUCCESS — Bond reads the letter without expression. He pauses at the passage describing the kidney's condition. 'Whoever preserved this,' he says quietly, 'knew the correct temperature and duration. That is not general knowledge.' He does not look at his assistant. He hands the letter back without comment.",
+    },
+    'abberline': {
+      resultNote: "SUCCESS — Abberline has seen the letter before, but he reads it again with Watson present. 'The spelling,' he says. 'We noticed it. Could be illiteracy, could be affectation. The press have printed the thing in full — half of London has read it.' He folds it carefully. 'The kidney, though. That detail was never published.'",
+    },
+    'holmes': {
+      resultNote: "SUCCESS — Holmes reads it twice, then holds it to the light. 'The vocabulary is deliberate, Watson. The errors are consistent — not random. This man knows how to spell and is choosing not to. Or he learned spoken English before written English. Either way: educated, but not schooled in the conventional sense.' He sets it down. 'Keep it.'",
+    },
+  },
+  // SHOW kidney parcel TO bond
+  // Bond identifies the precise preservation technique — matches his assistant's documented method
+  'kidney_parcel': {
+    'bond': {
+      resultNote: "SUCCESS — Bond examines the preserved tissue with clinical focus. 'Spirit of wine,' he says. 'Standard fixative. But the concentration is specific — this is not a general formula. This matches the preservation method I use in my own laboratory.' A long pause. 'I document the method in my practice notes. My assistant transcribes those notes.'",
+    },
+  },
+  // SHOW forensic reports TO abberline
+  // Abberline sees the cross-case pattern and adds police context
+  'medical_reports': {
+    'abberline': {
+      resultNote: "SUCCESS — Abberline reads the summary, then lays it on his desk and puts his hand flat on it. 'If this is right,' he says, 'then whoever did this was at every scene in a professional capacity. Not a vagrant. Not a butcher. Someone with a reason to be there.' He does not say who. But his eyes move to the window that faces Bond's office across the courtyard.",
+    },
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USE COMBINATIONS (Infocom: USE X WITH Y)
+// Watson uses one inventory item with another object/item.
+// Keyed by inventoryItemId → { withTargetId → interaction }
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface UseCombination {
+  clueId?: string;
+  resultNote: string;
+}
+
+export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = {
+  // USE forensic note WITH from hell letter
+  // Watson compares handwriting — alternate path to clue_06
+  'edmund_forensic_note': {
+    'from_hell_letter': {
+      clueId: 'clue_06_prasarved_spelling',
+      resultNote: "SUCCESS — Watson places the forensic note beside the From Hell letter and reads them in parallel. The style diverges — one is clinical, one is performed illiteracy. But there it is: 'prasarved.' The same idiosyncratic vowel, in the same uncertain position, written without hesitation by the same hand.",
+    },
+    'autopsy_ledger': {
+      resultNote: "SUCCESS — Watson compares the forensic note's cataloguing style against Bond's ledger entries. The assistant's handwriting is contained in the right-hand column: brief, precise, unhurried. The same voice that wrote the From Hell letter, but cleaned of its performance.",
+    },
+  },
+  // USE kidney parcel WITH autopsy ledger
+  // Cross-reference surfaces preservation technique detail
+  'kidney_parcel': {
+    'autopsy_ledger': {
+      clueId: 'clue_08_preserved_kidney',
+      resultNote: "SUCCESS — Watson cross-references the kidney's preservation against the ledger's documented method. Bond's notes specify spirit of wine at a precise dilution — the same concentration Watson observes in the parcel. This kidney was preserved by someone who had read, or written, that ledger entry.",
+    },
+  },
+  // USE forensic reports WITH case files wall
+  // Watson integrates Bond's reports into Holmes's case map
+  'medical_reports': {
+    'case_files_wall': {
+      resultNote: "SUCCESS — Watson pins the forensic summary beside the case map. The pattern clarifies: the same surgical approach across all five murders, the same efficiency, the same anatomical confidence. Holmes watches from his chair. 'You are beginning to see it,' he says. 'Now ask yourself: who was present at every post-mortem?'",
+    },
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOCUMENT TEXT (Infocom: READ X — shows the literal text of a document)
+// Watson reads the actual words rather than examining the physical object.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const DOCUMENT_TEXT: Record<string, string> = {
+  from_hell_letter: `*From Hell.*
+
+Mr Lusk,
+Sor
+I send you half the Kidne I took from one woman prasarved it for you tother piece I fried and ate it was very nise. I may send you the bloody knif that took it out if you only wate a whil longer.
+
+signed Catch me when you can Mishter Lusk`,
+
+  edmund_forensic_note: `*Post-mortem cataloguing note — Miller's Court, 9 November 1888.*
+*Transcribed by E. Halward, assistant to Dr. T. Bond.*
+
+Injuries consistent with prior cases. Organ removal: uterus, heart, portions of kidney. Incision depth and angle consistent with Chapman and Eddowes examinations. Tissue prasarved in spirit of wine (standard laboratory concentration, per standing procedure). Fire in grate burned approximately four hours — consistent with witness reports of warmth in the room at time of discovery.
+
+*E. Halward*`,
+
+  telegrams_pile: `*Telegrams received at Baker Street, October–November 1888.*
+
+Oct 19 — Abberline to Holmes: Lusk received kidney parcel. Examining. City & Met coordinating.
+
+Oct 29 — Abberline to Holmes: Bond confirms kidney human, female, matching Eddowes. Preserved. No arrest imminent.
+
+Nov 7 — Abberline to Holmes: Another woman. Dorset Street. Do not come yet — scene active. Bond called.
+
+Nov 9 — Abberline to Holmes: Kelly. Miller's Court No. 13. Worst yet. Come now if you will come.`,
+
+  case_files_wall: `*Holmes's summary of the Whitechapel murders, November 1888.*
+
+Polly Nichols — Buck's Row, 31 Aug. Throat cut. Abdominal injuries. No uterus.
+Annie Chapman — Hanbury St, 8 Sep. Uterus removed. Rings taken.
+Elizabeth Stride — Dutfield's Yard, 30 Sep. Throat only — interrupted.
+Catherine Eddowes — Mitre Square, 30 Sep. Kidney and uterus. Message at Goulston St.
+Mary Jane Kelly — Miller's Court, 9 Nov. Most extensive. Several hours.
+
+*Pattern: acceleration. Increasing confidence. Decreasing caution.*
+*Question: access to victims — professional? Social?*
+*Question: present at investigation — same man?*`,
+
+  autopsy_ledger: `*Whitechapel Mortuary Post-Mortem Ledger — Dr. Thomas Bond, 1888.*
+
+Entry 3 — Annie Chapman, 8 September:
+Uterus removed with a single clean incision. Cuts exhibit familiarity with abdominal cavity. No professional qualification evident, but practical anatomical knowledge confirmed. Organ retention: deliberate.
+
+Entry 5 — Catherine Eddowes, 30 September:
+Left kidney removed within estimated four minutes. Efficiency consistent with prior practice. Spirit of wine fixative observed on tissue fragment (facial). Laboratory concentration, per standing procedure.
+
+Entry 6 — Mary Jane Kelly, 9 November:
+[See supplementary notes. Not reproduced here.]`,
+};

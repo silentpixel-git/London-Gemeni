@@ -10,7 +10,11 @@ export {
   ATMOSPHERIC_NOTES,
   TAKEABLE_OBJECTS,
   USE_INTERACTIONS,
+  SHOW_INTERACTIONS,
+  USE_COMBINATIONS,
+  DOCUMENT_TEXT,
 } from './clues';
+export type { ShowInteraction, UseCombination } from './clues';
 export {
   ACT_NAMES,
   ACT_PROGRESSION,

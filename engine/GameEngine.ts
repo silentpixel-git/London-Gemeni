@@ -28,6 +28,9 @@ import {
   NPC_DISPLAY_NAMES,
   DEDUCTION_THRESHOLD,
   USE_INTERACTIONS,
+  SHOW_INTERACTIONS,
+  USE_COMBINATIONS,
+  DOCUMENT_TEXT,
   SUSPECT_PROFILES,
 } from './gameData';
 
@@ -92,6 +95,9 @@ export class GameEngine {
       case 'talk':      result = this.resolveTalk(intent, session); break;
       case 'take':      result = this.resolveTake(intent, session); break;
       case 'use':       result = this.resolveUse(intent, session); break;
+      case 'show':      result = this.resolveShow(intent, session); break;
+      case 'read':      result = this.resolveRead(intent, session); break;
+      case 'drop':      result = this.resolveDrop(intent, session); break;
       case 'inventory': result = this.resolveInventory(intent, session); break;
       case 'notebook':  result = this.resolveNotebook(intent, session); break;
       case 'deduce':    result = this.resolveDeduce(intent, session); break;
@@ -478,13 +484,63 @@ export class GameEngine {
     const currentLoc = LOCATIONS[session.location];
     const targetId = intent.targetId;
 
-    // Check for a specific use interaction at this location
+    // ── USE X WITH Y (Infocom-style combination) ──────────────────────────────
+    if (intent.useWithTargetId && targetId) {
+      const combination = USE_COMBINATIONS[targetId]?.[intent.useWithTargetId]
+                       ?? USE_COMBINATIONS[intent.useWithTargetId]?.[targetId];
+
+      if (combination) {
+        const hasItem = TAKEABLE_OBJECTS[targetId] !== undefined
+          && session.inventory.includes(TAKEABLE_OBJECTS[targetId]);
+        const item2InLocation = currentLoc.interactables.includes(intent.useWithTargetId);
+        const item2InInventory = TAKEABLE_OBJECTS[intent.useWithTargetId] !== undefined
+          && session.inventory.includes(TAKEABLE_OBJECTS[intent.useWithTargetId]);
+
+        if (hasItem && (item2InLocation || item2InInventory)) {
+          const { newClueIds, newClueDefs } = combination.clueId
+            && !session.discoveredClueIds.includes(combination.clueId)
+            ? { newClueIds: [combination.clueId], newClueDefs: [{ name: CLUE_DEFINITIONS[combination.clueId]?.name ?? combination.clueId, description: CLUE_DEFINITIONS[combination.clueId]?.description ?? '', holmesDeduction: CLUE_DEFINITIONS[combination.clueId]?.holmesDeduction ?? '' }] }
+            : { newClueIds: [], newClueDefs: [] };
+
+          const flagKey = `used_${targetId}_with_${intent.useWithTargetId}`;
+          const allFlags = { ...session.flags, [flagKey]: true };
+          const actCheck = this.checkActProgression(session, allFlags);
+
+          return {
+            actionSuccess: true,
+            actionType: 'use',
+            flagsUpdate: { [flagKey]: true, ...(actCheck.flagsUpdate || {}) },
+            newAct: actCheck.newAct,
+            discoveredClueIds: newClueIds,
+            aiContext: this.buildContext(intent, session, {
+              success: true,
+              actionDescription: `Watson used ${OBJECT_DISPLAY_NAMES[targetId] ?? targetId} with ${OBJECT_DISPLAY_NAMES[intent.useWithTargetId] ?? intent.useWithTargetId}.`,
+              actionResultNote: combination.resultNote,
+              newClueDefs,
+            }),
+          };
+        }
+
+        // Items not accessible
+        return this.blocked(intent, session,
+          `Watson cannot combine those items here — one or both are not at hand.`,
+          `USE combination blocked: ${targetId} + ${intent.useWithTargetId} — item(s) not in inventory or location.`
+        );
+      }
+
+      // No authored combination
+      return this.blocked(intent, session,
+        `Watson considers it, but there is nothing useful to be learned from combining those two things.`,
+        `No USE combination defined for ${targetId} + ${intent.useWithTargetId}.`
+      );
+    }
+
+    // ── Standard USE at location ──────────────────────────────────────────────
     const useDesc = targetId ? USE_INTERACTIONS[session.location]?.[targetId] : undefined;
 
     if (useDesc && targetId) {
       // Verify the object is present (either in location or in inventory via a takeable mapping)
       const isInLocation = currentLoc.interactables.includes(targetId);
-      // Also allow using inventory items that map back to their original object IDs
       const isInInventory =
         TAKEABLE_OBJECTS[targetId] !== undefined &&
         session.inventory.includes(TAKEABLE_OBJECTS[targetId]);
@@ -526,6 +582,171 @@ export class GameEngine {
 
     // No specific use interaction — fall back to examine
     return this.resolveExamine({ ...intent, type: 'examine' }, session);
+  }
+
+  // --------------------------------------------------------
+  // SHOW (Infocom: SHOW X TO Y)
+  // Watson presents an inventory item to an NPC.
+  // --------------------------------------------------------
+
+  private resolveShow(intent: ParsedIntent, session: SessionSnapshot): EngineResult {
+    const targetId = intent.targetId;          // The item being shown
+    const npcId    = intent.showTargetNpcId;   // The NPC receiving it
+
+    if (!targetId) {
+      return this.blocked(intent, session,
+        `Watson is not sure what to show.`,
+        `SHOW blocked: no item specified.`
+      );
+    }
+
+    // Item must be in inventory
+    const inventoryName = TAKEABLE_OBJECTS[targetId];
+    const hasItem = inventoryName && session.inventory.includes(inventoryName);
+    if (!hasItem) {
+      const objectName = OBJECT_DISPLAY_NAMES[targetId] ?? intent.targetRaw ?? targetId;
+      return this.blocked(intent, session,
+        `Watson does not have the ${objectName} to show.`,
+        `SHOW blocked: ${targetId} not in inventory.`
+      );
+    }
+
+    // NPC must be present
+    if (npcId) {
+      const npcState   = session.npcStates[npcId];
+      const npcLoc     = npcState?.currentLocation ?? NPCS[npcId]?.canonicalLocationByAct[session.currentAct];
+      const npcName    = NPC_DISPLAY_NAMES[npcId] ?? npcId;
+
+      if (npcLoc !== session.location) {
+        return this.blocked(intent, session,
+          `${npcName} is not here.`,
+          `SHOW blocked: ${npcId} not at ${session.location}.`
+        );
+      }
+
+      // Look up authored SHOW interaction
+      const interaction = SHOW_INTERACTIONS[targetId]?.[npcId];
+      if (interaction) {
+        const { newClueIds, newClueDefs } = interaction.clueId
+          && !session.discoveredClueIds.includes(interaction.clueId)
+          ? { newClueIds: [interaction.clueId], newClueDefs: [{ name: CLUE_DEFINITIONS[interaction.clueId]?.name ?? '', description: CLUE_DEFINITIONS[interaction.clueId]?.description ?? '', holmesDeduction: CLUE_DEFINITIONS[interaction.clueId]?.holmesDeduction ?? '' }] }
+          : { newClueIds: [], newClueDefs: [] };
+
+        const flagKey = `showed_${targetId}_to_${npcId}`;
+        return {
+          actionSuccess: true,
+          actionType: 'show',
+          flagsUpdate: { [flagKey]: true },
+          discoveredClueIds: newClueIds,
+          aiContext: this.buildContext(intent, session, {
+            success: true,
+            actionDescription: `Watson showed ${inventoryName} to ${npcName}.`,
+            actionResultNote: interaction.resultNote,
+            newClueDefs,
+            targetNpcId: npcId,
+          }),
+        };
+      }
+
+      // No authored interaction — NPC receives it but nothing specific happens
+      return {
+        actionSuccess: true,
+        actionType: 'show',
+        discoveredClueIds: [],
+        aiContext: this.buildContext(intent, session, {
+          success: true,
+          actionDescription: `Watson showed ${inventoryName} to ${npcName}.`,
+          actionResultNote: `SUCCESS — ${npcName} examines what Watson has shown. They have no specific reaction beyond polite acknowledgement.`,
+          newClueDefs: [],
+          targetNpcId: npcId,
+        }),
+      };
+    }
+
+    // No NPC specified — Watson examines the item himself
+    return this.resolveExamine({ ...intent, type: 'examine' }, session);
+  }
+
+  // --------------------------------------------------------
+  // READ (Infocom: READ X — shows literal document text)
+  // Distinct from EXAMINE: reads words, not physical properties.
+  // --------------------------------------------------------
+
+  private resolveRead(intent: ParsedIntent, session: SessionSnapshot): EngineResult {
+    const targetId = intent.targetId;
+
+    if (!targetId) {
+      return this.blocked(intent, session,
+        `Watson is not sure what to read.`,
+        `READ blocked: no target specified.`
+      );
+    }
+
+    // Check DOCUMENT_TEXT for authored literal text
+    const docText = DOCUMENT_TEXT[targetId];
+    if (docText) {
+      // Item must be in inventory OR in the current location
+      const currentLoc = LOCATIONS[session.location];
+      const inLocation = currentLoc.interactables.includes(targetId);
+      const inInventory = TAKEABLE_OBJECTS[targetId] && session.inventory.includes(TAKEABLE_OBJECTS[targetId]);
+
+      if (inLocation || inInventory) {
+        const objectName = OBJECT_DISPLAY_NAMES[targetId] ?? intent.targetRaw ?? targetId;
+        const flagKey = `read_${targetId}`;
+        return {
+          actionSuccess: true,
+          actionType: 'read',
+          flagsUpdate: { [flagKey]: true },
+          discoveredClueIds: [],
+          aiContext: this.buildContext(intent, session, {
+            success: true,
+            actionDescription: `Watson reads the ${objectName}.`,
+            actionResultNote: `SUCCESS — Watson reads the literal text of the document:\n\n${docText}\n\nNarrate Watson reading this, quoting or paraphrasing it in his voice. Note any details that stand out to a trained observer.`,
+            newClueDefs: [],
+          }),
+        };
+      }
+    }
+
+    // No authored text — fall back to examine
+    return this.resolveExamine({ ...intent, type: 'examine' }, session);
+  }
+
+  // --------------------------------------------------------
+  // DROP
+  // Watson leaves an inventory item at the current location.
+  // --------------------------------------------------------
+
+  private resolveDrop(intent: ParsedIntent, session: SessionSnapshot): EngineResult {
+    const targetId = intent.targetId;
+    const objectName = targetId
+      ? (TAKEABLE_OBJECTS[targetId] ?? OBJECT_DISPLAY_NAMES[targetId] ?? intent.targetRaw ?? targetId)
+      : (intent.targetRaw ?? 'that item');
+
+    // Find matching inventory item
+    const inventoryItem = targetId
+      ? session.inventory.find(i => i === TAKEABLE_OBJECTS[targetId])
+      : undefined;
+
+    if (!inventoryItem) {
+      return this.blocked(intent, session,
+        `Watson is not carrying ${objectName}.`,
+        `DROP blocked: ${targetId ?? 'unknown'} not in inventory.`
+      );
+    }
+
+    return {
+      actionSuccess: true,
+      actionType: 'drop',
+      inventoryRemove: [inventoryItem],
+      discoveredClueIds: [],
+      aiContext: this.buildContext(intent, session, {
+        success: true,
+        actionDescription: `Watson set down the ${inventoryItem}.`,
+        actionResultNote: `SUCCESS — Watson places the ${inventoryItem} aside. He can retrieve it if he returns.`,
+        newClueDefs: [],
+      }),
+    };
   }
 
   // --------------------------------------------------------

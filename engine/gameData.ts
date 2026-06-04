@@ -26,7 +26,11 @@ export {
   ATMOSPHERIC_NOTES,
   TAKEABLE_OBJECTS,
   USE_INTERACTIONS,
+  SHOW_INTERACTIONS,
+  USE_COMBINATIONS,
+  DOCUMENT_TEXT,
 } from './stories/whitechapel-1888/clues';
+export type { ShowInteraction, UseCombination } from './stories/whitechapel-1888/clues';
 
 export {
   ACT_NAMES,

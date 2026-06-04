@@ -537,6 +537,153 @@ function runDeductionThreshold() {
     : fail('DeductionThreshold: 3 clues should be blocked');
 }
 
+// ── Scenario 10: SHOW item TO npc ────────────────────────────────────────────
+
+function runShowMechanic() {
+  console.log('\n=== SCENARIO: show-mechanic ===');
+
+  // SHOW forensic note TO holmes (authored interaction → clue_06 alternate path)
+  // Holmes is canonical at bond_office in act 5, but INITIAL_NPC_STATES hardcodes baker_street.
+  // Override his currentLocation to match act 5 canonical.
+  const sWithNote = buildSnapshot({
+    currentAct: 5,
+    location: 'bond_office',
+    inventory: ["Assistant's Forensic Note (copy)", 'Pocket Watch'],
+    introducedNpcs: [...INITIAL_INTRODUCED_NPCS, 'holmes', 'edmund'],
+    npcStates: {
+      ...INITIAL_NPC_STATES,
+      holmes: { npcId: 'holmes', currentLocation: 'bond_office', status: 'alive', memory: [] },
+    },
+  });
+  const r1 = gameEngine.resolve(parseIntent('show forensic note to holmes'), sWithNote);
+  r1.actionSuccess
+    ? pass('Show: show forensic note to holmes → actionSuccess=true')
+    : fail('Show: show forensic note to holmes failed', r1.blockedReason);
+  (r1.discoveredClueIds ?? []).includes('clue_06_prasarved_spelling')
+    ? pass('Show: clue_06 discovered via show (alternate path)')
+    : fail('Show: clue_06 not discovered from show forensic note to holmes');
+
+  // SHOW item not in inventory → blocked
+  const sNoItem = buildSnapshot({ currentAct: 2, location: 'whitechapel_mortuary' });
+  const r2 = gameEngine.resolve(parseIntent('show forensic note to bond'), sNoItem);
+  !r2.actionSuccess
+    ? pass('Show: blocked when item not in inventory')
+    : fail('Show: should be blocked when item not carried');
+
+  // SHOW item to NPC not present → blocked
+  const sWrongLoc = buildSnapshot({
+    currentAct: 5,
+    location: 'bond_office',
+    inventory: ["Assistant's Forensic Note (copy)"],
+  });
+  const r3 = gameEngine.resolve(parseIntent('show forensic note to abberline'), sWrongLoc);
+  // Abberline is not at bond_office in act 5 — should be blocked or succeed with generic response
+  // (authored interaction exists, but NPC presence check matters)
+  if (!r3.actionSuccess) {
+    pass('Show: blocked when NPC not at current location');
+  } else {
+    warn('Show: NPC presence check may be lenient — verify Abberline is actually at bond_office in act 5');
+  }
+}
+
+// ── Scenario 11: READ document ────────────────────────────────────────────────
+
+function runReadMechanic() {
+  console.log('\n=== SCENARIO: read-mechanic ===');
+
+  // READ from hell letter at lusk_office (in location)
+  const sAtLusk = buildSnapshot({ currentAct: 5, location: 'lusk_office' });
+  const r1 = gameEngine.resolve(parseIntent('read from hell letter'), sAtLusk);
+  r1.actionSuccess
+    ? pass('Read: read from hell letter at lusk_office → actionSuccess=true')
+    : fail('Read: reading from hell letter at its location failed', r1.blockedReason);
+
+  // READ letter from inventory
+  const sWithLetter = buildSnapshot({
+    currentAct: 5,
+    location: 'bond_office',
+    inventory: ['From Hell Letter (transcript)', 'Pocket Watch'],
+  });
+  const r2 = gameEngine.resolve(parseIntent('read the letter'), sWithLetter);
+  r2.actionSuccess
+    ? pass('Read: read from hell letter from inventory → actionSuccess=true')
+    : fail('Read: reading from inventory failed', r2.blockedReason);
+
+  // READ object with no document text → falls back to examine (actionSuccess=true)
+  const sExamine = buildSnapshot({ currentAct: 1, location: 'millers_court' });
+  const r3 = gameEngine.resolve(parseIntent('read the bed'), sExamine);
+  r3.actionSuccess
+    ? pass('Read: non-document read falls back to examine → actionSuccess=true')
+    : fail('Read: non-document read fallback unexpectedly blocked');
+}
+
+// ── Scenario 12: USE X WITH Y ─────────────────────────────────────────────────
+
+function runUseWithMechanic() {
+  console.log('\n=== SCENARIO: use-with-mechanic ===');
+
+  // USE forensic note WITH from hell letter → alternate clue_06 path
+  const sBothItems = buildSnapshot({
+    currentAct: 5,
+    location: 'bond_office',
+    inventory: ["Assistant's Forensic Note (copy)", 'From Hell Letter (transcript)', 'Pocket Watch'],
+  });
+  const r1 = gameEngine.resolve(parseIntent('use forensic note with from hell letter'), sBothItems);
+  r1.actionSuccess
+    ? pass('UseWith: forensic note with from hell letter → actionSuccess=true')
+    : fail('UseWith: combination failed', r1.blockedReason);
+  (r1.discoveredClueIds ?? []).includes('clue_06_prasarved_spelling')
+    ? pass('UseWith: clue_06 discovered via use-with combination')
+    : fail('UseWith: clue_06 not discovered from combination');
+
+  // USE combination with item not in inventory → blocked
+  const sNoNote = buildSnapshot({
+    currentAct: 5,
+    location: 'bond_office',
+    inventory: ['From Hell Letter (transcript)'],
+    // forensic note NOT in inventory
+  });
+  const r2 = gameEngine.resolve(parseIntent('use forensic note with from hell letter'), sNoNote);
+  !r2.actionSuccess
+    ? pass('UseWith: blocked when first item not in inventory')
+    : fail('UseWith: should be blocked when item not carried');
+
+  // USE unknown combination → blocked with appropriate message
+  const r3 = gameEngine.resolve(parseIntent('use letter with kidney parcel'), sBothItems);
+  !r3.actionSuccess
+    ? pass('UseWith: unknown combination returns actionSuccess=false')
+    : fail('UseWith: unknown combination should be blocked');
+}
+
+// ── Scenario 13: DROP item ────────────────────────────────────────────────────
+
+function runDropMechanic() {
+  console.log('\n=== SCENARIO: drop-mechanic ===');
+
+  const s = buildSnapshot({
+    currentAct: 4,
+    location: 'lusk_office',
+    inventory: ['From Hell Letter (transcript)', 'Pocket Watch'],
+  });
+
+  // DROP the letter
+  const result = gameEngine.resolve(parseIntent('drop from hell letter'), s);
+  result.actionSuccess
+    ? pass('Drop: drop from hell letter → actionSuccess=true')
+    : fail('Drop: dropping carried item failed', result.blockedReason);
+
+  const next = applyResult(s, result);
+  !next.inventory.includes('From Hell Letter (transcript)')
+    ? pass('Drop: item removed from inventory after drop')
+    : fail('Drop: item still in inventory after drop');
+
+  // DROP item not in inventory → blocked
+  const r2 = gameEngine.resolve(parseIntent('drop forensic note'), s);
+  !r2.actionSuccess
+    ? pass('Drop: blocked when item not carried')
+    : fail('Drop: should be blocked when item not in inventory');
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -549,6 +696,10 @@ try {
   runPrematureAsylum();
   runClueDedupe();
   runDeductionThreshold();
+  runShowMechanic();
+  runReadMechanic();
+  runUseWithMechanic();
+  runDropMechanic();
 } catch (err) {
   console.error('\n[FATAL] Uncaught exception in test harness:', err);
   process.exit(1);
