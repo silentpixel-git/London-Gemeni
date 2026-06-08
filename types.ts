@@ -40,6 +40,7 @@ export interface Investigation {
   moralPoints: number;
   journalNotes: string;
   stim?: Record<string, STIMEntry>;
+  saveSlot?: number;
   createdAt: string;
   updatedAt: string;
 }

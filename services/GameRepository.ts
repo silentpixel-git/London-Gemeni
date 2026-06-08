@@ -123,12 +123,40 @@ export class GameRepository {
     }
   }
 
+  /**
+   * List all active investigations (save slots) for a user, ordered by slot.
+   */
+  static async listActiveSlots(userId: string): Promise<Investigation[]> {
+    try {
+      const { data, error } = await supabase
+        .from('investigations')
+        .select('*')
+        .eq('owner_id', userId)
+        .eq('status', 'active')
+        .order('save_slot', { ascending: true });
+
+      if (error) throw error;
+      return (data || []).map(row => this.mapInvestigation(row));
+    } catch (err) {
+      console.error('GameRepository.listActiveSlots:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Soft-delete an investigation (frees its save slot, preserves the data).
+   */
+  static async archiveSlot(investigationId: string): Promise<void> {
+    await this.updateInvestigation(investigationId, { status: 'archived' });
+  }
+
   static async createInvestigation(userId: string, initial: {
     currentLocation: string;
     inventory: string[];
     currentAct: number;
     globalFlags: Record<string, boolean>;
     journalNotes: string;
+    saveSlot?: number;
   }): Promise<Investigation> {
     const now = new Date().toISOString();
     const { data, error } = await supabase
@@ -144,6 +172,7 @@ export class GameRepository {
         global_flags: initial.globalFlags,
         journal_notes: initial.journalNotes,
         disposition: {},
+        ...(initial.saveSlot !== undefined ? { save_slot: initial.saveSlot } : {}),
         created_at: now,
         updated_at: now,
       })
@@ -476,6 +505,7 @@ export class GameRepository {
       inventory: (data.inventory as string[]) || [],
       stim: (data.stim as Record<string, unknown>) || undefined,
       introducedNpcs: (data.introduced_npcs as string[]) || [],
+      saveSlot: (data.save_slot as number | null) ?? undefined,
     } as Investigation & { currentAct: number; inventory: string[]; introducedNpcs: string[] };
   }
 }

@@ -10,12 +10,15 @@ interface SupabaseContextType {
   isAuthReady: boolean;
   authError: string | null;
   isNewUser: boolean;
+  isPasswordRecovery: boolean;
   userProfile: UserProfile | null;
   loginWithGoogle: () => Promise<void>;
   loginWithEmail: (email: string) => Promise<void>;
   loginWithPassword: (email: string, password: string) => Promise<boolean>;
   signUpWithPassword: (email: string, password: string) => Promise<'session' | 'confirm' | 'error'>;
   resetPassword: (email: string) => Promise<boolean>;
+  updatePassword: (newPassword: string) => Promise<boolean>;
+  clearPasswordRecovery: () => void;
   logout: () => Promise<void>;
   clearAuthError: () => void;
   refreshProfile: () => Promise<void>;
@@ -29,6 +32,7 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isNewUser, setIsNewUser] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   const loadProfile = async (userId: string) => {
@@ -53,7 +57,13 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Do NOT set isAuthReady here — it is set exactly once in getSession() above.
     // Calling setIsAuthReady(true) on every TOKEN_REFRESHED event would re-trigger
     // any [isAuthReady]-dependent effects on each automatic token renewal.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // A password-recovery link establishes a temporary session and fires this
+      // event. Flag it so the app shows a "set new password" form instead of
+      // dropping the player straight into the game.
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+      }
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -147,6 +157,19 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return true;
   };
 
+  const updatePassword = async (newPassword: string): Promise<boolean> => {
+    setAuthError(null);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      setAuthError(friendlyAuthError(error.message));
+      return false;
+    }
+    setIsPasswordRecovery(false);
+    return true;
+  };
+
+  const clearPasswordRecovery = () => setIsPasswordRecovery(false);
+
   const logout = async () => {
     try {
       // scope: 'local' clears the JWT from localStorage without a network round-trip,
@@ -157,6 +180,7 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
     setUserProfile(null);
     setIsNewUser(false);
+    setIsPasswordRecovery(false);
   };
 
   const clearAuthError = () => setAuthError(null);
@@ -171,9 +195,10 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   return (
     <SupabaseContext.Provider value={{
       user, session, isAuthReady, authError,
-      isNewUser, userProfile,
+      isNewUser, isPasswordRecovery, userProfile,
       loginWithGoogle, loginWithEmail,
       loginWithPassword, signUpWithPassword, resetPassword,
+      updatePassword, clearPasswordRecovery,
       logout,
       clearAuthError, refreshProfile,
     }}>

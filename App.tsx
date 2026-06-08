@@ -19,12 +19,14 @@ import { NarrativeFeed } from './components/NarrativeFeed';
 import { CommandInput } from './components/CommandInput';
 import { AuthModal } from './components/AuthModal';
 import { EditProfileModal } from './components/EditProfileModal';
+import { SaveSlotsModal } from './components/SaveSlotsModal';
+import { ResetPasswordModal } from './components/ResetPasswordModal';
 import { useGameState } from './hooks/useGameState';
 
 // ── Inner app (has access to Supabase context) ──────────────────────────────
 
 const AppContent: React.FC = () => {
-  const { user, isAuthReady, isNewUser, userProfile, logout } = useSupabase();
+  const { user, isAuthReady, isNewUser, isPasswordRecovery, userProfile, logout } = useSupabase();
   // Open by default on desktop (lg+); closed on smaller devices where the
   // sidebar is an overlay drawer that would otherwise cover the game.
   const [isSidebarOpen, setIsSidebarOpen] = useState(
@@ -33,17 +35,33 @@ const AppContent: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isFirstRunProfile, setIsFirstRunProfile] = useState(false);
+  const [isSlotMenuOpen, setIsSlotMenuOpen] = useState(false);
 
   const gs = useGameState({ user, isAuthReady, userProfile });
 
+  // On login, show the slot-select menu instead of auto-loading the last game.
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isAuthReady) return;
     setIsAuthModalOpen(false);
+    // A password-recovery session must set a new password first — the reset modal
+    // takes precedence; don't open the slot menu or first-run profile underneath it.
+    if (isPasswordRecovery) {
+      setIsSlotMenuOpen(false);
+      return;
+    }
+    gs.refreshSlots();
+    setIsSlotMenuOpen(true);
     if (isNewUser) {
       setIsFirstRunProfile(true);
       setIsEditProfileOpen(true);
     }
-  }, [user, isNewUser]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isNewUser, isAuthReady, isPasswordRecovery]);
+
+  const openSlotMenu = () => {
+    gs.refreshSlots();
+    setIsSlotMenuOpen(true);
+  };
 
   const handleOpenEditProfile = () => {
     setIsFirstRunProfile(false);
@@ -56,7 +74,7 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden font-sans selection:bg-lb-accent selection:text-white bg-lb-bg text-lb-primary">
+    <div className="flex h-screen h-dvh w-full overflow-hidden font-sans selection:bg-lb-accent selection:text-white bg-lb-bg text-lb-primary">
 
       {/* Mobile overlay — closes sidebar on outside tap */}
       <div
@@ -99,8 +117,8 @@ const AppContent: React.FC = () => {
           user={user}
           userProfile={userProfile}
           onSave={() => gs.handleSaveGame()}
-          onLoad={gs.handleLoadGame}
-          onNewGame={() => gs.handleNewGame()}
+          onLoad={openSlotMenu}
+          onNewGame={openSlotMenu}
           onOpenAuth={() => setIsAuthModalOpen(true)}
           onOpenEditProfile={handleOpenEditProfile}
           onLogout={logout}
@@ -126,6 +144,16 @@ const AppContent: React.FC = () => {
       </div>
 
       {/* Modals */}
+      <SaveSlotsModal
+        isOpen={isSlotMenuOpen}
+        slots={gs.slots}
+        onSelect={(inv) => { gs.handleSelectSlot(inv); setIsSlotMenuOpen(false); }}
+        onStartInSlot={(n) => { gs.handleStartInSlot(n); setIsSlotMenuOpen(false); }}
+        onContinue={() => { gs.handleContinue(); setIsSlotMenuOpen(false); }}
+        onDelete={(inv) => gs.handleDeleteSlot(inv)}
+        onClose={() => setIsSlotMenuOpen(false)}
+      />
+      <ResetPasswordModal isOpen={isPasswordRecovery} />
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}

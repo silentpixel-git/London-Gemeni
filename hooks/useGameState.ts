@@ -51,6 +51,7 @@ export interface GameStateReturn {
   flags: Record<string, boolean>;
   npcStates: Record<string, NPCState>;
   activeInvestigation: Investigation | null;
+  slots: Investigation[];
 
   // In-game clock
   displayTime: string;
@@ -76,8 +77,14 @@ export interface GameStateReturn {
   handleLoadGame: () => Promise<void>;
   handleConsultHolmes: () => Promise<void>;
   handleUpdateJournal: () => Promise<void>;
-  handleNewGame: () => Promise<void>;
   handleScroll: () => void;
+
+  // Save slots
+  refreshSlots: () => Promise<void>;
+  handleSelectSlot: (investigation: Investigation) => Promise<void>;
+  handleContinue: () => Promise<void>;
+  handleStartInSlot: (slotNumber: number) => Promise<void>;
+  handleDeleteSlot: (investigation: Investigation) => Promise<void>;
 }
 
 const OPENING_FALLBACK_NARRATIVE =
@@ -103,6 +110,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     INITIAL_NPC_STATES as Record<string, NPCState>
   );
   const [activeInvestigation, setActiveInvestigation] = useState<Investigation | null>(null);
+  const [slots, setSlots] = useState<Investigation[]>([]);
   const [currentAct, setCurrentAct] = useState(INITIAL_ACT);
   const [stim, setStim] = useState<Record<string, STIMEntry>>({});
   const [turnCount, setTurnCount] = useState(0);
@@ -297,7 +305,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       };
       const result = gameEngine.resolve(intent, snapshot);
 
-      const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 — three months after the Jack the Ripper murders had begun, and the day before it concluded.\n\n";
+      const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 - three months after the Jack the Ripper murders had begun, and the day before it concluded.\n\n";
       // Inject fixed line AFTER the ### heading, not before it
       const injectAfterHeading = (text: string) => {
         const match = text.match(/^(###[^\n]*\n\n?)/);
@@ -320,6 +328,57 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   }, []);
 
   // ── Save / load ───────────────────────────────────────────────────────────
+
+  // Hydrate all React state from a cloud investigation (a save slot).
+  // Shared by the slot menu (handleSelectSlot) and the anonymous-fallback loader.
+  const loadInvestigationIntoState = useCallback(async (investigation: Investigation) => {
+    const logs = await GameRepository.getRecentLogs(investigation.id, 100);
+    const historyItems: GameHistoryItem[] = logs.map(l => ({
+      role: l.type === 'action' ? 'user' : 'assistant',
+      text: l.content,
+    }));
+
+    const inv = (investigation as any).inventory || INITIAL_INVENTORY;
+    const act = (investigation as any).currentAct || 1;
+
+    setLocation(investigation.currentLocation);
+    setInventory(inv);
+    setMedicalPoints(investigation.medicalPoints || 0);
+    setMoralPoints(investigation.moralPoints || 0);
+    setCurrentAct(act);
+    setIsGameOver(investigation.status === 'solved');
+    setFlags(investigation.globalFlags as Record<string, boolean>);
+    setJournalNotes(investigation.journalNotes || INITIAL_JOURNAL);
+    setIntroducedNpcs(
+      (investigation as any).introducedNpcs?.length
+        ? ((investigation as any).introducedNpcs as string[])
+        : INITIAL_INTRODUCED_NPCS,
+    );
+    if (!investigation.journalNotes && historyItems.length > 0) {
+      needsJournalUpdate.current = true;
+    }
+    setActiveInvestigation(investigation);
+
+    const npcMap = await GameRepository.getAllNPCStates(investigation.id);
+    setNpcStates(
+      Object.keys(npcMap).length > 0
+        ? { ...(INITIAL_NPC_STATES as Record<string, NPCState>), ...npcMap }
+        : (INITIAL_NPC_STATES as Record<string, NPCState>),
+    );
+
+    setStim((investigation as any).stim || {});
+
+    if (historyItems.length > 0) {
+      setHistory(historyItems);
+      setNotification({ message: 'Investigation Resumed!', type: 'success' });
+    } else {
+      // Slot exists but has no logs yet — generate the opening scene
+      hasGeneratedOpening.current = false;
+      needsJournalUpdate.current = true;
+      setHistory([]);
+      generateOpeningScene();
+    }
+  }, [generateOpeningScene]);
 
   const handleSaveGame = useCallback(async (silent = false) => {
     setIsSaving(true);
@@ -369,68 +428,10 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const handleLoadGame = useCallback(async () => {
     try {
       if (user) {
-        let investigation = await GameRepository.getActiveInvestigation(user.id);
-
+        const investigation = await GameRepository.getActiveInvestigation(user.id);
         if (investigation) {
-          const logs = await GameRepository.getRecentLogs(investigation.id, 100);
-          const historyItems: GameHistoryItem[] = logs.map(l => ({
-            role: l.type === 'action' ? 'user' : 'assistant',
-            text: l.content,
-          }));
-
-          const inv = (investigation as any).inventory || INITIAL_INVENTORY;
-          const act = (investigation as any).currentAct || 1;
-
-          setLocation(investigation.currentLocation);
-          setInventory(inv);
-          setMedicalPoints(investigation.medicalPoints || 0);
-          setMoralPoints(investigation.moralPoints || 0);
-          setCurrentAct(act);
-          setIsGameOver(investigation.status === 'solved');
-          setFlags(investigation.globalFlags as Record<string, boolean>);
-          setJournalNotes(investigation.journalNotes || INITIAL_JOURNAL);
-          if ((investigation as any).introducedNpcs) {
-            setIntroducedNpcs((investigation as any).introducedNpcs as string[]);
-          }
-          if (!investigation.journalNotes && historyItems.length > 0) {
-            needsJournalUpdate.current = true;
-          }
-          setActiveInvestigation(investigation);
-
-          const npcMap = await GameRepository.getAllNPCStates(investigation.id);
-          if (Object.keys(npcMap).length > 0) {
-            setNpcStates(prev => ({ ...prev, ...npcMap }));
-          }
-
-          if ((investigation as any).stim) setStim((investigation as any).stim);
-
-          if (historyItems.length > 0) {
-            setHistory(historyItems);
-            setNotification({ message: 'Investigation Resumed!', type: 'success' });
-          } else {
-            // Investigation exists but no logs yet — generate opening scene
-            hasGeneratedOpening.current = false;
-            needsJournalUpdate.current = true;
-            generateOpeningScene();
-          }
-          return;
+          await loadInvestigationIntoState(investigation);
         }
-
-        // No existing investigation — create a fresh one
-        investigation = await GameRepository.createInvestigation(user.id, {
-          currentLocation: INITIAL_LOCATION,
-          inventory: INITIAL_INVENTORY,
-          currentAct: INITIAL_ACT,
-          globalFlags: {},
-          journalNotes: INITIAL_JOURNAL,
-        });
-        setActiveInvestigation(investigation);
-
-        hasGeneratedOpening.current = false;
-        needsJournalUpdate.current = true;
-        generateOpeningScene();
-
-        setNotification({ message: 'New Investigation Started!', type: 'success' });
         return;
       }
 
@@ -476,15 +477,29 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, generateOpeningScene]);
+  }, [user, generateOpeningScene, loadInvestigationIntoState]);
 
-  // Auto-load cloud save on login
-  useEffect(() => {
-    if (user && isAuthReady) {
-      handleLoadGame();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, isAuthReady]);
+  // ── Save slots ──────────────────────────────────────────────────────────────
+  // On login the app shows a slot-select menu (see App.tsx) instead of auto-loading,
+  // so the player is never dropped straight back into their last location.
+
+  const refreshSlots = useCallback(async () => {
+    if (!user) { setSlots([]); return; }
+    const list = await GameRepository.listActiveSlots(user.id);
+    setSlots(list);
+  }, [user]);
+
+  const handleSelectSlot = useCallback(async (investigation: Investigation) => {
+    await loadInvestigationIntoState(investigation);
+  }, [loadInvestigationIntoState]);
+
+  const handleContinue = useCallback(async () => {
+    if (slots.length === 0) return;
+    const mostRecent = [...slots].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    )[0];
+    await loadInvestigationIntoState(mostRecent);
+  }, [slots, loadInvestigationIntoState]);
 
   // Generate opening scene for fresh unauthenticated starts
   useEffect(() => {
@@ -919,15 +934,20 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     }
   }, [isUpdatingJournal, history]);
 
-  // ── New Game ──────────────────────────────────────────────────────────────
+  // ── New Game (start a fresh investigation in a given save slot) ─────────────
 
-  const handleNewGame = useCallback(async () => {
-    // Archive current investigation so it isn't lost
-    if (user && activeInvestigation) {
-      try {
-        await GameRepository.updateInvestigation(activeInvestigation.id, { status: 'archived' });
-      } catch (e) {
-        console.error('Could not archive investigation:', e);
+  const handleStartInSlot = useCallback(async (slotNumber: number) => {
+    // If the target slot is already occupied, archive that game first so the
+    // partial unique index (owner_id, save_slot) stays satisfied. Its data is
+    // preserved, just freed from the slot.
+    if (user) {
+      const occupant = slots.find(s => s.saveSlot === slotNumber);
+      if (occupant) {
+        try {
+          await GameRepository.archiveSlot(occupant.id);
+        } catch (e) {
+          console.error('Could not archive slot occupant:', e);
+        }
       }
     }
 
@@ -959,6 +979,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           currentAct: INITIAL_ACT,
           globalFlags: {},
           journalNotes: INITIAL_JOURNAL,
+          saveSlot: slotNumber,
         });
         setActiveInvestigation(newInv);
       } catch (e) {
@@ -971,8 +992,22 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     generateOpeningScene();
 
     setNotification({ message: 'New Investigation Started!', type: 'success' });
+    refreshSlots();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, activeInvestigation?.id, generateOpeningScene]);
+  }, [user, slots, generateOpeningScene, refreshSlots]);
+
+  // Delete (archive) a slot, freeing it. Returns the refreshed slot list.
+  const handleDeleteSlot = useCallback(async (investigation: Investigation) => {
+    try {
+      await GameRepository.archiveSlot(investigation.id);
+    } catch (e) {
+      console.error('Could not delete slot:', e);
+    }
+    if (activeInvestigation?.id === investigation.id) {
+      setActiveInvestigation(null);
+    }
+    await refreshSlots();
+  }, [activeInvestigation?.id, refreshSlots]);
 
   // ── Return ────────────────────────────────────────────────────────────────
 
@@ -992,6 +1027,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     flags,
     npcStates,
     activeInvestigation,
+    slots,
 
     displayTime: (() => {
       const cfg = ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1];
@@ -1021,7 +1057,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     handleLoadGame,
     handleConsultHolmes,
     handleUpdateJournal,
-    handleNewGame,
     handleScroll,
+
+    refreshSlots,
+    handleSelectSlot,
+    handleContinue,
+    handleStartInSlot,
+    handleDeleteSlot,
   };
 }
