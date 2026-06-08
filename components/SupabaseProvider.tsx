@@ -57,7 +57,7 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Do NOT set isAuthReady here — it is set exactly once in getSession() above.
     // Calling setIsAuthReady(true) on every TOKEN_REFRESHED event would re-trigger
     // any [isAuthReady]-dependent effects on each automatic token renewal.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       // A password-recovery link establishes a temporary session and fires this
       // event. Flag it so the app shows a "set new password" form instead of
       // dropping the player straight into the game.
@@ -67,7 +67,14 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        await loadProfile(session.user.id);
+        // Defer the profile fetch out of this callback. The callback runs while
+        // GoTrue holds its internal auth lock; calling another Supabase method
+        // (getProfile -> getSession) synchronously here deadlocks operations
+        // that also need the lock — most visibly updateUser() during password
+        // recovery, which would hang forever. setTimeout(0) releases the lock
+        // first. (Supabase's documented guidance for this callback.)
+        const uid = session.user.id;
+        setTimeout(() => { loadProfile(uid); }, 0);
       } else {
         setUserProfile(null);
         setIsNewUser(false);
