@@ -87,7 +87,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
         history[history.length - 1].text === ''));
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 px-8 pb-8 pt-10 md:px-16 md:pb-12 md:pt-16 lg:pt-18 bg-gradient-to-t from-lb-bg to-transparent pointer-events-none">
+    <div className="absolute bottom-0 left-0 right-0 px-8 pb-[max(2rem,env(safe-area-inset-bottom))] pt-10 md:px-16 md:pb-[max(3rem,env(safe-area-inset-bottom))] md:pt-16 lg:pt-18 bg-gradient-to-t from-lb-bg to-transparent pointer-events-none">
       <form
         onSubmit={handleSubmit}
         className="relative pointer-events-auto max-w-3xl mx-auto"
