@@ -197,12 +197,17 @@ export class GameRepository {
       moralPoints: number;
       currentAct: number;
       flags: Record<string, boolean>;
-    }
+    },
+    newElapsedMinutes?: number
   ): Promise<void> {
     try {
       const updates: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       };
+
+      if (newElapsedMinutes !== undefined) {
+        updates.elapsed_minutes = newElapsedMinutes;
+      }
 
       if (result.newLocation) {
         updates.current_location = result.newLocation;
@@ -506,6 +511,7 @@ export class GameRepository {
       stim: (data.stim as Record<string, unknown>) || undefined,
       introducedNpcs: (data.introduced_npcs as string[]) || [],
       saveSlot: (data.save_slot as number | null) ?? undefined,
+      elapsedMinutes: (data.elapsed_minutes as number) ?? 0,
     } as Investigation & { currentAct: number; inventory: string[]; introducedNpcs: string[] };
   }
 }

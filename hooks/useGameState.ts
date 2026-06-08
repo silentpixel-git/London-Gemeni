@@ -355,6 +355,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         ? ((investigation as any).introducedNpcs as string[])
         : INITIAL_INTRODUCED_NPCS,
     );
+    setElapsedMinutes((investigation as any).elapsedMinutes ?? 0);
     if (!investigation.journalNotes && historyItems.length > 0) {
       needsJournalUpdate.current = true;
     }
@@ -529,6 +530,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setMedicalPoints(data.medical_points);
         setMoralPoints(data.moral_points);
         setCurrentAct(data.current_act ?? INITIAL_ACT);
+        if (data.elapsed_minutes !== undefined) setElapsedMinutes(data.elapsed_minutes ?? 0);
         setFlags(data.global_flags || {});
         setJournalNotes(data.journal_notes || INITIAL_JOURNAL);
         setActiveInvestigation(prev =>
@@ -701,16 +703,19 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setTurnsAtLocationWithoutProgress(prev => prev + 1);
       }
 
-      // Advance in-game clock
+      // Advance in-game clock. Compute the new value locally so it can be both
+      // set in state and persisted this turn (see applyEngineResult below).
+      let newElapsedMinutes: number;
       if (result.newAct) {
-        setElapsedMinutes(0); // Reset to new act's canonical start time
+        newElapsedMinutes = 0; // Reset to new act's canonical start time
       } else {
         const ACTION_TIME_MINUTES: Partial<Record<typeof result.actionType, number>> = {
           move: 10, talk: 5, deduce: 5, examine: 2,
           use: 2, take: 1, inventory: 0, query: 1, help: 0, other: 2,
         };
-        setElapsedMinutes(prev => prev + (ACTION_TIME_MINUTES[result.actionType] ?? 2));
+        newElapsedMinutes = elapsedMinutes + (ACTION_TIME_MINUTES[result.actionType] ?? 2);
       }
+      setElapsedMinutes(newElapsedMinutes);
 
       // Capture journal data before resetting per-act tracking (if act is advancing)
       let pendingJournalSummary: ActJournalSummary | null = null;
@@ -736,7 +741,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       if (user && activeInvestigation) {
         await GameRepository.applyEngineResult(activeInvestigation.id, result, {
           location, inventory, medicalPoints, moralPoints, currentAct, flags,
-        });
+        }, newElapsedMinutes);
         if (result.npcUpdates) {
           GameRepository.applyNPCUpdates(activeInvestigation.id, result.npcUpdates);
         }
@@ -862,7 +867,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsAutoScrollLocked(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, handleSaveGame]);
+  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, handleSaveGame]);
 
   // ── Holmes hint ───────────────────────────────────────────────────────────
 
@@ -965,6 +970,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setFlags({});
     setNpcStates(INITIAL_NPC_STATES as Record<string, NPCState>);
     setCurrentAct(INITIAL_ACT);
+    setElapsedMinutes(0);
     setStim({});
     setTurnCount(0);
     setIntroducedNpcs(INITIAL_INTRODUCED_NPCS);

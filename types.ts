@@ -41,6 +41,7 @@ export interface Investigation {
   journalNotes: string;
   stim?: Record<string, STIMEntry>;
   saveSlot?: number;
+  elapsedMinutes?: number;
   createdAt: string;
   updatedAt: string;
 }
