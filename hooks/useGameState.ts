@@ -339,7 +339,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     }));
 
     const inv = (investigation as any).inventory || INITIAL_INVENTORY;
-    const act = (investigation as any).currentAct || 1;
+    // Use ?? not || — Act 0 (the prologue) is a valid act and must not fall back to 1.
+    const act = (investigation as any).currentAct ?? INITIAL_ACT;
 
     setLocation(investigation.currentLocation);
     setInventory(inv);
@@ -527,7 +528,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setInventory(data.inventory || []);
         setMedicalPoints(data.medical_points);
         setMoralPoints(data.moral_points);
-        setCurrentAct(data.current_act || 1);
+        setCurrentAct(data.current_act ?? INITIAL_ACT);
         setFlags(data.global_flags || {});
         setJournalNotes(data.journal_notes || INITIAL_JOURNAL);
         setActiveInvestigation(prev =>
