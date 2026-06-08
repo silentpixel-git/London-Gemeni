@@ -115,8 +115,17 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (m.includes('already registered') || m.includes('already been registered')) {
       return 'An account with this email already exists — try signing in.';
     }
-    if (m.includes('password') && (m.includes('at least') || m.includes('should be') || m.includes('weak'))) {
-      return 'Password must be at least 6 characters.';
+    // New password identical to the current one (recovery / change-password flow)
+    if (m.includes('different from the old password') || m.includes('same_password')) {
+      return 'Your new password must be different from your current one.';
+    }
+    // Weak / breached password (leaked-password protection)
+    if (m.includes('password') && (m.includes('weak') || m.includes('pwned') || m.includes('compromised') || m.includes('breach'))) {
+      return 'That password is too common or has appeared in a data breach — please choose a stronger one.';
+    }
+    // Length / complexity requirement — surface the real requirement rather than assuming "6 characters"
+    if (m.includes('password') && (m.includes('at least') || m.includes('should contain'))) {
+      return message;
     }
     if (m.includes('email') && m.includes('invalid')) return 'Please enter a valid email address.';
     return message;
