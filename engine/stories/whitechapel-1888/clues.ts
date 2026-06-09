@@ -496,6 +496,9 @@ export const SHOW_INTERACTIONS: Record<string, Record<string, ShowInteraction>> 
 export interface UseCombination {
   clueId?: string;
   resultNote: string;
+  // Optional: the combination only works at this location (e.g. the document
+  // comparison that must happen at Baker Street, against the casefiles).
+  requiresLocation?: string;
 }
 
 export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = {
@@ -504,6 +507,10 @@ export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = 
   'edmund_forensic_note': {
     'from_hell_letter': {
       clueId: 'clue_06_prasarved_spelling',
+      // The convergence: this comparison only resolves at Baker Street, laid
+      // against the casefiles — the Act 5 bookend. Attempting it elsewhere is
+      // blocked ("not the place for careful comparison").
+      requiresLocation: 'baker_street',
       resultNote: "SUCCESS — Watson places the forensic note beside the From Hell letter and reads them in parallel. The style diverges — one is clinical, one is performed illiteracy. But there it is: 'prasarved.' The same idiosyncratic vowel, in the same uncertain position, written without hesitation by the same hand.",
     },
     'autopsy_ledger': {

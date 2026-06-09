@@ -29,6 +29,7 @@ import type { TimePeriod } from '../../../types';
 export interface AtmosphericSeed {
   text: string;
   periods: TimePeriod[]; // empty = all periods
+  requiresFog?: boolean; // only valid when the current act's weather is foggy
 }
 
 // One is chosen at random per narration call, filtered to the current time period,
@@ -42,7 +43,7 @@ export const ATMOSPHERIC_SEEDS: AtmosphericSeed[] = [
   { text: 'A woman arguing in a low, urgent voice two streets over',                    periods: [] },
   { text: 'A loose shutter banging rhythmically somewhere above',                       periods: [] },
   { text: 'Wet newspaper clinging to the base of a wall',                               periods: [] },
-  { text: 'The smell of coal smoke settling low in the fog',                            periods: [] },
+  { text: 'The smell of coal smoke settling low in the fog',                            periods: [], requiresFog: true },
   { text: 'A single church bell tolling the quarter-hour',                              periods: [] },
   { text: 'Footsteps on a wooden floor directly above, then silence',                   periods: [] },
   { text: 'The drip of a gutter, metronomic in the quiet',                              periods: [] },
@@ -63,8 +64,8 @@ export const ATMOSPHERIC_SEEDS: AtmosphericSeed[] = [
 
   // ── NIGHT ONLY (evening / night / lateNight) ─────────────────────────────
   { text: 'A gas lamp guttering in the wind, its flame turning blue',                   periods: ['evening', 'night', 'lateNight'] },
-  { text: "The tap of a blind man's cane receding into the fog",                        periods: ['evening', 'night', 'lateNight'] },
-  { text: 'The distant moan of a foghorn on the Thames',                                periods: ['night', 'lateNight'] },
+  { text: "The tap of a blind man's cane receding into the fog",                        periods: ['evening', 'night', 'lateNight'], requiresFog: true },
+  { text: 'The distant moan of a foghorn on the Thames',                                periods: ['night', 'lateNight'], requiresFog: true },
   { text: "A drunk's muffled singing fading around a corner",                           periods: ['evening', 'night', 'lateNight'] },
   { text: "A constable's whistle, far off, answered by silence",                        periods: ['evening', 'night', 'lateNight'] },
   { text: 'The sour smell of the tannery carried on the night air',                     periods: ['night', 'lateNight'] },

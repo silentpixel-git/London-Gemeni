@@ -46,6 +46,7 @@ export interface NPCDefinition {
   scriptedLines?: Array<{
     locationId: string;    // Only fire at this location
     triggerFlag?: string;  // Optional: only fire if session.flags[triggerFlag] is true
+    act?: number;          // Optional: only fire during this act (omit = any act)
     instruction: string;   // Directorial instruction for the AI
   }>;
 }

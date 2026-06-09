@@ -18,7 +18,8 @@ import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER } from '../engine/gameData';
+import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
   INITIAL_ACT,
@@ -39,6 +40,7 @@ export interface GameStateReturn {
   isLoading: boolean;
   isAutoScrollLocked: boolean;
   isGameOver: boolean;
+  endingType: 'cold_case' | 'true_ending' | null;
   isConsultingHolmes: boolean;
   actualLastUserIdx: number;
 
@@ -55,6 +57,8 @@ export interface GameStateReturn {
 
   // In-game clock
   displayTime: string;
+  displayDate: string;
+  weather: ActWeather;
 
   // UI / persistence
   journalNotes: string;
@@ -105,6 +109,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const [medicalPoints, setMedicalPoints] = useState(0);
   const [moralPoints, setMoralPoints] = useState(0);
   const [isGameOver, setIsGameOver] = useState(false);
+  // Which ending fired ('cold_case' | 'true_ending') — drives the epilogue/coda rendering
+  const [endingType, setEndingType] = useState<'cold_case' | 'true_ending' | null>(null);
   const [flags, setFlags] = useState<Record<string, boolean>>({});
   const [npcStates, setNpcStates] = useState<Record<string, NPCState>>(
     INITIAL_NPC_STATES as Record<string, NPCState>
@@ -682,7 +688,10 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setMoralPoints(newMoralPoints);
       setFlags(newFlags);
       if (result.newAct)   setCurrentAct(result.newAct);
-      if (result.gameOver) setIsGameOver(true);
+      if (result.gameOver) {
+        setIsGameOver(true);
+        if (result.endingType) setEndingType(result.endingType);
+      }
 
       if (result.npcUpdates) {
         setNpcStates(prev => {
@@ -822,10 +831,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
                   next[id] = { ...entry, turnCreated: turnCount };
                 }
               });
-              // Evict oldest beyond 25
+              // Evict oldest beyond 15 (token diet: STIM is serialized into
+              // every compact prompt — keep only the freshest observations)
               const sorted = (Object.entries(next) as [string, STIMEntry][])
                 .sort(([, a], [, b]) => b.turnCreated - a.turnCreated)
-                .slice(0, 25);
+                .slice(0, 15);
               return Object.fromEntries(sorted);
             });
             setTurnCount(t => t + 1);
@@ -1023,6 +1033,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     isLoading,
     isAutoScrollLocked,
     isGameOver,
+    endingType,
     isConsultingHolmes,
     actualLastUserIdx,
 
@@ -1045,6 +1056,10 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
       return `${h12}:${mins.toString().padStart(2, '0')} ${ampm}`;
     })(),
+
+    displayDate: (ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1]).displayDate,
+
+    weather: ACT_WEATHER[currentAct] ?? ACT_WEATHER[1],
 
     journalNotes,
     isUpdatingJournal,

@@ -35,12 +35,15 @@ export type { ShowInteraction, UseCombination } from './stories/whitechapel-1888
 export {
   ACT_NAMES,
   ACT_PROGRESSION,
+  ACT_ANCHORS,
   ACT_TIME_CONFIG,
+  ACT_WEATHER,
   DEDUCTION_THRESHOLD,
   DEDUCTION_KEYWORDS,
 } from './stories/whitechapel-1888/acts';
-export type { ActTimeConfig } from './stories/whitechapel-1888/acts';
+export type { ActTimeConfig, ActWeather, WeatherCondition } from './stories/whitechapel-1888/acts';
 
-export { SUSPECT_PROFILES } from './stories/whitechapel-1888/suspects';
+export { SUSPECT_PROFILES, PERSONS_OF_INTEREST } from './stories/whitechapel-1888/suspects';
+export type { PersonOfInterest } from './stories/whitechapel-1888/suspects';
 
 export { ATMOSPHERIC_SEEDS, WHITECHAPEL_FACTS } from './stories/whitechapel-1888/atmosphere';

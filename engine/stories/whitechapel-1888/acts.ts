@@ -26,6 +26,46 @@ export const ACT_TIME_CONFIG: Record<number, ActTimeConfig> = {
   6: { canonicalMinutes: 990,  dayOfWeek: 'Saturday', displayDate: '10 November 1888' }, // 4:30 PM  — dusk, the confrontation
 };
 
+// ============================================================
+// ACT WEATHER
+// Canonical weather per act, anchored like the clock above.
+// Grounded in the real Nov 8–10 1888 record: overnight rain into
+// 9 November (Lord Mayor's Show day) clearing through a damp day,
+// with London's characteristic cold fog settling at night.
+// Derived purely from currentAct — no persistence required.
+// ============================================================
+
+export type WeatherCondition =
+  | 'foggy' | 'drizzle' | 'pouring' | 'overcast' | 'clear-night' | 'clear-cold';
+
+export interface ActWeather {
+  condition: WeatherCondition;
+  label: string; // Short sidebar label, e.g. "Foggy"
+}
+
+export const ACT_WEATHER: Record<number, ActWeather> = {
+  0: { condition: 'clear-night', label: 'Cold, Clear' },  // Thu 8 Nov, 8:00 PM  — Baker Street evening
+  1: { condition: 'drizzle',     label: 'Drizzle' },       // Fri 9 Nov, 10:45 AM — wet morning, body discovered
+  2: { condition: 'overcast',    label: 'Overcast' },      // Fri 9 Nov, 1:00 PM  — damp grey afternoon
+  3: { condition: 'foggy',       label: 'Foggy' },          // Fri 9 Nov, 11:00 PM — night fog
+  4: { condition: 'clear-cold',  label: 'Cold, Clear' },   // Sat 10 Nov, 9:00 AM — crisp morning
+  5: { condition: 'overcast',    label: 'Overcast' },      // Sat 10 Nov, 2:00 PM — grey afternoon
+  6: { condition: 'foggy',       label: 'Fog Settling' },  // Sat 10 Nov, 4:30 PM — dusk, fog returning
+};
+
+// Anchor location for each act — where Watson begins the act.
+// On act advance the engine performs a hard cut (auto-move) to this location,
+// carrying follows_watson / follows_bond NPCs along. Keyed by the act being ENTERED.
+// (Act 0 has no anchor — the game starts at Baker Street.)
+export const ACT_ANCHORS: Record<number, string> = {
+  1: 'dorset_street',         // the street outside Miller's Court
+  2: 'whitechapel_mortuary',  // Bond's domain
+  3: 'dutfields_yard',        // the double-event reconstruction
+  4: 'lusk_office',           // the letter and the kidney
+  5: 'bond_office',           // the forensic records
+  6: 'bond_office',           // the confrontation begins where the records were
+};
+
 export const ACT_NAMES: Record<number, string> = {
   0: 'The Baker Street Vigil',
   1: 'The Last Murder',

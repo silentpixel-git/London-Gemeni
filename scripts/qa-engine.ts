@@ -107,6 +107,7 @@ function step(
     expectClue?: string;
     expectAct?: number;
     expectGameOver?: boolean;
+    expectEndingType?: 'cold_case' | 'true_ending';
   } = {}
 ): SessionSnapshot {
   const intent = parseIntent(input);
@@ -144,6 +145,11 @@ function step(
       ? pass(`${prefix} → gameOver=${checks.expectGameOver}`)
       : fail(`${prefix} → expected gameOver=${checks.expectGameOver}, got ${!!result.gameOver}`);
   }
+  if (checks.expectEndingType !== undefined) {
+    result.endingType === checks.expectEndingType
+      ? pass(`${prefix} → endingType=${checks.expectEndingType}`)
+      : fail(`${prefix} → expected endingType=${checks.expectEndingType}, got ${result.endingType}`);
+  }
   return next;
 }
 
@@ -152,93 +158,89 @@ function step(
 function runWinningPath() {
   console.log('\n=== SCENARIO: winning-path ===');
 
-  // Act 0 — Baker Street
-  // IMPORTANT: resolveTalk does not call checkActProgression.
-  // Make the LAST gate-completing action an examine so checkActProgression fires.
+  // Act anchors are live: completing an act AUTO-MOVES Watson to the next
+  // act's anchor location (the hard cut), so no manual walk between acts.
+
+  // Act 0 — Baker Street (gate completes → auto-move to dorset_street)
   let s = buildSnapshot();
   s = step('Act0', s, 'talk to holmes',          { expectSuccess: true, expectFlag: 'talked_to_holmes_at_baker_street' });
   s = step('Act0', s, 'examine case files wall', { expectSuccess: true, expectFlag: 'examined_baker_street_case_files_wall', expectClue: 'clue_00_campaign_timeline' });
-  // Telegrams pile is the 3rd and final flag — examine triggers checkActProgression → act advances
-  s = step('Act0', s, 'examine telegrams pile',  { expectSuccess: true, expectFlag: 'examined_baker_street_telegrams_pile', expectAct: 1 });
+  s = step('Act0', s, 'examine telegrams pile',  {
+    expectSuccess: true,
+    expectFlag: 'examined_baker_street_telegrams_pile',
+    expectAct: 1,
+    expectLocation: 'dorset_street', // ← anchor auto-move
+  });
 
-  // Act 1 — Miller's Court
-  // dorset_street.act=1, so now accessible
-  s = step('Act1', s, 'go to dorset street',     { expectSuccess: true, expectLocation: 'dorset_street' });
+  // Act 1 — Miller's Court (gate: burned_clothing + the_bed → auto-move to mortuary)
   s = step('Act1', s, 'go to millers court',     { expectSuccess: true, expectLocation: 'millers_court' });
-  // Act 1 now requires BOTH burned_clothing AND the_bed (2-of-4 specific examines)
-  // burned_clothing sets examined_millers_court_burned_clothing (first gate flag)
   s = step('Act1', s, 'examine burned clothing', { expectSuccess: true, expectFlag: 'examined_millers_court_burned_clothing', expectClue: 'clue_01_killer_confidence' });
-  // the_bed sets examined_millers_court_the_bed (second + last gate flag → act advances)
-  s = step('Act1', s, 'examine the bed',         { expectSuccess: true, expectFlag: 'examined_millers_court_the_bed', expectAct: 2 });
+  s = step('Act1', s, 'examine the bed',         {
+    expectSuccess: true,
+    expectFlag: 'examined_millers_court_the_bed',
+    expectAct: 2,
+    expectLocation: 'whitechapel_mortuary', // ← anchor auto-move
+  });
 
-  // Act 2 — Mortuary + Buck's Row + Hanbury Street
-  // Path: millers_court → dorset_street → h_division_station → whitechapel_pub → bucks_row
-  s = step('Act2', s, 'go to dorset street',        { expectSuccess: true });
-  s = step('Act2', s, 'go to h division station',   { expectSuccess: true, expectLocation: 'h_division_station' });
-  s = step('Act2', s, 'go to whitechapel pub',      { expectSuccess: true, expectLocation: 'whitechapel_pub' });
-  s = step('Act2', s, 'go to bucks row',            { expectSuccess: true, expectLocation: 'bucks_row' });
-  s = step('Act2', s, 'examine cobblestone roadway', { expectSuccess: true, expectFlag: 'examined_bucks_row', expectClue: 'clue_01_respectable_approach' });
-  s = step('Act2', s, 'go to whitechapel mortuary', { expectSuccess: true, expectLocation: 'whitechapel_mortuary' });
+  // Act 2 — starts at the mortuary (anchor); Buck's Row + Hanbury via exits
   s = step('Act2', s, 'examine bonds desk',          { expectSuccess: true, expectFlag: 'examined_whitechapel_mortuary', expectClue: 'clue_02c_small_hands' });
-  s = step('Act2', s, 'go to bucks row',             { expectSuccess: true });
+  s = step('Act2', s, 'go to bucks row',             { expectSuccess: true, expectLocation: 'bucks_row' });
+  s = step('Act2', s, 'examine cobblestone roadway', { expectSuccess: true, expectFlag: 'examined_bucks_row', expectClue: 'clue_01_respectable_approach' });
   s = step('Act2', s, 'go to hanbury street',        { expectSuccess: true, expectLocation: 'hanbury_street' });
-  // Last Act 2 flag: examined_hanbury_street → act advances to 3
   s = step('Act2', s, 'examine ground where body was discovered', {
     expectSuccess: true,
     expectFlag: 'examined_hanbury_street',
     expectClue: 'clue_02_anatomical_knowledge',
     expectAct: 3,
+    expectLocation: 'dutfields_yard', // ← anchor auto-move
   });
 
-  // Act 3 — Double Event: dutfields_yard, mitre_square, working_mens_club
-  s = step('Act3', s, 'go to dutfields yard',    { expectSuccess: true, expectLocation: 'dutfields_yard' });
+  // Act 3 — starts at Dutfield's Yard (anchor)
   s = step('Act3', s, 'examine yard entrance gate', { expectSuccess: true, expectFlag: 'examined_dutfields_yard', expectClue: 'clue_03_interrupted_ritual' });
   s = step('Act3', s, 'go to mitre square',      { expectSuccess: true, expectLocation: 'mitre_square' });
   s = step('Act3', s, 'examine square walls',    { expectSuccess: true, expectFlag: 'examined_mitre_square', expectClue: 'clue_04_kidney_removal' });
   s = step('Act3', s, 'go to dutfields yard',    { expectSuccess: true });
   s = step('Act3', s, 'go to working mens club', { expectSuccess: true, expectLocation: 'working_mens_club' });
-  // Last Act 3 flag: examined_working_mens_club → act advances to 4
-  s = step('Act3', s, 'examine club members', { expectSuccess: true, expectFlag: 'examined_working_mens_club', expectAct: 4 });
+  s = step('Act3', s, 'examine club members', {
+    expectSuccess: true,
+    expectFlag: 'examined_working_mens_club',
+    expectAct: 4,
+    expectLocation: 'lusk_office', // ← anchor auto-move
+  });
 
-  // Act 4 — Lusk's office (working_mens_club → dutfields_yard → mitre_square → goulston_street → lusk_office)
-  s = step('Act4', s, 'go to dutfields yard',    { expectSuccess: true });
-  s = step('Act4', s, 'go to mitre square',      { expectSuccess: true });
-  s = step('Act4', s, 'go to goulston street',   { expectSuccess: true, expectLocation: 'goulston_street' });
-  s = step('Act4', s, 'go to lusk office',       { expectSuccess: true, expectLocation: 'lusk_office' });
-  // Last Act 4 flag: examined_lusk_office → act advances to 5
+  // Act 4 — starts at Lusk's office (anchor)
   s = step('Act4', s, 'examine from hell letter', {
     expectSuccess: true,
     expectFlag: 'examined_lusk_office',
     expectClue: 'clue_05_from_hell_letter',
     expectAct: 5,
+    expectLocation: 'bond_office', // ← anchor auto-move
   });
 
-  // Act 5 — Bond's office (lusk_office → bond_office)
-  s = step('Act5', s, 'go to bond office', { expectSuccess: true, expectLocation: 'bond_office' });
-  // Last Act 5 flag: examined_bond_office → act advances to 6
+  // Act 5 — starts at Bond's office (anchor); act 6 anchor is also bond_office (no move)
   s = step('Act5', s, 'examine edmund forensic note', {
     expectSuccess: true,
     expectFlag: 'examined_bond_office',
     expectClue: 'clue_06_prasarved_spelling',
     expectAct: 6,
+    expectLocation: 'bond_office', // anchor identical — no teleport
   });
 
-  // Act 6 — Correct deduction requires clue_06 (prasarved spelling) as smoking gun.
-  // It is now in discoveredClueIds from the bond_office examine above.
+  // Act 6 — Correct deduction requires clue_06 (smoking gun); then the asylum.
   s = step('Act6', s, 'deduce Edmund Halward is the killer', {
     expectSuccess: true,
     expectFlag: 'asylum_unlocked',
-    expectGameOver: false, // gameOver fires when examined at asylum, not on deduction itself
+    expectGameOver: false, // gameOver fires at the asylum, not on the deduction
   });
   s = step('Act6', s, 'go to private asylum', {
     expectSuccess: true,
     expectLocation: 'private_asylum',
   });
-  // Examining patient_records sets visited_private_asylum → last Act 6 gate flag → gameOver=true
   s = step('Act6', s, 'examine patient records', {
     expectSuccess: true,
     expectFlag: 'visited_private_asylum',
     expectGameOver: true,
+    expectEndingType: 'true_ending',
   });
 }
 
@@ -268,6 +270,9 @@ function runColdCaseBond() {
   result.gameOver
     ? pass('ColdCaseBond → gameOver=true (cold case triggered)')
     : fail('ColdCaseBond → gameOver should be true for wrong deduction');
+  result.endingType === 'cold_case'
+    ? pass('ColdCaseBond → endingType=cold_case')
+    : fail(`ColdCaseBond → expected endingType=cold_case, got ${result.endingType}`);
 }
 
 // ── Scenario 3: Cold case — Abberline ────────────────────────────────────────
@@ -295,6 +300,9 @@ function runColdCaseAbberline() {
   result.gameOver
     ? pass('ColdCaseAbberline → gameOver=true (cold case triggered)')
     : fail('ColdCaseAbberline → gameOver should be true for wrong deduction');
+  result.endingType === 'cold_case'
+    ? pass('ColdCaseAbberline → endingType=cold_case')
+    : fail(`ColdCaseAbberline → expected endingType=cold_case, got ${result.endingType}`);
 }
 
 // ── Scenario 4: Act gate boundary ────────────────────────────────────────────
@@ -552,7 +560,7 @@ function runShowMechanic() {
     introducedNpcs: [...INITIAL_INTRODUCED_NPCS, 'holmes', 'edmund'],
     npcStates: {
       ...INITIAL_NPC_STATES,
-      holmes: { npcId: 'holmes', currentLocation: 'bond_office', status: 'alive', memory: [] },
+      holmes: { npcId: 'holmes', currentLocation: 'bond_office', disposition: 50, status: 'alive', memory: [] },
     },
   });
   const r1 = gameEngine.resolve(parseIntent('show forensic note to holmes'), sWithNote);
@@ -622,24 +630,36 @@ function runReadMechanic() {
 function runUseWithMechanic() {
   console.log('\n=== SCENARIO: use-with-mechanic ===');
 
-  // USE forensic note WITH from hell letter → alternate clue_06 path
-  const sBothItems = buildSnapshot({
+  // The convergence combo is LOCATION-LOCKED to baker_street (the Act 5 bookend).
+  // Attempting it at bond_office must be blocked…
+  const sWrongPlace = buildSnapshot({
     currentAct: 5,
     location: 'bond_office',
     inventory: ["Assistant's Forensic Note (copy)", 'From Hell Letter (transcript)', 'Pocket Watch'],
   });
+  const rLock = gameEngine.resolve(parseIntent('use forensic note with from hell letter'), sWrongPlace);
+  !rLock.actionSuccess
+    ? pass('UseWith: convergence combo BLOCKED at bond_office (location-locked to baker_street)')
+    : fail('UseWith: combo should be blocked away from baker_street');
+
+  // …and succeed at Baker Street with both documents in hand.
+  const sBothItems = buildSnapshot({
+    currentAct: 5,
+    location: 'baker_street',
+    inventory: ["Assistant's Forensic Note (copy)", 'From Hell Letter (transcript)', 'Pocket Watch'],
+  });
   const r1 = gameEngine.resolve(parseIntent('use forensic note with from hell letter'), sBothItems);
   r1.actionSuccess
-    ? pass('UseWith: forensic note with from hell letter → actionSuccess=true')
-    : fail('UseWith: combination failed', r1.blockedReason);
+    ? pass('UseWith: convergence combo succeeds at baker_street')
+    : fail('UseWith: combination failed at baker_street', r1.blockedReason);
   (r1.discoveredClueIds ?? []).includes('clue_06_prasarved_spelling')
-    ? pass('UseWith: clue_06 discovered via use-with combination')
+    ? pass('UseWith: clue_06 discovered via the Baker Street convergence')
     : fail('UseWith: clue_06 not discovered from combination');
 
   // USE combination with item not in inventory → blocked
   const sNoNote = buildSnapshot({
     currentAct: 5,
-    location: 'bond_office',
+    location: 'baker_street',
     inventory: ['From Hell Letter (transcript)'],
     // forensic note NOT in inventory
   });
@@ -684,6 +704,64 @@ function runDropMechanic() {
     : fail('Drop: should be blocked when item not in inventory');
 }
 
+// ── Scenario 14: Talk-gated act advance + anchor auto-move + follower carry ──
+
+function runTalkGatedAdvance() {
+  console.log('\n=== SCENARIO: talk-gated-advance ===');
+
+  // Act 0 with both examine flags already set — the TALK is the last gate
+  // action. Pre-fix this soft-locked (talk never fired act progression).
+  const s = buildSnapshot({
+    flags: {
+      examined_baker_street_case_files_wall: true,
+      examined_baker_street_telegrams_pile: true,
+    },
+  });
+  const result = gameEngine.resolve(parseIntent('talk to holmes'), s);
+
+  result.newAct === 1
+    ? pass('TalkGated: act advances when a TALK completes the gate')
+    : fail(`TalkGated: expected newAct=1, got ${result.newAct} — talk progression fix broken`);
+
+  result.newLocation === 'dorset_street'
+    ? pass('TalkGated: anchor auto-move fired (baker_street → dorset_street)')
+    : fail(`TalkGated: expected newLocation=dorset_street, got ${result.newLocation}`);
+
+  const holmesMoved = result.npcUpdates?.['holmes']?.currentLocation === 'dorset_street';
+  holmesMoved
+    ? pass('TalkGated: Holmes (follows_watson) carried to the anchor')
+    : fail(`TalkGated: Holmes not carried — npcUpdates.holmes=${JSON.stringify(result.npcUpdates?.['holmes'])}`);
+}
+
+// ── Scenario 15: Notebook — Persons of Interest ───────────────────────────────
+
+function runNotebookPoi() {
+  console.log('\n=== SCENARIO: notebook-poi ===');
+
+  // Before any POI requiresFlag is set → no Persons of Interest section
+  const sFresh = buildSnapshot();
+  const r1 = gameEngine.resolve(parseIntent('notebook'), sFresh);
+  !r1.aiContext.actionResultNote.includes('PERSONS OF INTEREST')
+    ? pass('NotebookPoi: no POI section before any person is encountered')
+    : fail('NotebookPoi: POI section leaked before requiresFlag set');
+
+  // After the mortuary examine → Bond appears as a person of interest
+  const sMet = buildSnapshot({
+    currentAct: 2,
+    flags: { examined_whitechapel_mortuary: true },
+  });
+  const r2 = gameEngine.resolve(parseIntent('notebook'), sMet);
+  r2.aiContext.actionResultNote.includes('PERSONS OF INTEREST') &&
+  r2.aiContext.actionResultNote.includes('Dr. Thomas Bond')
+    ? pass('NotebookPoi: Bond listed once requiresFlag is set')
+    : fail('NotebookPoi: Bond missing from POI section');
+
+  // Edmund must never appear in the ledger (design rule)
+  !r2.aiContext.actionResultNote.toLowerCase().includes('edmund')
+    ? pass('NotebookPoi: Edmund never listed (ambient-invisibility rule)')
+    : fail('NotebookPoi: Edmund leaked into the POI ledger');
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -700,6 +778,8 @@ try {
   runReadMechanic();
   runUseWithMechanic();
   runDropMechanic();
+  runTalkGatedAdvance();
+  runNotebookPoi();
 } catch (err) {
   console.error('\n[FATAL] Uncaught exception in test harness:', err);
   process.exit(1);

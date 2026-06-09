@@ -49,6 +49,7 @@ function makeCtx(overrides: Partial<NarrationContext>): NarrationContext {
     blockquoteHint: 'world_event',
     timeLabel: '10:45 PM — Friday, 9 November 1888',
     timePeriod: 'night',
+    weather: { condition: 'foggy', label: 'Foggy' },
     ...overrides,
   };
 }
@@ -84,8 +85,8 @@ const fixtures: Array<{ label: string; rubric: string; ctx: NarrationContext }> 
       actName: 'The Last Murder',
       narrationMode: 'opening',
       npcsPresent: [],
-      availableObjects: ['burned_clothing', 'the_bed', 'bloodstained_sheets'],
-      availableExits: ['dorset_street'],
+      availableObjects: ['Burned Clothing', 'The Bed', 'Bloodstained Sheets'],
+      availableExits: ['Dorset Street'],
       actionDescription: 'Watson arrives at Miller\'s Court.',
       actionResultNote: 'Watson enters the scene of the final murder.',
       timeLabel: '11:00 AM — Friday, 9 November 1888',
@@ -259,8 +260,9 @@ const fixtures: Array<{ label: string; rubric: string; ctx: NarrationContext }> 
       locationTimeframe: 'reconstruction',
       locationReconstitutionNote: "Watson visits weeks after the murder, working from Abberline's witness statements and Bond's post-mortem.",
       npcsPresent: [],
-      availableObjects: ['yard_entrance_gate', 'cart_path', 'club_doorway'],
-      availableExits: ['hanbury_street', 'working_mens_club', 'mitre_square'],
+      // Display names, as the engine's buildContext would supply (never raw IDs)
+      availableObjects: ['Yard Entrance Gate', 'Cart Path', 'Club Doorway'],
+      availableExits: ['Hanbury Street', "Working Men's Club", 'Mitre Square'],
       actionDescription: "Watson arrives at Dutfield's Yard.",
       actionResultNote: "Watson surveys the reconstruction site.",
       timeLabel: '9:00 PM — Friday, 9 November 1888',

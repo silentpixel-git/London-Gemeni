@@ -1,5 +1,41 @@
 import type { SuspectProfile } from '../types';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PERSONS OF INTEREST — the notebook's suspect ledger.
+// Rendered in resolveNotebook. Entries appear once requiresFlag is set (omit =
+// always shown) and gain a "cleared/struck" annotation once clearedByFlag is set.
+// DESIGN RULE (reweave): Edmund is NEVER listed here before the Act 5
+// convergence — absence, not dismissal, is his camouflage.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PersonOfInterest {
+  id: string;            // stable key
+  label: string;         // e.g. "The Mad Doctor (Francis Tumblety)"
+  detail: string;        // one-line motive/means note shown in the notebook
+  requiresFlag?: string; // only listed once this flag is set
+  clearedByFlag?: string;// annotated as cleared once this flag is set
+  clearedNote?: string;  // e.g. "alibied and released" — shown when cleared
+}
+
+export const PERSONS_OF_INTEREST: PersonOfInterest[] = [
+  // Current-story placeholder entries; the reweave build replaces these with
+  // the full moving-spotlight roster (Stranger, Mad Doctor, Foreigner, Gentleman).
+  {
+    id: 'poi_bond',
+    label: 'Dr. Thomas Bond',
+    detail: 'Police surgeon — anatomical mastery and access to every scene.',
+    requiresFlag: 'examined_whitechapel_mortuary',
+    clearedByFlag: 'showed_medical_reports_to_abberline',
+    clearedNote: 'movements on the double-event night accounted for (Abberline)',
+  },
+  {
+    id: 'poi_abberline',
+    label: 'Inspector Abberline',
+    detail: 'Lead investigator — access to every file and every scene.',
+    requiresFlag: 'talked_to_abberline_at_h_division_station',
+  },
+];
+
 // Data-driven deduction resolution. The engine checks the
 // player's theory against each profile's aliases to determine
 // success or failure — no character names are hardcoded in

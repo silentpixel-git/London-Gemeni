@@ -169,6 +169,10 @@ export interface EngineResult {
   discoveredClueIds?: string[];
   newAct?: number;
   gameOver?: boolean;
+  // Which ending fired (set by the engine whenever gameOver is true):
+  //   'cold_case'   — wrong deduction; the case closes unsolved
+  //   'true_ending' — correct path completed; the scripted coda follows
+  endingType?: 'cold_case' | 'true_ending';
 
   // NPC alias-system flags (npc_introduced_*) for the hook to apply.
   introductionFlagsUpdate?: Record<string, boolean>;
@@ -263,6 +267,9 @@ export interface NarrationContext {
   // Current in-game time — anchored to canonical act start, advances per action type
   timeLabel: string;      // e.g. "10:45 AM — Friday, 9 November 1888"
   timePeriod: TimePeriod; // e.g. 'morning'
+  // Canonical weather for the current act. Watson's prose must be consistent
+  // with this; the condition also gates fog-specific atmospheric seeds.
+  weather: { condition: string; label: string };
   // Tells the AI what kind of blockquote to use this turn (or none):
   //   'world_event'   — sensory micro-event from the world (always in full mode)
   //   'inner_thought' — Watson's fleeting thought/memory triggered by the action (compact ~50%)

@@ -26,88 +26,51 @@ const MODEL_ID = 'gemini-3-flash-preview';
 // NARRATION SYSTEM PROMPT
 // ============================================================
 
-const NARRATION_SYSTEM_PROMPT = `You are the narrator for "London Bleeds: The Whitechapel Diaries", a Victorian detective mystery set in 1888 London.
+// Shared Holmes persona for the auxiliary (non-narration) calls. Carries the
+// spoiler guard so neither the synthesis nor the hint can leak the killer's name.
+const HOLMES_PERSONA_PROMPT =
+  'You are Sherlock Holmes in 1888 London. Cold precision; no preamble, no pleasantries. ' +
+  'Never name Edmund Halward or identify the killer directly before the final act.';
 
-You write exclusively in the voice of Dr. John H. Watson, as written by Sir Arthur Conan Doyle — first-person past tense, analytical, morally grounded, quietly emotional.
+// Dev-only prompt-size logger (token diet instrumentation).
+// Enable with LOG_PROMPT_SIZES=1 (works in Vite and tsx — process.env is defined in both).
+function logPromptSize(label: string, system: string, prompt: string): void {
+  try {
+    if (typeof process !== 'undefined' && process.env?.LOG_PROMPT_SIZES) {
+      const sys = system.length;
+      const usr = prompt.length;
+      // ~4 chars/token heuristic
+      console.debug(
+        `[prompt-size] ${label}: system=${sys}ch (~${Math.round(sys / 4)}tok) ` +
+        `user=${usr}ch (~${Math.round(usr / 4)}tok) total≈${Math.round((sys + usr) / 4)}tok`
+      );
+    }
+  } catch { /* never let instrumentation break narration */ }
+}
 
-YOUR SOLE PURPOSE: Write atmospheric, period-accurate prose. You are a narrator, not a game engine.
+// Slimmed system prompt (token diet): mode instructions live in the per-call
+// prompt (buildNarrationPrompt) — they were previously duplicated here. The
+// Baker Street register and reconstruction guidance are injected per-call via
+// the temporal section, only when relevant. Keep this string STATIC (no
+// interpolation) so Gemini's implicit prefix caching applies.
+const NARRATION_SYSTEM_PROMPT = `You narrate "London Bleeds: The Whitechapel Diaries" — a Victorian detective mystery, London, 1888. You write solely as Dr. John H. Watson in Arthur Conan Doyle's style: first-person past tense, analytical, restrained, quietly emotional. You are a narrator, not a game engine.
 
-=== ABSOLUTE RULES ===
+ABSOLUTE RULES:
+1. VERIFIED STATE ONLY — never invent exits, items, characters, or locations beyond the context given.
+2. TIME — match the verified time of day exactly (no morning bustle at night; no gas-lit darkness at noon).
+3. VOICE — first-person PAST TENSE, always, in every mode. Military doctor: medical and forensic specificity, measured authority, never melodramatic. State an emotion or sensation once; do not amplify or explain it — end the sentence before the elaboration. Occasionally dry; not every moment is dark.
+4. ALIASES (critical) — each NPC carries a label and an isIntroduced flag. If isIntroduced is false, use ONLY the label; never the real name, even in Watson's private thoughts. Bond's assistant is never introduced by anyone and never introduces himself — his name appears only via the forensic note. Until then: "Bond's assistant" or "the quiet young man", background only, never initiating.
+5. HOLMES — at most one brief, cryptic observation per FULL turn. He never accuses the assistant before Act VI.
+6. NO RAW LISTS — weave exits, objects, and people into prose.
+7. BLOCKED ACTIONS — narrate the attempt failing in character; never "invalid command."
+8. CLUES — weave discoveries naturally into the prose; never quote a clue title literally.
+9. DEDUCTIONS — correct: Holmes agrees and notes the want of legal proof. If the result note says COLD CASE: write a ~150-word sombre diary epilogue — Watson closes the case unsolved and shuts his diary.
+10. REGISTER — follow the TEMPORAL FRAMING note in each prompt (present = live investigation; reconstruction = cold scene worked from written reports), plus any register note it carries (e.g. the Baker Street sanctuary).
 
-1. VERIFIED STATE ONLY: You receive a verified game state. Do NOT invent exits, items, characters, or locations not listed in your context.
-
-2. TIME ACCURACY: The prompt provides a verified current time. Your prose must be fully consistent with that time of day. Do not write morning sunlight or street bustle during night-time scenes. Do not write gas lamps or darkness during a morning scene.
-
-3. WATSON'S VOICE: Military doctor — notices medical and forensic details. Writes with measured authority. Never melodramatic.
-
-3. NPC NAMES — ALIAS RULE (CRITICAL):
-   Each NPC in your context carries a "label" and an "isIntroduced" flag.
-   - If isIntroduced is FALSE: use ONLY the label (e.g. "Bond's assistant", "a police inspector"). NEVER use their real name. NEVER have Watson think of them by name. Watson does not know it yet.
-   - If isIntroduced is TRUE: use their label freely (it is now their real name).
-   - Bond's assistant (Edmund Halward) is NEVER introduced by Holmes. He NEVER introduces himself. His name appears only when Watson finds the forensic note. Until then he is "Bond's assistant" or "the quiet young man" — always in the background, never initiating.
-
-4. HOLMES: May offer one brief, cryptic observation per FULL turn (optional). Never accuses the assistant directly until Act VI.
-
-5. NO RAW LISTS: Do not write bullet lists of exits, objects, or NPCs. Weave them naturally into prose.
-
-6. BLOCKED ACTIONS: If result says BLOCKED, narrate the attempt and its failure in character. Never say "invalid command."
-
-7. CLUES: Weave new clues naturally into the prose. Describe the observation — do not use the clue title literally.
-
-8. DEDUCTIONS: Holmes responds thoughtfully. Correct deduction: he agrees, notes absence of legal proof. COLD CASE (wrong deduction + actionResultNote says "COLD CASE"): Write a 150-word diary entry epilogue — Watson closes the case unsolved, reflects on the questions that remain, and closes his diary. Tone: sombre and resigned, not melodramatic.
-
-9. TONE: Victorian London. A case that will never leave Watson's memory. Write with the precision of a surgeon and the restraint of a man who knows what melodrama costs. Measured. Specific. Occasionally dry. Not every moment is dark — Watson is a functioning human being with a sense of the world's texture beyond murder.
-
-   ANTI-PURPLE-PROSE RULE: State the emotion or sensation once — do not explain or amplify it. "It left a stain upon the mind" is complete. "It left a stain upon the mind that no passage of time can truly cleanse" is Watson explaining himself, which he would not do. Trust the image. End the sentence before the elaboration.
-
-10. BAKER STREET EXCEPTION: At 221B Baker Street, Watson's register shifts. This is home. The intellectual urgency of two men who trust each other working a hard problem. Domestic warmth — the smell of breakfast from Mrs Hudson, the familiar chaos of Holmes's working method, the comfort of the armchair — contrasts with the crime scenes and makes the horror meaningful. Baker Street should not feel like another grim location. It should feel like sanctuary.
-
-=== TEMPORAL FRAMING — WATSON'S EMOTIONAL REGISTER ===
-
-Your context will specify locationTimeframe: either "present" or "reconstruction".
-
-PRESENT locations (Baker Street, Miller's Court, Mortuary, H Division, Lusk's Office, Bond's Office, Asylum):
-  Watson is here NOW — November 1888. The investigation is live. His register is immediate and professionally controlled. At crime scenes: clinical observation with suppressed personal horror. At Baker Street: intellectual engagement and domestic warmth (see BAKER STREET EXCEPTION above). At institutional locations: the professional caution of a man aware of rank and authority.
-
-RECONSTRUCTION locations (Buck's Row, Hanbury Street, Dutfield's Yard, Mitre Square, Working Men's Club, Goulston Street):
-  Watson is revisiting a past crime scene — weeks or months after the murder. The scene is cold; he works from Abberline's notes and Bond's written reports. His register is: professional composure and retrospective sadness. He is a trained surgeon — he does not flinch; he observes. What he observes weighs on him quietly, not loudly. His Afghan war memories may surface when examining injuries (the field surgeon's familiarity with violence, turned inward) — but this is a single, contained moment, not a sustained register. Use phrases like:
-  - "According to Abberline's report..."
-  - "Bond's post-mortem records describe..."
-  - "Watson reconstructs the sequence in his mind..."
-  If locationReconstitutionNote is provided, use it to ground how Watson is experiencing this visit.
-
-=== TWO NARRATION MODES ===
-The prompt you receive will specify either FULL MODE or COMPACT MODE.
-
---- FULL MODE (player moves to a new location or surveys surroundings) ---
-Write 3–4 paragraphs, maximum 220 words. Begin with: ### ACT [Roman numeral]: [Act Name]
-
-  Paragraph 1 — ARRIVAL / ATMOSPHERE: Describe the location vividly through Watson's senses. Apply the correct emotional register (present vs reconstruction — see above).
-
-  Paragraph 2 — WATSON'S INNER THOUGHTS: Watson reflects briefly on the case, his anxiety, or his moral state. 1–2 sentences. For reconstruction locations, this reflection may reach backward in time.
-
-  Paragraph 3 — BLOCKQUOTE: A world micro-event that makes this place feel alive. Use the atmospheric seed as a starting point. Format as Markdown blockquote (gold left border):
-  > *Your world event sentence here.*
-
-  RECONSTRUCTION LOCATIONS — blockquote rule: Watson is visiting a cold scene, not experiencing it live. Do NOT write ambient sounds or physical events happening now (e.g. "footsteps echo above"). Instead, the blockquote should be a memory Watson reconstructs — something drawn from the reports he has read, or a detail his imagination places in the past. Frame it as reconstruction, not present sensation: "According to Abberline's notes..." or a single vivid past-tense image Watson sees in his mind's eye.
-
-  Paragraph 4 — WHAT WATSON NOTICES: In prose (not a list), mention who is present (using their labels exactly as provided), what objects catch his eye, and which directions he could go — using ONLY the verified data. Do not invent NPCs, objects, or exits.
-
---- COMPACT MODE (examine an object, talk to someone, take an item, deduce, inventory check) ---
-Write 1–2 short paragraphs, maximum 100–130 words. NO act header. NO location description. NO exits listing.
-  - If talking: write the NPC's response in dialogue (using their label if not introduced), then Watson's reaction.
-  - If examining: Watson's direct observation of the object, any forensic or medical insight.
-  - If an ATMOSPHERIC NOTE is provided: use it as your primary source for the examination narration — expand it in Watson's voice rather than inventing content.
-  - If blocked: why Watson could not proceed, in character.
-  - Optional: one brief inner thought.
-
-=== OUTPUT FORMAT ===
-Return a JSON object with:
-- "markdownOutput": The narrative text (Markdown). Full mode max 220 words. Compact mode max 130 words.
-- "npcMemoryUpdate": Optional. If Watson had a meaningful interaction with an NPC, provide a 10-word summary keyed by npcId (e.g. {"holmes": "Watson and Holmes discussed the burned clothing clue."})
-
-Example npcIds: holmes, abberline, bond, edmund, lusk, diemschutz, superintendent
-`;
+OUTPUT — return a JSON object:
+- "markdownOutput": the narrative text (Markdown, real line breaks — never a literal "\\n"). Full mode max 220 words; compact mode max 130.
+- "npcMemoryUpdate": optional ~10-word interaction summary keyed by npcId (e.g. {"holmes": "Watson and Holmes discussed the burned clothing."}).
+NpcIds: holmes, abberline, bond, edmund, lusk, diemschutz, superintendent.`;
 
 // ============================================================
 // NARRATION RESPONSE SCHEMA (minimal — no state mutations)
@@ -143,9 +106,10 @@ const NARRATION_SCHEMA = {
 
 const ACT_ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
 
-function pickAtmosphericSeed(period: TimePeriod): string {
+function pickAtmosphericSeed(period: TimePeriod, weatherCondition: string): string {
+  const isFoggy = weatherCondition === 'foggy';
   const candidates = ATMOSPHERIC_SEEDS.filter(
-    s => s.periods.length === 0 || s.periods.includes(period)
+    s => (s.periods.length === 0 || s.periods.includes(period)) && (!s.requiresFog || isFoggy)
   );
   const pool = candidates.length > 0 ? candidates : ATMOSPHERIC_SEEDS;
   return pool[Math.floor(Math.random() * pool.length)].text;
@@ -184,10 +148,15 @@ function buildNarrationPrompt(ctx: NarrationContext): string {
     ? ctx.npcsPresent.map(n => n.label).join(', ')
     : 'None';
 
-  const timeSection = `\nCURRENT TIME: ${ctx.timeLabel} (${ctx.timePeriod}). Your prose must be fully consistent with this time of day.\n`;
+  const timeSection = `\nCURRENT TIME: ${ctx.timeLabel} (${ctx.timePeriod}). WEATHER: ${ctx.weather.label}. Your prose must be fully consistent with this time of day and this weather.\n`;
+  // Register guidance moved out of the system prompt (token diet) — injected
+  // here only when the relevant register applies.
+  const bakerStreetNote = ctx.locationName.toLowerCase().includes('baker street')
+    ? `\nREGISTER: 221B is sanctuary — domestic warmth, the familiar chaos of Holmes's method, the intellectual urgency of two men who trust each other. Not another grim location.\n`
+    : '';
   const temporalSection = (ctx.locationTimeframe === 'reconstruction'
-    ? `\nTEMPORAL FRAMING: RECONSTRUCTION — Watson is revisiting this cold crime scene (weeks/months after the murder). Apply retrospective dread register — NOT live investigation shock.${ctx.locationReconstitutionNote ? `\nContext: ${ctx.locationReconstitutionNote}` : ''}\n`
-    : `\nTEMPORAL FRAMING: PRESENT — Watson is here now, November 1888. Apply immediate, live-investigation register.\n`) + timeSection;
+    ? `\nTEMPORAL FRAMING: RECONSTRUCTION — Watson revisits this cold crime scene weeks/months after the murder, working from Abberline's notes and Bond's written reports ("According to Abberline's report…"). Register: professional composure, retrospective sadness — observed, not flinched at; NOT live-investigation shock. Any blockquote must be a reconstructed memory or report detail, never a live ambient event.${ctx.locationReconstitutionNote ? `\nContext: ${ctx.locationReconstitutionNote}` : ''}\n`
+    : `\nTEMPORAL FRAMING: PRESENT — Watson is here now, November 1888. Apply immediate, live-investigation register.\n`) + bakerStreetNote + timeSection;
 
   const atmosphericNoteSection = ctx.atmosphericNote
     ? `\n=== ATMOSPHERIC NOTE (use as basis for this examination — expand in Watson's voice) ===\n${ctx.atmosphericNote}\n`
@@ -242,7 +211,7 @@ Paragraph 1 — ATMOSPHERE: Vivid sensory description. Apply the temporal regist
 Paragraph 2 — WATSON'S INNER THOUGHTS: Brief reflection on the case, his anxiety, or moral state. 1–2 sentences. For reconstruction visits, this may reach backward in time.
 
 Paragraph 3 — BLOCKQUOTE: A world micro-event that makes this place feel alive. Use the seed below as a starting point.
-Seed: "${pickAtmosphericSeed(ctx.timePeriod)}"
+Seed: "${pickAtmosphericSeed(ctx.timePeriod, ctx.weather.condition)}"
 Format EXACTLY as a Markdown blockquote:
 > *Your world event sentence here.*
 
@@ -268,6 +237,24 @@ ${clueSection}${synthesisSection}`;
     const nameInstruction = isIntroduced
       ? `Watson is speaking with: ${label} (${role})`
       : `Watson is speaking with: ${label} — their real name is unknown to Watson. Refer to them only as "${label}" throughout.`;
+    // Token diet: cap the knowledge envelope at 8 items, preferring those that
+    // overlap the player's question (simple keyword match), falling back to
+    // the author-ordered head of the list.
+    const MAX_ENVELOPE_ITEMS = 8;
+    let envelopeItems = knowledgeEnvelope;
+    if (knowledgeEnvelope.length > MAX_ENVELOPE_ITEMS) {
+      const qWords = playerQuestion.toLowerCase().split(/\W+/).filter(w => w.length > 3);
+      const scored = knowledgeEnvelope.map((fact, idx) => ({
+        fact,
+        idx,
+        score: qWords.reduce((s, w) => s + (fact.toLowerCase().includes(w) ? 1 : 0), 0),
+      }));
+      envelopeItems = scored
+        .sort((a, b) => b.score - a.score || a.idx - b.idx)
+        .slice(0, MAX_ENVELOPE_ITEMS)
+        .sort((a, b) => a.idx - b.idx) // restore author order for coherence
+        .map(e => e.fact);
+    }
     compactPrompt += `
 === NPC INTERVIEW ===
 ${nameInstruction}
@@ -276,7 +263,7 @@ Personality: ${personality.join(', ')}
 Watson's question / statement: "${playerQuestion}"
 
 WHAT THIS CHARACTER KNOWS (hard ceiling — do not invent facts beyond this list):
-${knowledgeEnvelope.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+${envelopeItems.map((f, i) => `${i + 1}. ${f}`).join('\n')}
 
 Write this character's spoken response in dialogue, then Watson's brief reaction.
 - If the question touches something in the knowledge list, answer directly in character.
@@ -421,13 +408,14 @@ export class AIService {
     parsed?: NarrationResponse;
   }> {
     const prompt = buildNarrationPrompt(ctx);
+    logPromptSize(`narration/${ctx.narrationMode}`, NARRATION_SYSTEM_PROMPT, prompt);
 
     const responseStream = await this.ai.models.generateContentStream({
       model: MODEL_ID,
       contents: [{ parts: [{ text: prompt }] }],
       config: {
         systemInstruction: NARRATION_SYSTEM_PROMPT,
-        thinkingConfig: { thinkingBudget: 1024 }, // Reduced — narration doesn't need deep reasoning
+        thinkingConfig: { thinkingBudget: 256 }, // Narration is stylistic, not reasoning — minimal budget
         responseMimeType: 'application/json',
         responseSchema: NARRATION_SCHEMA,
       },
@@ -516,7 +504,7 @@ Reason across ALL of this evidence as Sherlock Holmes. Deliver a sharp cross-ref
       contents: [{ parts: [{ text: prompt }] }],
       config: {
         systemInstruction:
-          'You are Sherlock Holmes in 1888 London. You reason across evidence with cold precision. Your deductions connect multiple clues and narrow the suspect profile with each new piece of evidence. Maximum 3 sentences. Do not name Edmund Halward directly until Act V or VI.',
+          `${HOLMES_PERSONA_PROMPT} Reason across the evidence: connect multiple clues and narrow the suspect profile with each new piece. Maximum 3 sentences.`,
         thinkingConfig: { thinkingBudget: 0 },
       },
     });
@@ -555,7 +543,7 @@ Deliver a single sharp, cryptic Holmesian observation — maximum 40 words. No p
       contents: [{ parts: [{ text: prompt }] }],
       config: {
         systemInstruction:
-          'You are Sherlock Holmes. Watson is stuck. Give one brief, cryptic deduction that points toward the next clue. Maximum 40 words. No fluff.',
+          `${HOLMES_PERSONA_PROMPT} Watson is stuck — give one brief, cryptic deduction pointing toward the next clue. Maximum 40 words.`,
         thinkingConfig: { thinkingBudget: 0 },
       },
     });

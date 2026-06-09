@@ -18,10 +18,12 @@ export type { ShowInteraction, UseCombination } from './clues';
 export {
   ACT_NAMES,
   ACT_PROGRESSION,
+  ACT_ANCHORS,
   ACT_TIME_CONFIG,
   DEDUCTION_THRESHOLD,
   DEDUCTION_KEYWORDS,
 } from './acts';
 export type { ActTimeConfig } from './acts';
-export { SUSPECT_PROFILES } from './suspects';
+export { SUSPECT_PROFILES, PERSONS_OF_INTEREST } from './suspects';
+export type { PersonOfInterest } from './suspects';
 export { ATMOSPHERIC_SEEDS, WHITECHAPEL_FACTS } from './atmosphere';

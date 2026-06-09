@@ -22,8 +22,11 @@ import {
   ClueDefinition,
   TAKEABLE_OBJECTS,
   ACT_PROGRESSION,
+  ACT_ANCHORS,
   ACT_NAMES,
   ACT_TIME_CONFIG,
+  PERSONS_OF_INTEREST,
+  ACT_WEATHER,
   OBJECT_DISPLAY_NAMES,
   NPC_DISPLAY_NAMES,
   DEDUCTION_THRESHOLD,
@@ -105,6 +108,44 @@ export class GameEngine {
       case 'query':     result = this.resolveQuery(intent, session); break;
       case 'other':
       default:          result = this.resolveOther(intent, session); break;
+    }
+
+    // Act progression for talk/show — these resolvers set gate flags
+    // (talked_to_*, showed_*) but do not run their own progression check.
+    if (
+      (result.actionType === 'talk' || result.actionType === 'show') &&
+      result.actionSuccess &&
+      result.newAct === undefined
+    ) {
+      const mergedFlags = { ...session.flags, ...(result.flagsUpdate ?? {}) };
+      const actCheck = this.checkActProgression(session, mergedFlags);
+      if (actCheck.newAct !== undefined) {
+        result.newAct = actCheck.newAct;
+        result.flagsUpdate = { ...result.flagsUpdate, ...actCheck.flagsUpdate };
+        result.gameOver = result.gameOver || actCheck.gameOver;
+      }
+    }
+
+    // Act-anchor auto-move (the hard cut): entering a new act teleports Watson
+    // to the act's anchor location and carries follows_watson / follows_bond
+    // NPCs along, so Holmes is never left a location behind.
+    if (result.newAct !== undefined && !result.gameOver) {
+      const anchor = ACT_ANCHORS[result.newAct];
+      if (anchor && anchor !== (result.newLocation ?? session.location)) {
+        result.newLocation = anchor;
+        result.npcUpdates = {
+          ...result.npcUpdates,
+          ...this.computeNpcMovements(anchor, session),
+        };
+      }
+    }
+
+    // Ending classification — every gameOver carries its ending type.
+    if (result.gameOver) {
+      result.endingType =
+        result.actionType === 'deduce' && !result.actionSuccess
+          ? 'cold_case'
+          : 'true_ending';
     }
 
     // Proactive Holmes nudge — fires once per location when player is stuck
@@ -490,6 +531,16 @@ export class GameEngine {
                        ?? USE_COMBINATIONS[intent.useWithTargetId]?.[targetId];
 
       if (combination) {
+        // Location-locked combinations (e.g. the document convergence that must
+        // happen at Baker Street, against the casefiles).
+        if (combination.requiresLocation && session.location !== combination.requiresLocation) {
+          const placeName = LOCATIONS[combination.requiresLocation]?.name ?? 'elsewhere';
+          return this.blocked(intent, session,
+            `Watson holds the two side by side, but this is not the place for careful comparison. Better done at ${placeName}, with room to think.`,
+            `USE combination blocked: ${targetId} + ${intent.useWithTargetId} requires location '${combination.requiresLocation}' (currently '${session.location}'). Narrate Watson deciding to make the comparison properly at ${placeName}.`
+          );
+        }
+
         const hasItem = TAKEABLE_OBJECTS[targetId] !== undefined
           && session.inventory.includes(TAKEABLE_OBJECTS[targetId]);
         const item2InLocation = currentLoc.interactables.includes(intent.useWithTargetId);
@@ -682,8 +733,10 @@ export class GameEngine {
       );
     }
 
-    // Check DOCUMENT_TEXT for authored literal text
-    const docText = DOCUMENT_TEXT[targetId];
+    // Check DOCUMENT_TEXT for authored literal text.
+    // Act-keyed override first ("<objectId>@<act>") — lets the same document
+    // read differently by act (e.g. the casefiles wall before/after Kelly).
+    const docText = DOCUMENT_TEXT[`${targetId}@${session.currentAct}`] ?? DOCUMENT_TEXT[targetId];
     if (docText) {
       // Item must be in inventory OR in the current location
       const currentLoc = LOCATIONS[session.location];
@@ -786,6 +839,24 @@ export class GameEngine {
       ? 'Watson has sufficient evidence to attempt a deduction. Type DEDUCE followed by your theory to name a suspect.'
       : `Watson needs ${remaining} more piece${remaining === 1 ? '' : 's'} of evidence before a deduction is viable.`;
 
+    // Persons of Interest — the suspect ledger. Entries appear once their
+    // requiresFlag is set; cleared entries are annotated (struck through, in
+    // Watson's hand). Edmund is never listed pre-convergence by design.
+    const poiVisible = PERSONS_OF_INTEREST.filter(
+      p => !p.requiresFlag || session.flags[p.requiresFlag]
+    );
+    const poiLines = poiVisible.length > 0
+      ? poiVisible.map(p => {
+          const cleared = p.clearedByFlag && session.flags[p.clearedByFlag];
+          return cleared
+            ? `• ${p.label} — struck through: ${p.clearedNote ?? 'cleared'}`
+            : `• ${p.label} — ${p.detail}`;
+        }).join('\n')
+      : undefined;
+    const poiSection = poiLines
+      ? `\n\nPERSONS OF INTEREST (Watson's running ledger — cleared names are struck through):\n${poiLines}`
+      : '';
+
     return {
       actionSuccess: true,
       actionType: 'notebook',
@@ -794,9 +865,10 @@ export class GameEngine {
         success: true,
         actionDescription: 'Watson consulted his investigative notebook.',
         actionResultNote:
-          `NOTEBOOK — Watson reviews his accumulated evidence:\n${clueLines}\n\n${readinessNote}\n\n` +
+          `NOTEBOOK — Watson reviews his accumulated evidence:\n${clueLines}${poiSection}\n\n${readinessNote}\n\n` +
           `Write Watson opening his notebook and reflecting on the evidence in his own voice. ` +
           `1–2 short paragraphs. Do not list clues mechanically — Watson draws brief connections between what he has found. ` +
+          `If persons of interest are listed, weave Watson's current read of the standing suspects into the reflection. ` +
           `Close with the readiness note in Watson's voice, not as a system instruction.`,
         newClueDefs: [],
       }),
@@ -1067,6 +1139,7 @@ export class GameEngine {
       for (const line of npc.scriptedLines) {
         if (line.locationId !== locationId) continue;
         if (line.triggerFlag && !session.flags[line.triggerFlag]) continue;
+        if (line.act !== undefined && line.act !== session.currentAct) continue;
         npcScriptedLines.push({ npcId, label, instruction: line.instruction });
       }
     }
@@ -1129,10 +1202,12 @@ export class GameEngine {
       };
     }
 
-    // Atmospheric fallback note — used when examined object triggers no clue
+    // Atmospheric fallback note — used when examined object triggers no clue.
+    // Act-keyed override first ("<objectId>@<act>") for act-variant descriptions.
     const atmosphericNote =
       intent.targetId && outcome.newClueDefs.length === 0
-        ? ATMOSPHERIC_NOTES[locationId]?.[intent.targetId]
+        ? (ATMOSPHERIC_NOTES[locationId]?.[`${intent.targetId}@${session.currentAct}`]
+            ?? ATMOSPHERIC_NOTES[locationId]?.[intent.targetId])
         : undefined;
 
     // Introduction flags: talking to an NPC introduces them (if they self-introduce)
@@ -1172,6 +1247,7 @@ export class GameEngine {
       actName: ACT_NAMES[act] || `Act ${act}`,
       timeLabel,
       timePeriod,
+      weather: ACT_WEATHER[act] ?? ACT_WEATHER[1],
       npcsPresent,
       availableObjects,
       availableExits,
