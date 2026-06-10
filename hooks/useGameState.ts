@@ -18,7 +18,7 @@ import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -859,6 +859,16 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         } catch {
           // Journal is bonus content — never block the game on failure
         }
+      }
+
+      // STEP 9: The true ending's scripted coda — authored verbatim, never
+      // AI-generated. Fires once, after the final narration completes.
+      // (Cold-case endings keep their AI diary epilogue from the main stream.)
+      if (result.gameOver && result.endingType === 'true_ending') {
+        setHistory(prev => [
+          ...prev,
+          { role: 'assistant', text: TRUE_ENDING_CODA, type: 'journal' },
+        ]);
       }
 
     } catch (error) {

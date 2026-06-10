@@ -93,6 +93,17 @@ function applyResult(snap: SessionSnapshot, result: ReturnType<typeof gameEngine
     discoveredClueIds: [...snap.discoveredClueIds, ...(result.discoveredClueIds ?? [])],
     location: result.newLocation ?? snap.location,
     currentAct: result.newAct ?? snap.currentAct,
+    // Mirror the hook: NPC location/state updates must persist across steps
+    // (Bond moving to Miller's Court on the Act 1 cut, Tumblety going offstage, …)
+    npcStates: result.npcUpdates
+      ? Object.entries(result.npcUpdates).reduce(
+          (acc, [id, upd]) => ({
+            ...acc,
+            [id]: { ...(acc[id] ?? { npcId: id, disposition: 50, status: 'alive', memory: [] }), ...upd },
+          }),
+          { ...snap.npcStates }
+        )
+      : snap.npcStates,
   };
 }
 
@@ -156,89 +167,128 @@ function step(
 // ── Scenario 1: Winning path ──────────────────────────────────────────────────
 
 function runWinningPath() {
-  console.log('\n=== SCENARIO: winning-path ===');
+  console.log('\n=== SCENARIO: winning-path (reweave) ===');
 
-  // Act anchors are live: completing an act AUTO-MOVES Watson to the next
-  // act's anchor location (the hard cut), so no manual walk between acts.
+  // The rewoven critical path: five suspect-theory acts, anchor auto-moves
+  // between them, and the Act 5 Baker Street convergence driving the advance.
 
-  // Act 0 — Baker Street (gate completes → auto-move to dorset_street)
+  // Act 0 — the vigil. Tutorial: talk, examine, take, show.
   let s = buildSnapshot();
   s = step('Act0', s, 'talk to holmes',          { expectSuccess: true, expectFlag: 'talked_to_holmes_at_baker_street' });
   s = step('Act0', s, 'examine case files wall', { expectSuccess: true, expectFlag: 'examined_baker_street_case_files_wall', expectClue: 'clue_00_campaign_timeline' });
+  s = step('Act0', s, 'examine newspaper pile',  { expectSuccess: true }); // yields the clipping (takeable)
+  if (s.inventory.includes('Newspaper Clipping (the "Dear Boss" letter)')) {
+    pass('Act0 → newspaper clipping added to inventory');
+  } else {
+    fail(`Act0 → clipping not in inventory: ${JSON.stringify(s.inventory)}`);
+  }
+  s = step('Act0', s, 'show newspaper clipping to holmes', { expectSuccess: true, expectFlag: 'showed_newspaper_pile_to_holmes' });
   s = step('Act0', s, 'examine telegrams pile',  {
     expectSuccess: true,
     expectFlag: 'examined_baker_street_telegrams_pile',
     expectAct: 1,
-    expectLocation: 'dorset_street', // ← anchor auto-move
+    expectLocation: 'dorset_street', // ← anchor auto-move (overnight cut; Kelly dies tonight)
   });
 
-  // Act 1 — Miller's Court (gate: burned_clothing + the_bed → auto-move to mortuary)
+  // Act 1 — "The Stranger". Hutchinson gated; closes on Bond's aftermath beat.
+  s = step('Act1', s, 'talk to hutchinson',      { expectSuccess: true, expectFlag: 'talked_to_hutchinson_at_dorset_street' });
   s = step('Act1', s, 'go to millers court',     { expectSuccess: true, expectLocation: 'millers_court' });
   s = step('Act1', s, 'examine burned clothing', { expectSuccess: true, expectFlag: 'examined_millers_court_burned_clothing', expectClue: 'clue_01_killer_confidence' });
-  s = step('Act1', s, 'examine the bed',         {
+  s = step('Act1', s, 'examine the bed',         { expectSuccess: true, expectFlag: 'examined_millers_court_the_bed' });
+  s = step('Act1', s, 'talk to bond', {
     expectSuccess: true,
-    expectFlag: 'examined_millers_court_the_bed',
-    expectAct: 2,
-    expectLocation: 'whitechapel_mortuary', // ← anchor auto-move
+    expectFlag: 'talked_to_bond_at_millers_court',
+    expectAct: 2,                            // ← talk-gated advance (the capstone)
+    expectLocation: 'whitechapel_mortuary',  // ← anchor auto-move
   });
 
-  // Act 2 — starts at the mortuary (anchor); Buck's Row + Hanbury via exits
+  // Act 2 — "The Mad Doctor". Mortuary + cold scenes, then Tumblety in custody.
   s = step('Act2', s, 'examine bonds desk',          { expectSuccess: true, expectFlag: 'examined_whitechapel_mortuary', expectClue: 'clue_02c_small_hands' });
   s = step('Act2', s, 'go to bucks row',             { expectSuccess: true, expectLocation: 'bucks_row' });
   s = step('Act2', s, 'examine cobblestone roadway', { expectSuccess: true, expectFlag: 'examined_bucks_row', expectClue: 'clue_01_respectable_approach' });
   s = step('Act2', s, 'go to hanbury street',        { expectSuccess: true, expectLocation: 'hanbury_street' });
-  s = step('Act2', s, 'examine ground where body was discovered', {
+  s = step('Act2', s, 'examine ground where body was discovered', { expectSuccess: true, expectFlag: 'examined_hanbury_street', expectClue: 'clue_02_anatomical_knowledge' });
+  // Route to the station: hanbury → bucks row → the pub → the station
+  s = step('Act2', s, 'go to bucks row',             { expectSuccess: true });
+  s = step('Act2', s, 'go to whitechapel pub',       { expectSuccess: true, expectLocation: 'whitechapel_pub' });
+  s = step('Act2', s, 'go to h division station',    { expectSuccess: true, expectLocation: 'h_division_station' });
+  s = step('Act2', s, 'talk to tumblety',            { expectSuccess: true, expectFlag: 'talked_to_tumblety_at_h_division_station' });
+  s = step('Act2', s, 'talk to holmes', {
     expectSuccess: true,
-    expectFlag: 'examined_hanbury_street',
-    expectClue: 'clue_02_anatomical_knowledge',
-    expectAct: 3,
-    expectLocation: 'dutfields_yard', // ← anchor auto-move
+    expectFlag: 'talked_to_holmes_at_h_division_station',
+    expectAct: 3,                       // ← capstone talk advance
+    expectLocation: 'dutfields_yard',   // ← anchor auto-move
   });
 
-  // Act 3 — starts at Dutfield's Yard (anchor)
+  // Act 3 — "The Foreigner". The double event, Pizer, the erased wall.
   s = step('Act3', s, 'examine yard entrance gate', { expectSuccess: true, expectFlag: 'examined_dutfields_yard', expectClue: 'clue_03_interrupted_ritual' });
-  s = step('Act3', s, 'go to mitre square',      { expectSuccess: true, expectLocation: 'mitre_square' });
-  s = step('Act3', s, 'examine square walls',    { expectSuccess: true, expectFlag: 'examined_mitre_square', expectClue: 'clue_04_kidney_removal' });
-  s = step('Act3', s, 'go to dutfields yard',    { expectSuccess: true });
-  s = step('Act3', s, 'go to working mens club', { expectSuccess: true, expectLocation: 'working_mens_club' });
-  s = step('Act3', s, 'examine club members', {
+  s = step('Act3', s, 'go to working mens club',    { expectSuccess: true, expectLocation: 'working_mens_club' });
+  s = step('Act3', s, 'talk to pizer',              { expectSuccess: true, expectFlag: 'talked_to_pizer_at_working_mens_club' });
+  s = step('Act3', s, 'go to dutfields yard',       { expectSuccess: true });
+  s = step('Act3', s, 'go to mitre square',         { expectSuccess: true, expectLocation: 'mitre_square' });
+  s = step('Act3', s, 'examine square walls',       { expectSuccess: true, expectFlag: 'examined_mitre_square', expectClue: 'clue_04_kidney_removal' });
+  s = step('Act3', s, 'go to goulston street',      { expectSuccess: true, expectLocation: 'goulston_street' }); // act 3 now
+  s = step('Act3', s, 'examine apron fragment location', { expectSuccess: true, expectFlag: 'examined_goulston_street', expectClue: 'clue_03b_unremarked_passage' });
+  s = step('Act3', s, 'talk to holmes', {
     expectSuccess: true,
-    expectFlag: 'examined_working_mens_club',
-    expectAct: 4,
-    expectLocation: 'lusk_office', // ← anchor auto-move
+    expectFlag: 'talked_to_holmes_at_goulston_street',
+    expectAct: 4,                   // ← capstone at the erased wall
+    expectLocation: 'lusk_office',  // ← anchor auto-move
   });
 
-  // Act 4 — starts at Lusk's office (anchor)
-  s = step('Act4', s, 'examine from hell letter', {
+  // Act 4 — "The Vanishing Gentleman". The letter; Tumblety flees offstage.
+  s = step('Act4', s, 'examine from hell letter', { expectSuccess: true, expectFlag: 'examined_lusk_office', expectClue: 'clue_05_from_hell_letter' });
+  if (s.inventory.includes('From Hell Letter (transcript)')) {
+    pass('Act4 → letter transcript added to inventory (needed for the convergence)');
+  } else {
+    fail(`Act4 → letter transcript missing from inventory: ${JSON.stringify(s.inventory)}`);
+  }
+  s = step('Act4', s, 'talk to abberline',        { expectSuccess: true, expectFlag: 'talked_to_abberline_at_lusk_office' });
+  s = step('Act4', s, 'talk to holmes', {
     expectSuccess: true,
-    expectFlag: 'examined_lusk_office',
-    expectClue: 'clue_05_from_hell_letter',
-    expectAct: 5,
-    expectLocation: 'bond_office', // ← anchor auto-move
+    expectFlag: 'talked_to_holmes_at_lusk_office',
+    expectAct: 5,                   // ← capstone synthesis
+    expectLocation: 'bond_office',  // ← anchor auto-move
   });
 
-  // Act 5 — starts at Bond's office (anchor); act 6 anchor is also bond_office (no move)
-  s = step('Act5', s, 'examine edmund forensic note', {
+  // Act 5 — "The Quiet Man". The gather, then the Baker Street convergence.
+  s = step('Act5', s, 'examine medical reports',  { expectSuccess: true, expectFlag: 'examined_bond_office', expectClue: 'clue_07_edmunds_presence' });
+  s = step('Act5', s, 'examine anatomical texts', { expectSuccess: true, expectClue: 'clue_09_medical_background' });
+  // The forensic note: copy + NAME — but NO clue_06 (the connection is the player's, at home).
+  const beforeNote = s.discoveredClueIds.length;
+  s = step('Act5', s, 'examine edmund forensic note', { expectSuccess: true });
+  s.discoveredClueIds.length === beforeNote
+    ? pass('Act5 → forensic note examine yields NO clue (clue_06 reserved for the convergence)')
+    : fail(`Act5 → forensic note prematurely granted a clue: ${JSON.stringify(s.discoveredClueIds.slice(beforeNote))}`);
+  s.inventory.includes("Assistant's Forensic Note (copy)")
+    ? pass('Act5 → forensic note copy added to inventory')
+    : fail(`Act5 → note copy missing: ${JSON.stringify(s.inventory)}`);
+  // No act advance yet — Act 5 has no flag gate.
+  s.currentAct === 5
+    ? pass('Act5 → act holds at 5 after the gather (no bare-examine gate)')
+    : fail(`Act5 → act advanced prematurely to ${s.currentAct}`);
+  // The convergence — at home, against the casefiles.
+  s = step('Act5', s, 'go to baker street', { expectSuccess: true, expectLocation: 'baker_street' });
+  s = step('Act5', s, 'use forensic note with from hell letter', {
     expectSuccess: true,
-    expectFlag: 'examined_bond_office',
-    expectClue: 'clue_06_prasarved_spelling',
-    expectAct: 6,
-    expectLocation: 'bond_office', // anchor identical — no teleport
+    expectClue: 'clue_06_prasarved_spelling', // ← THE MATCH, player-made
   });
-
-  // Act 6 — Correct deduction requires clue_06 (smoking gun); then the asylum.
-  s = step('Act6', s, 'deduce Edmund Halward is the killer', {
+  // The naming — the Act 5→6 advance IS the deduction; the rush auto-moves to Bond's office.
+  s = step('Act5', s, 'deduce Edmund Halward is the killer', {
     expectSuccess: true,
     expectFlag: 'asylum_unlocked',
-    expectGameOver: false, // gameOver fires at the asylum, not on the deduction
+    expectAct: 6,
+    expectLocation: 'bond_office', // ← the rush ("he's gone")
+    expectGameOver: false,
   });
-  s = step('Act6', s, 'go to private asylum', {
-    expectSuccess: true,
-    expectLocation: 'private_asylum',
-  });
+
+  // Act 6 — the confrontation and the extraction.
+  s = step('Act6', s, 'go to private asylum', { expectSuccess: true, expectLocation: 'private_asylum' });
+  s = step('Act6', s, 'talk to edmund',       { expectSuccess: true, expectFlag: 'talked_to_edmund_at_private_asylum' });
   s = step('Act6', s, 'examine patient records', {
     expectSuccess: true,
     expectFlag: 'visited_private_asylum',
+    expectClue: 'clue_10_asylum_commitment',
     expectGameOver: true,
     expectEndingType: 'true_ending',
   });
@@ -567,9 +617,11 @@ function runShowMechanic() {
   r1.actionSuccess
     ? pass('Show: show forensic note to holmes → actionSuccess=true')
     : fail('Show: show forensic note to holmes failed', r1.blockedReason);
-  (r1.discoveredClueIds ?? []).includes('clue_06_prasarved_spelling')
-    ? pass('Show: clue_06 discovered via show (alternate path)')
-    : fail('Show: clue_06 not discovered from show forensic note to holmes');
+  // REWEAVE: showing the note to Holmes must NOT grant clue_06 — he redirects
+  // to Baker Street ("bring it home"); the convergence belongs to the player.
+  !(r1.discoveredClueIds ?? []).includes('clue_06_prasarved_spelling')
+    ? pass('Show: Holmes redirects without granting clue_06 (convergence preserved)')
+    : fail('Show: clue_06 leaked via show forensic note to holmes — bypasses the Baker Street convergence');
 
   // SHOW item not in inventory → blocked
   const sNoItem = buildSnapshot({ currentAct: 2, location: 'whitechapel_mortuary' });
@@ -709,12 +761,13 @@ function runDropMechanic() {
 function runTalkGatedAdvance() {
   console.log('\n=== SCENARIO: talk-gated-advance ===');
 
-  // Act 0 with both examine flags already set — the TALK is the last gate
+  // Act 0 with all other gate flags already set — the TALK is the last gate
   // action. Pre-fix this soft-locked (talk never fired act progression).
   const s = buildSnapshot({
     flags: {
       examined_baker_street_case_files_wall: true,
       examined_baker_street_telegrams_pile: true,
+      showed_newspaper_pile_to_holmes: true,
     },
   });
   const result = gameEngine.resolve(parseIntent('talk to holmes'), s);

@@ -18,21 +18,59 @@ export interface PersonOfInterest {
 }
 
 export const PERSONS_OF_INTEREST: PersonOfInterest[] = [
-  // Current-story placeholder entries; the reweave build replaces these with
-  // the full moving-spotlight roster (Stranger, Mad Doctor, Foreigner, Gentleman).
+  // The moving-spotlight roster. One loud theory per act, raised fairly and
+  // cleared fairly. Edmund appears ONLY after the convergence (asylum_unlocked).
+  {
+    id: 'poi_stranger',
+    label: 'The Stranger',
+    detail: "Hutchinson's man — prosperous, dark, astrakhan coat, gold watch-chain; seen with Kelly hours before her death. Unidentified.",
+    requiresFlag: 'talked_to_hutchinson_at_dorset_street',
+    clearedByFlag: 'talked_to_holmes_at_h_division_station',
+    clearedNote: 'too convenient — the man London wishes to blame; no corroboration found',
+  },
+  {
+    id: 'poi_hutchinson',
+    label: 'George Hutchinson',
+    detail: 'The witness himself — account suspiciously detailed; admits loitering outside the court that night.',
+    requiresFlag: 'talked_to_hutchinson_at_dorset_street',
+    clearedByFlag: 'talked_to_tumblety_at_h_division_station',
+    clearedNote: 'no medical knowledge of any kind; a lonely man who knew Kelly — watched, then dismissed',
+  },
+  {
+    id: 'poi_tumblety',
+    label: 'The Mad Doctor (Francis Tumblety)',
+    detail: 'American specimen-collector in custody — anatomical curios, hatred of women. He fits gloriously.',
+    requiresFlag: 'examined_baker_street_telegrams_pile',
+    clearedByFlag: 'talked_to_abberline_at_lusk_office',
+    clearedNote: 'fled the country — the public\'s chosen culprit; but the preservation does not match his crude curios',
+  },
+  {
+    id: 'poi_pizer',
+    label: '"Leather Apron" (John Pizer)',
+    detail: 'The press\'s monster — a bootmaker the mob nearly hanged.',
+    requiresFlag: 'talked_to_pizer_at_working_mens_club',
+    clearedByFlag: 'talked_to_holmes_at_goulston_street',
+    clearedNote: 'fully alibied; the panic was prejudice dressed as deduction',
+  },
+  {
+    id: 'poi_gentleman',
+    label: 'The Vanishing Gentleman',
+    detail: 'A barrister of good family — erratic, dismissed from his post, now not to be found.',
+    requiresFlag: 'talked_to_abberline_at_lusk_office',
+  },
   {
     id: 'poi_bond',
     label: 'Dr. Thomas Bond',
-    detail: 'Police surgeon — anatomical mastery and access to every scene.',
+    detail: 'Police surgeon — anatomical knowledge and access to every scene.',
     requiresFlag: 'examined_whitechapel_mortuary',
     clearedByFlag: 'showed_medical_reports_to_abberline',
-    clearedNote: 'movements on the double-event night accounted for (Abberline)',
+    clearedNote: 'movements on the double-event night fully accounted for (Abberline)',
   },
   {
-    id: 'poi_abberline',
-    label: 'Inspector Abberline',
-    detail: 'Lead investigator — access to every file and every scene.',
-    requiresFlag: 'talked_to_abberline_at_h_division_station',
+    id: 'poi_edmund',
+    label: 'Edmund Halward',
+    detail: 'The assistant — present at every scene; self-taught anatomy; laboratory hands; the hand of the letter. The answer.',
+    requiresFlag: 'asylum_unlocked', // listed only once the convergence has named him
   },
 ];
 
@@ -76,5 +114,55 @@ export const SUSPECT_PROFILES: SuspectProfile[] = [
       `To accuse the one man labouring hardest to stop the killings is despair, not deduction. Write a 150-word ` +
       `final diary entry: Watson regrets the accusation, the true culprit unnamed, the murders unanswered. ` +
       `Tone: sombre and ashamed. End with Watson closing his diary.`,
+  },
+  // ── REWEAVE: the loud suspects ───────────────────────────────────────────
+  {
+    npcId: 'tumblety',
+    aliases: ['tumblety', 'francis tumblety', 'the american', 'american doctor', 'the mad doctor', 'the quack'],
+    isGuilty: false,
+    wrongDeductionNote:
+      `COLD CASE (named Francis Tumblety) — Holmes hears it through, and concedes its appeal: the specimens, ` +
+      `the hatred of women, the flight that looked so much like confession. Then he takes it apart — the man's ` +
+      `anatomy is a showman's, names and flourish without practice; his curios were bought, and crudely kept, ` +
+      `nothing like the laboratory hand that preserved the Lusk kidney; and he fled an indecency charge, not a ` +
+      `murder warrant. History will be content to blame the fled American. Holmes is not, and the murders go ` +
+      `unanswered. Write a 150-word final diary entry: Watson chose the loud man, and the quiet one walked free. ` +
+      `Tone: sombre, self-critical. End with Watson closing his diary.`,
+  },
+  {
+    npcId: 'pizer',
+    aliases: ['pizer', 'john pizer', 'leather apron', 'the bootmaker'],
+    isGuilty: false,
+    wrongDeductionNote:
+      `COLD CASE (named John Pizer) — Holmes's reply is cold and immediate: Pizer was alibied within days of ` +
+      `his arrest — a dock fire watched beside a constable, a lodging house full of witnesses — and released ` +
+      `without charge. To name him now is to repeat what the mob and the newspapers did in September, with ` +
+      `better grammar. The easy suspicion of the foreigner is not deduction; it is the very prejudice the ` +
+      `killer has hidden behind all autumn. Write a 150-word final diary entry: Watson accuses a man already ` +
+      `wronged, and the case closes unsolved. Tone: sombre and ashamed. End with Watson closing his diary.`,
+  },
+  {
+    npcId: 'hutchinson',
+    aliases: ['hutchinson', 'george hutchinson', 'the witness'],
+    isGuilty: false,
+    wrongDeductionNote:
+      `COLD CASE (named George Hutchinson) — Holmes grants the instinct: the account too detailed, the ` +
+      `loitering admitted, the late coming-forward. But the substance dissolves on inspection — the man has ` +
+      `no medical knowledge of any kind, his movements on the other nights are accounted for, and his vigil ` +
+      `outside the court was the loneliness of a man who half-hoped a friend would shelter him. Suspicion of ` +
+      `everyone is not the same as evidence against someone. Write a 150-word final diary entry: Watson named ` +
+      `a sad man and missed a quiet one; the case closes unsolved. Tone: sombre. End with Watson closing his diary.`,
+  },
+  {
+    npcId: 'gentleman',
+    aliases: ['the gentleman', 'the vanishing gentleman', 'the barrister', 'druitt'],
+    isGuilty: false,
+    wrongDeductionNote:
+      `COLD CASE (named the vanished gentleman) — Holmes shakes his head slowly. A troubled barrister of good ` +
+      `family, erratic and now missing, makes a satisfying shape — but a shape is all it is. His dismissal was ` +
+      `private scandal, not blood; his movements fit none of the murder nights that can be fixed; and a man may ` +
+      `vanish for a hundred reasons in this city, most of them sad and none of them murder. "It is always the ` +
+      `respectable one" is an instinct, Watson, not a proof. Write a 150-word final diary entry: Watson names a ` +
+      `ghost, and the true answer stays at its bench. Tone: sombre, resigned. End with Watson closing his diary.`,
   },
 ];

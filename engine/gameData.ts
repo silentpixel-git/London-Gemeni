@@ -46,4 +46,6 @@ export type { ActTimeConfig, ActWeather, WeatherCondition } from './stories/whit
 export { SUSPECT_PROFILES, PERSONS_OF_INTEREST } from './stories/whitechapel-1888/suspects';
 export type { PersonOfInterest } from './stories/whitechapel-1888/suspects';
 
+export { TRUE_ENDING_CODA } from './stories/whitechapel-1888/endings';
+
 export { ATMOSPHERIC_SEEDS, WHITECHAPEL_FACTS } from './stories/whitechapel-1888/atmosphere';

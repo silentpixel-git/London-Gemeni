@@ -13,9 +13,9 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     atmosphere: 'Warm lamplight, tobacco smoke, and the familiar disorder of a working mind. Holmes\' sitting room in the grip of an urgent case.',
     description: 'The sitting room is barely recognisable. Case files have colonised the mantelpiece, the armchairs, and most of the floor. A large map of Whitechapel is pinned to the wall with coloured threads running between locations. Holmes stands at the window, his back to the room.',
     exits: ['dorset_street'],
-    interactables: ['whitechapel_map', 'holmes_chemistry_table', 'telegrams_pile', 'watson_armchair', 'newspaper_pile', 'case_files_wall'],
-    keyClues: ['Holmes has been building a case map', 'The newspapers document public panic and press speculation'],
-    criticalPathLead: 'Speak with Holmes. He has been at this for weeks — Watson is catching up. Examine the room. The case files wall is the last thing to read, not the first.',
+    interactables: ['whitechapel_map', 'holmes_chemistry_table', 'telegrams_pile', 'newspaper_pile', 'case_files_wall'],
+    keyClues: ['Holmes has been building a case map', 'The newspapers document public panic and press speculation', 'A clipping of the published "Dear Boss" letter is worth showing to Holmes'],
+    criticalPathLead: 'Speak with Holmes — he has been at this for weeks. Examine the case files wall and the newspapers; show Holmes the clipping of the published letter; read the telegrams last.',
     locationExaminedFlag: 'examined_baker_street',
     timeOfDay: 'night',
   },
@@ -244,8 +244,10 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     id: 'goulston_street',
     name: 'Goulston Street',
     shortName: 'Goulston Street',
-    act: 4,
-    timeframe: 'present',
+    // Reweave: moved from Act 4 → Act 3 — the apron trail and the erased
+    // graffiti belong to the Foreigner act, alongside the double event.
+    act: 3,
+    timeframe: 'reconstruction',
     atmosphere: 'Busy street with lingering tension. The wall where the graffiti was discovered is just a wall now — Commissioner Warren had it erased before dawn.',
     description: "The street is bustling, but Watson stands at the precise spot where, on the night of September 30th, a Metropolitan constable found a piece of Eddowes' apron and a chalk inscription on the wall above it. The inscription was wiped away before it could be photographed. Watson finds this inexplicable and infuriating.",
     exits: ['mitre_square', 'lusk_office'],
@@ -263,7 +265,6 @@ export const OBJECT_DISPLAY_NAMES: Record<string, string> = {
   whitechapel_map: 'Whitechapel Map',
   holmes_chemistry_table: "Holmes' Chemistry Table",
   telegrams_pile: 'Telegrams from Abberline',
-  watson_armchair: "Watson's Armchair",
   newspaper_pile: 'Newspaper Pile',
   // Dorset Street
   police_barricade: 'Police Barricade',

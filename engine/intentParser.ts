@@ -179,6 +179,16 @@ function matchNpcId(raw: string): string | undefined {
     'the steward': 'diemschutz',
     'the superintendent': 'superintendent',
     'the warden': 'superintendent',
+    // Reweave suspects
+    'the american': 'tumblety',
+    'american doctor': 'tumblety',
+    'the quack': 'tumblety',
+    'the mad doctor': 'tumblety',
+    'leather apron': 'pizer',
+    'the bootmaker': 'pizer',
+    'the witness': 'hutchinson',
+    'dr phillips': 'phillips',
+    'doctor phillips': 'phillips',
   };
   for (const [alias, id] of Object.entries(npcAliases)) {
     if (norm.includes(alias)) return id;
@@ -227,6 +237,9 @@ function matchObjectId(raw: string): string | undefined {
     'box': 'parcel_box',
     'reports': 'medical_reports',
     'forensic reports': 'medical_reports',
+    'clipping': 'newspaper_pile',
+    'newspaper clipping': 'newspaper_pile',
+    'dear boss': 'newspaper_pile',
     'notes': 'edmund_forensic_note',
     "edmund's note": 'edmund_forensic_note',
     "halward's note": 'edmund_forensic_note',

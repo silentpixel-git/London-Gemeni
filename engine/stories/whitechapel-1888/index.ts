@@ -26,4 +26,5 @@ export {
 export type { ActTimeConfig } from './acts';
 export { SUSPECT_PROFILES, PERSONS_OF_INTEREST } from './suspects';
 export type { PersonOfInterest } from './suspects';
+export { TRUE_ENDING_CODA } from './endings';
 export { ATMOSPHERIC_SEEDS, WHITECHAPEL_FACTS } from './atmosphere';

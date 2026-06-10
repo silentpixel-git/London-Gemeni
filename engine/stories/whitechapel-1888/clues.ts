@@ -2,11 +2,15 @@ import type { ClueDefinition } from '../types';
 
 export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   // GROUP 0 — Prologue: Baker Street framework clue
+  // REWEAVE: the prologue is the EVE of Kelly — four victims, then six weeks
+  // of silence since the double event. The wall also carries the loud-suspect
+  // landscape (Tumblety in custody, "Leather Apron", a gentleman of rumour)
+  // and, unremarked, one note reading "Bond — police surgeon — & assistant."
   clue_00_campaign_timeline: {
     id: 'clue_00_campaign_timeline',
-    name: 'The Eleven Weeks',
-    description: "Watson reads the case files wall. Five names in chronological order: Nichols. Chapman. Stride. Eddowes. Kelly. August through November — eleven weeks, five murders, an accelerating frequency. The last three in six weeks. Holmes's note beside the final card reads simply: 'Acceleration. He is growing less cautious. Or more confident.'",
-    holmesDeduction: "An eleven-week campaign, Watson. Not compulsion — calculation. A man who began slowly and grew bolder as he understood he would not be caught. That is our frame. We are not looking for an impulsive man. We are looking for a patient one.",
+    name: 'The Silence Since September',
+    description: "Watson reads the case files wall. Four names in chronological order: Nichols. Chapman. Stride. Eddowes. Four murders in five weeks — two of them in a single night — and then nothing: six weeks of silence since the thirtieth of September. Pinned around the cards, the public's suspects: an American doctor taken into custody this week; the 'Leather Apron' the papers conjured; a gentleman of rumour. And one unremarkable note in Holmes's hand: 'Bond — police surgeon — & assistant.' Beside the timeline Holmes has written: 'The silence is data. Such appetites do not retire.'",
+    holmesDeduction: "Four murders in five weeks, Watson, and then six weeks of nothing. Not compulsion — calculation. And mark this above all: in the whole campaign, not one reliable witness. The man we want is a man no one remembers. That is the only thing we know of him — and it is a great deal.",
     locationFound: 'baker_street',
     triggerObject: 'case_files_wall',
     connections: ['clue_02b_campaign_pattern'],
@@ -70,7 +74,9 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
     id: 'clue_02c_small_hands',
     name: 'The Hands',
     description: "Watson reads Bond's post-mortem note on Kelly. A single clinical observation buried in the anatomical detail: 'Incision patterns consistent with unusually small, steady hands. The contained precision suggests familiarity with restricted anatomical spaces.' Bond wrote it as a passing remark. Watson reads it twice.",
-    holmesDeduction: "Small hands. Precise in confined spaces. Bond noticed the signature without understanding what he was signing. This is not the work of a surgeon — it is the work of someone who learned surgery in pieces, in private, without ever completing the training.",
+    // RECESSION RULE: the deduction points at the abstract PROFILE, never a person —
+    // the set includes Bond, Phillips, and every medical man who passes through the room.
+    holmesDeduction: "Small hands. Precise in confined spaces. Bond noticed the signature without understanding what he was signing. This is not the polish of a qualified surgeon — it is the precision of a man who learned anatomy in pieces, by watching and by study. Any of the medical men who pass through this room would fit the frame, Watson. The frame is what matters.",
     locationFound: 'whitechapel_mortuary',
     triggerObject: 'bonds_desk',
     connections: ['clue_02_anatomical_knowledge', 'clue_06_prasarved_spelling', 'clue_07_edmunds_presence'],
@@ -90,6 +96,20 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
     clueGroup: 3,
     medicalPoints: 5,
     moralPoints: 5,
+  },
+  // GROUP 3b — The Unremarked Passage (REWEAVE — the Foreigner act's key
+  // triangulation, delivered as profile, attached to no one)
+  clue_03b_unremarked_passage: {
+    id: 'clue_03b_unremarked_passage',
+    name: 'The Unremarked Passage',
+    description: "The spot where the constable found the piece of Eddowes' apron. Watson traces the route in his mind: from Mitre Square, across the jurisdiction line, through the heart of the Jewish quarter — a man carrying away evidence of the night's second murder, minutes after committing it — and not one soul stopped him, challenged him, or afterwards remembered him.",
+    holmesDeduction: 'Consider what that walk required, Watson. Not luck — licence. He passed because his presence raised no question; he belongs to these streets the way a lamplighter belongs to them. We hunt no skulking outsider. We hunt a man whose face is a kind of permission.',
+    locationFound: 'goulston_street',
+    triggerObject: 'apron_fragment_location',
+    connections: ['clue_01_respectable_approach', 'clue_04b_adjustable_appearance', 'clue_07_edmunds_presence'],
+    clueGroup: 3,
+    medicalPoints: 0,
+    moralPoints: 10,
   },
   // GROUP 4 — Kidney Removal
   clue_04_kidney_removal: {
@@ -118,11 +138,14 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
     moralPoints: 0,
   },
   // GROUP 5 — The From Hell Letter
+  // FAIR-PLAY RULE: the letter is presented WHOLE — crudely spelled throughout,
+  // a dozen errors. No single word is ever singled out here; the matching moment
+  // belongs to the player, at the Act 5 Baker Street convergence.
   clue_05_from_hell_letter: {
     id: 'clue_05_from_hell_letter',
     name: 'The From Hell Letter',
-    description: 'A crude letter sent to George Lusk: "From hell, Mr Lusk, I send you half the Kidne I took from one women prasarved it for you tother piece I fried and ate it was very nise." The spelling is irregular but not illiterate.',
-    holmesDeduction: 'He is educated enough to write — yet makes specific, consistent errors. This is not ignorance. These errors are his own.',
+    description: 'The letter sent to George Lusk with the kidney — crudely spelled from its first line to its last, taunting, claiming the deed outright. A dozen errors crowd its few sentences, yet the hand itself is steady and unhurried. Genuine illiteracy, or a performance of it? Watson copies the text into his notebook entire.',
+    holmesDeduction: 'A man barely lettered, Watson — or one who wishes us to believe it. The hand is steady; the errors are consistent; the cruelty is genuine. Keep your transcript close. Documents have a way of answering one another, given time.',
     locationFound: 'lusk_office',
     triggerObject: 'from_hell_letter',
     connections: ['clue_06_prasarved_spelling', 'clue_05_human_kidney'],
@@ -133,8 +156,8 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_05_human_kidney: {
     id: 'clue_05_human_kidney',
     name: 'The Kidney Parcel',
-    description: 'Watson examines the preserved half-kidney sent to Lusk. It is unmistakably human. The renal artery has been cut approximately one inch from the organ — consistent with a surgical removal.',
-    holmesDeduction: "Watson's confirmation is definitive. This is Catherine Eddowes' missing kidney. The letter writer is the murderer.",
+    description: "Watson examines the preserved half-kidney sent to Lusk. Unmistakably human; the renal artery cut a clean inch from the organ. And the preservation itself arrests him: spirit of wine at a precise laboratory concentration — the standard mortuary method, exactly as a post-mortem specimen would be kept. Bond confirms it without being asked: 'This is how my own laboratory keeps a specimen.'",
+    holmesDeduction: "Mark the preservation, Watson, more than the cutting. A showman's curio is crudely kept — this was fixed by laboratory hands, to laboratory standards. The man who kept this kidney keeps specimens for his living. He did not flee, and he did not vanish. He is still at his bench.",
     locationFound: 'lusk_office',
     triggerObject: 'kidney_parcel',
     connections: ['clue_04_kidney_removal', 'clue_06_prasarved_spelling', 'clue_08_preserved_kidney'],
@@ -142,14 +165,16 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
     medicalPoints: 10,
     moralPoints: 5,
   },
-  // GROUP 6 — The Smoking Gun Spelling
+  // GROUP 6 — The Smoking Gun (REWEAVE: discovered at the Baker Street
+  // convergence — the player lays the assistant's note beside the letter at
+  // 221B, against the casefiles. Never granted at Bond's office.)
   clue_06_prasarved_spelling: {
     id: 'clue_06_prasarved_spelling',
-    name: "The 'Prasarved' Note",
-    description: "Among the assistant's forensic cataloguing notes, Watson finds a report containing the word 'prasarved' — the same idiosyncratic misspelling as in the From Hell letter. The name at the top of the note: Edmund Halward.",
-    holmesDeduction: "Two men do not spell 'preserved' as 'prasarved'. The small hands. The campaign pattern. The burned clothing, and how he knew its temperature. Bond's assistant. All of it was there, Watson — from the first morning. So that is his name.",
-    locationFound: 'bond_office',
-    triggerObject: 'edmund_forensic_note',
+    name: 'The Convergence',
+    description: "At Holmes's desk, Watson lays the assistant's forensic note beside the From Hell letter. The styles diverge — one clinical, one a performance of ignorance — but there it is, in both hands, written without hesitation: 'prasarved.' The same idiosyncratic vowel in the same uncertain position. Watson's eye goes to the casefiles wall — the assistant present at every scene — and then to the name signed at the foot of the note: Edmund Halward.",
+    holmesDeduction: "Two men do not spell 'preserved' as 'prasarved'. The small hands. The laboratory fixative. The man present at every post-mortem whom no one has ever once remarked. It was all there, Watson — from the first morning. So that is his name.",
+    locationFound: 'baker_street',
+    triggerObject: 'document_convergence',
     connections: ['clue_05_from_hell_letter', 'clue_07_edmunds_presence'],
     clueGroup: 6,
     medicalPoints: 10,
@@ -276,7 +301,7 @@ export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
   },
   goulston_street: {
     graffiti_wall: [],
-    apron_fragment_location: [],
+    apron_fragment_location: ['clue_03b_unremarked_passage'],
   },
   lusk_office: {
     from_hell_letter: ['clue_05_from_hell_letter'],
@@ -287,7 +312,10 @@ export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
     medical_reports: ['clue_07_edmunds_presence'],
     anatomical_texts: ['clue_09_medical_background'],
     specimen_jars: [],
-    edmund_forensic_note: ['clue_06_prasarved_spelling'],
+    // REWEAVE: examining the note yields the COPY + the NAME + an odd hand
+    // noted-but-not-connected — never clue_06. The smoking gun fires only at
+    // the Baker Street convergence (USE combo, location-locked).
+    edmund_forensic_note: [],
   },
   private_asylum: {
     patient_records: ['clue_10_asylum_commitment'],
@@ -310,12 +338,14 @@ export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
 
 export const ATMOSPHERIC_NOTES: Record<string, Record<string, string>> = {
   baker_street: {
-    case_files_wall: 'Five locations. Five names. Five dates. Holmes has pinned them in chronological order with coloured threads connecting each to the next. At the centre, a blank card with a question mark. Watson looks at it for a long moment.',
-    whitechapel_map: 'A large-scale map of Whitechapel and Spitalfields, marked with five red pins. They cluster in a radius of perhaps half a mile. Whoever did this never strayed far from home.',
+    // Act-keyed: in the prologue (act 0) the wall holds FOUR victims — Kelly
+    // is still alive tonight. From Act 1 onward the base entry (five) applies.
+    'case_files_wall@0': 'Four locations. Four names. Four dates — and then five weeks of silence since the double event of September. Holmes has pinned them in chronological order with coloured threads connecting each to the next. At the centre, a blank card with a question mark. Watson looks at it for a long moment.',
+    case_files_wall: 'Five locations. Five names. Five dates. Holmes has pinned them in chronological order with coloured threads connecting each to the next — the Kelly card newest, its ink still dark. At the centre, a blank card with a question mark. Watson looks at it for a long moment.',
+    whitechapel_map: 'A large-scale map of Whitechapel and Spitalfields, marked with red pins. They cluster in a radius of perhaps half a mile. Whoever did this never strayed far from home.',
     holmes_chemistry_table: "The chemistry table is uncharacteristically abandoned — beakers rinsed, equipment pushed to one side. Holmes has not been experimenting. He has been thinking. Watson finds this more unsettling than the map.",
-    telegrams_pile: "A stack of telegrams from Abberline, the most recent dated yesterday. Watson scans the top one: 'No new leads. Press intolerable. Come when you can.' Holmes has underlined the word 'intolerable' in pencil.",
-    watson_armchair: "Watson's armchair has been moved to face the case files wall. Someone — Holmes — has been sitting here, staring at the map. There is a cold cup of tea on the side table beside it.",
-    newspaper_pile: "The Star, the Evening Standard, the Times. Every front page from August to November. Headlines grow more hysterical with each passing week: ANOTHER OUTRAGE IN WHITECHAPEL. POLICE BAFFLED. IS JACK THE RIPPER A DOCTOR? Watson sets the papers down.",
+    telegrams_pile: "A stack of telegrams from Abberline, the most recent dated this evening. Warren's resignation; the American in custody; the press. Holmes has underlined a single word in pencil: 'intolerable.'",
+    newspaper_pile: "The Star, the Evening Standard, the Times. Every front page from August onward. Headlines grow more hysterical with each passing week: ANOTHER OUTRAGE IN WHITECHAPEL. POLICE BAFFLED. IS JACK THE RIPPER A DOCTOR? Watson sets the papers down.",
   },
   dorset_street: {
     police_barricade: "A pair of constables stand at the entrance to Miller's Court, turning back the curious. Their faces are professionally blank. Watson shows his credentials and is admitted without comment.",
@@ -375,6 +405,9 @@ export const ATMOSPHERIC_NOTES: Record<string, Record<string, string>> = {
   },
   bond_office: {
     specimen_jars: "The specimen jars contain anatomical preparations — a kidney cross-section, sections of preserved tissue, labelled in Bond's precise hand. Watson, who has seen anatomy theatres, notes that whoever prepared these jars had a steady hand and no apparent aversion to the work. He glances at the figure by the window without meaning to.",
+    // THE GATHER (Act 5): the note yields the copy + the name + an odd hand —
+    // noted, NOT connected. The connection belongs to the player, at Baker Street.
+    edmund_forensic_note: "A cataloguing note in the assistant's hand — clinical, exact, every measurement in its place. Watson asks for a copy and the young man provides one without a flicker, returning at once to his work. The hand is precise and professional, though here and there a spelling sits oddly against the exactness of the rest — the kind of small crudeness one notes and forgets. The note is signed at the foot: Edmund Halward. So that is the assistant's name. Watson pockets the copy.",
   },
   private_asylum: {
     edmund_room_furnishings: "The room is clean and bare. A narrow bed, a chair, a small table with a Bible on it. The window looks onto the grounds — high walls, a gravel path, a bare tree. Whatever Edmund Halward is now, Watson thinks, he is very quiet. The superintendent says he is always quiet. He was always quiet.",
@@ -392,6 +425,9 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
   kidney_parcel: 'Kidney Examination Notes',
   medical_reports: 'Forensic Reports Summary',
   autopsy_ledger: 'Autopsy Ledger Notes',
+  // Prologue: examining the newspapers yields the clipping of the published
+  // "Dear Boss" letter — the object the player SHOWS to Holmes (tutorial beat).
+  newspaper_pile: 'Newspaper Clipping (the "Dear Boss" letter)',
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -401,20 +437,22 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
 
 export const USE_INTERACTIONS: Record<string, Record<string, string>> = {
   lusk_office: {
+    // FAIR-PLAY: the letter is read WHOLE — no single error is ever singled out.
     from_hell_letter:
-      'Watson reads the letter aloud slowly, attending to every irregular spelling. The word "prasarved" sits in the middle of the page — a strange, specific error for a literate hand.',
+      'Watson reads the letter aloud slowly, from its first crude line to its last. The errors crowd every sentence, yet the hand never wavers — steady, unhurried, almost careful in its carelessness. He copies the text entire into his notebook.',
     kidney_parcel:
-      'Watson opens the cardboard box and examines the preserved tissue methodically. One inch of renal artery remains attached — cut cleanly. This was surgical, deliberate, and practised.',
+      'Watson opens the cardboard box and examines the preserved tissue methodically. One inch of renal artery remains attached — cut cleanly. And the fixative is spirit of wine at laboratory concentration: the standard mortuary method, precisely applied. Surgical, deliberate, and practised.',
   },
   bond_office: {
     medical_reports:
-      "Watson cross-references Bond's forensic reports against each victim in sequence. A pattern emerges: identical incision angles, identical surgical confidence. One pair of hands did all of this.",
+      "Watson cross-references Bond's forensic reports against each victim in sequence. A pattern emerges: identical incision angles, identical confidence. One pair of hands did all of this.",
     anatomical_texts:
       "Watson leafs through the heavily annotated textbooks. Pencil marks throughout — chapters on abdominal anatomy, renal anatomy, post-mortem procedures. Someone has been studying these obsessively.",
+    // The comparison cannot resolve here — the convergence belongs to Baker Street.
     from_hell_letter:
-      "Watson holds the From Hell letter beside the assistant's forensic note. The handwriting differs in style — but there it is. 'Prasarved.' The same idiosyncratic spelling, in the same uncertain vowel.",
+      "Watson half-draws the letter transcript from his pocket, then stops. This is not the place — the office is busy, the light poor, and a careful comparison wants the desk at Baker Street, where the casefiles are. He puts it away.",
     edmund_forensic_note:
-      "Watson reads the cataloguing note again. The word 'prasarved' has been written without hesitation — it is simply how this man spells the word. The letter writer spells it the same way. Watson looks at the name at the top of the page: Edmund Halward.",
+      "Watson reads the cataloguing note again. Precise, professional — and here and there a spelling sits oddly against the exactness of the rest. Something in it nags at him without resolving. Better studied properly, at home, with the rest of the papers.",
   },
   private_asylum: {
     patient_records:
@@ -446,16 +484,23 @@ export interface ShowInteraction {
 }
 
 export const SHOW_INTERACTIONS: Record<string, Record<string, ShowInteraction>> = {
-  // SHOW forensic note TO abberline
-  // Abberline recognises the handwriting style as matching letters from a witness — plants detail
+  // Prologue tutorial beat: SHOW the newspaper clipping TO Holmes.
+  // Sets showed_newspaper_pile_to_holmes (engine flag name keys on the object id)
+  // — an Act 0 gate flag. Plants the misdirection theme.
+  'newspaper_pile': {
+    'holmes': {
+      resultNote: "SUCCESS — Holmes glances at the clipping of the published letter and hands it back almost at once. 'A journalist's invention, Watson. The hand is theatrical, the menace is rehearsed, and the name — Jack the Ripper — was coined to sell papers, not to sign crimes. Remember it: this case is littered with noise. The genuine article, when we meet it, will not perform for us.' He returns to the window.",
+    },
+  },
+  // SHOW forensic note TO abberline / holmes (Act 5 gather).
+  // NEITHER yields the smoking gun — the convergence belongs to Baker Street,
+  // and to the player. Both redirect without resolving.
   'edmund_forensic_note': {
     'abberline': {
-      clueId: 'clue_08_preserved_kidney', // reuse — links Edmund's cataloguing to the kidney parcel
-      resultNote: "SUCCESS — Abberline examines the forensic note carefully. He notes the precise, unhurried cataloguing style — the same clinical brevity he has seen in anonymous letters that arrived during the investigation. He does not yet name anyone, but he does not hand it back immediately.",
+      resultNote: "SUCCESS — Abberline examines the forensic note carefully. He notes the precise, unhurried cataloguing style, turns it over once, and hands it back. 'Thorough man, Bond's assistant. Why?' He waits. Whatever Watson is reaching for, it has not yet taken shape enough to say aloud.",
     },
     'holmes': {
-      clueId: 'clue_06_prasarved_spelling', // alternate path to the smoking-gun clue
-      resultNote: "SUCCESS — Holmes takes the note without a word and holds it beside the From Hell letter. After thirty seconds he says: 'There. The vowel. It is the same man, Watson.' He places both documents side by side on the table.",
+      resultNote: "SUCCESS — Holmes reads the note once, and something crosses his face — there and gone. 'Not here, Watson.' He folds the copy back into Watson's hand. 'Documents answer one another at a desk, not in another man's office. Bring it home. Bring everything home.' He says nothing further.",
     },
   },
   // SHOW from hell letter TO bond
@@ -555,15 +600,38 @@ Injuries consistent with prior cases. Organ removal: uterus, heart, portions of 
 
 *E. Halward*`,
 
+  // The pile as it stands on the evening of 8 November — the prologue vigil.
+  // Historically exact: Tumblety arrested 7 Nov; Warren resigned 8 Nov;
+  // Kelly is still alive tonight, so no telegram can mention her.
   telegrams_pile: `*Telegrams received at Baker Street, October–November 1888.*
 
 Oct 19 — Abberline to Holmes: Lusk received kidney parcel. Examining. City & Met coordinating.
 
-Oct 29 — Abberline to Holmes: Bond confirms kidney human, female, matching Eddowes. Preserved. No arrest imminent.
+Oct 29 — Abberline to Holmes: Bond confirms kidney human, female, matching Eddowes. Preserved to laboratory standard. No arrest imminent.
 
-Nov 7 — Abberline to Holmes: Another woman. Dorset Street. Do not come yet — scene active. Bond called.
+Nov 7 — Abberline to Holmes: American doctor TUMBLETY taken on indecency charges. Some here fancy him for the murders — specimens, hatred of women. Holding him while we look.
 
-Nov 9 — Abberline to Holmes: Kelly. Miller's Court No. 13. Worst yet. Come now if you will come.`,
+Nov 8 — Abberline to Holmes: Warren has resigned. The force is without a head and the press without mercy. Six weeks of quiet and no nearer. Come when you can. The quiet does not feel like an ending.`,
+
+  // Act-keyed: the wall on the night of the vigil — four victims, the suspect
+  // landscape, and one unremarkable note. (Base entry below = Act 1 onward.)
+  'case_files_wall@0': `*Holmes's summary of the Whitechapel murders — evening, 8 November 1888.*
+
+Polly Nichols — Buck's Row, 31 Aug. Throat cut. Abdominal injuries. No uterus.
+Annie Chapman — Hanbury St, 8 Sep. Uterus removed. Rings taken.
+Elizabeth Stride — Dutfield's Yard, 30 Sep. Throat only — interrupted.
+Catherine Eddowes — Mitre Square, 30 Sep. Kidney and uterus. Message at Goulston St.
+
+*Five weeks of murder. Six weeks of silence. The silence is data.*
+
+Pinned at the margin — the public's suspects:
+— Tumblety, American "doctor". In custody since the 7th. Specimens; hatred of women. LOUD.
+— "Leather Apron" (Pizer). Press invention. Alibied in September. The mob nearly had him.
+— A gentleman of rumour — erratic, lately dismissed. Unverified.
+— Bond — police surgeon — & assistant. (Forensic access, all scenes.)
+
+*Question: access to victims — professional? Social?*
+*Question: in eleven weeks, why has no one once remembered him?*`,
 
   case_files_wall: `*Holmes's summary of the Whitechapel murders, November 1888.*
 

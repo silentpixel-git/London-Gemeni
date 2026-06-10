@@ -133,9 +133,11 @@ export class GameEngine {
       const anchor = ACT_ANCHORS[result.newAct];
       if (anchor && anchor !== (result.newLocation ?? session.location)) {
         result.newLocation = anchor;
+        // Compute follower/canonical positions for the act being ENTERED, not
+        // the act being left — Bond must be at his act-N station on arrival.
         result.npcUpdates = {
           ...result.npcUpdates,
-          ...this.computeNpcMovements(anchor, session),
+          ...this.computeNpcMovements(anchor, { ...session, currentAct: result.newAct }),
         };
       }
     }
@@ -1314,11 +1316,14 @@ export class GameEngine {
   ): Record<string, Partial<NPCState>> {
     const updates: Record<string, Partial<NPCState>> = {};
 
-    // First pass: location-based and fixed NPCs (establish canonical positions)
+    // First pass: location-based and fixed NPCs (establish canonical positions).
+    // An NPC with NO canonical entry for the current act is OFFSTAGE — e.g.
+    // Tumblety after he flees in Act 4. The 'offstage' sentinel never matches
+    // a real location id, so the NPC simply does not appear anywhere.
     for (const [npcId, npc] of Object.entries(NPCS)) {
       if (npc.followingRule === 'location_based' || npc.followingRule === 'fixed') {
-        const canonical = npc.canonicalLocationByAct[session.currentAct];
-        if (canonical && canonical !== session.npcStates[npcId]?.currentLocation) {
+        const canonical = npc.canonicalLocationByAct[session.currentAct] ?? 'offstage';
+        if (canonical !== session.npcStates[npcId]?.currentLocation) {
           updates[npcId] = { currentLocation: canonical };
         }
       }

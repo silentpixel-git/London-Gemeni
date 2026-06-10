@@ -34,6 +34,13 @@ export const INITIAL_NPC_STATES: Record<string, any> = {
   lusk: { npcId: 'lusk', currentLocation: 'lusk_office', status: 'alive', memory: [] },
   diemschutz: { npcId: 'diemschutz', currentLocation: 'dutfields_yard', status: 'alive', memory: [] },
   superintendent: { npcId: 'superintendent', currentLocation: 'private_asylum', status: 'alive', memory: [] },
+  // Reweave — the loud suspects and the second medical voice. Initial locations
+  // mirror their first canonical act; until that act they are simply offstage
+  // (their locations are unreachable earlier, so they never appear prematurely).
+  hutchinson: { npcId: 'hutchinson', currentLocation: 'dorset_street', status: 'alive', memory: [] },
+  phillips: { npcId: 'phillips', currentLocation: 'whitechapel_mortuary', status: 'alive', memory: [] },
+  tumblety: { npcId: 'tumblety', currentLocation: 'h_division_station', status: 'alive', memory: [] },
+  pizer: { npcId: 'pizer', currentLocation: 'working_mens_club', status: 'alive', memory: [] },
 };
 
 // NPC_DISPLAY_NAMES kept here for sidebar rendering (App.tsx doesn't import from engine/gameData)
@@ -45,4 +52,8 @@ export const NPC_DISPLAY_NAMES: Record<string, string> = {
   diemschutz: 'Louis Diemschutz',
   holmes: 'Sherlock Holmes',
   superintendent: 'Asylum Superintendent',
+  hutchinson: 'George Hutchinson',
+  phillips: 'Dr. George Bagster Phillips',
+  tumblety: 'Francis Tumblety',
+  pizer: 'John Pizer',
 };

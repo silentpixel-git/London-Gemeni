@@ -11,15 +11,17 @@ export const NPCS: Record<string, NPCDefinition> = {
     speakingStyle: 'Precise and controlled. Short observations and carefully constructed deductions. Occasionally acknowledges error without sentiment.',
     personality: ['Analytical', 'Calm under pressure', 'Intensely curious', 'Occasionally aloof', 'Privately disturbed by this case'],
     publicKnowledge: [
-      'Visited all five crime scenes and conducted independent forensic analysis',
+      // Spoiler-safe and timeline-neutral: Holmes's envelope must hold from the
+      // prologue (four victims, Kelly alive) through Act 6. The prasarved match
+      // and "murders stopped" are DISCOVERIES, not knowledge — never listed here.
+      'Has studied the police files on every murder and visits each scene to conduct independent analysis',
       'The killer appeared non-threatening to victims — respectable-looking or known to them',
-      'Anatomical removals required knowledge of organ location, not surgical mastery — the knowledge of a student',
-      'Not panicked by Stride\'s interruption — completed a second murder same night within 45 minutes',
-      'The "prasarved" spelling in the From Hell letter is a specific cognitive habit, matching other documents',
-      'The killer has legitimate professional access to crime scenes and forensic records',
-      'Murders stopped after Kelly — suggests capture, death, confinement, or removal from London',
-      // Holmes briefly entertains a wrong theory at the Working Men\'s Club (Act 3)
-      'Briefly considered a dock-worker connection at the Working Men\'s Club — abandoned by Act 4 as unsupported',
+      'Anatomical removals required knowledge of organ location, not surgical mastery — the knowledge of a student, not a surgeon',
+      "Not panicked by Stride's interruption — completed a second murder the same night within 45 minutes",
+      'The killer moves through Whitechapel without raising alarm — no reliable witness in the entire campaign',
+      'His working certainty: the killer is a man no one remembers — unremarkable, patient, calculating',
+      'Considers the published "Dear Boss" letters a journalist\'s invention — misdirection, like much else in this case',
+      'Refuses to name a suspect without evidence that would satisfy a court — "knowing and proving are not the same act"',
     ],
     followingRule: 'follows_watson',
     followsNpcId: 'watson',
@@ -28,10 +30,37 @@ export const NPCS: Record<string, NPCDefinition> = {
       1: 'dorset_street',
       2: 'whitechapel_mortuary',
       3: 'dutfields_yard',
-      4: 'goulston_street',
+      4: 'lusk_office',
       5: 'bond_office',
       6: 'private_asylum',
     },
+    // The moving-spotlight capstones — act- and flag-gated directorial beats.
+    scriptedLines: [
+      {
+        locationId: 'h_division_station',
+        act: 2,
+        triggerFlag: 'talked_to_tumblety_at_h_division_station',
+        instruction: 'Holmes, having observed the American in his cell, delivers his first crack in the Mad Doctor theory — quietly, to Watson: the man is everything London wishes the murderer to be — loud, foreign, mad — but the hand that did this work was quiet, patient, and practised. This man is a performance. Holmes does not raise his voice.',
+      },
+      {
+        locationId: 'goulston_street',
+        act: 3,
+        triggerFlag: 'examined_goulston_street',
+        instruction: 'Holmes, before the scrubbed wall where the graffiti was erased, dismantles the Foreigner theory: they wiped the wall to keep the peace, and so confessed what they truly feared — not the murderer, but the mob. The hand that wrote there had nothing to do with the hand that killed. London hunts the man it wishes to hate; but their man is not hated — he is not even noticed.',
+      },
+      {
+        locationId: 'lusk_office',
+        act: 4,
+        triggerFlag: 'talked_to_abberline_at_lusk_office',
+        instruction: 'Holmes, weighing the fled American and the vanished gentleman, observes that two men have obligingly removed themselves from view, and the public will pick whichever culprit it prefers. But the hand that preserved that kidney did not flee and did not vanish — it is still here, keeping its specimens, exactly as it always has.',
+      },
+      {
+        locationId: 'baker_street',
+        act: 5,
+        triggerFlag: 'used_edmund_forensic_note_with_from_hell_letter',
+        instruction: 'The convergence is made — the documents lie side by side on the desk and the casefiles wall has given up its answer. Holmes is certain, and grim with it: "We know the man, Watson. Knowing him and proving him are not the same act — and proving him and stopping him may prove a third thing entirely." He is already reaching for his coat.',
+      },
+    ],
   },
 
   abberline: {
@@ -60,6 +89,10 @@ export const NPCS: Record<string, NPCDefinition> = {
       'Dr. Bond\'s formal assessment is that the killer had some rough anatomical knowledge but NO surgical training or professional medical qualification — Bond was explicit on this point and disagreed with other surgeons who suggested otherwise. Abberline respects Bond\'s conclusion and presents it as the official medical position, not as one view among many.',
       // Bond alibi — exonerates him as a suspect if Watson asks the right questions.
       'Dr. Thomas Bond\'s movements on the nights of the Stride and Eddowes murders (30 September) were fully accounted for — he was presenting a paper at a medical society dinner in the City and was seen by colleagues throughout the evening. He was called to the Eddowes scene after the fact. Abberline confirmed this personally.',
+      // The loud-suspect landscape (reweave)
+      'The Yard has an American in custody — Francis Tumblety, a quack doctor arrested 7 November on gross-indecency charges; some at the Yard fancy him for the murders, given his anatomical specimen collection and hatred of women',
+      'John Pizer — the man the press called "Leather Apron" — was arrested in September, fully alibied, and released; the panic around him was manufactured by the newspapers and nearly got him lynched',
+      'A file has come across his desk on a barrister of good family — lately erratic, dismissed from his post for some unnamed trouble, and now not to be found at his chambers or his lodgings',
     ],
     followingRule: 'location_based',
     canonicalLocationByAct: {
@@ -67,10 +100,17 @@ export const NPCS: Record<string, NPCDefinition> = {
       1: 'dorset_street',
       2: 'h_division_station',
       3: 'working_mens_club',
-      4: 'goulston_street',
+      4: 'lusk_office',
       5: 'bond_office',
       6: 'private_asylum',
     },
+    scriptedLines: [
+      {
+        locationId: 'lusk_office',
+        act: 4,
+        instruction: 'Abberline brings the day\'s news, weary and flat: the American, Tumblety, has jumped his bail and fled the country — France, they think, and on to America. The public will call that a confession; Abberline is not so sure — a man may flee an indecency charge without being a murderer. And there is the other file: the vanished barrister, a gentleman of good family, erratic, dismissed, not to be found. "A family of standing does not let a son hang, Doctor. They make the embarrassment disappear." He says it of the barrister, without weight.',
+      },
+    ],
   },
 
   bond: {
@@ -104,6 +144,28 @@ export const NPCS: Record<string, NPCDefinition> = {
       5: 'bond_office',
       6: 'bond_office',
     },
+    scriptedLines: [
+      {
+        locationId: 'millers_court',
+        act: 1,
+        // The Act 1 emotional capstone — fires once Watson has faced the bed.
+        triggerFlag: 'examined_millers_court_the_bed',
+        instruction: 'The aftermath beat: Bond, who has had to catalogue every one of these women, allows himself one human moment — weary, restrained, unforgettable. The surgeon\'s burden: he does not break, but Watson sees what carrying this has cost him. And beside him his assistant continues cataloguing, untouched — calm, even faintly absorbed. The contrast is left entirely without comment.',
+      },
+      {
+        locationId: 'whitechapel_mortuary',
+        act: 2,
+        // The ambient Halward-family seed — fires after the bonds_desk examine.
+        triggerFlag: 'examined_whitechapel_mortuary_bonds_desk',
+        instruction: 'In the flow of the mortuary work, Bond mentions his assistant in passing — the way one mentions any colleague\'s man: a physician\'s son, meticulous, some trouble at home behind him that Bond never pressed; he would trust the young man with anything. No name. No weight. Conversational texture only — this must NOT read as suspicion or as a pointed aside.',
+      },
+      {
+        locationId: 'bond_office',
+        act: 6,
+        // "He's gone." Bond's devastation on the Act 6 arrival.
+        instruction: 'Bond is ashen. His assistant is gone — taken at dawn. The family came with a private physician, had the young man declared of unsound mind, and committed him to a private asylum before any charge could be laid. Bond vouched for him for years; the man stood at his elbow through every post-mortem. His horror is quiet and his self-reproach absolute. He gives Watson the asylum\'s name without being asked twice.',
+      },
+    ],
   },
 
   edmund: {
@@ -145,9 +207,11 @@ export const NPCS: Record<string, NPCDefinition> = {
     scriptedLines: [
       {
         locationId: 'millers_court',
-        // Fires after player examines burned_clothing — the per-object flag the engine sets
+        // Fires after player examines burned_clothing — the per-object flag the engine sets.
+        // RECESSION RULE: flat, professional, easily missed. No narrator emphasis,
+        // no lingering — sinister only on a second playthrough.
         triggerFlag: 'examined_millers_court_burned_clothing',
-        instruction: "Bond's assistant examines the remnants in the grate without being asked. He observes, matter-of-factly, that whoever lit the clothing understood how long it would burn — a specific temperature, a specific duration. His tone is analytical, almost admiring. He does not appear to notice anything wrong with what he has said. He returns to his notes.",
+        instruction: "Bond's assistant glances at the remnants in the grate and remarks, in passing and without being asked, that whoever lit the clothing understood how long it would burn. The tone is professional and entirely unremarkable — the observation of a competent assistant. He returns to his notes. Give this no emphasis whatsoever; it should pass as scene texture.",
       },
       {
         locationId: 'whitechapel_mortuary',
@@ -220,6 +284,108 @@ export const NPCS: Record<string, NPCDefinition> = {
     },
   },
 
+  // ── REWEAVE: the loud suspects and the second medical voice ────────────────
+
+  hutchinson: {
+    id: 'hutchinson',
+    displayName: 'George Hutchinson',
+    alias: 'George Hutchinson',
+    requiresIntroduction: false, // gives his name freely — he came forward as a witness
+    role: 'Labourer; witness — knew Mary Jane Kelly',
+    description: 'A labourer who knew Kelly and saw her with a well-dressed stranger hours before her death. His account is extraordinarily detailed — suspiciously so — and he admits he loitered outside the court that night. A lonely, sad man, not a killer; but the player should wonder.',
+    speakingStyle: 'Eager and over-precise. Volunteers detail nobody asked for. Defensive when his own movements come up.',
+    personality: ['Eager to help', 'Over-detailed', 'Lonely', 'Defensive about his loitering', 'Genuinely grieved for Kelly'],
+    publicKnowledge: [
+      'Knew Mary Jane Kelly for some three years; she sometimes borrowed small sums from him',
+      'Met Kelly on Commercial Street in the small hours of 9 November; she asked him for sixpence he did not have',
+      'Saw her go with a man of about thirty-four — dark, of prosperous appearance, with an astrakhan-trimmed coat, a gold watch-chain, and a "foreign" or "Jewish" look',
+      'The detail of his description is extraordinary — tie-pin, spats, the parcel in the man\'s left hand — far more than a passing glance should yield',
+      'Admits he stood opposite Miller\'s Court for three-quarters of an hour afterward, waiting — he says — to see if the man came out',
+      'He loitered because he knew Kelly and half-hoped she would let him shelter the night; he had nowhere to sleep',
+      'Has no medical knowledge of any kind; works with his hands',
+    ],
+    followingRule: 'location_based',
+    canonicalLocationByAct: {
+      1: 'dorset_street',     // in the crowd outside the court, the morning after
+      2: 'whitechapel_pub',   // lingers at the Ten Bells thereafter
+      3: 'whitechapel_pub',
+    },
+  },
+
+  phillips: {
+    id: 'phillips',
+    displayName: 'Dr. George Bagster Phillips',
+    alias: 'Dr. Phillips',
+    requiresIntroduction: false, // a known H-Division figure, introduced by Bond on sight
+    role: 'H Division Police Surgeon',
+    description: "The H Division divisional surgeon who performed the Chapman post-mortem. The second medical voice — he and Bond disagree about the killer's skill, and between them the 'trained surgeon' assumption collapses.",
+    speakingStyle: 'Senior, deliberate, a little formal. Comfortable disagreeing with a colleague without rancour.',
+    personality: ['Experienced', 'Deliberate', 'Professionally stubborn', 'Respects Bond while disputing him'],
+    publicKnowledge: [
+      // Historical accuracy: keep the positions un-swapped — Phillips = knowledge, Bond = no mastery.
+      'Performed the post-mortem on Annie Chapman; was struck by the work — in his view it showed considerable anatomical knowledge',
+      'Maintains the organ removals indicate real familiarity with the position of the organs — a man who knew exactly where to cut and what he was taking',
+      'Dr. Bond disagrees: Bond holds the killer had no true surgical skill and no professional qualification — the dispute between them is genuine and unresolved',
+      'Both positions can be true at once: real anatomical knowledge without formal training — the knowledge of a man who has watched and studied, not one who qualified',
+      'Anatomical knowledge is not rare in Whitechapel — medical students, mortuary men, slaughtermen, hospital dressers all possess some measure of it',
+    ],
+    followingRule: 'location_based',
+    canonicalLocationByAct: {
+      2: 'whitechapel_mortuary',
+      3: 'whitechapel_mortuary',
+    },
+  },
+
+  tumblety: {
+    id: 'tumblety',
+    displayName: 'Francis Tumblety',
+    alias: 'Francis Tumblety',
+    requiresIntroduction: false, // notorious — known by reputation before Watson meets him
+    role: 'American "doctor" — in police custody',
+    description: 'The Mad Doctor: an American quack of theatrical self-importance, arrested 7 November on gross-indecency charges, whom some at the Yard fancy for the murders. He collects anatomical specimens — including uteri — and despises women. He fits gloriously. He is a performance. (He flees the country in Act 4.)',
+    speakingStyle: 'Flamboyant, self-aggrandising, contemptuous. Treats the interview as a stage. Boasts even when boasting incriminates him.',
+    personality: ['Theatrical', 'Vain', 'Misogynist', 'Self-promoting', 'Enjoys the suspicion — it flatters him'],
+    publicKnowledge: [
+      // Documented facts only — his guilt is FALSE; the envelope must let the AI play him loud without confirming anything.
+      'An American who styles himself a doctor; made a fortune selling patent remedies — no formal medical qualification',
+      'Arrested 7 November 1888 on charges of gross indecency; held while the police consider him for the murders',
+      'Keeps a collection of anatomical specimens in jars — and has boasted of possessing a collection of uteri',
+      'Speaks of women, and of a failed marriage, with open contempt',
+      'His anatomical knowledge is a showman\'s — names and flourish, not practice; his specimens are purchased curios, crudely kept',
+      'Was in London through the autumn; cannot or will not account precisely for his nights',
+      'Denies the murders with theatrical indignation — and visibly enjoys being asked',
+    ],
+    followingRule: 'location_based',
+    canonicalLocationByAct: {
+      // In custody acts 2–3; FLED from act 4 on (absent — no entries).
+      2: 'h_division_station',
+      3: 'h_division_station',
+    },
+  },
+
+  pizer: {
+    id: 'pizer',
+    displayName: 'John Pizer',
+    alias: 'John Pizer',
+    requiresIntroduction: false, // infamous against his will — "Leather Apron"
+    role: 'Bootmaker — the man the press called "Leather Apron"',
+    description: 'A Jewish bootmaker arrested in September on the strength of a press panic, fully alibied, and released — and still living under the shadow of the accusation. The Foreigner theory made human: a frightened, wronged man.',
+    speakingStyle: 'Quiet, wary, worn down. Answers carefully — he has learned what careless words cost. Flashes of bitterness at the newspapers.',
+    personality: ['Frightened', 'Wronged', 'Careful', 'Bitter at the press', 'Grateful to anyone who treats him as a man'],
+    publicKnowledge: [
+      'A bootmaker by trade; the leather apron the press made infamous is an ordinary tool of his work',
+      'Arrested on 10 September on the strength of the "Leather Apron" panic; the mob outside nearly had him before the police did',
+      'Fully alibied for the nights in question — for one murder he was watching the dock fire with a constable; for another he was in a lodging house with witnesses',
+      'Released without charge; one newspaper later paid him compensation for what it had printed',
+      'The panic was manufactured — a name the papers conjured and the neighbourhood learned to hate',
+      'Still cannot walk some streets; the community fears the mob as much as the murderer',
+    ],
+    followingRule: 'location_based',
+    canonicalLocationByAct: {
+      3: 'working_mens_club', // sheltering among the club's community during the reconstruction
+    },
+  },
+
   superintendent: {
     id: 'superintendent',
     displayName: 'Asylum Superintendent',
@@ -258,6 +424,10 @@ export const NPC_DISPLAY_NAMES: Record<string, string> = {
   lusk: 'George Lusk',
   diemschutz: 'Louis Diemschutz',
   superintendent: 'Asylum Superintendent',
+  hutchinson: 'George Hutchinson',
+  phillips: 'Dr. George Bagster Phillips',
+  tumblety: 'Francis Tumblety',
+  pizer: 'John Pizer',
 };
 
 // Alias names used before introduction — keyed by NPC ID
