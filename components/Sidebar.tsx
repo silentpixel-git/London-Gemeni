@@ -6,11 +6,23 @@
  */
 
 import React from 'react';
-import { MapPin, Briefcase, DoorOpen, User, ScrollText, Feather, Brain, X } from 'lucide-react';
+import { MapPin, Briefcase, DoorOpen, User, ScrollText, Feather, Brain, X, CloudFog, CloudDrizzle, CloudRain, Cloudy, Moon, type LucideIcon } from 'lucide-react';
 import { JournalRenderer } from './JournalRenderer';
 import { LOCATIONS } from '../engine/gameData';
+import type { ActWeather, WeatherCondition } from '../engine/gameData';
 import { INITIAL_NPC_STATES, NPC_DISPLAY_NAMES } from '../constants';
 import { NPCState } from '../types';
+
+// UI-layer mapping: weather condition → Lucide icon. Kept here (not in the
+// engine) so story data stays free of React/Lucide dependencies.
+const WEATHER_ICON: Record<WeatherCondition, LucideIcon> = {
+  foggy: CloudFog,
+  drizzle: CloudDrizzle,
+  pouring: CloudRain,
+  overcast: Cloudy,
+  'clear-night': Moon,
+  'clear-cold': Moon,
+};
 
 interface SidebarProps {
   isSidebarOpen: boolean;
@@ -23,6 +35,8 @@ interface SidebarProps {
   isUpdatingJournal: boolean;
   onUpdateJournal: () => void;
   displayTime: string;
+  displayDate: string;
+  weather: ActWeather;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -36,7 +50,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isUpdatingJournal,
   onUpdateJournal,
   displayTime,
+  displayDate,
+  weather,
 }) => {
+  const WeatherIcon = WEATHER_ICON[weather.condition];
   // NPCs visible in the current location
   const presentNpcs = Object.values(npcStates).filter(s => {
     const npcLoc = s.currentLocation || (INITIAL_NPC_STATES[s.npcId]?.currentLocation);
@@ -72,7 +89,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <h2 className="font-serif text-2xl leading-tight text-lb-primary">
             {LOCATIONS[location]?.name || 'Unknown Location'}
           </h2>
-          <p className="mt-1 text-xs text-lb-primary font-sans opacity-70 tracking-wide italic">{displayTime}</p>
+          <p className="mt-1 text-xs text-lb-primary font-sans opacity-70 tracking-wide italic">
+            {displayTime} — {displayDate}
+          </p>
+          <p className="mt-0.5 text-xs text-lb-primary font-sans opacity-70 tracking-wide italic flex items-center gap-1.5">
+            <WeatherIcon size={13} className="text-lb-accent flex-shrink-0" />
+            <span>{weather.label}</span>
+          </p>
         </div>
 
         {/* Inventory */}

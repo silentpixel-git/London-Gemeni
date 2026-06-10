@@ -103,6 +103,8 @@ const AppContent: React.FC = () => {
         isUpdatingJournal={gs.isUpdatingJournal}
         onUpdateJournal={gs.handleUpdateJournal}
         displayTime={gs.displayTime}
+        displayDate={gs.displayDate}
+        weather={gs.weather}
       />
 
       <div className="flex-1 flex flex-col h-full relative w-full transition-all duration-300">
