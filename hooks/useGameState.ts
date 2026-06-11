@@ -126,6 +126,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // In-game clock — minutes elapsed since act's canonical start time
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  // How many times Watson has visited each location
+  const [locationVisitCounts, setLocationVisitCounts] = useState<Record<string, number>>({});
 
   // Proactive Holmes nudge — turns at current location without discovering a clue
   const [turnsAtLocationWithoutProgress, setTurnsAtLocationWithoutProgress] = useState(0);
@@ -308,6 +310,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         turnsAtLocationWithoutProgress: 0,
         elapsedMinutes: 0,
         introducedNpcs: INITIAL_INTRODUCED_NPCS,
+        locationVisitCounts: {},
       };
       const result = gameEngine.resolve(intent, snapshot);
 
@@ -647,6 +650,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         turnsAtLocationWithoutProgress,
         elapsedMinutes,
         introducedNpcs,
+        locationVisitCounts,
       };
 
       // STEP 3: Engine resolves — no AI yet
@@ -683,6 +687,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const newFlags         = result.flagsUpdate        ? { ...flags, ...result.flagsUpdate }      : flags;
 
       setLocation(newLocation);
+      if (result.newLocation) {
+        setLocationVisitCounts(prev => ({
+          ...prev,
+          [result.newLocation!]: (prev[result.newLocation!] ?? 0) + 1,
+        }));
+      }
       setInventory(newInventory);
       setMedicalPoints(newMedicalPoints);
       setMoralPoints(newMoralPoints);

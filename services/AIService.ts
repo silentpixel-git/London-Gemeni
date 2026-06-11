@@ -58,7 +58,7 @@ const NARRATION_SYSTEM_PROMPT = `You narrate "London Bleeds: The Whitechapel Dia
 ABSOLUTE RULES:
 1. VERIFIED STATE ONLY — never invent exits, items, characters, or locations beyond the context given.
 2. TIME — match the verified time of day exactly (no morning bustle at night; no gas-lit darkness at noon).
-3. VOICE — first-person PAST TENSE, always, in every mode. Military doctor: medical and forensic specificity, measured authority, never melodramatic. State an emotion or sensation once; do not amplify or explain it — end the sentence before the elaboration. Occasionally dry; not every moment is dark.
+3. VOICE — first-person PAST TENSE, always, in every mode. Military doctor: medical and forensic specificity, measured authority, never melodramatic. State an emotion or sensation once; do not amplify or explain it — end the sentence before the elaboration. Occasionally dry; not every moment is dark. VARY YOUR OPENINGS — do not begin with fog, weather, or windows more than rarely; open instead on people, actions, objects, sounds, or Watson's thoughts.
 4. ALIASES (critical) — each NPC carries a label and an isIntroduced flag. If isIntroduced is false, use ONLY the label; never the real name, even in Watson's private thoughts. Bond's assistant is never introduced by anyone and never introduces himself — his name appears only via the forensic note. Until then: "Bond's assistant" or "the quiet young man", background only, never initiating.
 5. HOLMES — at most one brief, cryptic observation per FULL turn. He never accuses the assistant before Act VI.
 6. NO RAW LISTS — weave exits, objects, and people into prose.
@@ -184,14 +184,19 @@ NO blockquote. NO exits listing. NO character roster. NPCs, objects, and exits w
   }
 
   if (isFull) {
+    const isRevisit = ctx.locationVisitCount > 1;
+    const locationBlock = isRevisit
+      ? `Location: ${ctx.locationName} — REVISIT (visit #${ctx.locationVisitCount}). Watson knows this room. HARD RULE: the opening sentence must be about Watson's purpose, the people present, or what is NEW — never the weather, the fog, the fire, the windows, or the furnishings. Do not describe the room's appearance at all unless something in it has physically changed. Readers have already seen this room described; repeating it reads as padding.`
+      : `Location: ${ctx.locationName}
+Atmosphere: ${ctx.locationAtmosphere}
+Description: ${ctx.locationDescription}`;
+
     // FULL MODE — location arrival or look-around
     return `=== NARRATION MODE: FULL ===
 Write 3–4 paragraphs (max 220 words). Begin with: ### ${actHeader}: ${ctx.actName}
 ${temporalSection}
 === VERIFIED LOCATION ===
-Location: ${ctx.locationName}
-Atmosphere: ${ctx.locationAtmosphere}
-Description: ${ctx.locationDescription}
+${locationBlock}
 
 NPCs present (verified — use their labels EXACTLY, respect alias rules): ${npcLabelList}
 Objects Watson can examine (verified): ${ctx.availableObjects.length > 0 ? ctx.availableObjects.join(', ') : 'None'}
@@ -206,7 +211,9 @@ Result: ${ctx.actionResultNote}
 ${clueSection}${synthesisSection}
 Narrate Watson's arrival / survey of this location using exactly this structure:
 
-Paragraph 1 — ATMOSPHERE: Vivid sensory description. Apply the temporal register above.${ctx.act === 0 ? '\nACT 0 PROLOGUE NOTE: This is Baker Street. Watson cannot leave yet — the exits list is empty because Holmes has not yet briefed him on where to begin. Do NOT invent exits or imply Watson is free to leave. Instead, let Holmes\'s presence and the case files naturally draw Watson\'s attention. The prose should make the player feel that examining the case files wall is the natural first action.' : ''}
+Paragraph 1 — ${isRevisit
+    ? 'RETURN: Watson\'s purpose in returning, or what is immediately different. NO room description, NO weather opener.'
+    : 'ATMOSPHERE: Vivid sensory description. Apply the temporal register above.'}${ctx.act === 0 ? '\nACT 0 PROLOGUE NOTE: This is Baker Street. Watson cannot leave yet — the exits list is empty because Holmes has not yet briefed him on where to begin. Do NOT invent exits or imply Watson is free to leave. Instead, let Holmes\'s presence and the case files naturally draw Watson\'s attention. The prose should make the player feel that examining the case files wall is the natural first action.' : ''}
 
 Paragraph 2 — WATSON'S INNER THOUGHTS: Brief reflection on the case, his anxiety, or moral state. 1–2 sentences. For reconstruction visits, this may reach backward in time.
 

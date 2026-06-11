@@ -294,6 +294,66 @@ function stripVerb(input: string, verbs: string[]): string {
 }
 
 /**
+ * Damerau-Levenshtein edit distance (adjacent transpositions like "shwo"→"show"
+ * count as 1 edit) with early exit once the distance exceeds max.
+ */
+function editDistance(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev2: number[] | null = null;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const curr = [i];
+    let rowMin = i;
+    for (let j = 1; j <= b.length; j++) {
+      let d = Math.min(
+        prev[j] + 1,
+        curr[j - 1] + 1,
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+      if (prev2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        d = Math.min(d, prev2[j - 2] + 1);
+      }
+      curr[j] = d;
+      rowMin = Math.min(rowMin, d);
+    }
+    if (rowMin > max) return max + 1;
+    prev2 = prev;
+    prev = curr;
+  }
+  return prev[b.length];
+}
+
+// Single-word verbs eligible for typo correction (multi-word verbs are matched
+// exactly; correcting them word-by-word isn't worth the false-positive risk).
+const FUZZY_VERBS: string[] = [
+  ...MOVE_VERBS, ...EXAMINE_VERBS, ...TALK_VERBS, ...TAKE_VERBS,
+  ...USE_VERBS, ...SHOW_VERBS, ...READ_VERBS, ...DROP_VERBS,
+].filter(v => !v.includes(' '));
+
+/**
+ * If the first word of the input is a near-miss of a known verb
+ * (e.g. "exmaine"), return the input with the verb corrected. Otherwise null.
+ * Only fires for words of 4+ letters that aren't already a known verb —
+ * short words like "go" are too easy to false-positive on.
+ */
+function correctVerbTypo(rawInput: string): string | null {
+  const firstWord = normalise(rawInput).split(' ')[0];
+  if (firstWord.length < 4 || FUZZY_VERBS.includes(firstWord)) return null;
+  const maxDist = firstWord.length >= 6 ? 2 : 1;
+  let best: string | null = null;
+  let bestDist = maxDist + 1;
+  for (const verb of FUZZY_VERBS) {
+    if (verb.length < 4) continue;
+    const d = editDistance(firstWord, verb, maxDist);
+    if (d < bestDist) { bestDist = d; best = verb; }
+  }
+  if (!best) return null;
+  // Replace the first word in the original input, preserving the rest
+  const rest = rawInput.trim().split(/\s+/).slice(1).join(' ');
+  return rest ? `${best} ${rest}` : best;
+}
+
+/**
  * Parse the player's raw input into a structured intent.
  */
 export function parseIntent(rawInput: string): ParsedIntent {
@@ -480,7 +540,20 @@ export function parseIntent(rawInput: string): ParsedIntent {
     return { type: 'query', targetRaw: rawInput, raw: rawInput };
   }
 
-  // 9. Implicit movement: if the whole input matches a location name
+  // 9. Typo correction: if no verb matched, try fixing a misspelled verb in
+  // the first word (e.g. "exmaine the case wall", "dorp letter") and re-parse.
+  // Must run BEFORE implicit entity matching, otherwise a typo'd verb followed
+  // by a known item gets swallowed (e.g. "dorp letter" → implicit examine).
+  const corrected = correctVerbTypo(rawInput);
+  if (corrected) {
+    const reparsed = parseIntent(corrected);
+    if (reparsed.type !== 'other') {
+      // Keep the player's original text as raw for display/AI context
+      return { ...reparsed, raw: rawInput };
+    }
+  }
+
+  // 10. Implicit movement: if the whole input matches a location name
   const directLocationMatch = matchLocationId(rawInput);
   if (directLocationMatch) {
     return {
@@ -491,7 +564,7 @@ export function parseIntent(rawInput: string): ParsedIntent {
     };
   }
 
-  // 10. Implicit examine: if the whole input matches an object or NPC
+  // 11. Implicit examine: if the whole input matches an object or NPC
   const directObjectMatch = matchObjectId(rawInput);
   if (directObjectMatch) {
     return {
@@ -512,7 +585,7 @@ export function parseIntent(rawInput: string): ParsedIntent {
     };
   }
 
-  // 11. Fallback
+  // 12. Fallback
   return {
     type: 'other',
     raw: rawInput,

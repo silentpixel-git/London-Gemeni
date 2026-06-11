@@ -55,6 +55,14 @@ export const NPCS: Record<string, NPCDefinition> = {
         instruction: 'Holmes, weighing the fled American and the vanished gentleman, observes that two men have obligingly removed themselves from view, and the public will pick whichever culprit it prefers. But the hand that preserved that kidney did not flee and did not vanish — it is still here, keeping its specimens, exactly as it always has.',
       },
       {
+        // Proactive Act 5 nudge — fires unconditionally at Bond's office so a
+        // player who never attempts a comparison still learns the convergence
+        // wants a desk at Baker Street. Stops firing once Act 5 closes.
+        locationId: 'bond_office',
+        act: 5,
+        instruction: 'If Watson lingers or seems unsure, Holmes remarks — without looking up from whatever occupies him — that they have papers enough now; what the papers want is a desk, good light, and the casefiles at Baker Street. He says nothing about what the comparison will show. One sentence or two, dropped naturally; do not repeat it if already conveyed this scene.',
+      },
+      {
         locationId: 'baker_street',
         act: 5,
         triggerFlag: 'used_edmund_forensic_note_with_from_hell_letter',

@@ -29,7 +29,7 @@ Read all output. Any `[FAIL]` line is a confirmed bug. Any `[WARN]` line is a lo
 
 Run:
 ```
-GEMINI_API_KEY=<key> npx tsx scripts/qa-narration.ts
+GEMINI_API_KEY=<AIzaSyCGOrJJj2YrXJb7qUehhxl-vDfPcQiVUqEy> npx tsx scripts/qa-narration.ts
 ```
 
 This writes `qa-narration-report.md`. Read it carefully and evaluate each narration output against the four rubrics below.

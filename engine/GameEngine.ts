@@ -76,6 +76,8 @@ export interface SessionSnapshot {
   elapsedMinutes: number;                 // minutes elapsed since act's canonical start
   // NPC IDs whose real names Watson now knows (alias system)
   introducedNpcs: string[];
+  // How many times Watson has visited each location (keyed by locationId)
+  locationVisitCounts: Record<string, number>;
   // Note: sanity has been removed. Watson's prose register is now fixed
   // at the professional-composure baseline defined in the AI system prompt.
 }
@@ -533,6 +535,15 @@ export class GameEngine {
                        ?? USE_COMBINATIONS[intent.useWithTargetId]?.[targetId];
 
       if (combination) {
+        // Act-locked combinations (spoiler gate — e.g. the kidney cross-reference
+        // grants asylum-reveal content and must not fire before Act 6).
+        if (combination.requiresAct !== undefined && session.currentAct < combination.requiresAct) {
+          return this.blocked(intent, session,
+            `Watson sets the two side by side, but the connection between them refuses to form. Something is still missing — the comparison is premature.`,
+            `USE combination blocked: ${targetId} + ${intent.useWithTargetId} requires act ${combination.requiresAct} (currently act ${session.currentAct}). Narrate Watson sensing the documents are related but lacking the context to see how. Do NOT reveal what the connection is.`
+          );
+        }
+
         // Location-locked combinations (e.g. the document convergence that must
         // happen at Baker Street, against the casefiles).
         if (combination.requiresLocation && session.location !== combination.requiresLocation) {
@@ -1046,8 +1057,12 @@ export class GameEngine {
       discoveredClueIds: [],
       aiContext: this.buildContext(intent, session, {
         success: true,
-        actionDescription: `Watson considered: "${intent.raw}"`,
-        actionResultNote: 'Watson reflects on the situation. No specific action was taken.',
+        actionDescription: `Watson heard himself mutter something unclear: "${intent.raw}"`,
+        actionResultNote:
+          'UNRECOGNISED INPUT — the instruction was not understood. Watson should briefly, ' +
+          'in character, admit he is unsure what he meant to do (e.g. pausing, collecting his ' +
+          'thoughts) and naturally suggest what he COULD do here: examine something present, ' +
+          'speak to someone present, or move on. Do NOT invent an action or narrate progress.',
         newClueDefs: [],
       }),
     };
@@ -1146,6 +1161,19 @@ export class GameEngine {
       }
     }
 
+    // Act 5 safety net: the convergence needs the From Hell letter transcript,
+    // but the Act 4 gate is the location flag — a player can reach Act 5 without
+    // ever copying the letter. If so, Holmes steers Watson back to Lusk's office.
+    if (session.currentAct === 5 &&
+        !session.inventory.includes(TAKEABLE_OBJECTS['from_hell_letter']) &&
+        npcsPresent.some(n => n.npcId === 'holmes')) {
+      npcScriptedLines.push({
+        npcId: 'holmes',
+        label: 'Sherlock Holmes',
+        instruction: 'Watson never copied the From Hell letter. Holmes notes, with mild impatience, that a comparison wants both documents — and the letter still sits in Lusk\'s office. He suggests Watson return there and take the text down word for word. Do not say what the comparison will reveal.',
+      });
+    }
+
     // Available exits (filtered by act)
     const availableExits = (loc.exits || [])
       .filter(exitId => {
@@ -1239,10 +1267,13 @@ export class GameEngine {
     const timePeriod   = computeTimePeriod(totalMinutes);
     const timeLabel    = formatTimeLabel(totalMinutes, actTimeCfg.dayOfWeek, actTimeCfg.displayDate);
 
+    const locationVisitCount = (session.locationVisitCounts[locationId] ?? 0) + 1;
+
     return {
       locationName: loc.name,
       locationAtmosphere: loc.atmosphere,
       locationDescription: loc.description,
+      locationVisitCount,
       locationTimeframe: loc.timeframe ?? 'present',
       locationReconstitutionNote: loc.reconstitutionNote,
       act,

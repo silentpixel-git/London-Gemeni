@@ -27,7 +27,7 @@ Read all of these to understand the full arc:
 - Are clues spread sensibly across all six acts, or do they cluster in one period?
 - Does the player encounter enough evidence to make a credible deduction attempt by Act 5?
 - Are the clue `connections` building a coherent picture toward the guilty party, or are they pointing nowhere?
-- Is the `DEDUCTION_THRESHOLD` of 5 clues achievable without visiting every location?
+- Is the `DEDUCTION_THRESHOLD` of 4 clues achievable without visiting every location?
 
 **Red herring integrity**
 - The game has one guilty party (Edmund Halward, Dr. Bond's assistant). Does the evidence *plausibly* implicate at least one other NPC enough to create genuine doubt?

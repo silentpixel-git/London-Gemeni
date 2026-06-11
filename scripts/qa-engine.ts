@@ -71,6 +71,7 @@ function buildSnapshot(overrides: Partial<SessionSnapshot> = {}): SessionSnapsho
     turnsAtLocationWithoutProgress: 0,
     elapsedMinutes: 0,
     introducedNpcs: [...INITIAL_INTRODUCED_NPCS],
+    locationVisitCounts: {},
     ...overrides,
   };
 }
@@ -815,6 +816,67 @@ function runNotebookPoi() {
     : fail('NotebookPoi: Edmund leaked into the POI ledger');
 }
 
+// ── Scenario 16: Intent parser — verb typo correction ─────────────────────────
+
+function runTypoCorrection() {
+  console.log('\n=== SCENARIO: typo-correction ===');
+
+  const cases: Array<{ input: string; type: string; targetId?: string; label: string }> = [
+    { input: 'exmaine the case files wall', type: 'examine', targetId: 'case_files_wall', label: 'transposed examine resolves target' },
+    { input: 'spek to holmes', type: 'talk', targetId: 'holmes', label: 'misspelled speak → talk' },
+    { input: 'shwo letter to holmes', type: 'show', targetId: 'from_hell_letter', label: 'transposed show keeps show intent (not implicit examine)' },
+    { input: 'dorp letter', type: 'drop', targetId: 'from_hell_letter', label: 'transposed drop keeps drop intent' },
+    { input: 'raed letter', type: 'read', targetId: 'from_hell_letter', label: 'transposed read keeps read intent' },
+  ];
+  for (const c of cases) {
+    const r = parseIntent(c.input);
+    r.type === c.type && r.targetId === c.targetId
+      ? pass(`Typo: ${c.label}`)
+      : fail(`Typo: ${c.label}`, `got type=${r.type} targetId=${r.targetId}`);
+  }
+
+  // Raw input is preserved for the AI context
+  const rRaw = parseIntent('exmaine the case files wall');
+  rRaw.raw === 'exmaine the case files wall'
+    ? pass('Typo: original raw input preserved after correction')
+    : fail('Typo: raw input was rewritten', rRaw.raw);
+
+  // No false positives: legitimate inputs and gibberish are untouched
+  const rLegit = parseIntent('take the lantern');
+  rLegit.type === 'take'
+    ? pass('Typo: legitimate verb unaffected')
+    : fail('Typo: legitimate verb misparsed', rLegit.type);
+  const rNoise = parseIntent('blorptastic nonsense');
+  rNoise.type === 'other'
+    ? pass('Typo: gibberish still falls through to other')
+    : fail('Typo: gibberish incorrectly matched a verb', rNoise.type);
+}
+
+// ── Scenario 17: USE combination act gate (spoiler containment) ───────────────
+
+function runUseCombinationActGate() {
+  console.log('\n=== SCENARIO: use-combination-act-gate ===');
+
+  // kidney_parcel + autopsy_ledger grants clue_08 (asylum-reveal content) and
+  // must be blocked before Act 6 even with both documents in hand.
+  const inv = ['Kidney Examination Notes', 'Autopsy Ledger Notes'];
+  const sAct4 = buildSnapshot({ currentAct: 4, location: 'lusk_office', inventory: inv });
+  const r1 = gameEngine.resolve(parseIntent('use kidney parcel with autopsy ledger'), sAct4);
+  !r1.actionSuccess && r1.discoveredClueIds.length === 0
+    ? pass('ActGate: kidney/ledger combination blocked in Act 4')
+    : fail('ActGate: clue_08 grantable before Act 6', JSON.stringify(r1.discoveredClueIds));
+  !r1.aiContext.actionResultNote.toLowerCase().includes('edmund') &&
+  !r1.aiContext.actionResultNote.toLowerCase().includes('asylum')
+    ? pass('ActGate: blocked note leaks neither Edmund nor the asylum')
+    : fail('ActGate: blocked note contains spoiler content');
+
+  const sAct6 = buildSnapshot({ currentAct: 6, location: 'private_asylum', inventory: inv });
+  const r2 = gameEngine.resolve(parseIntent('use kidney parcel with autopsy ledger'), sAct6);
+  r2.actionSuccess && r2.discoveredClueIds.includes('clue_08_preserved_kidney')
+    ? pass('ActGate: combination grants clue_08 in Act 6')
+    : fail('ActGate: combination broken in Act 6', JSON.stringify(r2.discoveredClueIds));
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -833,6 +895,8 @@ try {
   runDropMechanic();
   runTalkGatedAdvance();
   runNotebookPoi();
+  runTypoCorrection();
+  runUseCombinationActGate();
 } catch (err) {
   console.error('\n[FATAL] Uncaught exception in test harness:', err);
   process.exit(1);

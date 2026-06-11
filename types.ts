@@ -189,6 +189,8 @@ export interface NarrationContext {
   locationName: string;
   locationAtmosphere: string;
   locationDescription: string;
+  // How many times Watson has visited this location (1 = first visit)
+  locationVisitCount: number;
   // Temporal framing — drives Watson's emotional register in narration
   // 'present'        — Watson is here now (November 1888, live investigation)
   // 'reconstruction' — Watson is revisiting a past crime scene weeks/months later

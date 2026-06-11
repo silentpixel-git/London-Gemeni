@@ -520,7 +520,7 @@ export const SHOW_INTERACTIONS: Record<string, Record<string, ShowInteraction>> 
   // Bond identifies the precise preservation technique — matches his assistant's documented method
   'kidney_parcel': {
     'bond': {
-      resultNote: "SUCCESS — Bond examines the preserved tissue with clinical focus. 'Spirit of wine,' he says. 'Standard fixative. But the concentration is specific — this is not a general formula. This matches the preservation method I use in my own laboratory.' A long pause. 'I document the method in my practice notes. My assistant transcribes those notes.'",
+      resultNote: "SUCCESS — Bond examines the preserved tissue with clinical focus. 'Spirit of wine,' he says. 'Standard fixative. But the concentration is specific — this is not a general formula. This matches the preservation method I use in my own laboratory.' A long pause. 'I document the method in my practice notes. Those notes pass through several hands.'",
     },
   },
   // SHOW forensic reports TO abberline
@@ -544,6 +544,9 @@ export interface UseCombination {
   // Optional: the combination only works at this location (e.g. the document
   // comparison that must happen at Baker Street, against the casefiles).
   requiresLocation?: string;
+  // Optional: the combination only works from this act onward (spoiler gate —
+  // e.g. the kidney cross-reference grants asylum-reveal content).
+  requiresAct?: number;
 }
 
 export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = {
@@ -567,6 +570,10 @@ export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = 
   'kidney_parcel': {
     'autopsy_ledger': {
       clueId: 'clue_08_preserved_kidney',
+      // Spoiler gate: clue_08's text names Edmund and the asylum commitment.
+      // Without this gate the combination could fire in Act 4 (both documents
+      // are obtainable then) and spoil the Act 6 asylum reveal.
+      requiresAct: 6,
       resultNote: "SUCCESS — Watson cross-references the kidney's preservation against the ledger's documented method. Bond's notes specify spirit of wine at a precise dilution — the same concentration Watson observes in the parcel. This kidney was preserved by someone who had read, or written, that ledger entry.",
     },
   },
