@@ -105,9 +105,10 @@ export class GameEngine {
       case 'notebook':  result = this.resolveNotebook(intent, session); break;
       case 'deduce':    result = this.resolveDeduce(intent, session); break;
       case 'help':      result = this.resolveHelp(intent, session); break;
-      case 'query':     result = this.resolveQuery(intent, session); break;
+      case 'query':              result = this.resolveQuery(intent, session); break;
+      case 'unresolved_target':  result = this.resolveUnresolvedTarget(intent, session); break;
       case 'other':
-      default:          result = this.resolveOther(intent, session); break;
+      default:                   result = this.resolveOther(intent, session); break;
     }
 
     // Act progression for talk/show — these resolvers set gate flags
@@ -1029,6 +1030,33 @@ export class GameEngine {
           `or concepts foreign to a Victorian gentleman — Watson should briefly and gracefully acknowledge he has no ` +
           `knowledge of such a thing, in character. Do not invent anachronistic answers. ` +
           `Do not list exits, objects, or NPCs unless directly relevant to the question.`,
+        newClueDefs: [],
+      }),
+    };
+  }
+
+  // --------------------------------------------------------
+  // UNRESOLVED TARGET (examine verb used but target unrecognised)
+  // --------------------------------------------------------
+
+  private resolveUnresolvedTarget(intent: ParsedIntent, session: SessionSnapshot): EngineResult {
+    const currentLoc = LOCATIONS[session.location];
+    const availableObjects = currentLoc.interactables
+      .map(id => OBJECT_DISPLAY_NAMES[id] ?? id)
+      .join(', ');
+    return {
+      actionSuccess: false,
+      actionType: 'unresolved_target',
+      blockedReason: `Watson could not find "${intent.targetRaw}" to examine.`,
+      discoveredClueIds: [],
+      aiContext: this.buildContext(intent, session, {
+        success: false,
+        actionDescription: `Watson tried to examine "${intent.targetRaw}" but the target could not be identified.`,
+        actionResultNote:
+          `UNRESOLVED TARGET — Watson could not identify "${intent.targetRaw}" as anything in the scene. ` +
+          `Watson should briefly admit he found no such thing, quoting or paraphrasing the player's phrase (e.g. "I could find no '${intent.targetRaw}' worthy of attention"). ` +
+          `Then gesture at what IS available at ${currentLoc.name}: ${availableObjects}. ` +
+          `Keep it to 1–2 sentences. Do not invent objects or leave Watson sounding confused about the room.`,
         newClueDefs: [],
       }),
     };

@@ -143,7 +143,7 @@ export interface GameResponse {
 // ============================================================
 
 /** The type of action the player is attempting */
-export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'show' | 'read' | 'drop' | 'inventory' | 'deduce' | 'help' | 'query' | 'notebook' | 'other';
+export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'show' | 'read' | 'drop' | 'inventory' | 'deduce' | 'help' | 'query' | 'notebook' | 'other' | 'unresolved_target';
 
 /**
  * The result of the GameEngine resolving a player action.

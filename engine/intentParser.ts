@@ -210,6 +210,24 @@ function matchObjectId(raw: string): string | undefined {
       return id;
     }
   }
+
+  // Partial word subset matching: "case wall" → "Case Files Wall"
+  // All input words must appear in the display name's words; require ≥2 matches
+  // or a unique candidate to keep false positives low.
+  const STOP_WORDS = new Set(['the', 'a', 'an', 'of', 'in', 'at', 'on', 'to']);
+  const inputWords = norm.split(/\s+/).filter(w => w.length > 1 && !STOP_WORDS.has(w));
+  if (inputWords.length >= 1) {
+    const candidates: string[] = [];
+    for (const [id, displayName] of Object.entries(OBJECT_DISPLAY_NAMES)) {
+      const dnWords = normalise(displayName).split(/\s+/);
+      const matchCount = inputWords.filter(w => dnWords.includes(w)).length;
+      if (matchCount >= 2 || (matchCount >= 1 && matchCount === inputWords.length)) {
+        candidates.push(id);
+      }
+    }
+    if (candidates.length === 1) return candidates[0];
+  }
+
   // Common object aliases
   const objectAliases: Record<string, string> = {
     'letter': 'from_hell_letter',
@@ -454,9 +472,9 @@ export function parseIntent(rawInput: string): ParsedIntent {
       const targetId = targetRaw
         ? matchObjectId(targetRaw) || matchNpcId(targetRaw) || matchLocationId(targetRaw)
         : undefined;
-      // Examine verb + unresolvable target (e.g. "examine the fog") → world query, not a look-around
+      // Examine verb + unresolvable target → Watson should name what he missed
       if (targetRaw && !targetId) {
-        return { type: 'query', targetRaw, raw: rawInput };
+        return { type: 'unresolved_target', targetRaw, raw: rawInput };
       }
       // Examine verb + location target (e.g. "describe dorset street") → world query;
       // locations are not interactable objects and can't be examined by the engine
