@@ -94,6 +94,18 @@ export interface GameStateReturn {
 const OPENING_FALLBACK_NARRATIVE =
   "> *221B Baker Street. November 1888. The sitting room is no longer quite a sitting room.*\n\nHolmes paces before the fire, his pipe cold in his hand. The case files are everywhere — pinned, spread, stacked. Five murders. Eleven weeks. Scotland Yard is floundering.\n\n**Sherlock Holmes** is here.\n**Objects of interest:** Case Files Wall, Newspapers, Chemistry Table, Watson's Armchair.\n**Possible exits:** Dorset Street.";
 
+// Extract the first prose sentence of a narration (skipping act headers and
+// blockquotes) — used as anti-repetition memory for the AI.
+function extractOpeningSentence(markdown: string): string | null {
+  const line = markdown
+    .split('\n')
+    .map(l => l.trim())
+    .find(l => l.length > 0 && !l.startsWith('#') && !l.startsWith('>') && !l.startsWith('**'));
+  if (!line) return null;
+  const sentence = line.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? line;
+  return sentence.length > 90 ? sentence.slice(0, 90) + '…' : sentence;
+}
+
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useGameState({ user, isAuthReady, userProfile }: { user: User | null; isAuthReady: boolean; userProfile: UserProfile | null }): GameStateReturn {
@@ -128,6 +140,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   // How many times Watson has visited each location
   const [locationVisitCounts, setLocationVisitCounts] = useState<Record<string, number>>({});
+  // First sentences of the last few narrations — anti-repetition memory for the AI
+  const [recentOpenings, setRecentOpenings] = useState<string[]>([]);
 
   // Proactive Holmes nudge — turns at current location without discovering a clue
   const [turnsAtLocationWithoutProgress, setTurnsAtLocationWithoutProgress] = useState(0);
@@ -770,8 +784,13 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       }
 
       // STEP 6: Enrich a copy of the engine's context with hook-owned data
-      // (STIM, Holmes synthesis). The engine's aiContext is treated as immutable.
-      const aiContext: NarrationContext = { ...result.aiContext, stim };
+      // (STIM, Holmes synthesis, anti-repetition memory). The engine's aiContext
+      // is treated as immutable.
+      const aiContext: NarrationContext = {
+        ...result.aiContext,
+        stim,
+        recentOpenings: recentOpenings.length > 0 ? recentOpenings : undefined,
+      };
 
       // STEP 6a: Holmes multi-clue synthesis — before Watson narrates
       if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
@@ -794,22 +813,36 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         }
       }
 
+      // Engine-verified pickup notice — items the player actually gained this
+      // turn (examine can silently grant documents; the player must be told).
+      const itemsPickedUp = (result.inventoryAdd ?? []).filter(i => !inventory.includes(i));
+      const pickupNote = itemsPickedUp.length > 0
+        ? `\n\n**You picked up:** ${itemsPickedUp.join(', ')}`
+        : '';
+
       // STEP 7: Stream AI narration
       for await (const update of aiService.stream(aiContext)) {
         const { narrative, isComplete, parsed } = update;
+        const displayText = isComplete ? narrative + pickupNote : narrative;
 
         setHistory(prev => {
           const next = [...prev];
-          next[next.length - 1] = { ...next[next.length - 1], text: narrative };
+          next[next.length - 1] = { ...next[next.length - 1], text: displayText };
           return next;
         });
 
         if (isComplete && parsed) {
+          // Anti-repetition memory: remember this narration's opening sentence
+          const opening = extractOpeningSentence(parsed.markdownOutput);
+          if (opening) {
+            setRecentOpenings(prev => [opening, ...prev].slice(0, 4));
+          }
+
           if (user && activeInvestigation) {
             GameRepository.addLogEntry(activeInvestigation.id, {
               timestamp: new Date().toISOString(),
               type: 'narration',
-              content: parsed.markdownOutput,
+              content: parsed.markdownOutput + pickupNote,
             });
 
             if (parsed.npcMemoryUpdate && Object.keys(parsed.npcMemoryUpdate).length > 0) {

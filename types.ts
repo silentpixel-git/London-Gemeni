@@ -225,6 +225,10 @@ export interface NarrationContext {
   }>;
   // Atmospheric fallback note for the examined object (if no clue triggered)
   atmosphericNote?: string;
+  // Items Watson gained this turn (verified) — the AI must narrate the acquisition
+  itemsGained?: string[];
+  // First sentences of the last few narrations — anti-repetition memory
+  recentOpenings?: string[];
   // Recent NPC memory for present NPCs (max 2 entries each)
   npcRecentMemory?: Record<string, string[]>;
   // Session observations (STIM) — injected by useGameState before AI call

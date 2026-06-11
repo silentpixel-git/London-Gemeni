@@ -877,6 +877,77 @@ function runUseCombinationActGate() {
     : fail('ActGate: combination broken in Act 6', JSON.stringify(r2.discoveredClueIds));
 }
 
+// ── Scenario 18: itemsGained in narration context ─────────────────────────────
+
+function runItemsGained() {
+  console.log('\n=== SCENARIO: items-gained ===');
+
+  // Examine-grant: newspaper_pile yields the Dear Boss clipping (Act 0)
+  const s = buildSnapshot();
+  const r1 = gameEngine.resolve(parseIntent('examine the newspaper pile'), s);
+  r1.aiContext.itemsGained?.some(i => i.includes('Dear Boss'))
+    ? pass('ItemsGained: examine-grant surfaces item in aiContext')
+    : fail('ItemsGained: examine-grant missing from aiContext', JSON.stringify(r1.aiContext.itemsGained));
+
+  // Already-owned: re-examining must NOT report a gain
+  const sOwned = buildSnapshot({
+    inventory: ['Newspaper Clipping (the "Dear Boss" letter)'],
+    flags: { examined_baker_street_newspaper_pile: true },
+  });
+  const r2 = gameEngine.resolve(parseIntent('examine the newspaper pile'), sOwned);
+  !r2.aiContext.itemsGained
+    ? pass('ItemsGained: no phantom gain on re-examine')
+    : fail('ItemsGained: phantom gain reported', JSON.stringify(r2.aiContext.itemsGained));
+
+  // Explicit take
+  const sTake = buildSnapshot();
+  const r3 = gameEngine.resolve(parseIntent('take the newspaper pile'), sTake);
+  r3.aiContext.itemsGained?.some(i => i.includes('Dear Boss'))
+    ? pass('ItemsGained: take surfaces item in aiContext')
+    : fail('ItemsGained: take missing from aiContext', JSON.stringify(r3.aiContext.itemsGained));
+}
+
+// ── Scenario 19: Inventory item awareness ─────────────────────────────────────
+
+function runInventoryAwareness() {
+  console.log('\n=== SCENARIO: inventory-awareness ===');
+
+  // Alias precedence: "dear boss letter" must resolve to newspaper_pile,
+  // not from_hell_letter (the shorter 'letter' alias).
+  const r1 = parseIntent('examine dear boss letter');
+  r1.targetId === 'newspaper_pile'
+    ? pass('InvAware: "dear boss letter" resolves to newspaper_pile (longest alias wins)')
+    : fail('InvAware: alias precedence broken', `got ${r1.targetId}`);
+  const r2 = parseIntent('read the newspaper clipping about the dear boss letter');
+  r2.targetId === 'newspaper_pile'
+    ? pass('InvAware: "newspaper clipping..." resolves to newspaper_pile')
+    : fail('InvAware: clipping alias broken', `got ${r2.targetId}`);
+  // Bare "letter" still resolves to the From Hell letter
+  const r3 = parseIntent('examine the letter');
+  r3.targetId === 'from_hell_letter'
+    ? pass('InvAware: bare "letter" still resolves to from_hell_letter')
+    : fail('InvAware: bare letter alias regressed', `got ${r3.targetId}`);
+
+  // Carried copy: examining an object not present at the location but whose
+  // takeable item is in inventory must succeed, never "not present here".
+  const sCarrying = buildSnapshot({
+    currentAct: 4,
+    location: 'lusk_office',
+    inventory: ['Newspaper Clipping (the "Dear Boss" letter)'],
+  });
+  const r4 = gameEngine.resolve(parseIntent('examine the newspaper clipping'), sCarrying);
+  r4.actionSuccess && r4.aiContext.actionResultNote.includes('medical bag')
+    ? pass('InvAware: carried item examinable away from its source location')
+    : fail('InvAware: carried item blocked', r4.aiContext.actionResultNote.slice(0, 120));
+
+  // Not carried and not present → still correctly blocked
+  const sEmpty = buildSnapshot({ currentAct: 4, location: 'lusk_office' });
+  const r5 = gameEngine.resolve(parseIntent('examine the newspaper clipping'), sEmpty);
+  !r5.actionSuccess
+    ? pass('InvAware: absent + not carried still blocked')
+    : fail('InvAware: phantom examine of absent object');
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -897,6 +968,8 @@ try {
   runNotebookPoi();
   runTypoCorrection();
   runUseCombinationActGate();
+  runItemsGained();
+  runInventoryAwareness();
 } catch (err) {
   console.error('\n[FATAL] Uncaught exception in test harness:', err);
   process.exit(1);

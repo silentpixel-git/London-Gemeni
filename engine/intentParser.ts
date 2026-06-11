@@ -269,10 +269,17 @@ function matchObjectId(raw: string): string | undefined {
     'doorway': 'club_doorway',
     'posters': 'posters',
   };
+  // Longest alias wins — "dear boss letter" must match 'dear boss'
+  // (newspaper_pile), not the shorter 'letter' (from_hell_letter).
+  let bestId: string | undefined;
+  let bestLen = 0;
   for (const [alias, id] of Object.entries(objectAliases)) {
-    if (norm.includes(alias)) return id;
+    if (norm.includes(alias) && alias.length > bestLen) {
+      bestId = id;
+      bestLen = alias.length;
+    }
   }
-  return undefined;
+  return bestId;
 }
 
 /**

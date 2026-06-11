@@ -58,7 +58,7 @@ const NARRATION_SYSTEM_PROMPT = `You narrate "London Bleeds: The Whitechapel Dia
 ABSOLUTE RULES:
 1. VERIFIED STATE ONLY — never invent exits, items, characters, or locations beyond the context given.
 2. TIME — match the verified time of day exactly (no morning bustle at night; no gas-lit darkness at noon).
-3. VOICE — first-person PAST TENSE, always, in every mode. Military doctor: medical and forensic specificity, measured authority, never melodramatic. State an emotion or sensation once; do not amplify or explain it — end the sentence before the elaboration. Occasionally dry; not every moment is dark. VARY YOUR OPENINGS — do not begin with fog, weather, or windows more than rarely; open instead on people, actions, objects, sounds, or Watson's thoughts.
+3. VOICE — first-person PAST TENSE, always, in every mode. Military doctor: medical and forensic specificity, measured authority, never melodramatic. State an emotion or sensation once; do not amplify or explain it — end the sentence before the elaboration. Occasionally dry; not every moment is dark. VARY YOUR OPENINGS — do not begin with fog, weather, or windows more than rarely; open instead on people, actions, objects, sounds, or Watson's thoughts. OVER-USED IMAGERY (each may appear at most once per act): fire crackling in the grate/hearth, dancing or flickering shadows, fog pressing at the panes. Prefer fresh sensory channels — sound, smell, touch, small human details.
 4. ALIASES (critical) — each NPC carries a label and an isIntroduced flag. If isIntroduced is false, use ONLY the label; never the real name, even in Watson's private thoughts. Bond's assistant is never introduced by anyone and never introduces himself — his name appears only via the forensic note. Until then: "Bond's assistant" or "the quiet young man", background only, never initiating.
 5. HOLMES — at most one brief, cryptic observation per FULL turn. He never accuses the assistant before Act VI.
 6. NO RAW LISTS — weave exits, objects, and people into prose.
@@ -162,6 +162,16 @@ function buildNarrationPrompt(ctx: NarrationContext): string {
     ? `\n=== ATMOSPHERIC NOTE (use as basis for this examination — expand in Watson's voice) ===\n${ctx.atmosphericNote}\n`
     : '';
 
+  // Verified acquisitions — the prose itself must convey that Watson now has it
+  const itemsGainedSection = ctx.itemsGained && ctx.itemsGained.length > 0
+    ? `\nWATSON ACQUIRED (verified): ${ctx.itemsGained.join(', ')}. Weave the act of taking/copying/clipping this into the prose — the player must understand from the narration itself that Watson now carries it.\n`
+    : '';
+
+  // Anti-repetition memory — the model's own recent opening sentences
+  const recentOpeningsSection = ctx.recentOpenings && ctx.recentOpenings.length > 0
+    ? `\nRECENT OPENING SENTENCES (yours — do NOT reuse their imagery, subjects, or sentence shape):\n${ctx.recentOpenings.map(o => `• ${o}`).join('\n')}\n`
+    : '';
+
   if (isOpening) {
     // OPENING MODE — game start only: tight hook, no inventory of scene elements
     return `=== NARRATION MODE: OPENING ===
@@ -208,7 +218,7 @@ ${memorySection}
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
-${clueSection}${synthesisSection}
+${itemsGainedSection}${recentOpeningsSection}${clueSection}${synthesisSection}
 Narrate Watson's arrival / survey of this location using exactly this structure:
 
 Paragraph 1 — ${isRevisit
@@ -233,11 +243,12 @@ ${temporalSection}
 === VERIFIED CONTEXT ===
 Location: ${ctx.locationName} (Act ${ctx.act}: ${ctx.actName})
 NPCs present (use labels exactly): ${npcLabelList}
+Watson's inventory (verified — never narrate him lacking or searching for these): ${ctx.inventory.length > 0 ? ctx.inventory.join(', ') : 'empty'}
 ${memorySection}${atmosphericNoteSection}
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
-${clueSection}${synthesisSection}`;
+${itemsGainedSection}${recentOpeningsSection}${clueSection}${synthesisSection}`;
 
   if (ctx.targetNpcInterview) {
     const { label, isIntroduced, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion } = ctx.targetNpcInterview;

@@ -350,6 +350,23 @@ export class GameEngine {
           }),
         };
       }
+      // Carried copy: the object isn't here, but Watson holds its takeable
+      // item (e.g. the Dear Boss clipping examined away from Baker Street).
+      const carriedItem = TAKEABLE_OBJECTS[targetId];
+      if (carriedItem && session.inventory.includes(carriedItem)) {
+        return {
+          actionSuccess: true,
+          actionType: 'examine',
+          discoveredClueIds: [],
+          aiContext: this.buildContext(intent, session, {
+            success: true,
+            actionDescription: `Watson took ${carriedItem} from his bag and examined it again.`,
+            actionResultNote: `SUCCESS — Watson re-reads the ${carriedItem} he carries. It is in his medical bag; narrate him producing and studying it. No new evidence emerges, but he may reflect on what it means.`,
+            newClueDefs: [],
+          }),
+        };
+      }
+
       const objectName = OBJECT_DISPLAY_NAMES[targetId] || intent.targetRaw;
       return this.blocked(
         intent,
@@ -403,6 +420,7 @@ export class GameEngine {
           ? `SUCCESS — Watson re-examined the ${objectName}. (Previously examined — no new clues.)`
           : `SUCCESS — Watson examined the ${objectName}.`,
         newClueDefs,
+        itemsGained: inventoryAdd,
       }),
     };
   }
@@ -517,6 +535,7 @@ export class GameEngine {
         actionDescription: `Watson took (a copy of) the ${objectName} for his records.`,
         actionResultNote: `SUCCESS — ${inventoryItem} added to Watson's bag.`,
         newClueDefs,
+        itemsGained: [inventoryItem],
       }),
     };
   }
@@ -1108,6 +1127,7 @@ export class GameEngine {
       actionDescription: string;
       actionResultNote: string;
       newClueDefs: Array<{ name: string; description: string; holmesDeduction: string }>;
+      itemsGained?: string[];         // Inventory items gained this turn (verified)
       targetLocationId?: string;      // For move actions, the destination
       targetNpcId?: string;
       newNpcUpdates?: Record<string, Partial<NPCState>>;
@@ -1298,6 +1318,7 @@ export class GameEngine {
         description: c.description,
         holmesDeduction: c.holmesDeduction,
       })),
+      itemsGained: outcome.itemsGained?.length ? outcome.itemsGained : undefined,
       atmosphericNote,
       npcRecentMemory: Object.keys(npcRecentMemory).length > 0 ? npcRecentMemory : undefined,
       targetNpcInterview,

@@ -301,7 +301,122 @@ const fixtures: Array<{ label: string; rubric: string; ctx: NarrationContext }> 
     // EVALUATE: Watson must admit confusion, invent no action/progress, and
     // hint at real options (examine / talk / move).
   },
+  {
+    label: 'quality-acquisition-correlation',
+    rubric: '2c_writing_quality',
+    ctx: makeCtx({
+      narrationMode: 'compact',
+      actionType: 'examine',
+      actionDescription: 'Watson examined the Newspaper Pile at 221B Baker Street.',
+      actionResultNote: 'SUCCESS — Watson examined the Newspaper Pile.',
+      itemsGained: ['Newspaper Clipping (the "Dear Boss" letter)'],
+      atmosphericNote: "The Star, the Evening Standard, the Times. Every front page from August onward. Headlines grow more hysterical with each passing week. Near the top of the pile, the Star has reprinted the 'Dear Boss' letter in facsimile — the letter that gave the killer his name. Watson cuts the column out carefully and folds it into his notebook before setting the papers down.",
+      blockquoteHint: 'none',
+    }),
+    // EVALUATE (STATE_MISMATCH check): the prose must convey that Watson took/
+    // clipped the Dear Boss letter — the acquisition cannot be silent.
+  },
 ];
+
+// ── Repetition analysis (3 sequential narrations, n-gram overlap) ─────────────
+
+function extractOpening(markdown: string): string {
+  const line = markdown
+    .split('\n')
+    .map(l => l.trim())
+    .find(l => l.length > 0 && !l.startsWith('#') && !l.startsWith('>') && !l.startsWith('**'));
+  if (!line) return '';
+  return line.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? line;
+}
+
+// Strip non-prose lines before measuring repetition: act headers and the
+// engine-appended verified-data footer ("X is here.", "Objects of interest:",
+// "Possible exits:") are identical by design and would inflate the overlap.
+function proseOnly(markdown: string): string {
+  return markdown
+    .split('\n')
+    .filter(l => {
+      const t = l.trim();
+      return !t.startsWith('#') &&
+        !t.startsWith('**Objects of interest:') &&
+        !t.startsWith('**Possible exits:') &&
+        !t.startsWith('**No exits available') &&
+        !/^\*\*.+\*\*( and \*\*.+\*\*)?,? (is|are) here\.$/.test(t);
+    })
+    .join('\n');
+}
+
+function trigrams(text: string): Set<string> {
+  const words = proseOnly(text).toLowerCase().replace(/[^a-z\s']/g, ' ').split(/\s+/).filter(Boolean);
+  const grams = new Set<string>();
+  for (let i = 0; i + 2 < words.length; i++) grams.add(`${words[i]} ${words[i + 1]} ${words[i + 2]}`);
+  return grams;
+}
+
+async function generateRepetitionAnalysis(): Promise<string> {
+  const lines: string[] = ['## Repetition Analysis (3 sequential Baker Street narrations)', ''];
+  const outputs: string[] = [];
+  const openings: string[] = [];
+
+  for (let i = 0; i < 3; i++) {
+    console.log(`Running repetition pass ${i + 1}/3...`);
+    const ctx = makeCtx({
+      narrationMode: 'full',
+      locationVisitCount: i + 1,
+      recentOpenings: openings.length > 0 ? [...openings].reverse() : undefined,
+      actionDescription: i === 0 ? 'Watson surveys the room.' : 'Watson looks around the room again.',
+      actionResultNote: 'Watson takes stock of the investigation.',
+    });
+    try {
+      const out = await getNarration(ctx);
+      outputs.push(out);
+      const op = extractOpening(out);
+      if (op) openings.push(op);
+    } catch (err) {
+      lines.push(`(ERROR on pass ${i + 1}: ${err instanceof Error ? err.message : String(err)})`);
+      return lines.join('\n');
+    }
+  }
+
+  // Pairwise shared trigram analysis
+  const sets = outputs.map(trigrams);
+  const repeated: string[] = [];
+  for (let a = 0; a < sets.length; a++) {
+    for (let b = a + 1; b < sets.length; b++) {
+      for (const g of sets[a]) if (sets[b].has(g)) repeated.push(g);
+    }
+  }
+  const unique = [...new Set(repeated)];
+  const totalGrams = sets.reduce((s, g) => s + g.size, 0);
+  const overlapPct = totalGrams > 0 ? ((repeated.length / totalGrams) * 100).toFixed(1) : '0';
+
+  lines.push(`**Shared 3-word phrases across passes:** ${unique.length} (${overlapPct}% pairwise overlap)`);
+  lines.push('');
+  if (unique.length > 0) {
+    lines.push('**Repeated phrases** (appearing in 2+ of 3 outputs):');
+    lines.push('');
+    for (const g of unique.slice(0, 25)) lines.push(`- "${g}"`);
+    lines.push('');
+  }
+  lines.push('**Opening sentences:**');
+  lines.push('');
+  openings.forEach((o, i) => lines.push(`${i + 1}. ${o}`));
+  lines.push('');
+  lines.push('**QA Agent: flag REPETITION if the same imagery family (fire/shadows/fog) or any phrase appears in 2+ openings, or if shared-phrase overlap exceeds ~3%.**');
+  lines.push('');
+  outputs.forEach((o, i) => {
+    lines.push(`<details><summary>Pass ${i + 1} full output</summary>`);
+    lines.push('');
+    lines.push('```');
+    lines.push(o);
+    lines.push('```');
+    lines.push('</details>');
+    lines.push('');
+  });
+  lines.push('---');
+  lines.push('');
+  return lines.join('\n');
+}
 
 // ── Static difficulty analysis ────────────────────────────────────────────────
 
@@ -329,7 +444,7 @@ function generateDifficultyAnalysis(): string {
 
 ### Questions for QA agent to assess:
 
-1. **Is Act 1 gate too easy?** Only one examine required — player barely engages with Miller's Court before moving on.
+1. **Is the Act 1 gate well paced?** Four flags required (2 examines + 2 talks at Dorset Street / Miller's Court) — does this give the central murder scene enough weight?
 2. **Is the deduction threshold (4 clues) appropriate?** The minimum path collects close to the threshold — little margin for missed clues.
 3. **Are red herrings distinguishable?** Bond is present at the mortuary and his name appears on notes — he's a strong red herring. Does the game provide enough differentiators for Edmund?
 4. **Minimum path length:** ~18 actions (moves + examines + talk + deduce). Is this sufficient for player investment?
@@ -401,6 +516,10 @@ async function main() {
       lines.push('');
     }
   }
+
+  // Repetition analysis — 3 sequential full-mode narrations at the same
+  // location, each fed the previous openings (mirrors live anti-repetition).
+  lines.push(await generateRepetitionAnalysis());
 
   // Static difficulty analysis (no AI call)
   lines.push(generateDifficultyAnalysis());
