@@ -18,6 +18,10 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     criticalPathLead: 'Speak with Holmes — he has been at this for weeks. Examine the case files wall and the newspapers; show Holmes the clipping of the published letter; read the telegrams last.',
     locationExaminedFlag: 'examined_baker_street',
     timeOfDay: 'night',
+    vignettes: [
+      { text: 'Mrs Hudson leaves a supper tray outside the door without knocking — she has learned the rhythm of a case. The tea goes cold where she left it.', act: 0 },
+      { text: 'A telegraph boy hammers at the street door, hands up a wire, and is gone before it can be signed for. Holmes reads it once and feeds it to the fire.' },
+    ],
   },
 
   dorset_street: {
@@ -34,6 +38,15 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     criticalPathLead: "Speak with the inspector or enter Miller's Court to begin the investigation.",
     locationExaminedFlag: 'examined_dorset_street',
     timeOfDay: 'morning',
+    extras: [
+      'a coster pushing his barrow one street over rather than pass the court entrance',
+      'two lodging-house women sharing a clay pipe in a doorway, watching everything and saying nothing',
+      'a constable stamping warmth into his feet at the corner, studiously not looking at the crowd',
+    ],
+    vignettes: [
+      { text: 'A woman in a shawl steps out of the crowd, lays a bunch of violets at the court entrance, and walks away. When Watson looks again, the flowers are already trodden into the mud.', act: 1 },
+      { text: 'A child of perhaps eight works the crowd selling matches, calling the murder like a headline. Nobody buys. Nobody sends her home.' },
+    ],
   },
 
   millers_court: {
@@ -66,6 +79,13 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     criticalPathLead: "Examine the autopsy ledger and the victim folders. The pattern across five murders is visible here in a way it is not at individual scenes.",
     locationExaminedFlag: 'examined_whitechapel_mortuary',
     timeOfDay: 'midday',
+    extras: [
+      'a mortuary porter scrubbing the stone floor by the door, methodical and unhurried',
+      'a parish clerk waiting with papers to be signed, hat in his hands',
+    ],
+    vignettes: [
+      { text: 'A man in his Sunday coat is led in to identify a body that is not, in the end, his sister. He thanks Bond twice on the way out, as though something had been given back to him.' },
+    ],
   },
 
   h_division_station: {
@@ -82,6 +102,14 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     criticalPathLead: "Study the witness description wall. The contradictions are not a failure of investigation — they are a clue in themselves.",
     locationExaminedFlag: 'examined_h_division_station',
     timeOfDay: 'afternoon',
+    extras: [
+      'a desk sergeant taking down a complaint from a woman who keeps starting the story over',
+      'two beat constables comparing notebooks in a corner, voices low',
+      'a man in handcuffs on the bench, asleep or pretending to be',
+    ],
+    vignettes: [
+      { text: 'A constable comes in off his beat, hangs up his cape, and stands a long moment with both hands flat on the counter before he reports. Nobody hurries him.' },
+    ],
   },
 
   whitechapel_pub: {
@@ -98,6 +126,14 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     criticalPathLead: "There are no clues here in the forensic sense. But Watson is a doctor and a gentleman, and he needs to understand what is actually at stake in this investigation.",
     locationExaminedFlag: 'examined_whitechapel_pub',
     timeOfDay: 'night',
+    extras: [
+      'the potboy collecting glasses, working around conversations without hearing them',
+      'an old man at the end of the bar nursing the same half-pint for an hour',
+      'two market porters dividing their pay with great ceremony and small coins',
+    ],
+    vignettes: [
+      { text: "The barmaid sets a gin at an empty corner seat, catches herself, and takes it back without a word. Watson does not ask whose seat it was." },
+    ],
   },
 
   lusk_office: {
@@ -114,6 +150,13 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     criticalPathLead: "Examine the From Hell letter carefully — note the spelling — and have Watson examine the kidney parcel.",
     locationExaminedFlag: 'examined_lusk_office',
     timeOfDay: 'afternoon',
+    extras: [
+      'a committee volunteer sorting the morning post into "answer" and "burn" piles',
+      'a tradesman waiting to report a suspicious lodger, rehearsing his account under his breath',
+    ],
+    vignettes: [
+      { text: 'A clerk opens an envelope, reads two lines, and sets it face-down on the burn pile with a steadiness that has clearly been practised. Lusk does not ask what it said.', act: 4 },
+    ],
   },
 
   bond_office: {
@@ -130,6 +173,10 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     criticalPathLead: "Gather the assistant's handwritten notes. Careful document comparison wants a desk and good light — better done back at Baker Street.",
     locationExaminedFlag: 'examined_bond_office',
     timeOfDay: 'midday',
+    extras: [
+      'a hospital messenger waiting for a signature, shifting from foot to foot',
+      'a charwoman polishing the brass plate on the door, breathing on it between strokes',
+    ],
   },
 
   private_asylum: {
@@ -170,6 +217,13 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     criticalPathLead: "Examine the street and work through Abberline's notes. The geography tells you something about how the killer was perceived.",
     locationExaminedFlag: 'examined_bucks_row',
     timeOfDay: 'night',
+    extras: [
+      'a warehouse hand rolling barrels across the cobbles, life gone back to its work',
+      'a knife-grinder setting up his wheel where the body lay, not knowing or not caring',
+    ],
+    vignettes: [
+      { text: 'An old woman pauses at the gateway, crosses herself with a small economical motion, and walks on without breaking stride. She has done this before.', act: 2 },
+    ],
   },
 
   hanbury_street: {
@@ -187,6 +241,13 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     criticalPathLead: "Examine the yard and consult Bond's report on the anatomical precision of the organ removal.",
     locationExaminedFlag: 'examined_hanbury_street',
     timeOfDay: 'morning',
+    extras: [
+      'a resident of No. 29 carrying washing through the yard, stepping where she has always stepped',
+      'two children playing knucklebones on the steps, shooed off and back within the minute',
+    ],
+    vignettes: [
+      { text: 'A lodger leans from an upper window and asks, without preamble, whether Watson is "another one come to look." He withdraws before any answer can be given.', act: 2 },
+    ],
   },
 
   dutfields_yard: {
@@ -204,6 +265,13 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     criticalPathLead: "Inspect the gate and walk the cart path. The interrupted murder tells you something about compulsion that the completed ones do not.",
     locationExaminedFlag: 'examined_dutfields_yard',
     timeOfDay: 'night',
+    extras: [
+      'a club member smoking in the doorway, the argument indoors continuing without him',
+      'a carter backing his horse into the yard with practised curses',
+    ],
+    vignettes: [
+      { text: "The horse in the yard tonight will not pass the gate either — it plants its feet exactly where Diemschutz's pony shied. The carter swears at it. Holmes watches the animal with open respect.", act: 3 },
+    ],
   },
 
   working_mens_club: {
@@ -238,6 +306,10 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     criticalPathLead: "Examine the alleyways and discuss the kidney removal with Holmes. The speed and precision tell you something critical about the killer's experience.",
     locationExaminedFlag: 'examined_mitre_square',
     timeOfDay: 'night',
+    extras: [
+      'a City constable on his beat, boots loud on the stone, timing his round to the minute',
+      'a watchman in a warehouse doorway, lantern at his feet, awake in a way he was not in September',
+    ],
   },
 
   goulston_street: {
@@ -256,6 +328,13 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     criticalPathLead: "Examine the graffiti location and the apron fragment. The police decision to erase the inscription was a choice between evidence and public order.",
     locationExaminedFlag: 'examined_goulston_street',
     timeOfDay: 'night',
+    extras: [
+      'market traders crying their stalls along the street, commerce louder than memory',
+      'a boy in a doorway selling bootlaces from a tray, eyes following every passer-by',
+    ],
+    vignettes: [
+      { text: 'Someone has chalked a fresh price-list on the wall a few feet from where the inscription was wiped. Ordinary words in an ordinary hand. Watson looks at it longer than it deserves.', act: 3 },
+    ],
   },
 };
 

@@ -78,6 +78,8 @@ export interface SessionSnapshot {
   introducedNpcs: string[];
   // How many times Watson has visited each location (keyed by locationId)
   locationVisitCounts: Record<string, number>;
+  // Total turns this session — used to rotate idle behaviors / ambient extras
+  turnCount: number;
   // Note: sanity has been removed. Watson's prose register is now fixed
   // at the professional-composure baseline defined in the AI system prompt.
 }
@@ -190,10 +192,16 @@ export class GameEngine {
     // proper, so the AI context that leaves the engine carries verified facts only.
     const ctxWithIntro = result.aiContext as NarrationContext & {
       _introductionFlagsUpdate?: Record<string, boolean>;
+      _vignetteFlagsUpdate?: Record<string, boolean>;
     };
     if (ctxWithIntro._introductionFlagsUpdate) {
       result.introductionFlagsUpdate = ctxWithIntro._introductionFlagsUpdate;
       delete ctxWithIntro._introductionFlagsUpdate;
+    }
+    // Vignette once-only flags ride the normal flags pipeline (persisted with the turn)
+    if (ctxWithIntro._vignetteFlagsUpdate) {
+      result.flagsUpdate = { ...result.flagsUpdate, ...ctxWithIntro._vignetteFlagsUpdate };
+      delete ctxWithIntro._vignetteFlagsUpdate;
     }
 
     return result;
@@ -417,7 +425,7 @@ export class GameEngine {
         actionResultNote: newClueIds.length > 0
           ? `SUCCESS — Watson discovered ${newClueIds.length} new clue(s).`
           : alreadyExamined
-          ? `SUCCESS — Watson re-examined the ${objectName}. (Previously examined — no new clues.)`
+          ? `SUCCESS — Watson re-examined the ${objectName}. (Previously examined — no new clues.${TAKEABLE_OBJECTS[targetId] && session.inventory.includes(TAKEABLE_OBJECTS[targetId]) ? ` Watson already carries ${TAKEABLE_OBJECTS[targetId]} — do NOT narrate him taking or copying it again.` : ''})`
           : `SUCCESS — Watson examined the ${objectName}.`,
         newClueDefs,
         itemsGained: inventoryAdd,
@@ -746,7 +754,18 @@ export class GameEngine {
       };
     }
 
-    // No NPC specified — Watson examines the item himself
+    // No NPC specified — if exactly one NPC is present, Watson naturally shows
+    // it to them ("show the clipping" with only Holmes in the room).
+    const presentNpcIds = Object.keys(NPCS).filter(id => {
+      const st = session.npcStates[id];
+      const loc = st?.currentLocation ?? NPCS[id]?.canonicalLocationByAct[session.currentAct];
+      return loc === session.location && st?.status !== 'deceased';
+    });
+    if (presentNpcIds.length === 1) {
+      return this.resolveShow({ ...intent, showTargetNpcId: presentNpcIds[0] }, session);
+    }
+
+    // Multiple/no NPCs — Watson examines the item himself
     return this.resolveExamine({ ...intent, type: 'examine' }, session);
   }
 
@@ -917,6 +936,20 @@ export class GameEngine {
 
     // Check if player has enough clues
     if (clueCount < DEDUCTION_THRESHOLD) {
+      // Spoiler-safe pointer: name locations (accessible this act) that still
+      // hold untriggered clues — never the clue content itself.
+      const uncoveredLocations = Object.entries(CLUE_TRIGGERS)
+        .filter(([locId, objMap]) => {
+          const loc = LOCATIONS[locId];
+          if (!loc || loc.act > session.currentAct) return false;
+          return Object.values(objMap).some(clueIds =>
+            clueIds.some(id => !session.discoveredClueIds.includes(id)));
+        })
+        .map(([locId]) => LOCATIONS[locId].name)
+        .slice(0, 2);
+      const groundNote = uncoveredLocations.length > 0
+        ? ` Holmes refuses the theory and — without explaining why — names ground not yet covered: ${uncoveredLocations.join(' and ')}. He says only that the evidence there has not been read, not what it contains.`
+        : '';
       return {
         actionSuccess: false,
         actionType: 'deduce',
@@ -925,7 +958,7 @@ export class GameEngine {
         aiContext: this.buildContext(intent, session, {
           success: false,
           actionDescription: `Watson attempted to name the killer: "${intent.raw}"`,
-          actionResultNote: `BLOCKED — Only ${clueCount} clues discovered. Holmes requires more evidence before committing to a theory.`,
+          actionResultNote: `BLOCKED — Only ${clueCount} clues discovered. Holmes requires more evidence before committing to a theory.${groundNote}`,
           newClueDefs: [],
         }),
       };
@@ -1194,6 +1227,32 @@ export class GameEngine {
       });
     }
 
+    // Idle behaviors — one rotating flat beat per present NPC who is not being
+    // interviewed this turn, cycled by turn count so it never repeats twice running.
+    for (const { npcId, label } of npcsPresent) {
+      if (npcId === outcome.targetNpcId) continue;
+      const idle = NPCS[npcId]?.idleBehaviors;
+      if (idle && idle.length > 0) {
+        npcScriptedLines.push({
+          npcId, label,
+          instruction: `Background only, no emphasis: ${idle[session.turnCount % idle.length]}`,
+        });
+      }
+    }
+
+    // Holmes case-state demeanor — derived, no new state. Colors how he carries
+    // himself this act; injected only when he is present and not interviewed.
+    if (npcsPresent.some(n => n.npcId === 'holmes') && outcome.targetNpcId !== 'holmes') {
+      const clueCount = session.discoveredClueIds.length;
+      const convergenceDone = session.flags['used_edmund_forensic_note_with_from_hell_letter'];
+      const demeanor = convergenceDone
+        ? 'Holmes is grim and certain now — coiled, economical, already three moves ahead. The chase has replaced the puzzle.'
+        : clueCount >= 3
+        ? 'Holmes is absorbed — the abstracted intensity of a mind cross-referencing everything it sees. He answers a beat late.'
+        : 'Holmes is restless, irritable at the want of data — snapping at small noises, retreating into tobacco.';
+      npcScriptedLines.push({ npcId: 'holmes', label: 'Sherlock Holmes', instruction: `Demeanor note: ${demeanor}` });
+    }
+
     // Available exits (filtered by act)
     const availableExits = (loc.exits || [])
       .filter(exitId => {
@@ -1289,6 +1348,30 @@ export class GameEngine {
 
     const locationVisitCount = (session.locationVisitCounts[locationId] ?? 0) + 1;
 
+    // Intra-act weather drift — the act's weather may shift late in the act
+    const baseWeather = ACT_WEATHER[act] ?? ACT_WEATHER[1];
+    const weather = baseWeather.lateShift && session.elapsedMinutes >= baseWeather.lateShift.afterMinutes
+      ? { condition: baseWeather.lateShift.condition, label: baseWeather.lateShift.label }
+      : { condition: baseWeather.condition, label: baseWeather.label };
+
+    // One-shot vignette — fires on full-mode narration only, at most once each
+    // per playthrough (flag vignette_<locId>_<idx>), replacing the random seed.
+    let vignette: string | undefined;
+    const vignetteFlagsUpdate: Record<string, boolean> = {};
+    if (narrationMode === 'full' && loc.vignettes) {
+      const idx = loc.vignettes.findIndex((v, i) =>
+        !session.flags[`vignette_${locationId}_${i}`] && (v.act === undefined || v.act === act));
+      if (idx !== -1) {
+        vignette = loc.vignettes[idx].text;
+        vignetteFlagsUpdate[`vignette_${locationId}_${idx}`] = true;
+      }
+    }
+
+    // Ambient extra — prose-only background figure, rotated by visit count
+    const ambientExtra = loc.extras && loc.extras.length > 0
+      ? loc.extras[(locationVisitCount - 1) % loc.extras.length]
+      : undefined;
+
     return {
       locationName: loc.name,
       locationAtmosphere: loc.atmosphere,
@@ -1300,7 +1383,9 @@ export class GameEngine {
       actName: ACT_NAMES[act] || `Act ${act}`,
       timeLabel,
       timePeriod,
-      weather: ACT_WEATHER[act] ?? ACT_WEATHER[1],
+      weather,
+      vignette,
+      ambientExtra,
       npcsPresent,
       availableObjects,
       availableExits,
@@ -1329,7 +1414,14 @@ export class GameEngine {
       _introductionFlagsUpdate: Object.keys(introductionFlagsUpdate).length > 0
         ? introductionFlagsUpdate
         : undefined,
-    } as NarrationContext & { _introductionFlagsUpdate?: Record<string, boolean> };
+      // Vignette once-only flags — lifted onto result.flagsUpdate in resolve()
+      _vignetteFlagsUpdate: Object.keys(vignetteFlagsUpdate).length > 0
+        ? vignetteFlagsUpdate
+        : undefined,
+    } as NarrationContext & {
+      _introductionFlagsUpdate?: Record<string, boolean>;
+      _vignetteFlagsUpdate?: Record<string, boolean>;
+    };
   }
 
   /**

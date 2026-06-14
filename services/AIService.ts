@@ -56,9 +56,9 @@ function logPromptSize(label: string, system: string, prompt: string): void {
 const NARRATION_SYSTEM_PROMPT = `You narrate "London Bleeds: The Whitechapel Diaries" — a Victorian detective mystery, London, 1888. You write solely as Dr. John H. Watson in Arthur Conan Doyle's style: first-person past tense, analytical, restrained, quietly emotional. You are a narrator, not a game engine.
 
 ABSOLUTE RULES:
-1. VERIFIED STATE ONLY — never invent exits, items, characters, or locations beyond the context given.
+1. VERIFIED STATE ONLY — never invent exits, items, characters, or locations beyond the context given. The reverse also holds: never narrate that Watson cannot leave, has no exits, or that "departure is out of the question" when the verified exits list is non-empty.
 2. TIME — match the verified time of day exactly (no morning bustle at night; no gas-lit darkness at noon).
-3. VOICE — first-person PAST TENSE, always, in every mode. Military doctor: medical and forensic specificity, measured authority, never melodramatic. State an emotion or sensation once; do not amplify or explain it — end the sentence before the elaboration. Occasionally dry; not every moment is dark. VARY YOUR OPENINGS — do not begin with fog, weather, or windows more than rarely; open instead on people, actions, objects, sounds, or Watson's thoughts. OVER-USED IMAGERY (each may appear at most once per act): fire crackling in the grate/hearth, dancing or flickering shadows, fog pressing at the panes. Prefer fresh sensory channels — sound, smell, touch, small human details.
+3. VOICE — first-person PAST TENSE, always, in every mode. Military doctor: medical and forensic specificity, measured authority, never melodramatic. State an emotion or sensation once; do not amplify or explain it — end the sentence before the elaboration. Occasionally dry; not every moment is dark. VARY YOUR OPENINGS — do not begin with fog, weather, or windows more than rarely; open instead on people, actions, objects, sounds, or Watson's thoughts. NEVER open with "I returned to…". OVER-USED IMAGERY (each may appear at most once per act): fire crackling in the grate/hearth, dancing or flickering shadows, fog pressing at the panes, "wreathed in smoke", "silhouetted against". BANNED PHRASE: "a profound sense of [emotion]" — show feeling through observed physical detail, never a labeled abstraction. Prefer fresh sensory channels — sound, smell, touch, small human details.
 4. ALIASES (critical) — each NPC carries a label and an isIntroduced flag. If isIntroduced is false, use ONLY the label; never the real name, even in Watson's private thoughts. Bond's assistant is never introduced by anyone and never introduces himself — his name appears only via the forensic note. Until then: "Bond's assistant" or "the quiet young man", background only, never initiating.
 5. HOLMES — at most one brief, cryptic observation per FULL turn. He never accuses the assistant before Act VI.
 6. NO RAW LISTS — weave exits, objects, and people into prose.
@@ -106,10 +106,12 @@ const NARRATION_SCHEMA = {
 
 const ACT_ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
 
-function pickAtmosphericSeed(period: TimePeriod, weatherCondition: string): string {
+function pickAtmosphericSeed(period: TimePeriod, weatherCondition: string, act: number): string {
   const isFoggy = weatherCondition === 'foggy';
   const candidates = ATMOSPHERIC_SEEDS.filter(
-    s => (s.periods.length === 0 || s.periods.includes(period)) && (!s.requiresFog || isFoggy)
+    s => (s.periods.length === 0 || s.periods.includes(period)) &&
+         (!s.requiresFog || isFoggy) &&
+         (!s.acts || s.acts.includes(act))
   );
   const pool = candidates.length > 0 ? candidates : ATMOSPHERIC_SEEDS;
   return pool[Math.floor(Math.random() * pool.length)].text;
@@ -132,7 +134,7 @@ function buildNarrationPrompt(ctx: NarrationContext): string {
     ctx.npcRecentMemory && Object.keys(ctx.npcRecentMemory).length > 0
       ? `\n=== RECENT NPC INTERACTIONS (continuity) ===\n${Object.entries(ctx.npcRecentMemory)
           .map(([name, mems]) => `• ${name}: ${mems.join(' | ')}`)
-          .join('\n')}\n`
+          .join('\n')}\nOccasionally a character may reference an earlier exchange unprompted — a half-sentence, in character, never expository.\n`
       : '';
 
   const actHeader = ctx.act === 0
@@ -170,6 +172,14 @@ function buildNarrationPrompt(ctx: NarrationContext): string {
   // Anti-repetition memory — the model's own recent opening sentences
   const recentOpeningsSection = ctx.recentOpenings && ctx.recentOpenings.length > 0
     ? `\nRECENT OPENING SENTENCES (yours — do NOT reuse their imagery, subjects, or sentence shape):\n${ctx.recentOpenings.map(o => `• ${o}`).join('\n')}\n`
+    : '';
+
+  // Hour-bell clock event — one passing clause, never a scene
+  const clockEventSection = ctx.clockEvent ? `\nCLOCK EVENT: ${ctx.clockEvent}\n` : '';
+
+  // Ambient extra — a background figure, strictly non-interactive
+  const ambientExtraSection = ctx.ambientExtra
+    ? `\nBACKGROUND FIGURE (non-interactive — they do not speak to Watson, he does not approach them; one observational clause only): ${ctx.ambientExtra}\n`
     : '';
 
   if (isOpening) {
@@ -218,7 +228,7 @@ ${memorySection}
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
-${itemsGainedSection}${recentOpeningsSection}${clueSection}${synthesisSection}
+${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${ambientExtraSection}${clueSection}${synthesisSection}
 Narrate Watson's arrival / survey of this location using exactly this structure:
 
 Paragraph 1 — ${isRevisit
@@ -227,8 +237,9 @@ Paragraph 1 — ${isRevisit
 
 Paragraph 2 — WATSON'S INNER THOUGHTS: Brief reflection on the case, his anxiety, or moral state. 1–2 sentences. For reconstruction visits, this may reach backward in time.
 
-Paragraph 3 — BLOCKQUOTE: A world micro-event that makes this place feel alive. Use the seed below as a starting point.
-Seed: "${pickAtmosphericSeed(ctx.timePeriod, ctx.weather.condition)}"
+Paragraph 3 — BLOCKQUOTE: ${ctx.vignette
+    ? `A ONE-TIME AUTHORED MOMENT — render this faithfully (light polish only, keep its content intact):\nVignette: "${ctx.vignette}"`
+    : `A world micro-event that makes this place feel alive. Use the seed below as a starting point.\nSeed: "${pickAtmosphericSeed(ctx.timePeriod, ctx.weather.condition, ctx.act)}"`}
 Format EXACTLY as a Markdown blockquote:
 > *Your world event sentence here.*
 
@@ -248,7 +259,7 @@ ${memorySection}${atmosphericNoteSection}
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
-${itemsGainedSection}${recentOpeningsSection}${clueSection}${synthesisSection}`;
+${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${clueSection}${synthesisSection}`;
 
   if (ctx.targetNpcInterview) {
     const { label, isIntroduced, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion } = ctx.targetNpcInterview;

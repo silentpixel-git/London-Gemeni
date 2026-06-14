@@ -325,6 +325,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         elapsedMinutes: 0,
         introducedNpcs: INITIAL_INTRODUCED_NPCS,
         locationVisitCounts: {},
+        turnCount: 0,
       };
       const result = gameEngine.resolve(intent, snapshot);
 
@@ -665,6 +666,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         elapsedMinutes,
         introducedNpcs,
         locationVisitCounts,
+        turnCount,
       };
 
       // STEP 3: Engine resolves — no AI yet
@@ -749,6 +751,18 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         newElapsedMinutes = elapsedMinutes + (ACTION_TIME_MINUTES[result.actionType] ?? 2);
       }
       setElapsedMinutes(newElapsedMinutes);
+      setTurnCount(t => t + 1);
+
+      // Hour-bell clock event — fires when the turn crosses an hour boundary
+      const actStartMinutes = (ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1]).canonicalMinutes;
+      const prevHour = Math.floor((actStartMinutes + elapsedMinutes) / 60);
+      const newHour  = Math.floor((actStartMinutes + newElapsedMinutes) / 60);
+      const clockEvent = !result.newAct && newHour > prevHour
+        ? (() => {
+            const hour12 = ((newHour % 12) === 0 ? 12 : newHour % 12);
+            return `A church bell, streets away, counts ${hour12} — work it into the prose as a passing detail, one clause at most.`;
+          })()
+        : undefined;
 
       // Capture journal data before resetting per-act tracking (if act is advancing)
       let pendingJournalSummary: ActJournalSummary | null = null;
@@ -790,6 +804,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         ...result.aiContext,
         stim,
         recentOpenings: recentOpenings.length > 0 ? recentOpenings : undefined,
+        clockEvent,
       };
 
       // STEP 6a: Holmes multi-clue synthesis — before Watson narrates
@@ -881,7 +896,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
                 .slice(0, 15);
               return Object.fromEntries(sorted);
             });
-            setTurnCount(t => t + 1);
           }
 
           // Silent auto-save after every completed turn

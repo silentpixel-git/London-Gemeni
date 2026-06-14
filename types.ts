@@ -229,6 +229,12 @@ export interface NarrationContext {
   itemsGained?: string[];
   // First sentences of the last few narrations — anti-repetition memory
   recentOpenings?: string[];
+  // One-line clock event when the turn crosses an hour boundary (hook-computed)
+  clockEvent?: string;
+  // Prose-only background figure for this location (engine-rotated, non-interactive)
+  ambientExtra?: string;
+  // One-shot authored vignette — replaces the random blockquote seed this turn
+  vignette?: string;
   // Recent NPC memory for present NPCs (max 2 entries each)
   npcRecentMemory?: Record<string, string[]>;
   // Session observations (STIM) — injected by useGameState before AI call

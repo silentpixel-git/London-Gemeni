@@ -30,6 +30,7 @@ export interface AtmosphericSeed {
   text: string;
   periods: TimePeriod[]; // empty = all periods
   requiresFog?: boolean; // only valid when the current act's weather is foggy
+  acts?: number[];       // only valid during these acts (empty/omitted = all acts)
 }
 
 // One is chosen at random per narration call, filtered to the current time period,
@@ -78,4 +79,22 @@ export const ATMOSPHERIC_SEEDS: AtmosphericSeed[] = [
   { text: 'A horse snorting somewhere in the dark, unseen',                             periods: ['night', 'lateNight'] },
   { text: "The acrid smell of an extinguished tallow candle drifting past",             periods: ['evening', 'night', 'lateNight'] },
   { text: 'A figure crossing the end of the street without looking up',                 periods: ['night', 'lateNight'] },
+
+  // ── ACT-EVOLVING (the city reacts to the case as it unfolds) ─────────────
+  // Act 1 — the morning of the Kelly discovery: raw shock
+  { text: "A newsboy crying 'MURDER IN DORSET STREET' before he has the bills to sell",      periods: ['morning', 'afternoon'], acts: [1] },
+  { text: 'A woman pulling her daughter indoors at the sight of any man walking alone',     periods: [], acts: [1] },
+  { text: 'Two constables passing at a half-run, neither speaking',                          periods: [], acts: [1] },
+  // Acts 2–3 — the panic matures: vigilance and suspicion
+  { text: "A newsboy's hoarse cry: 'RIPPER STILL AT LARGE — POLICE HELPLESS'",               periods: ['morning', 'afternoon'], acts: [2, 3] },
+  { text: 'A Vigilance Committee man on the corner, armband crooked, watching everyone',     periods: [], acts: [2, 3, 4] },
+  { text: 'A knot of men outside a shuttered shop, reading the same page of the Star',       periods: ['morning', 'afternoon'], acts: [2, 3] },
+  { text: 'A landlady turning away a respectable-looking stranger at her door',              periods: [], acts: [2, 3, 4] },
+  // Acts 4–5 — the long dread: the city exhausted by fear
+  { text: 'Black crepe still knotted on a railing, weeks old now, no one daring to remove it', periods: [], acts: [4, 5] },
+  { text: "A newsboy with yesterday's bills — the headlines no longer change daily",          periods: ['morning', 'afternoon'], acts: [4, 5] },
+  { text: 'Shutters drawn before dark on every house along the row',                          periods: ['afternoon', 'evening'], acts: [4, 5, 6] },
+  // Act 6 — the quiet end: the city holding its breath
+  { text: 'A street suddenly, completely empty — as though the city had inhaled',             periods: [], acts: [6] },
+  { text: 'A bell tolling for an ordinary funeral; every head on the street turning anyway',  periods: ['morning', 'afternoon'], acts: [6] },
 ];

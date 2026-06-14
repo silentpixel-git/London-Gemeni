@@ -345,7 +345,14 @@ export const ATMOSPHERIC_NOTES: Record<string, Record<string, string>> = {
     whitechapel_map: 'A large-scale map of Whitechapel and Spitalfields, marked with red pins. They cluster in a radius of perhaps half a mile. Whoever did this never strayed far from home.',
     holmes_chemistry_table: "The chemistry table is uncharacteristically abandoned — beakers rinsed, equipment pushed to one side. Holmes has not been experimenting. He has been thinking. Watson finds this more unsettling than the map.",
     telegrams_pile: "A stack of telegrams from Abberline, the most recent dated this evening. Warren's resignation; the American in custody; the press. Holmes has underlined a single word in pencil: 'intolerable.'",
-    newspaper_pile: "The Star, the Evening Standard, the Times. Every front page from August onward. Headlines grow more hysterical with each passing week: ANOTHER OUTRAGE IN WHITECHAPEL. POLICE BAFFLED. IS JACK THE RIPPER A DOCTOR? Near the top of the pile, the Star has reprinted the 'Dear Boss' letter in facsimile — the letter that gave the killer his name. Watson cuts the column out carefully and folds it into his notebook before setting the papers down.",
+    // NOTE: do not narrate Watson cutting/taking the clipping here — acquisition
+    // is narrated via itemsGained (first examine only). This note also fires on
+    // RE-examines, when the clipping is already in his bag.
+    newspaper_pile: "The Star, the Evening Standard, the Times. Every front page from August onward. Headlines grow more hysterical with each passing week: ANOTHER OUTRAGE IN WHITECHAPEL. POLICE BAFFLED. IS JACK THE RIPPER A DOCTOR? Near the top of the pile, the Star has reprinted the 'Dear Boss' letter in facsimile — the letter that gave the killer his name.",
+    // Act-keyed press evolution — the pile changes as the case unfolds
+    'newspaper_pile@1': "Today's editions sit atop the old pile, ink barely dry: HORROR IN MILLER'S COURT. THE RIPPER'S MOST AWFUL CRIME. The Star has a sketch of Dorset Street that gets the lamp-posts wrong. Beneath the fresh hysteria, ten weeks of older headlines lie like sediment.",
+    'newspaper_pile@3': 'The pile has shifted in character — less horror now, more accusation. LEATHER APRON. THE FOREIGN QUARTER. WHAT ARE THE POLICE HIDING? The press has stopped describing the murders and begun assigning them. Watson notes how few of the named men could survive the naming.',
+    'newspaper_pile@4': "The kidney has reached the papers: FROM HELL — THE LUSK LETTER. HALF OF IT, FRIED AND EATEN, the Star says, with relish it does not bother to disguise. Tumblety's flight shares the front page. The pile has become a chronicle of a city feeding on its own fear.",
   },
   dorset_street: {
     police_barricade: "A pair of constables stand at the entrance to Miller's Court, turning back the curious. Their faces are professionally blank. Watson shows his credentials and is admitted without comment.",

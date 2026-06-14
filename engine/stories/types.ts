@@ -22,6 +22,12 @@ export interface LocationDefinition {
   // Time of day for this location — drives UI colour theming (CSS deferred to user design pass)
   // Reconstruction locations use the original crime's time, not Watson's visit time.
   timeOfDay: 'morning' | 'midday' | 'afternoon' | 'night';
+  // Prose-only background figures (never interactable, no dialogue with Watson).
+  // One is rotated into full-mode narration to make streets feel populated.
+  extras?: string[];
+  // One-shot authored micro-scenes. Each fires at most once per playthrough
+  // (flag vignette_<locId>_<idx>), replacing the random blockquote seed.
+  vignettes?: Array<{ text: string; act?: number }>;
 }
 
 export interface NPCDefinition {
@@ -49,6 +55,10 @@ export interface NPCDefinition {
     act?: number;          // Optional: only fire during this act (omit = any act)
     instruction: string;   // Directorial instruction for the AI
   }>;
+  // Rotating idle behaviors — one is injected when this NPC is present but not
+  // being interviewed, cycled by turn count so the same beat never repeats
+  // twice in a row. Keep flat and unemphasized (recession rule for Edmund).
+  idleBehaviors?: string[];
 }
 
 export interface ClueDefinition {

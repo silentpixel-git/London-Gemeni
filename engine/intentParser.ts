@@ -462,7 +462,22 @@ export function parseIntent(rawInput: string): ParsedIntent {
           raw: rawInput,
         };
       }
-      // No "to" — treat as show <item> with no specific target
+      // No "to" — first try the dative form: "show holmes the clipping"
+      // (NPC name leads, item follows). The NPC must match the LEADING words
+      // only, otherwise "show the holmes letter" would misparse.
+      const words = afterVerb.trim().split(/\s+/);
+      for (let n = Math.min(3, words.length - 1); n >= 1; n--) {
+        const leading = words.slice(0, n).join(' ');
+        const npcId = matchNpcId(leading);
+        if (npcId) {
+          const itemRaw = words.slice(n).join(' ').replace(/^(the|a|an)\s+/i, '');
+          const itemId = matchObjectId(itemRaw);
+          if (itemId) {
+            return { type: 'show', targetId: itemId, targetRaw: itemRaw, showTargetNpcId: npcId, raw: rawInput };
+          }
+        }
+      }
+      // Otherwise: show <item> with no specific target
       const targetId = matchObjectId(afterVerb) || matchNpcId(afterVerb);
       return { type: 'show', targetId, targetRaw: afterVerb, raw: rawInput };
     }
