@@ -368,6 +368,39 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // ── Save / load ───────────────────────────────────────────────────────────
 
+  // On load, if a pending-act marker is present in flags, rebuild the transition
+  // so the curtain's read-gate (diary + Begin button) re-appears instead of
+  // stranding the player with spent gate flags.
+  const restorePendingTransitionFromFlags = useCallback((
+    loadedFlags: Record<string, boolean>,
+    loadedAct: number,
+    loadedNpcStates: Record<string, NPCState>,
+  ) => {
+    const markerKey = Object.keys(loadedFlags).find(k => k.startsWith('__pending_act_to_') && loadedFlags[k]);
+    if (!markerKey) return;
+    const toAct = parseInt(markerKey.replace('__pending_act_to_', ''), 10);
+    if (!Number.isFinite(toAct)) return;
+    const snapshot: SessionSnapshot = {
+      location: INITIAL_LOCATION,
+      inventory,
+      flags: loadedFlags,
+      npcStates: loadedNpcStates,
+      currentAct: loadedAct,
+      medicalPoints,
+      moralPoints,
+      discoveredClueIds: [],
+      investigationId: activeInvestigation?.id,
+      turnsAtLocationWithoutProgress: 0,
+      elapsedMinutes: 0,
+      introducedNpcs,
+      locationVisitCounts,
+      turnCount,
+    };
+    const { anchor, npcUpdates } = gameEngine.computeActEntry(toAct, snapshot);
+    setPendingActTransition({ fromAct: loadedAct, toAct, newLocation: anchor, npcUpdates });
+    setIsActBreakReady(false); // the restored diary (last history item) re-types, then reveals Begin
+  }, [inventory, medicalPoints, moralPoints, activeInvestigation, introducedNpcs, locationVisitCounts, turnCount]);
+
   // Hydrate all React state from a cloud investigation (a save slot).
   // Shared by the slot menu (handleSelectSlot) and the anonymous-fallback loader.
   const loadInvestigationIntoState = useCallback(async (investigation: Investigation) => {
@@ -401,13 +434,18 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setActiveInvestigation(investigation);
 
     const npcMap = await GameRepository.getAllNPCStates(investigation.id);
-    setNpcStates(
-      Object.keys(npcMap).length > 0
-        ? { ...(INITIAL_NPC_STATES as Record<string, NPCState>), ...npcMap }
-        : (INITIAL_NPC_STATES as Record<string, NPCState>),
-    );
+    const loadedNpcStates: Record<string, NPCState> = Object.keys(npcMap).length > 0
+      ? { ...(INITIAL_NPC_STATES as Record<string, NPCState>), ...npcMap }
+      : (INITIAL_NPC_STATES as Record<string, NPCState>);
+    setNpcStates(loadedNpcStates);
 
     setStim((investigation as any).stim || {});
+
+    restorePendingTransitionFromFlags(
+      investigation.globalFlags as Record<string, boolean>,
+      act,
+      loadedNpcStates,
+    );
 
     if (historyItems.length > 0) {
       setHistory(historyItems);
@@ -419,7 +457,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setHistory([]);
       generateOpeningScene();
     }
-  }, [generateOpeningScene]);
+  }, [generateOpeningScene, restorePendingTransitionFromFlags]);
 
   const handleSaveGame = useCallback(async (silent = false) => {
     setIsSaving(true);
@@ -591,6 +629,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setFlags(state.flags || {});
         setJournalNotes(state.journalNotes || journalNotes);
         if (state.npcStates) setNpcStates(state.npcStates);
+        restorePendingTransitionFromFlags(state.flags || {}, currentAct, state.npcStates || {});
       }
     } catch (e) {
       console.error('Load failed', e);
@@ -607,6 +646,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
             setFlags(state.flags || {});
             setJournalNotes(state.journalNotes || INITIAL_JOURNAL);
             if (state.npcStates) setNpcStates(state.npcStates);
+            restorePendingTransitionFromFlags(state.flags || {}, currentAct, state.npcStates || {});
             setNotification({ message: 'Cloud unavailable — local save loaded.', type: 'error' });
             return;
           }
@@ -622,7 +662,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, generateOpeningScene, loadInvestigationIntoState]);
+  }, [user, generateOpeningScene, loadInvestigationIntoState, restorePendingTransitionFromFlags]);
 
   // ── Save slots ──────────────────────────────────────────────────────────────
   // On login the app shows a slot-select menu (see App.tsx) instead of auto-loading,
