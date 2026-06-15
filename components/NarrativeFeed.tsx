@@ -12,7 +12,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { StoryRenderer } from './StoryRenderer';
 import { TypewriterBlock } from './TypewriterBlock';
 import { GameOverScreen } from './GameOverScreen';
-import { GameHistoryItem } from '../types';
+import { GameHistoryItem, PendingActTransition } from '../types';
+import { ACT_ROMAN } from '../constants';
 
 interface NarrativeFeedProps {
   history: GameHistoryItem[];
@@ -22,6 +23,9 @@ interface NarrativeFeedProps {
   scrollRef: React.RefObject<HTMLDivElement>;
   onScroll: () => void;
   onJournalDone?: () => void;
+  pendingActTransition: PendingActTransition | null;
+  isActBreakReady: boolean;
+  onBeginAct: () => void;
 }
 
 export function NarrativeFeed({
@@ -32,6 +36,9 @@ export function NarrativeFeed({
   scrollRef,
   onScroll,
   onJournalDone,
+  pendingActTransition,
+  isActBreakReady,
+  onBeginAct,
 }: NarrativeFeedProps) {
   return (
   <div
@@ -74,6 +81,23 @@ export function NarrativeFeed({
                     {msg.text}
                   </span>
                 </div>
+              </motion.div>
+            );
+          }
+
+          // Permanent act-break landmark in the feed
+          if (isAI && msg.type === 'divider') {
+            return (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6 }}
+                className="my-12 flex items-center justify-center gap-4"
+              >
+                <span className="h-px w-12 bg-lb-muted/40" />
+                <span className="font-sans text-[11px] tracking-[0.3em] uppercase text-lb-muted">{msg.text}</span>
+                <span className="h-px w-12 bg-lb-muted/40" />
               </motion.div>
             );
           }
@@ -143,6 +167,22 @@ export function NarrativeFeed({
           return null;
         })}
       </AnimatePresence>
+
+      {pendingActTransition && isActBreakReady && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="my-10 flex justify-center"
+        >
+          <button
+            onClick={onBeginAct}
+            className="font-sans text-xs tracking-[0.08em] uppercase text-lb-accent border border-lb-accent/50 rounded px-5 py-2.5 hover:bg-lb-accent/10 transition-colors"
+          >
+            Begin Act {ACT_ROMAN[pendingActTransition.toAct] ?? pendingActTransition.toAct} →
+          </button>
+        </motion.div>
+      )}
 
       {isGameOver && <GameOverScreen />}
     </div>
