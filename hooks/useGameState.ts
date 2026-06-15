@@ -28,6 +28,7 @@ import {
   INITIAL_JOURNAL,
   INITIAL_INTRODUCED_NPCS,
   NPC_DISPLAY_NAMES,
+  ACT_ROMAN,
 } from '../constants';
 import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
@@ -74,6 +75,13 @@ export interface GameStateReturn {
   // Refs
   scrollRef: React.RefObject<HTMLDivElement>;
   lastUserMessageRef: React.RefObject<HTMLDivElement>;
+
+  // Act-break curtain
+  pendingActTransition: PendingActTransition | null;
+  isActBreakReady: boolean;
+  isCurtainPlaying: boolean;
+  beginNextAct: () => Promise<void>;
+  handleJournalTypewriterDone: () => void;
 
   // Handlers
   handleAction: (userAction: string) => Promise<void>;
@@ -455,6 +463,97 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, activeInvestigation, history, location, inventory, medicalPoints, moralPoints, npcStates, flags, journalNotes, currentAct, introducedNpcs]);
+
+  // Stream Watson's arrival into a new act's anchor location. Mirrors
+  // generateOpeningScene but for a committed act transition.
+  const streamArrivalScene = useCallback(async (toAct: number, anchor: string) => {
+    const intent = parseIntent('look');
+    const snapshot: SessionSnapshot = {
+      location: anchor,
+      inventory,
+      flags,
+      npcStates,
+      currentAct: toAct,
+      medicalPoints,
+      moralPoints,
+      discoveredClueIds: [],
+      investigationId: activeInvestigation?.id,
+      turnsAtLocationWithoutProgress: 0,
+      elapsedMinutes: 0,
+      introducedNpcs,
+      locationVisitCounts,
+      turnCount,
+    };
+    const result = gameEngine.resolve(intent, snapshot);
+    setHistory(prev => [...prev, { role: 'assistant', text: '' }]);
+    try {
+      let last = '';
+      for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'full', blockquoteHint: 'world_event' })) {
+        if (update.narrative) {
+          last = update.narrative;
+          setHistory(prev => {
+            const next = [...prev];
+            next[next.length - 1] = { ...next[next.length - 1], text: last };
+            return next;
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Arrival scene failed', e);
+      setHistory(prev => {
+        const next = [...prev];
+        next[next.length - 1] = { ...next[next.length - 1], text: `### Act ${toAct}` };
+        return next;
+      });
+    }
+  }, [inventory, flags, npcStates, medicalPoints, moralPoints, activeInvestigation, introducedNpcs, locationVisitCounts, turnCount]);
+
+  // Player clicked "Begin Act N": play the cinematic curtain, commit the held
+  // state behind it, then stream the arrival scene.
+  const beginNextAct = useCallback(async () => {
+    const pending = pendingActTransition;
+    if (!pending || isCurtainPlaying) return;
+
+    setIsCurtainPlaying(true);
+    setIsActBreakReady(false);
+
+    // Hold the curtain a beat (matches ActBreakCurtain's enter+hold animation).
+    await new Promise(res => setTimeout(res, 2200));
+
+    const { toAct, newLocation, npcUpdates } = pending;
+
+    // Commit the four held pieces — sidebar flips to the new act now (behind the overlay).
+    setCurrentAct(toAct);
+    setLocation(newLocation);
+    setLocationVisitCounts(prev => ({ ...prev, [newLocation]: (prev[newLocation] ?? 0) + 1 }));
+    setElapsedMinutes(0);
+    if (Object.keys(npcUpdates).length > 0) {
+      setNpcStates(prev => {
+        const next = { ...prev };
+        Object.entries(npcUpdates).forEach(([id, upd]) => {
+          next[id] = { ...(next[id] || { npcId: id, disposition: 50, status: 'alive' }), ...upd } as NPCState;
+        });
+        return next;
+      });
+    }
+
+    // Clear the reload marker from flags.
+    setFlags(prev => {
+      const next = { ...prev };
+      delete next[`__pending_act_to_${toAct}`];
+      return next;
+    });
+
+    setPendingActTransition(null);
+    setIsCurtainPlaying(false);
+
+    // Permanent in-feed landmark, then the arrival scene.
+    setHistory(prev => [...prev, { role: 'assistant', text: `Act ${ACT_ROMAN[toAct] ?? toAct}`, type: 'divider' }]);
+    await streamArrivalScene(toAct, newLocation);
+
+    // Persist the committed Act-N state (flags now marker-free).
+    handleSaveGame(true);
+  }, [pendingActTransition, isCurtainPlaying, streamArrivalScene, handleSaveGame]);
 
   const handleLoadGame = useCallback(async () => {
     try {
@@ -934,6 +1033,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
       // STEP 8: Generate act journal after narration stream completes (act advance only)
       if (pendingJournalSummary) {
+        let appendedJournal = false;
         try {
           const journalText = await aiService.generateJournalEntry(pendingJournalSummary);
           if (journalText) {
@@ -941,10 +1041,13 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
               ...prev,
               { role: 'assistant', text: journalText, type: 'journal' },
             ]);
+            appendedJournal = true;
           }
         } catch {
           // Journal is bonus content — never block the game on failure
         }
+        // No diary to type out → reveal the Begin button immediately (no softlock).
+        if (!appendedJournal) setIsActBreakReady(true);
       }
 
       // STEP 9: The true ending's scripted coda — authored verbatim, never
@@ -974,6 +1077,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, handleSaveGame]);
+
+  // Fired by NarrativeFeed when the act-closing diary finishes typing.
+  const handleJournalTypewriterDone = useCallback(() => {
+    if (pendingActTransition) setIsActBreakReady(true);
+  }, [pendingActTransition]);
 
   // ── Holmes hint ───────────────────────────────────────────────────────────
 
@@ -1169,6 +1277,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     scrollRef,
     lastUserMessageRef,
+
+    pendingActTransition,
+    isActBreakReady,
+    isCurtainPlaying,
+    beginNextAct,
+    handleJournalTypewriterDone,
 
     handleAction,
     handleSaveGame,
