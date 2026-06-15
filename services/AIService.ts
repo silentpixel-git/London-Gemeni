@@ -15,6 +15,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod } from '../types';
 import { ATMOSPHERIC_SEEDS } from '../engine/gameData';
+import { ACT_ROMAN } from '../constants';
 
 // ============================================================
 // MODEL CONFIG
@@ -103,8 +104,6 @@ const NARRATION_SCHEMA = {
 // ============================================================
 // PROMPT BUILDER
 // ============================================================
-
-const ACT_ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
 
 function pickAtmosphericSeed(period: TimePeriod, weatherCondition: string, act: number): string {
   const isFoggy = weatherCondition === 'foggy';

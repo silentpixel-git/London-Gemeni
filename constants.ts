@@ -57,3 +57,6 @@ export const NPC_DISPLAY_NAMES: Record<string, string> = {
   tumblety: 'Francis Tumblety',
   pizer: 'John Pizer',
 };
+
+// Roman numerals for act labels (index 0 = prologue, unused as a numeral).
+export const ACT_ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];

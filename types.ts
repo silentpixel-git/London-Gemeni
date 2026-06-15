@@ -4,7 +4,14 @@ export type TimePeriod = 'dawn' | 'morning' | 'afternoon' | 'evening' | 'night' 
 export interface GameHistoryItem {
   role: 'user' | 'assistant' | 'system';
   text: string;
-  type?: 'journal'; // marks act-closing journal entries in the narrative feed
+  type?: 'journal' | 'divider'; // 'journal' = act-closing diary entry; 'divider' = permanent act-break landmark
+}
+
+export interface PendingActTransition {
+  fromAct: number;
+  toAct: number;
+  newLocation: string;
+  npcUpdates: Record<string, Partial<NPCState>>;
 }
 
 export interface DispositionStats {
