@@ -134,15 +134,10 @@ export class GameEngine {
     // to the act's anchor location and carries follows_watson / follows_bond
     // NPCs along, so Holmes is never left a location behind.
     if (result.newAct !== undefined && !result.gameOver) {
-      const anchor = ACT_ANCHORS[result.newAct];
+      const { anchor, npcUpdates } = this.computeActEntry(result.newAct, session);
       if (anchor && anchor !== (result.newLocation ?? session.location)) {
         result.newLocation = anchor;
-        // Compute follower/canonical positions for the act being ENTERED, not
-        // the act being left — Bond must be at his act-N station on arrival.
-        result.npcUpdates = {
-          ...result.npcUpdates,
-          ...this.computeNpcMovements(anchor, { ...session, currentAct: result.newAct }),
-        };
+        result.npcUpdates = { ...result.npcUpdates, ...npcUpdates };
       }
     }
 
@@ -1445,6 +1440,20 @@ export class GameEngine {
         newClueDefs: [],
       }),
     };
+  }
+
+  /**
+   * Compute the state Watson enters a new act with: the anchor location and the
+   * NPC movements for that act. Used both by resolve() on a live act-advance and
+   * by the UI when committing a deferred act transition (e.g. after reload).
+   */
+  public computeActEntry(
+    toAct: number,
+    session: SessionSnapshot
+  ): { anchor: string; npcUpdates: Record<string, Partial<NPCState>> } {
+    const anchor = ACT_ANCHORS[toAct];
+    const npcUpdates = this.computeNpcMovements(anchor, { ...session, currentAct: toAct });
+    return { anchor, npcUpdates };
   }
 
   /**
