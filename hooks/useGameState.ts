@@ -708,6 +708,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const newFlags         = result.flagsUpdate        ? { ...flags, ...result.flagsUpdate }      : flags;
 
       const advancingAct = !!result.newAct && !result.gameOver;
+      const actMarkerKey = `__pending_act_to_${result.newAct}`; // reload marker; only meaningful when advancingAct
 
       // On an act-advance we HOLD the sidebar-visible state (location, act, npcs,
       // clock) until the player clicks "Begin Act N". Everything else commits now.
@@ -725,7 +726,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setMoralPoints(newMoralPoints);
       // Inject the reload marker into the flags we commit/persist this turn.
       const flagsWithMarker = advancingAct
-        ? { ...newFlags, [`__pending_act_to_${result.newAct}`]: true }
+        ? { ...newFlags, [actMarkerKey]: true }
         : newFlags;
       setFlags(flagsWithMarker);
       if (result.gameOver) {
@@ -812,7 +813,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       if (user && activeInvestigation) {
         const persistResult = advancingAct
           ? { ...result, newAct: undefined, newLocation: undefined,
-              flagsUpdate: { ...result.flagsUpdate, [`__pending_act_to_${result.newAct}`]: true } }
+              flagsUpdate: { ...result.flagsUpdate, [actMarkerKey]: true } }
           : result;
         await GameRepository.applyEngineResult(activeInvestigation.id, persistResult, {
           location, inventory, medicalPoints, moralPoints, currentAct, flags,
