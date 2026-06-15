@@ -29,7 +29,7 @@ import {
   INITIAL_INTRODUCED_NPCS,
   NPC_DISPLAY_NAMES,
 } from '../constants';
-import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext } from '../types';
+import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
 
 // ── Public interface ──────────────────────────────────────────────────────────
@@ -147,6 +147,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const [turnsAtLocationWithoutProgress, setTurnsAtLocationWithoutProgress] = useState(0);
   // Procedural act journals — clue IDs accumulated since last act advance
   const [cluesFoundThisAct, setCluesFoundThisAct] = useState<string[]>([]);
+
+  // ── Act-break curtain ─────────────────────────────────────────────────────
+  const [pendingActTransition, setPendingActTransition] = useState<PendingActTransition | null>(null);
+  const [isActBreakReady, setIsActBreakReady] = useState(false);   // diary finished typing → show Begin
+  const [isCurtainPlaying, setIsCurtainPlaying] = useState(false); // cinematic overlay animating
 
   // ── Journal / sidebar ───────────────────────────────────────────────────
   const [journalNotes, setJournalNotes] = useState(INITIAL_JOURNAL);
@@ -702,24 +707,33 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const newMoralPoints   = result.moralPointsDelta   ? moralPoints  + result.moralPointsDelta   : moralPoints;
       const newFlags         = result.flagsUpdate        ? { ...flags, ...result.flagsUpdate }      : flags;
 
-      setLocation(newLocation);
-      if (result.newLocation) {
-        setLocationVisitCounts(prev => ({
-          ...prev,
-          [result.newLocation!]: (prev[result.newLocation!] ?? 0) + 1,
-        }));
+      const advancingAct = !!result.newAct && !result.gameOver;
+
+      // On an act-advance we HOLD the sidebar-visible state (location, act, npcs,
+      // clock) until the player clicks "Begin Act N". Everything else commits now.
+      if (!advancingAct) {
+        setLocation(newLocation);
+        if (result.newLocation) {
+          setLocationVisitCounts(prev => ({
+            ...prev,
+            [result.newLocation!]: (prev[result.newLocation!] ?? 0) + 1,
+          }));
+        }
       }
       setInventory(newInventory);
       setMedicalPoints(newMedicalPoints);
       setMoralPoints(newMoralPoints);
-      setFlags(newFlags);
-      if (result.newAct)   setCurrentAct(result.newAct);
+      // Inject the reload marker into the flags we commit/persist this turn.
+      const flagsWithMarker = advancingAct
+        ? { ...newFlags, [`__pending_act_to_${result.newAct}`]: true }
+        : newFlags;
+      setFlags(flagsWithMarker);
       if (result.gameOver) {
         setIsGameOver(true);
         if (result.endingType) setEndingType(result.endingType);
       }
 
-      if (result.npcUpdates) {
+      if (result.npcUpdates && !advancingAct) {
         setNpcStates(prev => {
           const next = { ...prev };
           Object.entries(result.npcUpdates!).forEach(([id, upd]) => {
@@ -740,17 +754,15 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
       // Advance in-game clock. Compute the new value locally so it can be both
       // set in state and persisted this turn (see applyEngineResult below).
-      let newElapsedMinutes: number;
-      if (result.newAct) {
-        newElapsedMinutes = 0; // Reset to new act's canonical start time
-      } else {
-        const ACTION_TIME_MINUTES: Partial<Record<typeof result.actionType, number>> = {
-          move: 10, talk: 5, deduce: 5, examine: 2,
-          use: 2, take: 1, inventory: 0, query: 1, help: 0, other: 2,
-        };
-        newElapsedMinutes = elapsedMinutes + (ACTION_TIME_MINUTES[result.actionType] ?? 2);
-      }
-      setElapsedMinutes(newElapsedMinutes);
+      // The clock resets to the new act's canonical start only at Begin (commit).
+      // On an act-advance turn we keep advancing Act I's clock normally so the
+      // held sidebar stays coherent until the curtain.
+      const ACTION_TIME_MINUTES: Partial<Record<typeof result.actionType, number>> = {
+        move: 10, talk: 5, deduce: 5, examine: 2,
+        use: 2, take: 1, inventory: 0, query: 1, help: 0, other: 2,
+      };
+      const newElapsedMinutes = elapsedMinutes + (ACTION_TIME_MINUTES[result.actionType] ?? 2);
+      if (!advancingAct) setElapsedMinutes(newElapsedMinutes);
       setTurnCount(t => t + 1);
 
       // Hour-bell clock event — fires when the turn crosses an hour boundary
@@ -784,12 +796,28 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setCluesFoundThisAct(prev => [...prev, ...result.discoveredClueIds!]);
       }
 
+      // On an act-advance, stash the held pieces and persist only the Act I deltas
+      // (inventory/points/flags + the reload marker) — NOT the new act/location/npcs.
+      if (advancingAct) {
+        setPendingActTransition({
+          fromAct: currentAct,
+          toAct: result.newAct!,
+          newLocation: result.newLocation!,
+          npcUpdates: result.npcUpdates ?? {},
+        });
+        setIsActBreakReady(false);
+      }
+
       // STEP 5: Persist engine result to Supabase
       if (user && activeInvestigation) {
-        await GameRepository.applyEngineResult(activeInvestigation.id, result, {
+        const persistResult = advancingAct
+          ? { ...result, newAct: undefined, newLocation: undefined,
+              flagsUpdate: { ...result.flagsUpdate, [`__pending_act_to_${result.newAct}`]: true } }
+          : result;
+        await GameRepository.applyEngineResult(activeInvestigation.id, persistResult, {
           location, inventory, medicalPoints, moralPoints, currentAct, flags,
         }, newElapsedMinutes);
-        if (result.npcUpdates) {
+        if (result.npcUpdates && !advancingAct) {
           GameRepository.applyNPCUpdates(activeInvestigation.id, result.npcUpdates);
         }
         if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
