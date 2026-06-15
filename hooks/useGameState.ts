@@ -1095,8 +1095,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // Fired by NarrativeFeed when the act-closing diary finishes typing.
   const handleJournalTypewriterDone = useCallback(() => {
-    if (pendingActTransition) setIsActBreakReady(true);
-  }, [pendingActTransition]);
+    if (!pendingActTransition) return;
+    setIsActBreakReady(true);
+    // Bring the freshly-revealed "Begin Act N" button into view (the diary may be long).
+    setTimeout(() => scrollToBottom(true), 100);
+  }, [pendingActTransition, scrollToBottom]);
 
   // ── Holmes hint ───────────────────────────────────────────────────────────
 

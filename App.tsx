@@ -97,6 +97,7 @@ const AppContent: React.FC = () => {
       <AnimatePresence>
         {gs.isCurtainPlaying && gs.pendingActTransition && (
           <ActBreakCurtain
+            key="act-curtain"
             fromAct={gs.pendingActTransition.fromAct}
             toAct={gs.pendingActTransition.toAct}
           />
