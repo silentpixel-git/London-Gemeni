@@ -36,7 +36,8 @@ export const TypewriterBlock: React.FC<TypewriterBlockProps> = ({
     }, 12);
 
     return () => clearTimeout(timeout);
-  }, [text, displayedText, onComplete]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, displayedText]);
 
   useEffect(() => {
     if (text.length < displayedText.length) {
