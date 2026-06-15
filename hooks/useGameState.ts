@@ -99,6 +99,8 @@ export interface GameStateReturn {
   handleDeleteSlot: (investigation: Investigation) => Promise<void>;
 }
 
+const CURTAIN_HOLD_MS = 2200; // must roughly match ActBreakCurtain's enter+hold animation
+
 const OPENING_FALLBACK_NARRATIVE =
   "> *221B Baker Street. November 1888. The sitting room is no longer quite a sitting room.*\n\nHolmes paces before the fire, his pipe cold in his hand. The case files are everywhere — pinned, spread, stacked. Five murders. Eleven weeks. Scotland Yard is floundering.\n\n**Sherlock Holmes** is here.\n**Objects of interest:** Case Files Wall, Newspapers, Chemistry Table, Watson's Armchair.\n**Possible exits:** Dorset Street.";
 
@@ -465,28 +467,41 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   }, [user, activeInvestigation, history, location, inventory, medicalPoints, moralPoints, npcStates, flags, journalNotes, currentAct, introducedNpcs]);
 
   // Stream Watson's arrival into a new act's anchor location. Mirrors
-  // generateOpeningScene but for a committed act transition.
-  const streamArrivalScene = useCallback(async (toAct: number, anchor: string) => {
-    const intent = parseIntent('look');
-    const snapshot: SessionSnapshot = {
-      location: anchor,
-      inventory,
-      flags,
-      npcStates,
-      currentAct: toAct,
-      medicalPoints,
-      moralPoints,
-      discoveredClueIds: [],
-      investigationId: activeInvestigation?.id,
-      turnsAtLocationWithoutProgress: 0,
-      elapsedMinutes: 0,
-      introducedNpcs,
-      locationVisitCounts,
-      turnCount,
-    };
-    const result = gameEngine.resolve(intent, snapshot);
+  // generateOpeningScene but for a committed act transition. `npcUpdates` are the
+  // act-entry NPC movements — merged in so the arrival sees the NEW act's positions
+  // (the captured npcStates is still the pre-commit Act-N-1 snapshot).
+  const streamArrivalScene = useCallback(async (
+    toAct: number,
+    anchor: string,
+    npcUpdates: Record<string, Partial<NPCState>>,
+  ) => {
+    const arrivalNpcStates = { ...npcStates };
+    Object.entries(npcUpdates).forEach(([id, upd]) => {
+      arrivalNpcStates[id] = {
+        ...(arrivalNpcStates[id] || { npcId: id, disposition: 50, status: 'alive' }),
+        ...upd,
+      } as NPCState;
+    });
     setHistory(prev => [...prev, { role: 'assistant', text: '' }]);
     try {
+      const intent = parseIntent('look');
+      const snapshot: SessionSnapshot = {
+        location: anchor,
+        inventory,
+        flags,
+        npcStates: arrivalNpcStates,
+        currentAct: toAct,
+        medicalPoints,
+        moralPoints,
+        discoveredClueIds: [],
+        investigationId: activeInvestigation?.id,
+        turnsAtLocationWithoutProgress: 0,
+        elapsedMinutes: 0,
+        introducedNpcs,
+        locationVisitCounts,
+        turnCount,
+      };
+      const result = gameEngine.resolve(intent, snapshot);
       let last = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'full', blockquoteHint: 'world_event' })) {
         if (update.narrative) {
@@ -518,7 +533,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setIsActBreakReady(false);
 
     // Hold the curtain a beat (matches ActBreakCurtain's enter+hold animation).
-    await new Promise(res => setTimeout(res, 2200));
+    await new Promise(res => setTimeout(res, CURTAIN_HOLD_MS));
 
     const { toAct, newLocation, npcUpdates } = pending;
 
@@ -549,7 +564,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     // Permanent in-feed landmark, then the arrival scene.
     setHistory(prev => [...prev, { role: 'assistant', text: `Act ${ACT_ROMAN[toAct] ?? toAct}`, type: 'divider' }]);
-    await streamArrivalScene(toAct, newLocation);
+    await streamArrivalScene(toAct, newLocation, npcUpdates);
 
     // Persist the committed Act-N state (flags now marker-free).
     handleSaveGame(true);
