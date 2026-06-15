@@ -21,6 +21,7 @@ interface NarrativeFeedProps {
   lastUserMessageRef: React.RefObject<HTMLDivElement>;
   scrollRef: React.RefObject<HTMLDivElement>;
   onScroll: () => void;
+  onJournalDone?: () => void;
 }
 
 export function NarrativeFeed({
@@ -30,6 +31,7 @@ export function NarrativeFeed({
   lastUserMessageRef,
   scrollRef,
   onScroll,
+  onJournalDone,
 }: NarrativeFeedProps) {
   return (
   <div
@@ -76,8 +78,10 @@ export function NarrativeFeed({
             );
           }
 
-          // Act-closing journal entry — always static, distinct diary styling
+          // Act-closing journal entry — diary styling. The latest one types out.
           if (isJournal && msg.text !== '') {
+            const diaryInnerClass =
+              "font-serif text-lb-primary/60 italic text-sm md:text-[15px] leading-relaxed";
             return (
               <motion.div
                 key={index}
@@ -91,9 +95,18 @@ export function NarrativeFeed({
                     <Feather size={11} />
                     <span className="text-[10px] font-sans uppercase tracking-widest">Watson's Journal</span>
                   </div>
-                  <div className="font-serif text-lb-primary/60 italic text-sm md:text-[15px] leading-relaxed">
-                    <StoryRenderer text={msg.text} />
-                  </div>
+                  {isLast ? (
+                    <TypewriterBlock
+                      text={msg.text}
+                      onComplete={onJournalDone}
+                      className={diaryInnerClass}
+                      cursorClassName="inline-block w-1 h-[1em] bg-lb-muted opacity-40 animate-pulse ml-0.5 align-text-bottom"
+                    />
+                  ) : (
+                    <div className={diaryInnerClass}>
+                      <StoryRenderer text={msg.text} />
+                    </div>
+                  )}
                 </div>
               </motion.div>
             );

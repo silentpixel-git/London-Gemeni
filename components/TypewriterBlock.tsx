@@ -5,9 +5,18 @@ import { StoryRenderer } from './StoryRenderer';
 interface TypewriterBlockProps {
   text: string;
   onComplete?: () => void;
+  /** Wrapper class — lets callers (e.g. the diary) impose their own text styling. */
+  className?: string;
+  /** Cursor class — defaults to the accent caret used by narration. */
+  cursorClassName?: string;
 }
 
-export const TypewriterBlock: React.FC<TypewriterBlockProps> = ({ text = "", onComplete }) => {
+export const TypewriterBlock: React.FC<TypewriterBlockProps> = ({
+  text = "",
+  onComplete,
+  className = "relative min-h-[1.8em]",
+  cursorClassName = "inline-block w-1.5 h-[1.1em] bg-lb-accent opacity-70 animate-pulse ml-0.5 align-text-bottom translate-y-[-0.1em] transition-opacity duration-300",
+}) => {
   const [displayedText, setDisplayedText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
@@ -36,11 +45,9 @@ export const TypewriterBlock: React.FC<TypewriterBlockProps> = ({ text = "", onC
   }, [text, displayedText]);
 
   return (
-    <div className="relative min-h-[1.8em]">
+    <div className={className}>
       <StoryRenderer text={displayedText} animate={true} />
-      {isTyping && (
-        <span className="inline-block w-1.5 h-[1.1em] bg-lb-accent opacity-70 animate-pulse ml-0.5 align-text-bottom translate-y-[-0.1em] transition-opacity duration-300" />
-      )}
+      {isTyping && <span className={cursorClassName} />}
     </div>
   );
 };
