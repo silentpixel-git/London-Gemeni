@@ -833,11 +833,11 @@ function runPartialObjectMatching() {
     ? pass('PartialMatch: full name "examine the case files wall" still resolves')
     : fail('PartialMatch: full name broke after partial matching change');
 
-  // Words that don't match any object's word set should stay unresolved
+  // Words that don't match any object's word set should not resolve to an object
   const r3 = parseIntent('examine ghostly vapours');
-  r3.type === 'unresolved_target'
-    ? pass('PartialMatch: non-matching words stay unresolved (no false positive)')
-    : fail(`PartialMatch: "examine ghostly vapours" should not resolve, got type=${r3.type} targetId=${r3.targetId}`);
+  r3.targetId === undefined
+    ? pass('PartialMatch: non-matching words do not false-positive to an object')
+    : fail(`PartialMatch: "examine ghostly vapours" false-matched targetId=${r3.targetId}`);
 }
 
 // ── Scenario 17: Unresolved target narration ─────────────────────────────────
@@ -847,10 +847,11 @@ function runUnresolvedTargetNarration() {
 
   const s = buildSnapshot(); // baker_street, act 0
 
-  // An entirely unrecognisable target should become type 'unresolved_target'
-  const intent = parseIntent('examine the foggy shadows');
+  // An object-like but unrecognisable target ("case archives" shares "case"
+  // with known objects) should become type 'unresolved_target'
+  const intent = parseIntent('examine the case archives');
   intent.type === 'unresolved_target'
-    ? pass('UnresolvedTarget: unrecognised examine → type is unresolved_target')
+    ? pass('UnresolvedTarget: object-like unrecognised examine → type is unresolved_target')
     : fail(`UnresolvedTarget: expected type=unresolved_target, got ${intent.type}`);
 
   const r = gameEngine.resolve(intent, s);
@@ -863,7 +864,7 @@ function runUnresolvedTargetNarration() {
     : fail(`UnresolvedTarget: missing UNRESOLVED TARGET in note: ${r.aiContext.actionResultNote.slice(0, 120)}`);
 
   // Note should include the raw target phrase so Watson can quote it
-  r.aiContext.actionResultNote.includes('foggy shadows')
+  r.aiContext.actionResultNote.includes('case archives')
     ? pass('UnresolvedTarget: raw target phrase quoted in actionResultNote')
     : fail('UnresolvedTarget: raw target phrase missing from actionResultNote');
 
@@ -871,6 +872,13 @@ function runUnresolvedTargetNarration() {
   r.aiContext.actionResultNote.includes('Case Files Wall')
     ? pass('UnresolvedTarget: available objects listed in actionResultNote')
     : fail('UnresolvedTarget: available objects not listed in actionResultNote');
+
+  // Atmospheric/world phrase ("examine the fog") shares no object word →
+  // falls back to a world query rather than unresolved_target
+  const atmospheric = parseIntent('examine the fog');
+  atmospheric.type === 'query'
+    ? pass('UnresolvedTarget: atmospheric "examine the fog" falls back to query')
+    : fail(`UnresolvedTarget: expected query fallback, got ${atmospheric.type}`);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
