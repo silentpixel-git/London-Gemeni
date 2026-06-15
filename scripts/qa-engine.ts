@@ -815,6 +815,72 @@ function runNotebookPoi() {
     : fail('NotebookPoi: Edmund leaked into the POI ledger');
 }
 
+// ── Scenario 16: Partial object matching ──────────────────────────────────────
+
+function runPartialObjectMatching() {
+  console.log('\n=== SCENARIO: partial-object-matching ===');
+
+  // "examine case wall" should resolve to case_files_wall (2 words match "Case Files Wall")
+  const s = buildSnapshot();
+  const r1 = gameEngine.resolve(parseIntent('examine case wall'), s);
+  r1.aiContext.actionResultNote.includes('SUCCESS') && r1.actionSuccess
+    ? pass('PartialMatch: "examine case wall" resolves to case_files_wall')
+    : fail(`PartialMatch: "examine case wall" did not resolve — actionSuccess=${r1.actionSuccess} note=${r1.aiContext.actionResultNote.slice(0, 80)}`);
+
+  // "examine the case files wall" (full name) should still work
+  const r2 = gameEngine.resolve(parseIntent('examine the case files wall'), s);
+  r2.actionSuccess
+    ? pass('PartialMatch: full name "examine the case files wall" still resolves')
+    : fail('PartialMatch: full name broke after partial matching change');
+
+  // Words that don't match any object's word set should not resolve to an object
+  const r3 = parseIntent('examine ghostly vapours');
+  r3.targetId === undefined
+    ? pass('PartialMatch: non-matching words do not false-positive to an object')
+    : fail(`PartialMatch: "examine ghostly vapours" false-matched targetId=${r3.targetId}`);
+}
+
+// ── Scenario 17: Unresolved target narration ─────────────────────────────────
+
+function runUnresolvedTargetNarration() {
+  console.log('\n=== SCENARIO: unresolved-target-narration ===');
+
+  const s = buildSnapshot(); // baker_street, act 0
+
+  // An object-like but unrecognisable target ("case archives" shares "case"
+  // with known objects) should become type 'unresolved_target'
+  const intent = parseIntent('examine the case archives');
+  intent.type === 'unresolved_target'
+    ? pass('UnresolvedTarget: object-like unrecognised examine → type is unresolved_target')
+    : fail(`UnresolvedTarget: expected type=unresolved_target, got ${intent.type}`);
+
+  const r = gameEngine.resolve(intent, s);
+  !r.actionSuccess
+    ? pass('UnresolvedTarget: actionSuccess is false')
+    : fail('UnresolvedTarget: should not succeed');
+
+  r.aiContext.actionResultNote.includes('UNRESOLVED TARGET')
+    ? pass('UnresolvedTarget: actionResultNote includes UNRESOLVED TARGET prompt')
+    : fail(`UnresolvedTarget: missing UNRESOLVED TARGET in note: ${r.aiContext.actionResultNote.slice(0, 120)}`);
+
+  // Note should include the raw target phrase so Watson can quote it
+  r.aiContext.actionResultNote.includes('case archives')
+    ? pass('UnresolvedTarget: raw target phrase quoted in actionResultNote')
+    : fail('UnresolvedTarget: raw target phrase missing from actionResultNote');
+
+  // Note should list available objects at the current location
+  r.aiContext.actionResultNote.includes('Case Files Wall')
+    ? pass('UnresolvedTarget: available objects listed in actionResultNote')
+    : fail('UnresolvedTarget: available objects not listed in actionResultNote');
+
+  // Atmospheric/world phrase ("examine the fog") shares no object word →
+  // falls back to a world query rather than unresolved_target
+  const atmospheric = parseIntent('examine the fog');
+  atmospheric.type === 'query'
+    ? pass('UnresolvedTarget: atmospheric "examine the fog" falls back to query')
+    : fail(`UnresolvedTarget: expected query fallback, got ${atmospheric.type}`);
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -833,6 +899,8 @@ try {
   runDropMechanic();
   runTalkGatedAdvance();
   runNotebookPoi();
+  runPartialObjectMatching();
+  runUnresolvedTargetNarration();
 } catch (err) {
   console.error('\n[FATAL] Uncaught exception in test harness:', err);
   process.exit(1);
