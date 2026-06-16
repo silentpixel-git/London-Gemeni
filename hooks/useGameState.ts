@@ -504,6 +504,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, activeInvestigation, history, location, inventory, medicalPoints, moralPoints, npcStates, flags, journalNotes, currentAct, introducedNpcs]);
 
+  // Always-fresh handle to handleSaveGame so async flows (e.g. beginNextAct) can
+  // persist the LATEST committed state rather than a stale closure snapshot.
+  const handleSaveGameRef = useRef(handleSaveGame);
+  useEffect(() => { handleSaveGameRef.current = handleSaveGame; }, [handleSaveGame]);
+
   // Stream Watson's arrival into a new act's anchor location. Mirrors
   // generateOpeningScene but for a committed act transition. `npcUpdates` are the
   // act-entry NPC movements — merged in so the arrival sees the NEW act's positions
@@ -600,13 +605,19 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setPendingActTransition(null);
     setIsCurtainPlaying(false);
 
-    // Permanent in-feed landmark, then the arrival scene.
+    // Permanent in-feed landmark, then the arrival scene. Lock input across the
+    // arrival stream so a command can't race with / clobber it.
+    setIsLoading(true);
     setHistory(prev => [...prev, { role: 'assistant', text: `Act ${ACT_ROMAN[toAct] ?? toAct}`, type: 'divider' }]);
-    await streamArrivalScene(toAct, newLocation, npcUpdates);
+    try {
+      await streamArrivalScene(toAct, newLocation, npcUpdates);
+    } finally {
+      setIsLoading(false);
+    }
 
-    // Persist the committed Act-N state (flags now marker-free).
-    handleSaveGame(true);
-  }, [pendingActTransition, isCurtainPlaying, streamArrivalScene, handleSaveGame]);
+    // Persist the committed Act-N state via the fresh ref (flags now marker-free).
+    handleSaveGameRef.current(true);
+  }, [pendingActTransition, isCurtainPlaying, streamArrivalScene]);
 
   const handleLoadGame = useCallback(async () => {
     try {
