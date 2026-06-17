@@ -196,6 +196,37 @@ function matchNpcId(raw: string): string | undefined {
   return undefined;
 }
 
+// Stop-words ignored when comparing a phrase against object names.
+const STOP_WORDS = new Set(['the', 'a', 'an', 'of', 'in', 'at', 'on', 'to']);
+
+// Vocabulary of every meaningful word that appears in a known object's
+// display name or id. Used to tell an unrecognised-but-object-like phrase
+// ("case archives") apart from a purely atmospheric one ("the fog").
+const OBJECT_VOCABULARY: Set<string> = (() => {
+  const words = new Set<string>();
+  for (const [id, displayName] of Object.entries(OBJECT_DISPLAY_NAMES)) {
+    for (const w of normalise(displayName).split(/\s+/)) {
+      if (w.length > 1 && !STOP_WORDS.has(w)) words.add(w);
+    }
+    for (const w of id.replace(/_/g, ' ').split(/\s+/)) {
+      if (w.length > 1 && !STOP_WORDS.has(w)) words.add(w);
+    }
+  }
+  return words;
+})();
+
+/**
+ * Does this phrase appear to reach for a real object in the world?
+ * True when it shares a meaningful word with some known object name —
+ * i.e. the player was likely naming an object the engine couldn't resolve,
+ * rather than asking about atmosphere. Drives unresolved_target vs query.
+ */
+export function looksLikeObjectReference(raw: string): boolean {
+  return normalise(raw)
+    .split(/\s+/)
+    .some(w => w.length > 1 && !STOP_WORDS.has(w) && OBJECT_VOCABULARY.has(w));
+}
+
 /**
  * Try to match a raw target string to a known object ID.
  */
@@ -210,6 +241,23 @@ function matchObjectId(raw: string): string | undefined {
       return id;
     }
   }
+
+  // Partial word subset matching: "case wall" → "Case Files Wall"
+  // All input words must appear in the display name's words; require ≥2 matches
+  // or a unique candidate to keep false positives low.
+  const inputWords = norm.split(/\s+/).filter(w => w.length > 1 && !STOP_WORDS.has(w));
+  if (inputWords.length >= 1) {
+    const candidates: string[] = [];
+    for (const [id, displayName] of Object.entries(OBJECT_DISPLAY_NAMES)) {
+      const dnWords = normalise(displayName).split(/\s+/);
+      const matchCount = inputWords.filter(w => dnWords.includes(w)).length;
+      if (matchCount >= 2 || (matchCount >= 1 && matchCount === inputWords.length)) {
+        candidates.push(id);
+      }
+    }
+    if (candidates.length === 1) return candidates[0];
+  }
+
   // Common object aliases
   const objectAliases: Record<string, string> = {
     'letter': 'from_hell_letter',
@@ -536,9 +584,13 @@ export function parseIntent(rawInput: string): ParsedIntent {
       const targetId = targetRaw
         ? matchObjectId(targetRaw) || matchNpcId(targetRaw) || matchLocationId(targetRaw)
         : undefined;
-      // Examine verb + unresolvable target (e.g. "examine the fog") → world query, not a look-around
+      // Examine verb + unresolvable target. If the phrase reaches for a real
+      // object ("examine the case archives"), Watson should name what he missed
+      // (unresolved_target). If it's atmospheric/world ("examine the fog"),
+      // fall back to a world query so Watson can answer in character.
       if (targetRaw && !targetId) {
-        return { type: 'query', targetRaw, raw: rawInput };
+        const type = looksLikeObjectReference(targetRaw) ? 'unresolved_target' : 'query';
+        return { type, targetRaw, raw: rawInput };
       }
       // Examine verb + location target (e.g. "describe dorset street") → world query;
       // locations are not interactable objects and can't be examined by the engine
