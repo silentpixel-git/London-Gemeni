@@ -6,7 +6,7 @@
  * AI narration), and the GameOverScreen when the case closes.
  */
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Feather } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { StoryRenderer } from './StoryRenderer';
@@ -40,6 +40,18 @@ export function NarrativeFeed({
   isActBreakReady,
   onBeginAct,
 }: NarrativeFeedProps) {
+  // Anchor the act-closing diary to the TOP of the viewport when it appears, so
+  // the player reads it from line one (rather than the feed jumping to the bottom
+  // and clipping the top of a multi-paragraph entry). Fires once on append —
+  // keyed on history.length, so it does not re-fire during the typewriter.
+  const journalRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const last = history[history.length - 1];
+    if (last?.role === 'assistant' && last.type === 'journal' && journalRef.current) {
+      journalRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [history.length]);
+
   return (
   <div
     ref={scrollRef}
@@ -92,10 +104,11 @@ export function NarrativeFeed({
             return (
               <motion.div
                 key={index}
+                ref={isLast ? journalRef : null}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.6 }}
-                className="my-10"
+                className="my-10 scroll-mt-8"
               >
                 <div className="border-l-2 border-lb-muted/40 pl-6 py-1">
                   <div className="flex items-center gap-2 mb-3 text-lb-muted opacity-50">

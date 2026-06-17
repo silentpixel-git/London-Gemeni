@@ -524,6 +524,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         ...upd,
       } as NPCState;
     });
+    // Mirror the act-boundary bag prune so the arrival narration never references
+    // an item Watson just dropped (e.g. the spent "Dear Boss" clipping).
+    const arrivalInventory = inventory.filter(item => {
+      const spentAfter = ITEM_SPENT_AFTER_ACT[item];
+      return spentAfter === undefined || toAct <= spentAfter;
+    });
     // Fresh feed for the new act — clear the prior act's transcript and pin to
     // the top so it reads as a clean start (masthead + the act's opening scene).
     setHistory([{ role: 'assistant', text: '' }]);
@@ -533,7 +539,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const intent = parseIntent('look');
       const snapshot: SessionSnapshot = {
         location: anchor,
-        inventory,
+        inventory: arrivalInventory,
         flags,
         npcStates: arrivalNpcStates,
         currentAct: toAct,
@@ -1155,12 +1161,13 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, handleSaveGame]);
 
   // Fired by NarrativeFeed when the act-closing diary finishes typing.
+  // NOTE: do NOT scroll here — NarrativeFeed anchors the diary to the top of the
+  // viewport on append, so the player reads it from line one. Jumping to the
+  // bottom to reveal the Begin button would clip the top of a long diary.
   const handleJournalTypewriterDone = useCallback(() => {
     if (!pendingActTransition) return;
     setIsActBreakReady(true);
-    // Bring the freshly-revealed "Begin Act N" button into view (the diary may be long).
-    setTimeout(() => scrollToBottom(true), 100);
-  }, [pendingActTransition, scrollToBottom]);
+  }, [pendingActTransition]);
 
   // ── Holmes hint ───────────────────────────────────────────────────────────
 
