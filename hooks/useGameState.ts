@@ -18,7 +18,7 @@ import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -597,6 +597,13 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         return next;
       });
     }
+
+    // Bag hygiene — time has moved on, so drop any carried item whose authored
+    // "spent" act has now passed (keeps only what later beats still need).
+    setInventory(prev => prev.filter(item => {
+      const spentAfter = ITEM_SPENT_AFTER_ACT[item];
+      return spentAfter === undefined || toAct <= spentAfter;
+    }));
 
     // Clear the reload marker from flags.
     setFlags(prev => {

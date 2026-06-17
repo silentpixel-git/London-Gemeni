@@ -438,6 +438,21 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SPENT-AFTER-ACT — authored bag hygiene.
+// Keyed by inventory DISPLAY NAME (what actually sits in session.inventory).
+// When a new act begins, any carried item whose spent act has passed is dropped
+// from Watson's bag (time has moved on; he keeps only what later beats still
+// need). Only list items that are genuinely finished with — every other piece
+// of evidence is load-bearing in a later act and must NOT be listed here.
+// Value N = "still needed through Act N; drop when entering Act N+1".
+// ─────────────────────────────────────────────────────────────────────────────
+export const ITEM_SPENT_AFTER_ACT: Record<string, number> = {
+  // The "Dear Boss" clipping is a one-time prologue prop (shown to Holmes).
+  // Spent once the investigation proper begins.
+  'Newspaper Clipping (the "Dear Boss" letter)': 0,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // USE INTERACTIONS
 // Specific narrative descriptions for "use X" commands.
 // ─────────────────────────────────────────────────────────────────────────────
