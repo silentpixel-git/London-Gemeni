@@ -85,23 +85,6 @@ export function NarrativeFeed({
             );
           }
 
-          // Permanent act-break landmark in the feed
-          if (isAI && msg.type === 'divider') {
-            return (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.6 }}
-                className="my-12 flex items-center justify-center gap-4"
-              >
-                <span className="h-px w-12 bg-lb-muted/40" />
-                <span className="font-sans text-[11px] tracking-[0.3em] uppercase text-lb-muted">{msg.text}</span>
-                <span className="h-px w-12 bg-lb-muted/40" />
-              </motion.div>
-            );
-          }
-
           // Act-closing journal entry — diary styling. The latest one types out.
           if (isJournal && msg.text !== '') {
             const diaryInnerClass =

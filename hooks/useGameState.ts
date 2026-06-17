@@ -28,7 +28,6 @@ import {
   INITIAL_JOURNAL,
   INITIAL_INTRODUCED_NPCS,
   NPC_DISPLAY_NAMES,
-  ACT_ROMAN,
 } from '../constants';
 import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
@@ -99,7 +98,7 @@ export interface GameStateReturn {
   handleDeleteSlot: (investigation: Investigation) => Promise<void>;
 }
 
-const CURTAIN_HOLD_MS = 2200; // must roughly match ActBreakCurtain's enter+hold animation
+const CURTAIN_HOLD_MS = 4500; // enter animation eats ~1s; this leaves ~3.5s to read the act title
 
 const OPENING_FALLBACK_NARRATIVE =
   "> *221B Baker Street. November 1888. The sitting room is no longer quite a sitting room.*\n\nHolmes paces before the fire, his pipe cold in his hand. The case files are everywhere — pinned, spread, stacked. Five murders. Eleven weeks. Scotland Yard is floundering.\n\n**Sherlock Holmes** is here.\n**Objects of interest:** Case Files Wall, Newspapers, Chemistry Table, Watson's Armchair.\n**Possible exits:** Dorset Street.";
@@ -525,7 +524,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         ...upd,
       } as NPCState;
     });
-    setHistory(prev => [...prev, { role: 'assistant', text: '' }]);
+    // Fresh feed for the new act — clear the prior act's transcript and pin to
+    // the top so it reads as a clean start (masthead + the act's opening scene).
+    setHistory([{ role: 'assistant', text: '' }]);
+    setIsAutoScrollLocked(false);
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
     try {
       const intent = parseIntent('look');
       const snapshot: SessionSnapshot = {
@@ -605,10 +608,10 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setPendingActTransition(null);
     setIsCurtainPlaying(false);
 
-    // Permanent in-feed landmark, then the arrival scene. Lock input across the
-    // arrival stream so a command can't race with / clobber it.
+    // Clear the prior act and stream the new act's opening fresh (see
+    // streamArrivalScene). Lock input across the stream so a command can't race
+    // with / clobber it.
     setIsLoading(true);
-    setHistory(prev => [...prev, { role: 'assistant', text: `Act ${ACT_ROMAN[toAct] ?? toAct}`, type: 'divider' }]);
     try {
       await streamArrivalScene(toAct, newLocation, npcUpdates);
     } finally {

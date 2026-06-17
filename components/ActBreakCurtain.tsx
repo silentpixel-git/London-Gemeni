@@ -29,12 +29,12 @@ export const ActBreakCurtain: React.FC<ActBreakCurtainProps> = ({ fromAct, toAct
         transition={{ delay: 0.3, duration: 0.7 }}
         className="flex flex-col items-center gap-2"
       >
-        <span className="font-sans text-[10px] tracking-[0.3em] uppercase text-lb-muted">{endLabel}</span>
-        <span className="text-lb-accent opacity-60 tracking-[0.4em] my-2">❧ ⸻ ❧</span>
-        <span className="font-sans text-[13px] tracking-[0.3em] uppercase text-lb-accent">
+        <span className="font-sans text-xs md:text-sm tracking-[0.3em] uppercase text-lb-muted">{endLabel}</span>
+        <span className="text-lb-accent opacity-60 tracking-[0.4em] my-2 text-lg md:text-xl">❧ ⸻ ❧</span>
+        <span className="font-sans text-sm md:text-base tracking-[0.3em] uppercase text-lb-accent">
           Act {ACT_ROMAN[toAct] ?? toAct}
         </span>
-        <span className="font-serif text-2xl md:text-3xl text-lb-primary mt-1">{actName}</span>
+        <span className="font-serif text-3xl md:text-4xl text-lb-primary mt-1">{actName}</span>
       </motion.div>
     </motion.div>
   );
