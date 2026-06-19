@@ -15,6 +15,7 @@ import type { UserProfile } from '../services/GameRepository';
 import {
   PanelLeftClose, PanelLeftOpen, Sun, Moon, User as UserIcon,
   ChevronDown, Save, FolderOpen, LogOut, LogIn, Pencil, RefreshCw,
+  Palette, Volume2, Waves,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -25,6 +26,12 @@ interface HeaderProps {
   isSaving: boolean;
   isDark: boolean;
   onToggleDark: () => void;
+  atmosphericTheme: boolean;
+  onToggleAtmospheric: () => void;
+  soundEffects: boolean;
+  onToggleSound: () => void;
+  ambientAudio: boolean;
+  onToggleAmbient: () => void;
   user: User | null;
   userProfile: UserProfile | null;
   onSave: () => void;
@@ -43,6 +50,12 @@ export const Header: React.FC<HeaderProps> = ({
   isSaving,
   isDark,
   onToggleDark,
+  atmosphericTheme,
+  onToggleAtmospheric,
+  soundEffects,
+  onToggleSound,
+  ambientAudio,
+  onToggleAmbient,
   user,
   userProfile,
   onSave,
@@ -139,6 +152,35 @@ export const Header: React.FC<HeaderProps> = ({
           aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         >
           {isDark ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+
+        {/* Atmosphere toggles — always visible (independent of sign-in) */}
+        <button
+          onClick={onToggleAtmospheric}
+          className={`p-2 rounded-md hover:bg-lb-primary/5 transition-colors ${atmosphericTheme ? 'text-lb-accent' : 'text-lb-muted hover:text-lb-accent'}`}
+          title={`Time-of-day colours: ${atmosphericTheme ? 'On' : 'Off'}`}
+          aria-label={`Time-of-day colours: ${atmosphericTheme ? 'On' : 'Off'}`}
+          aria-pressed={atmosphericTheme}
+        >
+          <Palette size={18} />
+        </button>
+        <button
+          onClick={onToggleSound}
+          className={`p-2 rounded-md hover:bg-lb-primary/5 transition-colors ${soundEffects ? 'text-lb-accent' : 'text-lb-muted hover:text-lb-accent'}`}
+          title={`Sound effects: ${soundEffects ? 'On' : 'Off'}`}
+          aria-label={`Sound effects: ${soundEffects ? 'On' : 'Off'}`}
+          aria-pressed={soundEffects}
+        >
+          <Volume2 size={18} />
+        </button>
+        <button
+          onClick={onToggleAmbient}
+          className={`p-2 rounded-md hover:bg-lb-primary/5 transition-colors ${ambientAudio ? 'text-lb-accent' : 'text-lb-muted hover:text-lb-accent'}`}
+          title={`Ambient sound: ${ambientAudio ? 'On' : 'Off'}`}
+          aria-label={`Ambient sound: ${ambientAudio ? 'On' : 'Off'}`}
+          aria-pressed={ambientAudio}
+        >
+          <Waves size={18} />
         </button>
 
         {/* Unauthenticated: Sign In pill */}

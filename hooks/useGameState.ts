@@ -16,7 +16,8 @@ import { User } from '@supabase/supabase-js';
 import { callGemini } from '../services/geminiService';
 import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
-import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
+import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
+import { audioManager } from '../services/AudioManager';
 import { parseIntent } from '../engine/intentParser';
 import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
@@ -29,7 +30,7 @@ import {
   INITIAL_INTRODUCED_NPCS,
   NPC_DISPLAY_NAMES,
 } from '../constants';
-import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry } from '../types';
+import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
 
 // ── Public interface ──────────────────────────────────────────────────────────
@@ -65,6 +66,15 @@ export interface GameStateReturn {
   isSaving: boolean;
   isDark: boolean;
   setIsDark: React.Dispatch<React.SetStateAction<boolean>>;
+
+  // Atmosphere settings (time-of-day theming + audio)
+  timePeriod: TimePeriod;
+  atmosphericTheme: boolean;
+  setAtmosphericTheme: React.Dispatch<React.SetStateAction<boolean>>;
+  soundEffects: boolean;
+  setSoundEffects: React.Dispatch<React.SetStateAction<boolean>>;
+  ambientAudio: boolean;
+  setAmbientAudio: React.Dispatch<React.SetStateAction<boolean>>;
   notification: { message: string; type: 'success' | 'error' } | null;
   setNotification: React.Dispatch<React.SetStateAction<{ message: string; type: 'success' | 'error' } | null>>;
   connectionStatus: { gemini: boolean | null; supabase: boolean | null };
@@ -211,6 +221,16 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const [isDark, setIsDark] = useState<boolean>(() => {
     try { return localStorage.getItem('lb-theme') === 'dark'; } catch { return false; }
   });
+  // Atmosphere settings — all default off, persisted to localStorage (POC).
+  const [atmosphericTheme, setAtmosphericTheme] = useState<boolean>(() => {
+    try { return localStorage.getItem('lb-atmospheric-theme') === 'on'; } catch { return false; }
+  });
+  const [soundEffects, setSoundEffects] = useState<boolean>(() => {
+    try { return localStorage.getItem('lb-sound-effects') === 'on'; } catch { return false; }
+  });
+  const [ambientAudio, setAmbientAudio] = useState<boolean>(() => {
+    try { return localStorage.getItem('lb-ambient-audio') === 'on'; } catch { return false; }
+  });
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -220,6 +240,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // ── Derived ──────────────────────────────────────────────────────────────
   const lastUserMsgIdx = [...history].reverse().findIndex(m => m.role === 'user');
   const actualLastUserIdx = lastUserMsgIdx === -1 ? -1 : history.length - 1 - lastUserMsgIdx;
+
+  // In-game time-of-day phase — drives atmospheric theming and (later) audio.
+  const currentTimePeriod = computeTimePeriod(
+    (ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1]).canonicalMinutes + elapsedMinutes,
+  );
 
   // ── Effects ───────────────────────────────────────────────────────────────
 
@@ -279,9 +304,22 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthReady, pingSupabase]);
 
-  // Theme persistence — localStorage + Supabase cloud sync
+  // Apply the active data-theme. Atmospheric mode follows the in-game clock and
+  // overrides the manual light/dark toggle; otherwise the manual toggle applies.
   useEffect(() => {
-    document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+    let theme: string;
+    if (atmosphericTheme) {
+      theme = (currentTimePeriod === 'night' || currentTimePeriod === 'lateNight') ? 'night'
+            : (currentTimePeriod === 'evening' || currentTimePeriod === 'dawn')   ? 'evening'
+            : 'light';
+    } else {
+      theme = isDark ? 'dark' : 'light';
+    }
+    document.documentElement.dataset.theme = theme;
+  }, [isDark, atmosphericTheme, currentTimePeriod]);
+
+  // Persist the manual light/dark preference — localStorage + Supabase cloud sync.
+  useEffect(() => {
     try { localStorage.setItem('lb-theme', isDark ? 'dark' : 'light'); } catch {}
     // Sync to cloud when logged in (user accessed via closure — intentionally omitted from deps)
     if (user) {
@@ -289,6 +327,17 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDark]);
+
+  // Persist the atmosphere toggles — localStorage only for the POC.
+  useEffect(() => {
+    try { localStorage.setItem('lb-atmospheric-theme', atmosphericTheme ? 'on' : 'off'); } catch {}
+  }, [atmosphericTheme]);
+  useEffect(() => {
+    try { localStorage.setItem('lb-sound-effects', soundEffects ? 'on' : 'off'); } catch {}
+  }, [soundEffects]);
+  useEffect(() => {
+    try { localStorage.setItem('lb-ambient-audio', ambientAudio ? 'on' : 'off'); } catch {}
+  }, [ambientAudio]);
 
   // Load theme preference from cloud when user profile becomes available
   useEffect(() => {
@@ -621,6 +670,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     // Commit the four held pieces — sidebar flips to the new act now (behind the overlay).
     setCurrentAct(toAct);
+    audioManager.playSfx('act-bell');
     setLocation(newLocation);
     setLocationVisitCounts(prev => ({ ...prev, [newLocation]: (prev[newLocation] ?? 0) + 1 }));
     captureLocationArrival(newLocation, toAct); // diary: arriving in the new act's locale
@@ -1086,6 +1136,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
       // STEP 6a: Holmes multi-clue synthesis — before Watson narrates
       if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
+        audioManager.playSfx('clue-discovered');
         const allDiscoveredIds = [...discoveredClueIds, ...result.discoveredClueIds];
         const allClueObjects = allDiscoveredIds
           .map(id => CLUE_DEFINITIONS[id])
@@ -1108,6 +1159,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // Engine-verified pickup notice — items the player actually gained this
       // turn (examine can silently grant documents; the player must be told).
       const itemsPickedUp = (result.inventoryAdd ?? []).filter(i => !inventory.includes(i));
+      if (itemsPickedUp.length > 0) audioManager.playSfx('item-pickup');
       const pickupNote = itemsPickedUp.length > 0
         ? `\n\n**You picked up:** ${itemsPickedUp.join(', ')}`
         : '';
@@ -1408,6 +1460,13 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     isSaving,
     isDark,
     setIsDark,
+    timePeriod: currentTimePeriod,
+    atmosphericTheme,
+    setAtmosphericTheme,
+    soundEffects,
+    setSoundEffects,
+    ambientAudio,
+    setAmbientAudio,
     notification,
     setNotification,
     connectionStatus,

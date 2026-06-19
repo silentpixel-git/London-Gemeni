@@ -39,7 +39,7 @@ import {
 
 // ── Time helpers ──────────────────────────────────────────────────────────────
 
-function computeTimePeriod(totalMinutes: number): TimePeriod {
+export function computeTimePeriod(totalMinutes: number): TimePeriod {
   const m = totalMinutes % 1440;
   if (m >= 300  && m < 420)  return 'dawn';
   if (m >= 420  && m < 720)  return 'morning';

@@ -25,6 +25,7 @@ import { DiaryModal } from './components/DiaryModal';
 import { ResetPasswordModal } from './components/ResetPasswordModal';
 import { ActBreakCurtain } from './components/ActBreakCurtain';
 import { useGameState } from './hooks/useGameState';
+import { useAudio } from './hooks/useAudio';
 
 // ── Inner app (has access to Supabase context) ──────────────────────────────
 
@@ -44,6 +45,14 @@ const AppContent: React.FC = () => {
   const [diarySeenCount, setDiarySeenCount] = useState(0);
 
   const gs = useGameState({ user, isAuthReady, userProfile });
+
+  // Drive the ambient audio layer from game state (SFX fire from inside the hook).
+  useAudio({
+    location: gs.location,
+    weatherCondition: gs.weather?.condition,
+    soundEffects: gs.soundEffects,
+    ambientAudio: gs.ambientAudio,
+  });
 
   const diaryUnreadCount = Math.max(0, gs.diaryEntries.length - diarySeenCount);
   const openDiary = () => {
@@ -137,6 +146,12 @@ const AppContent: React.FC = () => {
           isSaving={gs.isSaving}
           isDark={gs.isDark}
           onToggleDark={() => gs.setIsDark(d => !d)}
+          atmosphericTheme={gs.atmosphericTheme}
+          onToggleAtmospheric={() => gs.setAtmosphericTheme(v => !v)}
+          soundEffects={gs.soundEffects}
+          onToggleSound={() => gs.setSoundEffects(v => !v)}
+          ambientAudio={gs.ambientAudio}
+          onToggleAmbient={() => gs.setAmbientAudio(v => !v)}
           user={user}
           userProfile={userProfile}
           onSave={() => gs.handleSaveGame()}

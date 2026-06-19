@@ -30,6 +30,26 @@
   --lb-border:    42  48  64;   /* #2a3040  dark separator        */
 }
 
+[data-theme="evening"] {
+  /* Atmospheric theme — dusk, warm deepening amber */
+  --lb-bg:      240 226 209;   /* #F0E2D1  warm dusk parchment   */
+  --lb-paper:   250 241 230;   /* #FAF1E6  soft cream card        */
+  --lb-primary:  58  46  42;   /* #3A2E2A  warm brown ink         */
+  --lb-accent:  194  96  24;   /* #C26018  burnt-orange sunset    */
+  --lb-muted:   150 120 110;   /* #96786E  warm taupe             */
+  --lb-border:  214 190 168;   /* #D6BEA8  warm sand separator    */
+}
+
+[data-theme="night"] {
+  /* Atmospheric theme — gaslit midnight */
+  --lb-bg:       18  22  34;   /* #121622  deep midnight blue     */
+  --lb-paper:    26  32  48;   /* #1A2030  dark blue card         */
+  --lb-primary: 214 220 232;   /* #D6DCE8  moonlight ivory        */
+  --lb-accent:  196 150  70;   /* #C49646  gaslamp brass          */
+  --lb-muted:    96 108 138;   /* #606C8A  dimmed slate           */
+  --lb-border:   38  46  66;   /* #262E42  dark separator         */
+}
+
 /* Smooth theme transition on all elements */
 *, *::before, *::after {
   transition-property: background-color, border-color, color, fill, stroke;
