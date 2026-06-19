@@ -9,6 +9,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_00_campaign_timeline: {
     id: 'clue_00_campaign_timeline',
     name: 'The Silence Since September',
+    diaryNote: "Holmes's wall holds four names and then six weeks of silence. He insists the quiet is not an ending but a held breath — and that the man we want is one no witness can ever remember.",
     description: "Watson reads the case files wall. Four names in chronological order: Nichols. Chapman. Stride. Eddowes. Four murders in five weeks — two of them in a single night — and then nothing: six weeks of silence since the thirtieth of September. Pinned around the cards, the public's suspects: an American doctor taken into custody this week; the 'Leather Apron' the papers conjured; a gentleman of rumour. And one unremarkable note in Holmes's hand: 'Bond — police surgeon — & assistant.' Beside the timeline Holmes has written: 'The silence is data. Such appetites do not retire.'",
     holmesDeduction: "Four murders in five weeks, Watson, and then six weeks of nothing. Not compulsion — calculation. And mark this above all: in the whole campaign, not one reliable witness. The man we want is a man no one remembers. That is the only thing we know of him — and it is a great deal.",
     locationFound: 'baker_street',
@@ -22,6 +23,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_01_respectable_approach: {
     id: 'clue_01_respectable_approach',
     name: 'The Respectable Stranger',
+    diaryNote: "At Buck's Row the witnesses took Nichols for a drunk, not a victim. Whoever approached her carried no menace at all — he passes for respectable, and that is his armour.",
     description: "Witnesses at Buck's Row believed Nichols was merely drunk, not attacked. The killer approached calmly — he appeared unthreatening, even respectable.",
     holmesDeduction: 'Our man moves among victims without raising alarm. He is not perceived as a threat. He presents well.',
     locationFound: 'bucks_row',
@@ -34,6 +36,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_01_killer_confidence: {
     id: 'clue_01_killer_confidence',
     name: "The Killer's Patience",
+    diaryNote: "The clothes burned in the Miller's Court grate were kindled for light. He stayed in that room for hours, wholly unafraid of discovery. The calm of it unsettles me more than any frenzy could.",
     description: "The burned clothing in Miller's Court fireplace was used as a light source. The killer remained in the room for an extended period — utterly unafraid of discovery.",
     holmesDeduction: 'He is not impulsive. He planned. He knew he would not be disturbed. A man of extraordinary nerve.',
     locationFound: 'millers_court',
@@ -47,6 +50,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_02_anatomical_knowledge: {
     id: 'clue_02_anatomical_knowledge',
     name: 'Anatomical Precision',
+    diaryNote: "Bond's report on Chapman: the uterus taken by a single clean, knowing incision. No butcher's work — these are hands schooled in anatomy, as mine once were.",
     description: "Dr. Bond's report on Annie Chapman: the uterus was surgically removed. The incision indicates familiarity with abdominal anatomy — not the work of a common butcher.",
     holmesDeduction: 'Medical student. Anatomical assistant. Slaughterman. One of these three. The precision narrows the field considerably.',
     locationFound: 'hanbury_street',
@@ -60,6 +64,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_02b_campaign_pattern: {
     id: 'clue_02b_campaign_pattern',
     name: 'One Pair of Hands',
+    diaryNote: "I read Bond's ledger from end to end — Nichols to Kelly. One approach, one signature, growing surer with each entry. The same hand did all of it, and learned as it went.",
     description: "Watson reads Bond's autopsy ledger in sequence: Nichols, Chapman, Stride, Eddowes, Kelly. The incision angles are consistent. The approach is consistent. The confidence grows with each entry. One person did this — and improved with practice.",
     holmesDeduction: 'Five murders. One signature. The progression from Nichols to Kelly is not chaos — it is a campaign. He was learning.',
     locationFound: 'whitechapel_mortuary',
@@ -73,6 +78,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_02c_small_hands: {
     id: 'clue_02c_small_hands',
     name: 'The Hands',
+    diaryNote: "Buried in Bond's notes on Kelly: incisions consistent with small, steady hands, practised in confined spaces. He set it down as a passing remark. I read it twice.",
     description: "Watson reads Bond's post-mortem note on Kelly. A single clinical observation buried in the anatomical detail: 'Incision patterns consistent with unusually small, steady hands. The contained precision suggests familiarity with restricted anatomical spaces.' Bond wrote it as a passing remark. Watson reads it twice.",
     // RECESSION RULE: the deduction points at the abstract PROFILE, never a person —
     // the set includes Bond, Phillips, and every medical man who passes through the room.
@@ -88,6 +94,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_03_interrupted_ritual: {
     id: 'clue_03_interrupted_ritual',
     name: 'An Interrupted Man',
+    diaryNote: "Stride's throat was cut and nothing more — Diemschutz's cart broke in upon him. Denied his ritual, he went out and found another woman the same night. This is compulsion, not chance.",
     description: "Stride's wound was a single throat cut — no mutilation followed. Diemschutz's cart interrupted the killer mid-act. He was compelled to seek another victim that same night.",
     holmesDeduction: 'The ritual was not completed. This man has a compulsion. The absence of mutilation here is itself the clue.',
     locationFound: 'dutfields_yard',
@@ -102,6 +109,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_03b_unremarked_passage: {
     id: 'clue_03b_unremarked_passage',
     name: 'The Unremarked Passage',
+    diaryNote: "I traced his route from Mitre Square — across the boundary, through the heart of the Jewish quarter, the night's evidence in his hand — and not one soul stopped, challenged, or afterwards recalled him. He walks these streets as though he belongs to them.",
     description: "The spot where the constable found the piece of Eddowes' apron. Watson traces the route in his mind: from Mitre Square, across the jurisdiction line, through the heart of the Jewish quarter — a man carrying away evidence of the night's second murder, minutes after committing it — and not one soul stopped him, challenged him, or afterwards remembered him.",
     holmesDeduction: 'Consider what that walk required, Watson. Not luck — licence. He passed because his presence raised no question; he belongs to these streets the way a lamplighter belongs to them. We hunt no skulking outsider. We hunt a man whose face is a kind of permission.',
     locationFound: 'goulston_street',
@@ -115,6 +123,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_04_kidney_removal: {
     id: 'clue_04_kidney_removal',
     name: 'The Removed Kidney',
+    diaryNote: "Eddowes' left kidney was excised within minutes, and cleanly. Such speed is not a first attempt. He has done this before — and not in any back alley.",
     description: "Eddowes' left kidney was surgically excised within minutes. The speed and precision confirm repeated anatomical familiarity — this was not the first time he had handled such tissue.",
     holmesDeduction: 'He has done this before in a clinical setting. The kidney was not taken in panic. It was taken deliberately.',
     locationFound: 'mitre_square',
@@ -128,6 +137,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_04b_adjustable_appearance: {
     id: 'clue_04b_adjustable_appearance',
     name: 'A Man of No Fixed Description',
+    diaryNote: "H Division's witness wall holds dozens of accounts and no two agree — tall, short, fair, dark, rough, respectable. The contradiction is the description: he shows each witness only what he wishes them to see.",
     description: "The witness description wall at H Division contains dozens of accounts. No two agree on height, build, age, or dress. Tall. Short. Dark. Fair. Respectable. Rough. The contradictions are not failures of observation — the witnesses saw what the killer wanted them to see.",
     holmesDeduction: 'He presented differently to each witness. This is not inconsistency in the witnesses — it is consistency in the killer. He is a man of adjustable appearance. Ordinariness is his camouflage.',
     locationFound: 'h_division_station',
@@ -144,6 +154,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_05_from_hell_letter: {
     id: 'clue_05_from_hell_letter',
     name: 'The From Hell Letter',
+    diaryNote: "I copied the Lusk letter entire — crude in every line, yet the hand steady and unhurried. Genuine ignorance, or a performance of it? I cannot yet say. I keep the transcript close.",
     description: 'The letter sent to George Lusk with the kidney — crudely spelled from its first line to its last, taunting, claiming the deed outright. A dozen errors crowd its few sentences, yet the hand itself is steady and unhurried. Genuine illiteracy, or a performance of it? Watson copies the text into his notebook entire.',
     holmesDeduction: 'A man barely lettered, Watson — or one who wishes us to believe it. The hand is steady; the errors are consistent; the cruelty is genuine. Keep your transcript close. Documents have a way of answering one another, given time.',
     locationFound: 'lusk_office',
@@ -156,6 +167,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_05_human_kidney: {
     id: 'clue_05_human_kidney',
     name: 'The Kidney Parcel',
+    diaryNote: "The half-kidney sent to Lusk is unmistakably human, the artery cut clean, and preserved in spirit of wine to laboratory standard — exactly as Bond keeps a specimen. The man who kept this still works at a bench.",
     description: "Watson examines the preserved half-kidney sent to Lusk. Unmistakably human; the renal artery cut a clean inch from the organ. And the preservation itself arrests him: spirit of wine at a precise laboratory concentration — the standard mortuary method, exactly as a post-mortem specimen would be kept. Bond confirms it without being asked: 'This is how my own laboratory keeps a specimen.'",
     holmesDeduction: "Mark the preservation, Watson, more than the cutting. A showman's curio is crudely kept — this was fixed by laboratory hands, to laboratory standards. The man who kept this kidney keeps specimens for his living. He did not flee, and he did not vanish. He is still at his bench.",
     locationFound: 'lusk_office',
@@ -171,6 +183,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_06_prasarved_spelling: {
     id: 'clue_06_prasarved_spelling',
     name: 'The Convergence',
+    diaryNote: "At Holmes's desk I laid the assistant's note beside the letter, and there it was in both hands, written without hesitation: 'prasarved.' The same misshapen vowel. The note is signed Edmund Halward — and the shapeless thing we have chased for eleven weeks has, at last, a name.",
     description: "At Holmes's desk, Watson lays the assistant's forensic note beside the From Hell letter. The styles diverge — one clinical, one a performance of ignorance — but there it is, in both hands, written without hesitation: 'prasarved.' The same idiosyncratic vowel in the same uncertain position. Watson's eye goes to the casefiles wall — the assistant present at every scene — and then to the name signed at the foot of the note: Edmund Halward.",
     holmesDeduction: "Two men do not spell 'preserved' as 'prasarved'. The small hands. The laboratory fixative. The man present at every post-mortem whom no one has ever once remarked. It was all there, Watson — from the first morning. So that is his name.",
     locationFound: 'baker_street',
@@ -184,6 +197,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_07_edmunds_presence: {
     id: 'clue_07_edmunds_presence',
     name: "The Silent Witness",
+    diaryNote: "Reviewing Bond's reports, I see the assistant has been present at every stage — Miller's Court, each post-mortem, the office. It always seemed natural. I realise I have never once heard the man speak.",
     description: "Watson reviews Bond's forensic reports and notes that the assistant was present at every significant stage of the investigation — Miller's Court, every post-mortem, and now Bond's office. His presence has always seemed natural. It occurs to Watson that he has never heard the man volunteer a single word.",
     holmesDeduction: 'He is always there. At first I dismissed it as his function. Now I find I cannot dismiss it at all.',
     locationFound: 'bond_office',
@@ -197,6 +211,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_08_preserved_kidney: {
     id: 'clue_08_preserved_kidney',
     name: "The Other Half",
+    diaryNote: "The asylum superintendent confirms it: Halward's family found a preserved human organ in his room and had him quietly committed. They never called the police. If Lusk received half a kidney, here was the other.",
     description: "The asylum superintendent confirms: Edmund Halward's family, upon discovering disturbing evidence in his room — a preserved human organ — arranged his quiet commitment. They did not contact the police.",
     holmesDeduction: "If the letter contained half the kidney, and his family found the other half — there is only one conclusion available to a rational mind.",
     locationFound: 'private_asylum',
@@ -210,6 +225,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_09_medical_background: {
     id: 'clue_09_medical_background',
     name: "An Incomplete Education",
+    diaryNote: "Holmes's enquiries: Edmund Halward read medicine in London and withdrew before qualifying; his father a respected physician. Anatomical knowledge, medical access, respectability — he answers every line of the profile.",
     description: "Holmes' enquiries confirm: Edmund Halward studied medicine at a London institution but withdrew unexpectedly before completing his training. His father is a respected physician.",
     holmesDeduction: 'Anatomical knowledge. Access to medical settings. Social respectability. He fits every criterion of the profile I constructed.',
     locationFound: 'bond_office',
@@ -223,6 +239,7 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   clue_10_asylum_commitment: {
     id: 'clue_10_asylum_commitment',
     name: 'The Murders Stop',
+    diaryNote: "Halward was committed within days of the Kelly murder, and from that date the killings simply ceased. Holmes will not call that coincidence — and neither, now, can I.",
     description: "Edmund Halward was committed to the private asylum shortly after Mary Jane Kelly's murder on 9th November 1888. The Whitechapel murders ceased entirely from that date. The official reason for commitment is a vague reference to violent behaviour.",
     holmesDeduction: 'The murders stopped when Edmund was removed from society. That is not coincidence. That is causation.',
     locationFound: 'private_asylum',

@@ -18,7 +18,7 @@ import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -29,7 +29,7 @@ import {
   INITIAL_INTRODUCED_NPCS,
   NPC_DISPLAY_NAMES,
 } from '../constants';
-import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition } from '../types';
+import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
 
 // ── Public interface ──────────────────────────────────────────────────────────
@@ -61,8 +61,7 @@ export interface GameStateReturn {
   weather: ActWeather;
 
   // UI / persistence
-  journalNotes: string;
-  isUpdatingJournal: boolean;
+  diaryEntries: DiaryEntry[];
   isSaving: boolean;
   isDark: boolean;
   setIsDark: React.Dispatch<React.SetStateAction<boolean>>;
@@ -87,7 +86,6 @@ export interface GameStateReturn {
   handleSaveGame: (silent?: boolean) => Promise<void>;
   handleLoadGame: () => Promise<void>;
   handleConsultHolmes: () => Promise<void>;
-  handleUpdateJournal: () => Promise<void>;
   handleScroll: () => void;
 
   // Save slots
@@ -163,9 +161,45 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const [isCurtainPlaying, setIsCurtainPlaying] = useState(false); // cinematic overlay animating
 
   // ── Journal / sidebar ───────────────────────────────────────────────────
+  // journalNotes still persists to the legacy investigations.journal_notes column
+  // but is no longer surfaced anywhere — Watson's diary is now the diaryEntries
+  // casebook below. Kept only to avoid a destructive DB migration.
   const [journalNotes, setJournalNotes] = useState(INITIAL_JOURNAL);
-  const [isUpdatingJournal, setIsUpdatingJournal] = useState(false);
   const [isConsultingHolmes, setIsConsultingHolmes] = useState(false);
+
+  // ── Watson's diary (auto-captured casebook) ───────────────────────────────
+  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
+  const diarySeqRef = useRef(0); // next monotonic sequence number for new entries
+  // Locations already recorded — dedupes arrival entries across reloads/paths.
+  const loggedLocationsRef = useRef<Set<string>>(new Set());
+
+  // Append diary entries: stamp id + sequence, update state, persist if signed in.
+  const captureDiaryEntries = useCallback(
+    (items: Array<Omit<DiaryEntry, 'id' | 'sequence'>>) => {
+      if (items.length === 0) return;
+      const created: DiaryEntry[] = items.map(it => ({
+        ...it,
+        id: crypto.randomUUID(),
+        sequence: diarySeqRef.current++,
+      }));
+      setDiaryEntries(prev => [...prev, ...created]);
+      if (user && activeInvestigation) {
+        GameRepository.addDiaryEntries(activeInvestigation.id, created);
+      }
+    },
+    [user, activeInvestigation],
+  );
+
+  // Record the first arrival at a location (authored Watson line, once per place).
+  const captureLocationArrival = useCallback(
+    (locationId: string, actNumber: number) => {
+      if (!LOCATION_DIARY[locationId]) return;
+      if (loggedLocationsRef.current.has(locationId)) return;
+      loggedLocationsRef.current.add(locationId);
+      captureDiaryEntries([{ kind: 'location', refId: locationId, actNumber }]);
+    },
+    [captureDiaryEntries],
+  );
 
   // ── Persistence / UI ────────────────────────────────────────────────────
   const [isSaving, setIsSaving] = useState(false);
@@ -182,7 +216,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
   const hasGeneratedOpening = useRef(false);
-  const needsJournalUpdate = useRef(false);
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const lastUserMsgIdx = [...history].reverse().findIndex(m => m.role === 'user');
@@ -265,19 +298,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userProfile?.id]); // only fire when user identity changes, not on every profile update
 
-  // Auto-generate diary once after the opening scene finishes streaming.
-  // Guard on isLoading: history.length changes to 1 while text is still empty
-  // (streaming), so we wait until loading is false before checking hasContent.
-  useEffect(() => {
-    if (isLoading) return;
-    const hasContent = history.some(h => h.text && h.text.trim().length > 0);
-    if (needsJournalUpdate.current && hasContent && !isUpdatingJournal) {
-      needsJournalUpdate.current = false;
-      handleUpdateJournal();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history.length, isLoading]);
-
   // Scroll to active turn when new assistant placeholder appears
   const scrollToActiveTurn = useCallback(() => {
     if (lastUserMessageRef.current) {
@@ -320,6 +340,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const generateOpeningScene = useCallback(async () => {
     if (hasGeneratedOpening.current) return;
     hasGeneratedOpening.current = true;
+    // Seed the diary with the opening locale so it is never empty on a fresh start.
+    captureLocationArrival(INITIAL_LOCATION, INITIAL_ACT);
     setIsLoading(true);
     setHistory([{ role: 'assistant', text: '' }]);
 
@@ -363,7 +385,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [captureLocationArrival]);
 
   // ── Save / load ───────────────────────────────────────────────────────────
 
@@ -427,10 +449,13 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         : INITIAL_INTRODUCED_NPCS,
     );
     setElapsedMinutes((investigation as any).elapsedMinutes ?? 0);
-    if (!investigation.journalNotes && historyItems.length > 0) {
-      needsJournalUpdate.current = true;
-    }
     setActiveInvestigation(investigation);
+
+    // Load Watson's diary casebook for this investigation.
+    const loadedDiary = await GameRepository.getDiaryEntries(investigation.id);
+    setDiaryEntries(loadedDiary);
+    diarySeqRef.current = loadedDiary.reduce((m, e) => Math.max(m, e.sequence), -1) + 1;
+    loggedLocationsRef.current = new Set(loadedDiary.filter(e => e.kind === 'location').map(e => e.refId));
 
     const npcMap = await GameRepository.getAllNPCStates(investigation.id);
     const loadedNpcStates: Record<string, NPCState> = Object.keys(npcMap).length > 0
@@ -452,7 +477,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     } else {
       // Slot exists but has no logs yet — generate the opening scene
       hasGeneratedOpening.current = false;
-      needsJournalUpdate.current = true;
       setHistory([]);
       generateOpeningScene();
     }
@@ -470,6 +494,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       npcStates,
       flags,
       journalNotes,
+      diaryEntries,
       introducedNpcs,
       timestamp: new Date().toLocaleString(),
     };
@@ -490,6 +515,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           introducedNpcs,
         });
         if (updated) setActiveInvestigation(updated as Investigation);
+        // Safety net: upsert the whole diary (idempotent by id) so any entry
+        // captured before activeInvestigation was set still reaches the DB.
+        if (diaryEntries.length > 0) {
+          GameRepository.addDiaryEntries(activeInvestigation.id, diaryEntries);
+        }
         if (!silent) setNotification({ message: 'Game Saved to Cloud!', type: 'success' });
       } else {
         if (!silent) setNotification({ message: 'Game Saved Locally!', type: 'success' });
@@ -501,7 +531,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsSaving(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, activeInvestigation, history, location, inventory, medicalPoints, moralPoints, npcStates, flags, journalNotes, currentAct, introducedNpcs]);
+  }, [user, activeInvestigation, history, location, inventory, medicalPoints, moralPoints, npcStates, flags, journalNotes, diaryEntries, currentAct, introducedNpcs]);
 
   // Always-fresh handle to handleSaveGame so async flows (e.g. beginNextAct) can
   // persist the LATEST committed state rather than a stale closure snapshot.
@@ -593,6 +623,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setCurrentAct(toAct);
     setLocation(newLocation);
     setLocationVisitCounts(prev => ({ ...prev, [newLocation]: (prev[newLocation] ?? 0) + 1 }));
+    captureLocationArrival(newLocation, toAct); // diary: arriving in the new act's locale
     setElapsedMinutes(0);
     if (Object.keys(npcUpdates).length > 0) {
       setNpcStates(prev => {
@@ -633,7 +664,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     // Persist the committed Act-N state via the fresh ref (flags now marker-free).
     handleSaveGameRef.current(true);
-  }, [pendingActTransition, isCurtainPlaying, streamArrivalScene]);
+  }, [pendingActTransition, isCurtainPlaying, streamArrivalScene, captureLocationArrival]);
 
   const handleLoadGame = useCallback(async () => {
     try {
@@ -655,6 +686,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setInventory(state.inventory);
         setFlags(state.flags || {});
         setJournalNotes(state.journalNotes || journalNotes);
+        if (state.diaryEntries) {
+          setDiaryEntries(state.diaryEntries);
+          diarySeqRef.current = state.diaryEntries.reduce((m, e) => Math.max(m, e.sequence), -1) + 1;
+          loggedLocationsRef.current = new Set(state.diaryEntries.filter(e => e.kind === 'location').map(e => e.refId));
+        }
         if (state.npcStates) setNpcStates(state.npcStates);
         restorePendingTransitionFromFlags(state.flags || {}, currentAct, state.npcStates || {});
       }
@@ -672,6 +708,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
             setInventory(state.inventory);
             setFlags(state.flags || {});
             setJournalNotes(state.journalNotes || INITIAL_JOURNAL);
+            if (state.diaryEntries) {
+              setDiaryEntries(state.diaryEntries);
+              diarySeqRef.current = state.diaryEntries.reduce((m, e) => Math.max(m, e.sequence), -1) + 1;
+              loggedLocationsRef.current = new Set(state.diaryEntries.filter(e => e.kind === 'location').map(e => e.refId));
+            }
             if (state.npcStates) setNpcStates(state.npcStates);
             restorePendingTransitionFromFlags(state.flags || {}, currentAct, state.npcStates || {});
             setNotification({ message: 'Cloud unavailable — local save loaded.', type: 'error' });
@@ -684,7 +725,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setNotification({ message: 'Cloud unavailable — starting fresh locally.', type: 'error' });
       if (history.length === 0) {
         hasGeneratedOpening.current = false;
-        needsJournalUpdate.current = true;
         generateOpeningScene();
       }
     }
@@ -716,7 +756,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // Generate opening scene for fresh unauthenticated starts
   useEffect(() => {
     if (!user && isAuthReady && history.length === 0) {
-      needsJournalUpdate.current = true;
       generateOpeningScene();
     }
   }, [isAuthReady, user, generateOpeningScene, history.length]);
@@ -1007,6 +1046,34 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         }
       }
 
+      // STEP 5b: Capture Watson's diary entries for clue discoveries and major
+      // decisions. Deterministic — only a reference is stored; the authored
+      // Watson line is resolved from story data at render time. Runs for guests
+      // too (in-memory); persists only when signed in. (Act milestones are
+      // captured later, once the reflective entry has been generated; act-boundary
+      // arrivals are captured in beginNextAct.)
+      {
+        const captured: Array<Omit<DiaryEntry, 'id' | 'sequence'>> = [];
+        if (result.discoveredClueIds) {
+          for (const clueId of result.discoveredClueIds) {
+            if (CLUE_DEFINITIONS[clueId]) captured.push({ kind: 'clue', refId: clueId, actNumber: currentAct });
+          }
+        }
+        if (result.flagsUpdate) {
+          for (const [flag, value] of Object.entries(result.flagsUpdate)) {
+            const decisionId = DECISION_BY_FLAG[flag];
+            if (value === true && !flags[flag] && decisionId) {
+              captured.push({ kind: 'decision', refId: decisionId, actNumber: currentAct });
+            }
+          }
+        }
+        captureDiaryEntries(captured);
+        // First arrival at a new location within the act.
+        if (result.newLocation && !advancingAct) {
+          captureLocationArrival(result.newLocation, currentAct);
+        }
+      }
+
       // STEP 6: Enrich a copy of the engine's context with hook-owned data
       // (STIM, Holmes synthesis, anti-repetition memory). The engine's aiContext
       // is treated as immutable.
@@ -1124,6 +1191,21 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
               { role: 'assistant', text: journalText, type: 'journal' },
             ]);
             appendedJournal = true;
+
+            // Also save the reflective entry into Watson's diary as the act's
+            // closing note (the in-feed beat stays; this makes it re-readable).
+            const actEntry: DiaryEntry = {
+              id: crypto.randomUUID(),
+              kind: 'act',
+              refId: String(pendingJournalSummary.actNumber),
+              actNumber: pendingJournalSummary.actNumber,
+              sequence: diarySeqRef.current++,
+              text: journalText,
+            };
+            setDiaryEntries(prev => [...prev, actEntry]);
+            if (user && activeInvestigation) {
+              GameRepository.addDiaryEntries(activeInvestigation.id, [actEntry]);
+            }
           }
         } catch {
           // Journal is bonus content — never block the game on failure
@@ -1158,7 +1240,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsAutoScrollLocked(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, handleSaveGame]);
+  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, handleSaveGame, captureDiaryEntries, captureLocationArrival]);
 
   // Fired by NarrativeFeed when the act-closing diary finishes typing.
   // NOTE: do NOT scroll here — NarrativeFeed anchors the diary to the top of the
@@ -1208,38 +1290,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     }
   }, [isConsultingHolmes, isLoading, location, history, flags, medicalPoints, moralPoints, scrollToBottom]);
 
-  // ── Journal update ────────────────────────────────────────────────────────
-
-  const handleUpdateJournal = useCallback(async () => {
-    if (isUpdatingJournal) return;
-    setIsUpdatingJournal(true);
-    try {
-      const fullStory = history
-        .slice(-15)
-        .filter(h => h.role !== 'system')
-        .map(h => h.text || '')
-        .join('\n');
-
-      const prompt = `Source Material: ${fullStory}`;
-      const systemInstruction = `You are Dr. Watson. Update your diary entries based on the case progress.
-      STRICT CONSTRAINTS:
-      1. Use only this section: **Observed:**
-      2. Provide a TOTAL of only 2 to 3 bullet points under Observed.
-      3. Focus on physical evidence, witness accounts, and factual case observations.
-      4. Be brief. No narrative re-telling. No sanity or mental-state commentary.`;
-
-      const notes = await callGemini(prompt, false, 0, systemInstruction);
-      setJournalNotes(notes || 'No updates available.');
-    } catch (error) {
-      console.error('Notes update failed', error);
-      setNotification({ message: 'Notes update failed. Try again.', type: 'error' });
-      // Ensure the diary never stays in the empty/loading state on failure
-      setJournalNotes(prev => prev || '**Observed:**\n* Investigation underway.');
-    } finally {
-      setIsUpdatingJournal(false);
-    }
-  }, [isUpdatingJournal, history]);
-
   // ── New Game (start a fresh investigation in a given save slot) ─────────────
 
   const handleStartInSlot = useCallback(async (slotNumber: number) => {
@@ -1275,6 +1325,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setTurnCount(0);
     setIntroducedNpcs(INITIAL_INTRODUCED_NPCS);
     setJournalNotes(INITIAL_JOURNAL);
+    setDiaryEntries([]);
+    diarySeqRef.current = 0;
+    loggedLocationsRef.current = new Set();
     setActiveInvestigation(null);
 
     // Create a fresh investigation for logged-in users
@@ -1351,8 +1404,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     weather: ACT_WEATHER[currentAct] ?? ACT_WEATHER[1],
 
-    journalNotes,
-    isUpdatingJournal,
+    diaryEntries,
     isSaving,
     isDark,
     setIsDark,
@@ -1374,7 +1426,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     handleSaveGame,
     handleLoadGame,
     handleConsultHolmes,
-    handleUpdateJournal,
     handleScroll,
 
     refreshSlots,

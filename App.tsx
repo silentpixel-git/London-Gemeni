@@ -21,6 +21,7 @@ import { CommandInput } from './components/CommandInput';
 import { AuthModal } from './components/AuthModal';
 import { EditProfileModal } from './components/EditProfileModal';
 import { SaveSlotsModal } from './components/SaveSlotsModal';
+import { DiaryModal } from './components/DiaryModal';
 import { ResetPasswordModal } from './components/ResetPasswordModal';
 import { ActBreakCurtain } from './components/ActBreakCurtain';
 import { useGameState } from './hooks/useGameState';
@@ -38,8 +39,17 @@ const AppContent: React.FC = () => {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isFirstRunProfile, setIsFirstRunProfile] = useState(false);
   const [isSlotMenuOpen, setIsSlotMenuOpen] = useState(false);
+  const [isDiaryOpen, setIsDiaryOpen] = useState(false);
+  // Entries seen as of the last time the diary was opened — drives the unread badge.
+  const [diarySeenCount, setDiarySeenCount] = useState(0);
 
   const gs = useGameState({ user, isAuthReady, userProfile });
+
+  const diaryUnreadCount = Math.max(0, gs.diaryEntries.length - diarySeenCount);
+  const openDiary = () => {
+    setDiarySeenCount(gs.diaryEntries.length);
+    setIsDiaryOpen(true);
+  };
 
   // On login, show the slot-select menu instead of auto-loading the last game.
   useEffect(() => {
@@ -111,9 +121,8 @@ const AppContent: React.FC = () => {
         inventory={gs.inventory}
         currentAct={gs.currentAct}
         npcStates={gs.npcStates}
-        journalNotes={gs.journalNotes}
-        isUpdatingJournal={gs.isUpdatingJournal}
-        onUpdateJournal={gs.handleUpdateJournal}
+        onOpenDiary={openDiary}
+        diaryUnreadCount={diaryUnreadCount}
         displayTime={gs.displayTime}
         displayDate={gs.displayDate}
         weather={gs.weather}
@@ -170,6 +179,12 @@ const AppContent: React.FC = () => {
         onContinue={() => { gs.handleContinue(); setIsSlotMenuOpen(false); }}
         onDelete={(inv) => gs.handleDeleteSlot(inv)}
         onClose={() => setIsSlotMenuOpen(false)}
+      />
+      <DiaryModal
+        isOpen={isDiaryOpen}
+        onClose={() => setIsDiaryOpen(false)}
+        entries={gs.diaryEntries}
+        currentAct={gs.currentAct}
       />
       <ResetPasswordModal isOpen={isPasswordRecovery} />
       <AuthModal

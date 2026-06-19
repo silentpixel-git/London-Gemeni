@@ -50,3 +50,10 @@ export type { PersonOfInterest } from './stories/whitechapel-1888/suspects';
 export { TRUE_ENDING_CODA } from './stories/whitechapel-1888/endings';
 
 export { ATMOSPHERIC_SEEDS, WHITECHAPEL_FACTS } from './stories/whitechapel-1888/atmosphere';
+
+export { resolveDiaryEntry } from './stories/whitechapel-1888/diary';
+export type { ResolvedDiaryEntry, DiaryKind } from './stories/whitechapel-1888/diary';
+export { DECISION_DIARY, DECISION_BY_FLAG } from './stories/whitechapel-1888/diaryDecisions';
+export type { DecisionDiaryEntry } from './stories/whitechapel-1888/diaryDecisions';
+export { LOCATION_DIARY } from './stories/whitechapel-1888/diaryLocations';
+export type { LocationDiaryEntry } from './stories/whitechapel-1888/diaryLocations';

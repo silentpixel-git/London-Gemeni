@@ -65,6 +65,7 @@ export interface ClueDefinition {
   id: string;
   name: string;
   description: string;           // What Watson records
+  diaryNote: string;             // Watson's first-person diary line for this clue (auto-captured casebook)
   holmesDeduction: string;       // What Holmes concludes
   locationFound: string;         // Location ID where this clue is found
   triggerObject: string;         // Object ID that triggers this clue

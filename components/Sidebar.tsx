@@ -6,8 +6,7 @@
  */
 
 import React from 'react';
-import { MapPin, Briefcase, DoorOpen, User, ScrollText, Feather, Brain, X, CloudFog, CloudDrizzle, CloudRain, Cloudy, Moon, type LucideIcon } from 'lucide-react';
-import { JournalRenderer } from './JournalRenderer';
+import { MapPin, Briefcase, DoorOpen, User, ScrollText, Feather, X, CloudFog, CloudDrizzle, CloudRain, Cloudy, Moon, type LucideIcon } from 'lucide-react';
 import { LOCATIONS } from '../engine/gameData';
 import type { ActWeather, WeatherCondition } from '../engine/gameData';
 import { INITIAL_NPC_STATES, NPC_DISPLAY_NAMES } from '../constants';
@@ -31,9 +30,8 @@ interface SidebarProps {
   inventory: string[];
   currentAct: number;
   npcStates: Record<string, NPCState>;
-  journalNotes: string;
-  isUpdatingJournal: boolean;
-  onUpdateJournal: () => void;
+  onOpenDiary: () => void;
+  diaryUnreadCount: number;
   displayTime: string;
   displayDate: string;
   weather: ActWeather;
@@ -46,9 +44,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   inventory,
   currentAct,
   npcStates,
-  journalNotes,
-  isUpdatingJournal,
-  onUpdateJournal,
+  onOpenDiary,
+  diaryUnreadCount,
   displayTime,
   displayDate,
   weather,
@@ -163,35 +160,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </ul>
         </div>
 
-        {/* Watson's Diary */}
-        <div className="flex flex-col mb-8">
-          <div className="flex items-center justify-between text-lb-accent mb-4">
-            <div className="flex items-center gap-2">
-              <ScrollText size={18} />
-              <span className="uppercase tracking-widest text-xs font-bold">Watson's Diary</span>
-            </div>
-            <button
-              onClick={onUpdateJournal}
-              disabled={isUpdatingJournal}
-              className="p-1.5 border border-lb-border bg-lb-paper hover:bg-lb-accent/10 rounded transition-colors disabled:opacity-50"
-              title="Update Watson's Diary"
-            >
-              <Feather size={16} className={isUpdatingJournal ? 'animate-pulse' : ''} />
-            </button>
-          </div>
-          <div className="bg-lb-paper border border-lb-border rounded-lg p-6 shadow-sm relative">
-            <div className="absolute top-2 right-2 opacity-30">
-              <Brain size={16} />
-            </div>
-            {journalNotes === "" ? (
-              <div className="flex items-center gap-2 text-lb-muted">
-                <Feather size={13} className="animate-bounce text-lb-accent" />
-                <span className="text-xs italic font-serif">Opening diary...</span>
-              </div>
-            ) : (
-              <JournalRenderer text={journalNotes} />
-            )}
-          </div>
+        {/* Watson's Diary — opens the casebook modal. When there's a fresh entry
+            the button takes on a brass cast and a quill, with a pulsing count. */}
+        <div className="mb-8">
+          {(() => {
+            const hasNew = diaryUnreadCount > 0;
+            return (
+              <button
+                onClick={onOpenDiary}
+                className={`w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg border transition-colors ${
+                  hasNew
+                    ? 'border-lb-accent bg-lb-accent/10 hover:bg-lb-accent/15'
+                    : 'border-lb-border bg-lb-paper hover:border-lb-accent hover:bg-lb-accent/5'
+                }`}
+                title="Read Watson's Diary"
+                aria-label={hasNew ? `Read Watson's Diary — ${diaryUnreadCount} new ${diaryUnreadCount === 1 ? 'entry' : 'entries'}` : "Read Watson's Diary"}
+              >
+                <span className="flex items-center gap-2 text-lb-accent">
+                  {hasNew
+                    ? <Feather size={18} className="animate-bounce" />
+                    : <ScrollText size={18} />}
+                  <span className="uppercase tracking-widest text-xs font-bold">Read Watson's Diary</span>
+                </span>
+                {hasNew && (
+                  <span className="relative flex items-center justify-center">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-lb-accent/40 animate-ping" />
+                    <span className="relative min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-lb-primary text-lb-bg text-[11px] font-bold">
+                      {diaryUnreadCount}
+                    </span>
+                  </span>
+                )}
+              </button>
+            );
+          })()}
         </div>
 
       </div>
