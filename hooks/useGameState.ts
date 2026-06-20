@@ -384,6 +384,29 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     [isAutoScrollLocked]
   );
 
+  // The "look"-based scene generators (opening / act arrival / resume) render
+  // one-shot vignettes but, unlike a normal turn in handleAction, never commit
+  // the engine's flagsUpdate — so the vignette's `vignette_*` guard flag was
+  // never recorded and the vignette re-fired on every arrival/resume. Commit just
+  // those keys (NOT location/progression flags, which gate act advancement) so a
+  // vignette fires at most once. `baseFlags` is the freshest known flag set for
+  // the cloud write; persistence is skipped when no investigation id is available.
+  const commitVignetteFlags = useCallback((
+    flagsUpdate: Record<string, boolean> | undefined,
+    baseFlags: Record<string, boolean>,
+    investigationId?: string,
+  ) => {
+    if (!flagsUpdate) return;
+    const vig = Object.fromEntries(
+      Object.entries(flagsUpdate).filter(([k]) => k.startsWith('vignette_'))
+    );
+    if (Object.keys(vig).length === 0) return;
+    setFlags(prev => ({ ...prev, ...vig }));
+    if (user && investigationId) {
+      GameRepository.updateInvestigation(investigationId, { globalFlags: { ...baseFlags, ...vig } });
+    }
+  }, [user]);
+
   // ── Opening scene ─────────────────────────────────────────────────────────
 
   const generateOpeningScene = useCallback(async () => {
@@ -413,6 +436,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         turnCount: 0,
       };
       const result = gameEngine.resolve(intent, snapshot);
+      commitVignetteFlags(result.flagsUpdate, {}, activeInvestigation?.id);
 
       const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 - three months after the Jack the Ripper murders had begun, and the day before it concluded.\n\n";
       // Inject fixed line AFTER the ### heading, not before it
@@ -434,7 +458,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     } finally {
       setIsLoading(false);
     }
-  }, [captureLocationArrival]);
+  }, [captureLocationArrival, commitVignetteFlags]);
 
   // ── Save / load ───────────────────────────────────────────────────────────
 
@@ -478,6 +502,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         turnCount: 0,
       };
       const result = gameEngine.resolve(intent, snapshot);
+      commitVignetteFlags(result.flagsUpdate, resume.flags, resume.investigationId);
       let last = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'full', blockquoteHint: 'world_event' })) {
         if (update.narrative) {
@@ -497,7 +522,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         return next;
       });
     }
-  }, []);
+  }, [commitVignetteFlags]);
 
   // Hydrate all React state from a cloud investigation (a save slot).
   // Shared by the slot menu (handleSelectSlot) and the anonymous-fallback loader.
@@ -685,6 +710,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         turnCount,
       };
       const result = gameEngine.resolve(intent, snapshot);
+      commitVignetteFlags(result.flagsUpdate, flags, activeInvestigation?.id);
       let last = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'full', blockquoteHint: 'world_event' })) {
         if (update.narrative) {
@@ -704,7 +730,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         return next;
       });
     }
-  }, [inventory, flags, npcStates, medicalPoints, moralPoints, activeInvestigation, introducedNpcs, locationVisitCounts, turnCount]);
+  }, [inventory, flags, npcStates, medicalPoints, moralPoints, activeInvestigation, introducedNpcs, locationVisitCounts, turnCount, commitVignetteFlags]);
 
   // Player clicked "Begin Act N": play the cinematic curtain, commit the held
   // state behind it, then stream the arrival scene.
