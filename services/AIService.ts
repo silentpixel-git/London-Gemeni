@@ -309,7 +309,9 @@ Watson's question / statement: "${playerQuestion}"
 WHAT THIS CHARACTER KNOWS (hard ceiling — do not invent facts beyond this list):
 ${envelopeItems.map((f, i) => `${i + 1}. ${f}`).join('\n')}
 
-Write this character's spoken response in dialogue, then Watson's brief reaction.
+Structure the reply as 2–3 short paragraphs separated by blank lines, for legibility:
+- Paragraph 1: a brief framing clause and the character's spoken response in dialogue. Break a long speech into two paragraphs at a natural pause rather than one dense block.
+- Final paragraph: Watson's brief reaction, on its own line.
 - If the question touches something in the knowledge list, answer directly in character.
 - If asked something outside their knowledge, deflect naturally — stay in character.
 - Express personality through HOW they answer. Do NOT invent clues or facts not listed above.`;
@@ -329,7 +331,7 @@ NO blockquote this turn.`;
     }
   } else {
     compactPrompt += `
-Narrate only this specific action. If talking: write the NPC's response then Watson's reaction. If examining: Watson's direct observation and any forensic detail. If blocked: why Watson could not proceed, in character.`;
+Narrate only this specific action, broken into 2 short paragraphs separated by a blank line for legibility (a trivial blocked action may stay a single line). If talking: the NPC's spoken response as the first paragraph, then Watson's reaction as the second. If examining: Watson's direct observation, then its forensic implication or his reflection. If blocked: why Watson could not proceed, in character.`;
 
     if (ctx.blockquoteHint === 'inner_thought') {
       compactPrompt += `
