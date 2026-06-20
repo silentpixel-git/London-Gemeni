@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "qa:engine": "npx tsx scripts/qa-engine.ts",
+    "qa:parser": "npx tsx scripts/qa-parser.ts"
   },
   "dependencies": {
     "@google/genai": "^1.33.0",

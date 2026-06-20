@@ -10,6 +10,12 @@
  * - Optionally returns npcMemoryUpdate (short summaries for memory bank)
  *
  * The AI cannot hallucinate exits, NPCs, or items because it is not asked to track them.
+ *
+ * One narrow exception to "narration-only": resolveTargetObject() is a CONSTRAINED
+ * target resolver. It maps a player's noun to one object id chosen from a SUPPLIED
+ * list (the objects in the current location). Because it can only return an id from
+ * that list (or null), it can never invent an object or grant a clue — the engine
+ * still owns every clue and state decision. It returns a selection, never a mutation.
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
@@ -627,6 +633,55 @@ No action instructions. No game language. Pure Victorian diary prose.`;
     });
 
     return response.text?.trim() || '';
+  }
+
+  /**
+   * Constrained target resolver (NOT narration). Runs only when the deterministic
+   * parser fails to land a player's noun on an object that is actually present.
+   * Picks the intended object from the SUPPLIED candidate list (the current
+   * location's objects) by meaning — synonyms, paraphrase, description. The result
+   * is validated against the list, so it can never return an invented id; { objectId:
+   * null } means "no confident match" and the caller keeps the original behaviour.
+   * Never throws into the turn loop.
+   */
+  async resolveTargetObject(
+    rawInput: string,
+    intentType: string,
+    candidates: Array<{ id: string; name: string }>,
+  ): Promise<{ objectId: string | null }> {
+    if (candidates.length === 0) return { objectId: null };
+
+    const list = candidates.map(c => `- ${c.id} — "${c.name}"`).join('\n');
+    const prompt = `The player typed: "${rawInput}" (action: ${intentType}).
+Which of these objects in the current scene did they most likely mean?
+${list}
+
+Reply with the matching id, or "none" if the phrase clearly refers to no object in the list. Only match when the meaning genuinely corresponds — do not guess wildly.`;
+
+    try {
+      const response = await this.ai.models.generateContent({
+        model: MODEL_ID,
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          systemInstruction:
+            'You map a player\'s phrase to exactly one object id from a fixed list, by meaning (synonyms, paraphrase, physical description). Return one id verbatim from the list, or "none". Never invent an id.',
+          thinkingConfig: { thinkingBudget: 0 },
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              objectId: { type: Type.STRING, description: 'A candidate id copied verbatim, or "none".' },
+            },
+            required: ['objectId'],
+          },
+        },
+      });
+      const picked = (JSON.parse(response.text || '{}').objectId ?? '').trim();
+      const match = candidates.find(c => c.id === picked);
+      return { objectId: match ? match.id : null };
+    } catch {
+      return { objectId: null };
+    }
   }
 }
 
