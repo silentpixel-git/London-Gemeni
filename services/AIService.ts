@@ -69,7 +69,7 @@ ABSOLUTE RULES:
 10. REGISTER — follow the TEMPORAL FRAMING note in each prompt (present = live investigation; reconstruction = cold scene worked from written reports), plus any register note it carries (e.g. the Baker Street sanctuary).
 
 OUTPUT — return a JSON object:
-- "markdownOutput": the narrative text (Markdown, real line breaks — never a literal "\\n"). Full mode max 220 words; compact mode max 130.
+- "markdownOutput": the narrative text (Markdown, real line breaks — never a literal "\\n"). Full mode max 160 words (110 on a revisit); compact mode max 130.
 - "npcMemoryUpdate": optional ~10-word interaction summary keyed by npcId (e.g. {"holmes": "Watson and Holmes discussed the burned clothing."}).
 NpcIds: holmes, abberline, bond, edmund, lusk, diemschutz, superintendent.`;
 
@@ -82,7 +82,7 @@ const NARRATION_SCHEMA = {
   properties: {
     markdownOutput: {
       type: Type.STRING,
-      description: "Watson's first-person narrative prose. Markdown formatting. Full mode: max 220 words. Compact mode: max 100 words.",
+      description: "Watson's first-person narrative prose. Markdown formatting. Full mode: max 160 words (110 on a revisit). Compact mode: max 130 words.",
     },
     npcMemoryUpdate: {
       type: Type.OBJECT,
@@ -210,9 +210,37 @@ NO blockquote. NO exits listing. NO character roster. NPCs, objects, and exits w
 Atmosphere: ${ctx.locationAtmosphere}
 Description: ${ctx.locationDescription}`;
 
-    // FULL MODE — location arrival or look-around
+    // FULL MODE — location arrival or look-around. Arrival: 3 tight paragraphs.
+    // Revisit (look-around in a known room): 2 paragraphs, no re-description; a
+    // blockquote only when an authored vignette is present (no atmospheric seed).
+    const act0Note = ctx.act === 0
+      ? '\nACT 0 PROLOGUE NOTE: This is Baker Street. Watson cannot leave yet — the exits list is empty because Holmes has not yet briefed him on where to begin. Do NOT invent exits or imply Watson is free to leave. Instead, let Holmes\'s presence and the case files naturally draw Watson\'s attention. The prose should make the player feel that examining the case files wall is the natural first action.'
+      : '';
+    const noticeBeat = `WHAT WATSON NOTICES: In prose (not a list), mention who is present (using their exact labels), what objects catch his eye, and which directions he could go — using ONLY the verified data above.${ctx.availableExits.length === 0 ? '\nNo exits are available yet. Do NOT invent exits or directions. Omit the "directions" sentence entirely — focus only on who and what is present.' : ''}`;
+    const blockquoteBeat = `BLOCKQUOTE: ${ctx.vignette
+      ? `A ONE-TIME AUTHORED MOMENT — render this faithfully (light polish only, keep its content intact):\nVignette: "${ctx.vignette}"`
+      : `A world micro-event that makes this place feel alive. Use the seed below as a starting point.\nSeed: "${pickAtmosphericSeed(ctx.timePeriod, ctx.weather.condition, ctx.act)}"`}
+Format EXACTLY as a Markdown blockquote:
+> *Your world event sentence here.*`;
+
+    const lengthLine = isRevisit
+      ? 'Write 2 short paragraphs (max 110 words).'
+      : 'Write 3 short paragraphs (max 160 words).';
+
+    // Revisit keeps the authored vignette as an extra quoted beat when present,
+    // but never invents an atmospheric-seed blockquote (keeps look-arounds tight).
+    const structure = isRevisit
+      ? `Paragraph 1 — RETURN: Watson's purpose in returning, or what is immediately different — NO room description, NO weather opener — ending with one brief clause of his reflection on the case.${act0Note}
+${ctx.vignette ? `\n${blockquoteBeat}\n` : ''}
+Paragraph 2 — ${noticeBeat}`
+      : `Paragraph 1 — ATMOSPHERE: Vivid sensory description (apply the temporal register above), ending with one clause of Watson's reflection on the case or his unease.${act0Note}
+
+Paragraph 2 — ${blockquoteBeat}
+
+Paragraph 3 — ${noticeBeat}`;
+
     return `=== NARRATION MODE: FULL ===
-Write 3–4 paragraphs (max 220 words). Begin with: ### ${actHeader}: ${ctx.actName}
+${lengthLine} Begin with: ### ${actHeader}: ${ctx.actName}
 ${temporalSection}
 === VERIFIED LOCATION ===
 ${locationBlock}
@@ -230,25 +258,13 @@ Result: ${ctx.actionResultNote}
 ${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${ambientExtraSection}${clueSection}${synthesisSection}
 Narrate Watson's arrival / survey of this location using exactly this structure:
 
-Paragraph 1 — ${isRevisit
-    ? 'RETURN: Watson\'s purpose in returning, or what is immediately different. NO room description, NO weather opener.'
-    : 'ATMOSPHERE: Vivid sensory description. Apply the temporal register above.'}${ctx.act === 0 ? '\nACT 0 PROLOGUE NOTE: This is Baker Street. Watson cannot leave yet — the exits list is empty because Holmes has not yet briefed him on where to begin. Do NOT invent exits or imply Watson is free to leave. Instead, let Holmes\'s presence and the case files naturally draw Watson\'s attention. The prose should make the player feel that examining the case files wall is the natural first action.' : ''}
-
-Paragraph 2 — WATSON'S INNER THOUGHTS: Brief reflection on the case, his anxiety, or moral state. 1–2 sentences. For reconstruction visits, this may reach backward in time.
-
-Paragraph 3 — BLOCKQUOTE: ${ctx.vignette
-    ? `A ONE-TIME AUTHORED MOMENT — render this faithfully (light polish only, keep its content intact):\nVignette: "${ctx.vignette}"`
-    : `A world micro-event that makes this place feel alive. Use the seed below as a starting point.\nSeed: "${pickAtmosphericSeed(ctx.timePeriod, ctx.weather.condition, ctx.act)}"`}
-Format EXACTLY as a Markdown blockquote:
-> *Your world event sentence here.*
-
-Paragraph 4 — WHAT WATSON NOTICES: In prose (not a list), mention who is present (using their exact labels), what objects catch his eye, and which directions he could go — using ONLY the verified data above.${ctx.availableExits.length === 0 ? '\nNo exits are available yet. Do NOT invent exits or directions. Omit the "directions" sentence entirely — focus only on who and what is present.' : ''}`;
+${structure}`;
   }
 
   // COMPACT MODE — examine, talk, take, use, inventory, deduce, blocked action
   const compactWordLimit = ctx.blockquoteHint !== 'none' ? 130 : 100;
   let compactPrompt = `=== NARRATION MODE: COMPACT ===
-Write 1–2 short paragraphs (max ${compactWordLimit} words). NO act header. NO location description. NO exits listing.
+Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line. NO act header. NO location description. NO exits listing.
 ${temporalSection}
 === VERIFIED CONTEXT ===
 Location: ${ctx.locationName} (Act ${ctx.act}: ${ctx.actName})
