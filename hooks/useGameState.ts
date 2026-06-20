@@ -596,6 +596,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       journalNotes,
       diaryEntries,
       introducedNpcs,
+      currentAct,
       timestamp: new Date().toLocaleString(),
     };
 
@@ -766,7 +767,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     // Local saves don't store currentAct/elapsedMinutes, so the act is derived
     // from the saved location and the clock starts at the act's canonical time.
     const resumeFromLocalSave = async (state: GameState) => {
-      const guestAct = LOCATIONS[state.location]?.act ?? INITIAL_ACT;
+      // Prefer the saved act; fall back to location-derived for older local saves
+      // (ambiguous for shared anchors, e.g. bond_office serves Act 5 and Act 6).
+      const guestAct = state.currentAct ?? LOCATIONS[state.location]?.act ?? INITIAL_ACT;
       const guestNpcStates = state.npcStates || (INITIAL_NPC_STATES as Record<string, NPCState>);
       const guestIntroduced = state.introducedNpcs?.length ? state.introducedNpcs : INITIAL_INTRODUCED_NPCS;
       setLocation(state.location);

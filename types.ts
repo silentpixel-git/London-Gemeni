@@ -104,6 +104,9 @@ export interface GameState {
   timestamp: string;
   // NPC introduction tracking — IDs of NPCs whose real names Watson now knows
   introducedNpcs: string[];
+  // Current act. Optional for back-compat with older local saves (which derived
+  // the act from the location — ambiguous for shared anchors like bond_office).
+  currentAct?: number;
 }
 
 export interface WorldLocation {
