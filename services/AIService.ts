@@ -10,6 +10,12 @@
  * - Optionally returns npcMemoryUpdate (short summaries for memory bank)
  *
  * The AI cannot hallucinate exits, NPCs, or items because it is not asked to track them.
+ *
+ * One narrow exception to "narration-only": resolveTargetObject() is a CONSTRAINED
+ * target resolver. It maps a player's noun to one object id chosen from a SUPPLIED
+ * list (the objects in the current location). Because it can only return an id from
+ * that list (or null), it can never invent an object or grant a clue — the engine
+ * still owns every clue and state decision. It returns a selection, never a mutation.
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
@@ -69,7 +75,7 @@ ABSOLUTE RULES:
 10. REGISTER — follow the TEMPORAL FRAMING note in each prompt (present = live investigation; reconstruction = cold scene worked from written reports), plus any register note it carries (e.g. the Baker Street sanctuary).
 
 OUTPUT — return a JSON object:
-- "markdownOutput": the narrative text (Markdown, real line breaks — never a literal "\\n"). Full mode max 220 words; compact mode max 130.
+- "markdownOutput": the narrative text (Markdown, real line breaks — never a literal "\\n"). Full mode max 160 words (110 on a revisit); compact mode max 130.
 - "npcMemoryUpdate": optional ~10-word interaction summary keyed by npcId (e.g. {"holmes": "Watson and Holmes discussed the burned clothing."}).
 NpcIds: holmes, abberline, bond, edmund, lusk, diemschutz, superintendent.`;
 
@@ -82,7 +88,7 @@ const NARRATION_SCHEMA = {
   properties: {
     markdownOutput: {
       type: Type.STRING,
-      description: "Watson's first-person narrative prose. Markdown formatting. Full mode: max 220 words. Compact mode: max 100 words.",
+      description: "Watson's first-person narrative prose. Markdown formatting. Full mode: max 160 words (110 on a revisit). Compact mode: max 130 words.",
     },
     npcMemoryUpdate: {
       type: Type.OBJECT,
@@ -210,9 +216,37 @@ NO blockquote. NO exits listing. NO character roster. NPCs, objects, and exits w
 Atmosphere: ${ctx.locationAtmosphere}
 Description: ${ctx.locationDescription}`;
 
-    // FULL MODE — location arrival or look-around
+    // FULL MODE — location arrival or look-around. Arrival: 3 tight paragraphs.
+    // Revisit (look-around in a known room): 2 paragraphs, no re-description; a
+    // blockquote only when an authored vignette is present (no atmospheric seed).
+    const act0Note = ctx.act === 0
+      ? '\nACT 0 PROLOGUE NOTE: This is Baker Street. Watson cannot leave yet — the exits list is empty because Holmes has not yet briefed him on where to begin. Do NOT invent exits or imply Watson is free to leave. Instead, let Holmes\'s presence and the case files naturally draw Watson\'s attention. The prose should make the player feel that examining the case files wall is the natural first action.'
+      : '';
+    const noticeBeat = `WHAT WATSON NOTICES: In prose (not a list), mention who is present (using their exact labels), what objects catch his eye, and which directions he could go — using ONLY the verified data above.${ctx.availableExits.length === 0 ? '\nNo exits are available yet. Do NOT invent exits or directions. Omit the "directions" sentence entirely — focus only on who and what is present.' : ''}`;
+    const blockquoteBeat = `BLOCKQUOTE: ${ctx.vignette
+      ? `A ONE-TIME AUTHORED MOMENT — render this faithfully (light polish only, keep its content intact):\nVignette: "${ctx.vignette}"`
+      : `A world micro-event that makes this place feel alive. Use the seed below as a starting point.\nSeed: "${pickAtmosphericSeed(ctx.timePeriod, ctx.weather.condition, ctx.act)}"`}
+Format EXACTLY as a Markdown blockquote:
+> *Your world event sentence here.*`;
+
+    const lengthLine = isRevisit
+      ? 'Write 2 short paragraphs (max 110 words).'
+      : 'Write 3 short paragraphs (max 160 words).';
+
+    // Revisit keeps the authored vignette as an extra quoted beat when present,
+    // but never invents an atmospheric-seed blockquote (keeps look-arounds tight).
+    const structure = isRevisit
+      ? `Paragraph 1 — RETURN: Watson's purpose in returning, or what is immediately different — NO room description, NO weather opener — ending with one brief clause of his reflection on the case.${act0Note}
+${ctx.vignette ? `\n${blockquoteBeat}\n` : ''}
+Paragraph 2 — ${noticeBeat}`
+      : `Paragraph 1 — ATMOSPHERE: Vivid sensory description (apply the temporal register above), ending with one clause of Watson's reflection on the case or his unease.${act0Note}
+
+Paragraph 2 — ${blockquoteBeat}
+
+Paragraph 3 — ${noticeBeat}`;
+
     return `=== NARRATION MODE: FULL ===
-Write 3–4 paragraphs (max 220 words). Begin with: ### ${actHeader}: ${ctx.actName}
+${lengthLine} Begin with: ### ${actHeader}: ${ctx.actName}
 ${temporalSection}
 === VERIFIED LOCATION ===
 ${locationBlock}
@@ -230,25 +264,13 @@ Result: ${ctx.actionResultNote}
 ${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${ambientExtraSection}${clueSection}${synthesisSection}
 Narrate Watson's arrival / survey of this location using exactly this structure:
 
-Paragraph 1 — ${isRevisit
-    ? 'RETURN: Watson\'s purpose in returning, or what is immediately different. NO room description, NO weather opener.'
-    : 'ATMOSPHERE: Vivid sensory description. Apply the temporal register above.'}${ctx.act === 0 ? '\nACT 0 PROLOGUE NOTE: This is Baker Street. Watson cannot leave yet — the exits list is empty because Holmes has not yet briefed him on where to begin. Do NOT invent exits or imply Watson is free to leave. Instead, let Holmes\'s presence and the case files naturally draw Watson\'s attention. The prose should make the player feel that examining the case files wall is the natural first action.' : ''}
-
-Paragraph 2 — WATSON'S INNER THOUGHTS: Brief reflection on the case, his anxiety, or moral state. 1–2 sentences. For reconstruction visits, this may reach backward in time.
-
-Paragraph 3 — BLOCKQUOTE: ${ctx.vignette
-    ? `A ONE-TIME AUTHORED MOMENT — render this faithfully (light polish only, keep its content intact):\nVignette: "${ctx.vignette}"`
-    : `A world micro-event that makes this place feel alive. Use the seed below as a starting point.\nSeed: "${pickAtmosphericSeed(ctx.timePeriod, ctx.weather.condition, ctx.act)}"`}
-Format EXACTLY as a Markdown blockquote:
-> *Your world event sentence here.*
-
-Paragraph 4 — WHAT WATSON NOTICES: In prose (not a list), mention who is present (using their exact labels), what objects catch his eye, and which directions he could go — using ONLY the verified data above.${ctx.availableExits.length === 0 ? '\nNo exits are available yet. Do NOT invent exits or directions. Omit the "directions" sentence entirely — focus only on who and what is present.' : ''}`;
+${structure}`;
   }
 
   // COMPACT MODE — examine, talk, take, use, inventory, deduce, blocked action
   const compactWordLimit = ctx.blockquoteHint !== 'none' ? 130 : 100;
   let compactPrompt = `=== NARRATION MODE: COMPACT ===
-Write 1–2 short paragraphs (max ${compactWordLimit} words). NO act header. NO location description. NO exits listing.
+Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line. NO act header. NO location description. NO exits listing.
 ${temporalSection}
 === VERIFIED CONTEXT ===
 Location: ${ctx.locationName} (Act ${ctx.act}: ${ctx.actName})
@@ -293,7 +315,9 @@ Watson's question / statement: "${playerQuestion}"
 WHAT THIS CHARACTER KNOWS (hard ceiling — do not invent facts beyond this list):
 ${envelopeItems.map((f, i) => `${i + 1}. ${f}`).join('\n')}
 
-Write this character's spoken response in dialogue, then Watson's brief reaction.
+Structure the reply as 2–3 short paragraphs separated by blank lines, for legibility:
+- Paragraph 1: a brief framing clause and the character's spoken response in dialogue. Break a long speech into two paragraphs at a natural pause rather than one dense block.
+- Final paragraph: Watson's brief reaction, on its own line.
 - If the question touches something in the knowledge list, answer directly in character.
 - If asked something outside their knowledge, deflect naturally — stay in character.
 - Express personality through HOW they answer. Do NOT invent clues or facts not listed above.`;
@@ -313,7 +337,7 @@ NO blockquote this turn.`;
     }
   } else {
     compactPrompt += `
-Narrate only this specific action. If talking: write the NPC's response then Watson's reaction. If examining: Watson's direct observation and any forensic detail. If blocked: why Watson could not proceed, in character.`;
+Narrate only this specific action, broken into 2 short paragraphs separated by a blank line for legibility (a trivial blocked action may stay a single line). If talking: the NPC's spoken response as the first paragraph, then Watson's reaction as the second. If examining: Watson's direct observation, then its forensic implication or his reflection. If blocked: why Watson could not proceed, in character.`;
 
     if (ctx.blockquoteHint === 'inner_thought') {
       compactPrompt += `
@@ -609,6 +633,55 @@ No action instructions. No game language. Pure Victorian diary prose.`;
     });
 
     return response.text?.trim() || '';
+  }
+
+  /**
+   * Constrained target resolver (NOT narration). Runs only when the deterministic
+   * parser fails to land a player's noun on an object that is actually present.
+   * Picks the intended object from the SUPPLIED candidate list (the current
+   * location's objects) by meaning — synonyms, paraphrase, description. The result
+   * is validated against the list, so it can never return an invented id; { objectId:
+   * null } means "no confident match" and the caller keeps the original behaviour.
+   * Never throws into the turn loop.
+   */
+  async resolveTargetObject(
+    rawInput: string,
+    intentType: string,
+    candidates: Array<{ id: string; name: string }>,
+  ): Promise<{ objectId: string | null }> {
+    if (candidates.length === 0) return { objectId: null };
+
+    const list = candidates.map(c => `- ${c.id} — "${c.name}"`).join('\n');
+    const prompt = `The player typed: "${rawInput}" (action: ${intentType}).
+Which of these objects in the current scene did they most likely mean?
+${list}
+
+Reply with the matching id, or "none" if the phrase clearly refers to no object in the list. Only match when the meaning genuinely corresponds — do not guess wildly.`;
+
+    try {
+      const response = await this.ai.models.generateContent({
+        model: MODEL_ID,
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          systemInstruction:
+            'You map a player\'s phrase to exactly one object id from a fixed list, by meaning (synonyms, paraphrase, physical description). Return one id verbatim from the list, or "none". Never invent an id.',
+          thinkingConfig: { thinkingBudget: 0 },
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              objectId: { type: Type.STRING, description: 'A candidate id copied verbatim, or "none".' },
+            },
+            required: ['objectId'],
+          },
+        },
+      });
+      const picked = (JSON.parse(response.text || '{}').objectId ?? '').trim();
+      const match = candidates.find(c => c.id === picked);
+      return { objectId: match ? match.id : null };
+    } catch {
+      return { objectId: null };
+    }
   }
 }
 

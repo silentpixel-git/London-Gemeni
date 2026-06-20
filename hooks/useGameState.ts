@@ -18,8 +18,8 @@ import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
 import { audioManager } from '../services/AudioManager';
-import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY } from '../engine/gameData';
+import { parseIntent, type ParsedIntent } from '../engine/intentParser';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -32,6 +32,58 @@ import {
 } from '../constants';
 import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
+
+// ── AI fallback target resolution ─────────────────────────────────────────────
+// The deterministic parser is strict about object NOUNS (exact name / alias /
+// fuzzy only — no semantic understanding). When an EXAMINE fails to land on an
+// object that is actually present here, we ask the AI to pick from THIS
+// location's objects. Constrained to that list → it can never invent an object
+// or grant a clue; the engine still owns every clue decision. Only fires on a
+// genuine miss, so clean inputs keep the instant offline fast-path.
+
+// Per-session memo: `${location}::${normalised raw}` → resolved object id (or null).
+const targetResolveCache = new Map<string, string | null>();
+
+async function resolveTargetWithAI(
+  intent: ParsedIntent,
+  location: string,
+  inventory: string[],
+): Promise<ParsedIntent> {
+  const present = LOCATIONS[location]?.interactables ?? [];
+
+  // A resolved object that is a real object id but not actionable here (not in
+  // this room and not a copy Watson carries) is treated as a soft miss —
+  // typically a fuzzy/alias slip onto an object that lives elsewhere.
+  const tid = intent.targetId;
+  const resolvedButAbsent =
+    !!tid &&
+    !!OBJECT_DISPLAY_NAMES[tid] &&
+    !present.includes(tid) &&
+    !(TAKEABLE_OBJECTS[tid] && inventory.includes(TAKEABLE_OBJECTS[tid]));
+
+  const isMiss =
+    intent.type === 'unresolved_target' ||
+    (intent.type === 'examine' && resolvedButAbsent);
+  if (!isMiss) return intent;
+
+  const raw = (intent.targetRaw || '').trim();
+  if (!raw || present.length === 0) return intent;
+
+  const key = `${location}::${raw.toLowerCase()}`;
+  let objectId: string | null;
+  if (targetResolveCache.has(key)) {
+    objectId = targetResolveCache.get(key)!;
+  } else {
+    const candidates = present.map(id => ({ id, name: OBJECT_DISPLAY_NAMES[id] ?? id }));
+    ({ objectId } = await aiService.resolveTargetObject(raw, 'examine', candidates));
+    targetResolveCache.set(key, objectId);
+  }
+  if (!objectId) return intent;
+
+  // Re-target as a normal examine so the engine runs its standard deterministic
+  // clue lookup against the resolved object. Keep the player's original raw text.
+  return { ...intent, type: 'examine', targetId: objectId };
+}
 
 // ── Public interface ──────────────────────────────────────────────────────────
 
@@ -384,6 +436,29 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     [isAutoScrollLocked]
   );
 
+  // The "look"-based scene generators (opening / act arrival / resume) render
+  // one-shot vignettes but, unlike a normal turn in handleAction, never commit
+  // the engine's flagsUpdate — so the vignette's `vignette_*` guard flag was
+  // never recorded and the vignette re-fired on every arrival/resume. Commit just
+  // those keys (NOT location/progression flags, which gate act advancement) so a
+  // vignette fires at most once. `baseFlags` is the freshest known flag set for
+  // the cloud write; persistence is skipped when no investigation id is available.
+  const commitVignetteFlags = useCallback((
+    flagsUpdate: Record<string, boolean> | undefined,
+    baseFlags: Record<string, boolean>,
+    investigationId?: string,
+  ) => {
+    if (!flagsUpdate) return;
+    const vig = Object.fromEntries(
+      Object.entries(flagsUpdate).filter(([k]) => k.startsWith('vignette_'))
+    );
+    if (Object.keys(vig).length === 0) return;
+    setFlags(prev => ({ ...prev, ...vig }));
+    if (user && investigationId) {
+      GameRepository.updateInvestigation(investigationId, { globalFlags: { ...baseFlags, ...vig } });
+    }
+  }, [user]);
+
   // ── Opening scene ─────────────────────────────────────────────────────────
 
   const generateOpeningScene = useCallback(async () => {
@@ -413,6 +488,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         turnCount: 0,
       };
       const result = gameEngine.resolve(intent, snapshot);
+      commitVignetteFlags(result.flagsUpdate, {}, activeInvestigation?.id);
 
       const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 - three months after the Jack the Ripper murders had begun, and the day before it concluded.\n\n";
       // Inject fixed line AFTER the ### heading, not before it
@@ -434,55 +510,87 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     } finally {
       setIsLoading(false);
     }
-  }, [captureLocationArrival]);
+  }, [captureLocationArrival, commitVignetteFlags]);
 
   // ── Save / load ───────────────────────────────────────────────────────────
 
-  // On load, if a pending-act marker is present in flags, rebuild the transition
-  // so the curtain's read-gate (diary + Begin button) re-appears instead of
-  // stranding the player with spent gate flags.
-  const restorePendingTransitionFromFlags = useCallback((
-    loadedFlags: Record<string, boolean>,
-    loadedAct: number,
-    loadedNpcStates: Record<string, NPCState>,
-  ) => {
-    const markerKey = Object.keys(loadedFlags).find(k => k.startsWith('__pending_act_to_') && loadedFlags[k]);
-    if (!markerKey) return;
-    const toAct = parseInt(markerKey.replace('__pending_act_to_', ''), 10);
-    if (!Number.isFinite(toAct)) return;
-    const snapshot: SessionSnapshot = {
-      location: INITIAL_LOCATION,
-      inventory,
-      flags: loadedFlags,
-      npcStates: loadedNpcStates,
-      currentAct: loadedAct,
-      medicalPoints,
-      moralPoints,
-      discoveredClueIds: [],
-      investigationId: activeInvestigation?.id,
-      turnsAtLocationWithoutProgress: 0,
-      elapsedMinutes: 0,
-      introducedNpcs,
-      locationVisitCounts,
-      turnCount,
-    };
-    const { anchor, npcUpdates } = gameEngine.computeActEntry(toAct, snapshot);
-    setPendingActTransition({ fromAct: loadedAct, toAct, newLocation: anchor, npcUpdates });
-    setIsActBreakReady(false); // the restored diary (last history item) re-types, then reveals Begin
-  }, [inventory, medicalPoints, moralPoints, activeInvestigation, introducedNpcs, locationVisitCounts, turnCount]);
+  // Stream a single fresh "look" when RESUMING a saved game. The loaded
+  // authoritative snapshot is the source of truth — we do NOT replay the stored
+  // transcript; the diary carries the durable record. Takes the loaded values as
+  // explicit args (the loader's setX calls haven't flushed to closure state yet),
+  // builds a look at the SAVED location/act (not an act anchor), and starts the
+  // feed clean. Mirrors streamArrivalScene minus the act-entry concerns.
+  const streamResumeScene = useCallback(async (resume: {
+    location: string;
+    act: number;
+    inventory: string[];
+    flags: Record<string, boolean>;
+    npcStates: Record<string, NPCState>;
+    medicalPoints: number;
+    moralPoints: number;
+    introducedNpcs: string[];
+    elapsedMinutes: number;
+    investigationId?: string;
+  }) => {
+    setHistory([{ role: 'assistant', text: '' }]);
+    setIsAutoScrollLocked(false);
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
+    try {
+      const intent = parseIntent('look');
+      const snapshot: SessionSnapshot = {
+        location: resume.location,
+        inventory: resume.inventory,
+        flags: resume.flags,
+        npcStates: resume.npcStates,
+        currentAct: resume.act,
+        medicalPoints: resume.medicalPoints,
+        moralPoints: resume.moralPoints,
+        discoveredClueIds: [],
+        investigationId: resume.investigationId,
+        turnsAtLocationWithoutProgress: 0,
+        elapsedMinutes: resume.elapsedMinutes,
+        introducedNpcs: resume.introducedNpcs,
+        locationVisitCounts: {},
+        turnCount: 0,
+      };
+      const result = gameEngine.resolve(intent, snapshot);
+      commitVignetteFlags(result.flagsUpdate, resume.flags, resume.investigationId);
+      let last = '';
+      for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'full', blockquoteHint: 'world_event' })) {
+        if (update.narrative) {
+          last = update.narrative;
+          setHistory(prev => {
+            const next = [...prev];
+            next[next.length - 1] = { ...next[next.length - 1], text: last };
+            return next;
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Resume scene failed', e);
+      setHistory(prev => {
+        const next = [...prev];
+        next[next.length - 1] = { ...next[next.length - 1], text: `### ${ACT_NAMES[resume.act] ?? `Act ${resume.act}`}` };
+        return next;
+      });
+    }
+  }, [commitVignetteFlags]);
 
   // Hydrate all React state from a cloud investigation (a save slot).
   // Shared by the slot menu (handleSelectSlot) and the anonymous-fallback loader.
   const loadInvestigationIntoState = useCallback(async (investigation: Investigation) => {
-    const logs = await GameRepository.getRecentLogs(investigation.id, 100);
-    const historyItems: GameHistoryItem[] = logs.map(l => ({
-      role: l.type === 'action' ? 'user' : 'assistant',
-      text: l.content,
-    }));
-
     const inv = (investigation as any).inventory || INITIAL_INVENTORY;
     // Use ?? not || — Act 0 (the prologue) is a valid act and must not fall back to 1.
     const act = (investigation as any).currentAct ?? INITIAL_ACT;
+    // Strip inert pre-refactor reload markers so old saves don't carry dead flags.
+    const loadedFlags = Object.fromEntries(
+      Object.entries(investigation.globalFlags as Record<string, boolean>)
+        .filter(([k]) => !k.startsWith('__pending_act_to_'))
+    );
+    const loadedIntroduced = (investigation as any).introducedNpcs?.length
+      ? ((investigation as any).introducedNpcs as string[])
+      : INITIAL_INTRODUCED_NPCS;
+    const loadedElapsed = (investigation as any).elapsedMinutes ?? 0;
 
     setLocation(investigation.currentLocation);
     setInventory(inv);
@@ -490,14 +598,10 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setMoralPoints(investigation.moralPoints || 0);
     setCurrentAct(act);
     setIsGameOver(investigation.status === 'solved');
-    setFlags(investigation.globalFlags as Record<string, boolean>);
+    setFlags(loadedFlags);
     setJournalNotes(investigation.journalNotes || INITIAL_JOURNAL);
-    setIntroducedNpcs(
-      (investigation as any).introducedNpcs?.length
-        ? ((investigation as any).introducedNpcs as string[])
-        : INITIAL_INTRODUCED_NPCS,
-    );
-    setElapsedMinutes((investigation as any).elapsedMinutes ?? 0);
+    setIntroducedNpcs(loadedIntroduced);
+    setElapsedMinutes(loadedElapsed);
     setActiveInvestigation(investigation);
 
     // Load Watson's diary casebook for this investigation.
@@ -514,22 +618,46 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     setStim((investigation as any).stim || {});
 
-    restorePendingTransitionFromFlags(
-      investigation.globalFlags as Record<string, boolean>,
-      act,
-      loadedNpcStates,
-    );
+    // The resume look replaces the opening; clear any held transition.
+    setPendingActTransition(null);
+    setIsActBreakReady(false);
+    setIsCurtainPlaying(false);
 
-    if (historyItems.length > 0) {
-      setHistory(historyItems);
-      setNotification({ message: 'Investigation Resumed!', type: 'success' });
-    } else {
-      // Slot exists but has no logs yet — generate the opening scene
+    // A brand-new slot (untouched prologue) keeps the authored dated intro.
+    const isFreshSlot = act === INITIAL_ACT
+      && investigation.currentLocation === INITIAL_LOCATION
+      && Object.keys(loadedFlags).length === 0
+      && loadedDiary.length === 0;
+
+    if (isFreshSlot) {
       hasGeneratedOpening.current = false;
       setHistory([]);
       generateOpeningScene();
+      return;
     }
-  }, [generateOpeningScene, restorePendingTransitionFromFlags]);
+
+    // Resume: do NOT replay the stored transcript — open with one fresh look at
+    // the saved location/act. The diary holds the durable record of clues/objects.
+    hasGeneratedOpening.current = true;
+    setIsLoading(true);
+    try {
+      await streamResumeScene({
+        location: investigation.currentLocation,
+        act,
+        inventory: inv,
+        flags: loadedFlags,
+        npcStates: loadedNpcStates,
+        medicalPoints: investigation.medicalPoints || 0,
+        moralPoints: investigation.moralPoints || 0,
+        introducedNpcs: loadedIntroduced,
+        elapsedMinutes: loadedElapsed,
+        investigationId: investigation.id,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+    setNotification({ message: 'Investigation Resumed!', type: 'success' });
+  }, [generateOpeningScene, streamResumeScene]);
 
   const handleSaveGame = useCallback(async (silent = false) => {
     setIsSaving(true);
@@ -545,6 +673,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       journalNotes,
       diaryEntries,
       introducedNpcs,
+      currentAct,
       timestamp: new Date().toLocaleString(),
     };
 
@@ -633,6 +762,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         turnCount,
       };
       const result = gameEngine.resolve(intent, snapshot);
+      commitVignetteFlags(result.flagsUpdate, flags, activeInvestigation?.id);
       let last = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'full', blockquoteHint: 'world_event' })) {
         if (update.narrative) {
@@ -652,7 +782,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         return next;
       });
     }
-  }, [inventory, flags, npcStates, medicalPoints, moralPoints, activeInvestigation, introducedNpcs, locationVisitCounts, turnCount]);
+  }, [inventory, flags, npcStates, medicalPoints, moralPoints, activeInvestigation, introducedNpcs, locationVisitCounts, turnCount, commitVignetteFlags]);
 
   // Player clicked "Begin Act N": play the cinematic curtain, commit the held
   // state behind it, then stream the arrival scene.
@@ -692,13 +822,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       return spentAfter === undefined || toAct <= spentAfter;
     }));
 
-    // Clear the reload marker from flags.
-    setFlags(prev => {
-      const next = { ...prev };
-      delete next[`__pending_act_to_${toAct}`];
-      return next;
-    });
-
     setPendingActTransition(null);
     setIsCurtainPlaying(false);
 
@@ -717,6 +840,53 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   }, [pendingActTransition, isCurtainPlaying, streamArrivalScene, captureLocationArrival]);
 
   const handleLoadGame = useCallback(async () => {
+    // Hydrate authoritative state from a local (guest) save and open with one
+    // fresh look — the stored transcript is ignored (diary carries continuity).
+    // Local saves don't store currentAct/elapsedMinutes, so the act is derived
+    // from the saved location and the clock starts at the act's canonical time.
+    const resumeFromLocalSave = async (state: GameState) => {
+      // Prefer the saved act; fall back to location-derived for older local saves
+      // (ambiguous for shared anchors, e.g. bond_office serves Act 5 and Act 6).
+      const guestAct = state.currentAct ?? LOCATIONS[state.location]?.act ?? INITIAL_ACT;
+      const guestNpcStates = state.npcStates || (INITIAL_NPC_STATES as Record<string, NPCState>);
+      const guestIntroduced = state.introducedNpcs?.length ? state.introducedNpcs : INITIAL_INTRODUCED_NPCS;
+      setLocation(state.location);
+      setInventory(state.inventory);
+      setMedicalPoints(state.medicalPoints || 0);
+      setMoralPoints(state.moralPoints || 0);
+      setCurrentAct(guestAct);
+      setElapsedMinutes(0);
+      setFlags(state.flags || {});
+      setJournalNotes(state.journalNotes || INITIAL_JOURNAL);
+      setNpcStates(guestNpcStates);
+      setIntroducedNpcs(guestIntroduced);
+      if (state.diaryEntries) {
+        setDiaryEntries(state.diaryEntries);
+        diarySeqRef.current = state.diaryEntries.reduce((m, e) => Math.max(m, e.sequence), -1) + 1;
+        loggedLocationsRef.current = new Set(state.diaryEntries.filter(e => e.kind === 'location').map(e => e.refId));
+      }
+      setPendingActTransition(null);
+      setIsActBreakReady(false);
+      setIsCurtainPlaying(false);
+      hasGeneratedOpening.current = true;
+      setIsLoading(true);
+      try {
+        await streamResumeScene({
+          location: state.location,
+          act: guestAct,
+          inventory: state.inventory,
+          flags: state.flags || {},
+          npcStates: guestNpcStates,
+          medicalPoints: state.medicalPoints || 0,
+          moralPoints: state.moralPoints || 0,
+          introducedNpcs: guestIntroduced,
+          elapsedMinutes: 0,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     try {
       if (user) {
         const investigation = await GameRepository.getActiveInvestigation(user.id);
@@ -731,18 +901,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       if (savedData) {
         const state = JSON.parse(savedData) as GameState;
         setNotification({ message: `Local Save Loaded! (${state.timestamp})`, type: 'success' });
-        setHistory(state.history);
-        setLocation(state.location);
-        setInventory(state.inventory);
-        setFlags(state.flags || {});
-        setJournalNotes(state.journalNotes || journalNotes);
-        if (state.diaryEntries) {
-          setDiaryEntries(state.diaryEntries);
-          diarySeqRef.current = state.diaryEntries.reduce((m, e) => Math.max(m, e.sequence), -1) + 1;
-          loggedLocationsRef.current = new Set(state.diaryEntries.filter(e => e.kind === 'location').map(e => e.refId));
-        }
-        if (state.npcStates) setNpcStates(state.npcStates);
-        restorePendingTransitionFromFlags(state.flags || {}, currentAct, state.npcStates || {});
+        await resumeFromLocalSave(state);
       }
     } catch (e) {
       console.error('Load failed', e);
@@ -752,20 +911,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         const savedData = localStorage.getItem('londonBleedsSave');
         if (savedData) {
           const state = JSON.parse(savedData) as GameState;
-          if (state.history && state.history.length > 0) {
-            setHistory(state.history);
-            setLocation(state.location);
-            setInventory(state.inventory);
-            setFlags(state.flags || {});
-            setJournalNotes(state.journalNotes || INITIAL_JOURNAL);
-            if (state.diaryEntries) {
-              setDiaryEntries(state.diaryEntries);
-              diarySeqRef.current = state.diaryEntries.reduce((m, e) => Math.max(m, e.sequence), -1) + 1;
-              loggedLocationsRef.current = new Set(state.diaryEntries.filter(e => e.kind === 'location').map(e => e.refId));
-            }
-            if (state.npcStates) setNpcStates(state.npcStates);
-            restorePendingTransitionFromFlags(state.flags || {}, currentAct, state.npcStates || {});
+          if (state.location) {
             setNotification({ message: 'Cloud unavailable — local save loaded.', type: 'error' });
+            await resumeFromLocalSave(state);
             return;
           }
         }
@@ -779,7 +927,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, generateOpeningScene, loadInvestigationIntoState, restorePendingTransitionFromFlags]);
+  }, [user, generateOpeningScene, loadInvestigationIntoState, streamResumeScene]);
 
   // ── Save slots ──────────────────────────────────────────────────────────────
   // On login the app shows a slot-select menu (see App.tsx) instead of auto-loading,
@@ -875,22 +1023,10 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           };
         });
       })
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'logs',
-        filter: `investigation_id=eq.${activeInvestigation.id}`,
-      }, (payload) => {
-        const data = payload.new as any;
-        setHistory(prev => {
-          const isDuplicate = prev.some(h => h.text === data.content);
-          if (isDuplicate) return prev;
-          return [...prev, {
-            role: data.type === 'action' ? 'user' : 'assistant',
-            text: data.content,
-          }];
-        });
-      })
+      // NOTE: no logs-INSERT handler. The feed is a clean per-session view (resume
+      // opens with a fresh look; the diary carries continuity), so injecting logged
+      // rows from another tab would reintroduce stale cross-session prose. Only the
+      // authoritative investigations/npc_states sync across tabs.
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -920,7 +1056,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     try {
       // STEP 1: Parse intent deterministically
-      const intent = parseIntent(userAction);
+      let intent = parseIntent(userAction);
+
+      // STEP 2.5: AI fallback — only when the deterministic parse missed a target.
+      // Resolves a natural-language/paraphrased object noun against THIS location's
+      // objects so the engine can fire the clue. No-op (and no latency) on hits.
+      intent = await resolveTargetWithAI(intent, location, inventory);
 
       // STEP 2: Build session snapshot from current React state
       const discoveredClueIds = user && activeInvestigation
@@ -978,10 +1119,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const newFlags         = result.flagsUpdate        ? { ...flags, ...result.flagsUpdate }      : flags;
 
       const advancingAct = !!result.newAct && !result.gameOver;
-      const actMarkerKey = `__pending_act_to_${result.newAct}`; // reload marker; only meaningful when advancingAct
 
       // On an act-advance we HOLD the sidebar-visible state (location, act, npcs,
-      // clock) until the player clicks "Begin Act N". Everything else commits now.
+      // clock) in React until the player clicks "Begin Act N" — so the cinematic
+      // (journal beat → Begin button) reads against the old act. The DB, however,
+      // is committed to the NEW act this turn (STEP 5) so a mid-curtain reload
+      // resumes correctly in the new act.
       if (!advancingAct) {
         setLocation(newLocation);
         if (result.newLocation) {
@@ -994,11 +1137,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setInventory(newInventory);
       setMedicalPoints(newMedicalPoints);
       setMoralPoints(newMoralPoints);
-      // Inject the reload marker into the flags we commit/persist this turn.
-      const flagsWithMarker = advancingAct
-        ? { ...newFlags, [actMarkerKey]: true }
-        : newFlags;
-      setFlags(flagsWithMarker);
+      setFlags(newFlags);
       if (result.gameOver) {
         setIsGameOver(true);
         if (result.endingType) setEndingType(result.endingType);
@@ -1032,7 +1171,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         move: 10, talk: 5, deduce: 5, examine: 2,
         use: 2, take: 1, inventory: 0, query: 1, help: 0, other: 2,
       };
-      const newElapsedMinutes = elapsedMinutes + (ACTION_TIME_MINUTES[result.actionType] ?? 2);
+      // On an act-advance the clock persists at the new act's canonical start (0);
+      // React's elapsedMinutes stays held until Begin (see the hold comment above).
+      const newElapsedMinutes = advancingAct ? 0 : elapsedMinutes + (ACTION_TIME_MINUTES[result.actionType] ?? 2);
       if (!advancingAct) setElapsedMinutes(newElapsedMinutes);
       setTurnCount(t => t + 1);
 
@@ -1067,8 +1208,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setCluesFoundThisAct(prev => [...prev, ...result.discoveredClueIds!]);
       }
 
-      // On an act-advance, stash the held pieces and persist only the Act I deltas
-      // (inventory/points/flags + the reload marker) — NOT the new act/location/npcs.
+      // On an act-advance, stash the held pieces for the UI-only curtain. The
+      // sidebar-visible React state stays on the old act until Begin; the DB is
+      // committed to the new act below (STEP 5).
       if (advancingAct) {
         setPendingActTransition({
           fromAct: currentAct,
@@ -1079,16 +1221,14 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setIsActBreakReady(false);
       }
 
-      // STEP 5: Persist engine result to Supabase
+      // STEP 5: Persist engine result to Supabase. On an act-advance we persist the
+      // RAW result (new act, anchor location, reset clock, act-entry NPC positions)
+      // so a mid-curtain reload reads the committed new act and resume-looks there.
       if (user && activeInvestigation) {
-        const persistResult = advancingAct
-          ? { ...result, newAct: undefined, newLocation: undefined,
-              flagsUpdate: { ...result.flagsUpdate, [actMarkerKey]: true } }
-          : result;
-        await GameRepository.applyEngineResult(activeInvestigation.id, persistResult, {
+        await GameRepository.applyEngineResult(activeInvestigation.id, result, {
           location, inventory, medicalPoints, moralPoints, currentAct, flags,
         }, newElapsedMinutes);
-        if (result.npcUpdates && !advancingAct) {
+        if (result.npcUpdates) {
           GameRepository.applyNPCUpdates(activeInvestigation.id, result.npcUpdates);
         }
         if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
@@ -1227,8 +1367,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
             });
           }
 
-          // Silent auto-save after every completed turn
-          handleSaveGame(true);
+          // Silent auto-save after every completed turn. Skipped on an act-advance
+          // turn: this closure still holds the OLD currentAct (React is held until
+          // Begin), so saving here would clobber the new act the DB already committed
+          // in STEP 5. beginNextAct persists the reconciled state at Begin.
+          if (!advancingAct) handleSaveGame(true);
         }
       }
 

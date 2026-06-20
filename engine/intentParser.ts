@@ -327,7 +327,29 @@ function matchObjectId(raw: string): string | undefined {
       bestLen = alias.length;
     }
   }
-  return bestId;
+  if (bestId) return bestId;
+
+  // Fuzzy stage (last resort): typo tolerance against object display-name words,
+  // giving object nouns the same forgiveness verbs already get via correctVerbTypo.
+  // EVERY meaningful input word must near-match a word in the name (full coverage,
+  // mirroring the subset rule) and the object must be UNIQUE — so "autopsi ledger"
+  // / "newspaper pyle" land, but a stray name word like "holmes" in "spek to
+  // holmes" never hijacks an object match.
+  const fuzzyWords = norm.split(/\s+/).filter(w => w.length >= 4 && !STOP_WORDS.has(w));
+  if (fuzzyWords.length >= 1) {
+    const fuzzyCandidates: string[] = [];
+    for (const [id, displayName] of Object.entries(OBJECT_DISPLAY_NAMES)) {
+      const dnWords = normalise(displayName).split(/\s+/).filter(w => w.length >= 4);
+      const allCovered = fuzzyWords.every(iw => {
+        const maxDist = iw.length >= 6 ? 2 : 1;
+        return dnWords.some(dw => editDistance(iw, dw, maxDist) <= maxDist);
+      });
+      if (allCovered) fuzzyCandidates.push(id);
+    }
+    if (fuzzyCandidates.length === 1) return fuzzyCandidates[0];
+  }
+
+  return undefined;
 }
 
 /**
