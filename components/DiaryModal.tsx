@@ -97,7 +97,7 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
               const collapsedNow = isCollapsed(act);
               const actEntries = [...byAct.get(act)!].sort((a, b) => b.sequence - a.sequence);
               return (
-                <div key={act} className="mb-5 last:mb-0">
+                <div key={act} className="mb-5 last:mb-6">
                   <button
                     onClick={() => setCollapsed(c => ({ ...c, [act]: !collapsedNow }))}
                     className="w-full flex items-center justify-between gap-2 mb-2 group"
@@ -124,7 +124,7 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                             <div>
                               <p className="text-sm font-semibold text-lb-primary">{resolved.title}</p>
                               {resolved.body && (
-                                <p className="mt-1 text-sm font-serif text-lb-primary/90 leading-relaxed">
+                                <p className="mt-1 text-sm font-sans text-lb-primary/90 leading-relaxed">
                                   {resolved.body}
                                 </p>
                               )}
