@@ -18,8 +18,8 @@ import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
 import { audioManager } from '../services/AudioManager';
-import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, formatGameClock } from '../engine/gameData';
+import { parseIntent, type ParsedIntent } from '../engine/intentParser';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -32,6 +32,58 @@ import {
 } from '../constants';
 import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod, ThemeMode } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
+
+// ── AI fallback target resolution ─────────────────────────────────────────────
+// The deterministic parser is strict about object NOUNS (exact name / alias /
+// fuzzy only — no semantic understanding). When an EXAMINE fails to land on an
+// object that is actually present here, we ask the AI to pick from THIS
+// location's objects. Constrained to that list → it can never invent an object
+// or grant a clue; the engine still owns every clue decision. Only fires on a
+// genuine miss, so clean inputs keep the instant offline fast-path.
+
+// Per-session memo: `${location}::${normalised raw}` → resolved object id (or null).
+const targetResolveCache = new Map<string, string | null>();
+
+async function resolveTargetWithAI(
+  intent: ParsedIntent,
+  location: string,
+  inventory: string[],
+): Promise<ParsedIntent> {
+  const present = LOCATIONS[location]?.interactables ?? [];
+
+  // A resolved object that is a real object id but not actionable here (not in
+  // this room and not a copy Watson carries) is treated as a soft miss —
+  // typically a fuzzy/alias slip onto an object that lives elsewhere.
+  const tid = intent.targetId;
+  const resolvedButAbsent =
+    !!tid &&
+    !!OBJECT_DISPLAY_NAMES[tid] &&
+    !present.includes(tid) &&
+    !(TAKEABLE_OBJECTS[tid] && inventory.includes(TAKEABLE_OBJECTS[tid]));
+
+  const isMiss =
+    intent.type === 'unresolved_target' ||
+    (intent.type === 'examine' && resolvedButAbsent);
+  if (!isMiss) return intent;
+
+  const raw = (intent.targetRaw || '').trim();
+  if (!raw || present.length === 0) return intent;
+
+  const key = `${location}::${raw.toLowerCase()}`;
+  let objectId: string | null;
+  if (targetResolveCache.has(key)) {
+    objectId = targetResolveCache.get(key)!;
+  } else {
+    const candidates = present.map(id => ({ id, name: OBJECT_DISPLAY_NAMES[id] ?? id }));
+    ({ objectId } = await aiService.resolveTargetObject(raw, 'examine', candidates));
+    targetResolveCache.set(key, objectId);
+  }
+  if (!objectId) return intent;
+
+  // Re-target as a normal examine so the engine runs its standard deterministic
+  // clue lookup against the resolved object. Keep the player's original raw text.
+  return { ...intent, type: 'examine', targetId: objectId };
+}
 
 // ── Public interface ──────────────────────────────────────────────────────────
 
@@ -1009,7 +1061,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     try {
       // STEP 1: Parse intent deterministically
-      const intent = parseIntent(userAction);
+      let intent = parseIntent(userAction);
+
+      // STEP 2.5: AI fallback — only when the deterministic parse missed a target.
+      // Resolves a natural-language/paraphrased object noun against THIS location's
+      // objects so the engine can fire the clue. No-op (and no latency) on hits.
+      intent = await resolveTargetWithAI(intent, location, inventory);
 
       // STEP 2: Build session snapshot from current React state
       const discoveredClueIds = user && activeInvestigation
