@@ -16,8 +16,10 @@ import { User } from '@supabase/supabase-js';
 import { callGemini } from '../services/geminiService';
 import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
-import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
+import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
+import { soundManager } from '../services/SoundManager';
+import type { SfxEvent } from '../services/soundAssets';
 import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
@@ -66,6 +68,12 @@ export interface GameStateReturn {
   isSaving: boolean;
   isDark: boolean;
   setIsDark: React.Dispatch<React.SetStateAction<boolean>>;
+  ambientSoundEnabled: boolean;
+  sfxEnabled: boolean;
+  timeThemeEnabled: boolean;
+  toggleAmbientSound: () => void;
+  toggleSfx: () => void;
+  toggleTimeTheme: () => void;
   notification: { message: string; type: 'success' | 'error' } | null;
   setNotification: React.Dispatch<React.SetStateAction<{ message: string; type: 'success' | 'error' } | null>>;
   connectionStatus: { gemini: boolean | null; supabase: boolean | null };
@@ -147,6 +155,15 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const [isDark, setIsDark] = useState<boolean>(() => {
     try { return localStorage.getItem('lb-theme') === 'dark'; } catch { return false; }
   });
+  const [ambientSoundEnabled, setAmbientSoundEnabled] = useState<boolean>(() => {
+    try { return localStorage.getItem('lb-ambient-sound') === 'true'; } catch { return false; }
+  });
+  const [sfxEnabled, setSfxEnabled] = useState<boolean>(() => {
+    try { return localStorage.getItem('lb-sfx') === 'true'; } catch { return false; }
+  });
+  const [timeThemeEnabled, setTimeThemeEnabled] = useState<boolean>(() => {
+    try { return localStorage.getItem('lb-time-theme') === 'true'; } catch { return false; }
+  });
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -218,14 +235,43 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // Theme persistence — localStorage + Supabase cloud sync
   useEffect(() => {
-    document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+    if (!timeThemeEnabled) {
+      document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+    }
     try { localStorage.setItem('lb-theme', isDark ? 'dark' : 'light'); } catch {}
-    // Sync to cloud when logged in (user accessed via closure — intentionally omitted from deps)
     if (user) {
       GameRepository.upsertProfile(user.id, { themePreference: isDark ? 'dark' : 'light' });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDark]);
+  }, [isDark, timeThemeEnabled]);
+
+  // Settings persistence
+  useEffect(() => {
+    try { localStorage.setItem('lb-ambient-sound', String(ambientSoundEnabled)); } catch {}
+    soundManager.setAmbientEnabled(ambientSoundEnabled);
+  }, [ambientSoundEnabled]);
+
+  useEffect(() => {
+    try { localStorage.setItem('lb-sfx', String(sfxEnabled)); } catch {}
+    soundManager.setSfxEnabled(sfxEnabled);
+  }, [sfxEnabled]);
+
+  useEffect(() => {
+    try { localStorage.setItem('lb-time-theme', String(timeThemeEnabled)); } catch {}
+  }, [timeThemeEnabled]);
+
+  // Time-of-day theme: override data-theme based on in-game clock
+  useEffect(() => {
+    if (!timeThemeEnabled) return;
+    const cfg = ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1];
+    const totalMinutes = cfg.canonicalMinutes + elapsedMinutes;
+    const period = computeTimePeriod(totalMinutes);
+    const themeMap: Record<string, string> = {
+      dawn: 'dawn', morning: 'morning', afternoon: 'light',
+      evening: 'evening', night: 'dark', lateNight: 'dark',
+    };
+    document.documentElement.dataset.theme = themeMap[period] || 'light';
+  }, [timeThemeEnabled, currentAct, elapsedMinutes]);
 
   // Load theme preference from cloud when user profile becomes available
   useEffect(() => {
@@ -726,6 +772,14 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       }
       setElapsedMinutes(newElapsedMinutes);
 
+      // Sound triggers
+      if (result.gameOver) soundManager.playSfx('gameOver');
+      else if (result.newAct) soundManager.playSfx('actChange');
+      else if (result.newLocation) soundManager.playSfx('newLocation');
+      if (result.discoveredClueIds?.length) soundManager.playSfx('clue');
+      if (result.inventoryAdd?.length) soundManager.playSfx('item');
+      soundManager.playAmbient(newLocation, (ACT_WEATHER[result.newAct || currentAct] ?? ACT_WEATHER[1]).condition);
+
       // Capture journal data before resetting per-act tracking (if act is advancing)
       let pendingJournalSummary: ActJournalSummary | null = null;
       if (result.newAct) {
@@ -1036,6 +1090,18 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     await refreshSlots();
   }, [activeInvestigation?.id, refreshSlots]);
 
+  const toggleAmbientSound = useCallback(() => setAmbientSoundEnabled(v => !v), []);
+  const toggleSfx = useCallback(() => setSfxEnabled(v => !v), []);
+  const toggleTimeTheme = useCallback(() => setTimeThemeEnabled(v => !v), []);
+
+  // Start ambient on load if enabled
+  useEffect(() => {
+    if (ambientSoundEnabled && location) {
+      soundManager.playAmbient(location, (ACT_WEATHER[currentAct] ?? ACT_WEATHER[1]).condition);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ambientSoundEnabled]);
+
   // ── Return ────────────────────────────────────────────────────────────────
 
   return {
@@ -1076,6 +1142,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     isSaving,
     isDark,
     setIsDark,
+    ambientSoundEnabled,
+    sfxEnabled,
+    timeThemeEnabled,
+    toggleAmbientSound,
+    toggleSfx,
+    toggleTimeTheme,
     notification,
     setNotification,
     connectionStatus,

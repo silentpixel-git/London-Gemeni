@@ -30,6 +30,33 @@
   --lb-border:    42  48  64;   /* #2a3040  dark separator        */
 }
 
+[data-theme="dawn"] {
+  --lb-bg:       254 243 225;   /* warm peach parchment */
+  --lb-paper:    255 250 240;   /* soft cream */
+  --lb-primary:   58  42  28;   /* dark sienna */
+  --lb-accent:   198 120  10;   /* golden amber */
+  --lb-muted:    156 132 108;   /* warm taupe */
+  --lb-border:   218 198 172;   /* soft tan */
+}
+
+[data-theme="morning"] {
+  --lb-bg:       252 248 240;   /* bright warm parchment */
+  --lb-paper:    255 253 248;   /* near-white warm */
+  --lb-primary:   46  52  72;   /* deep blue-grey */
+  --lb-accent:   201 128  12;   /* warm brass */
+  --lb-muted:    138 148 172;   /* cool slate */
+  --lb-border:   204 210 224;   /* light periwinkle */
+}
+
+[data-theme="evening"] {
+  --lb-bg:        36  30  24;   /* warm dark brown */
+  --lb-paper:     48  40  32;   /* dark warm card */
+  --lb-primary:  222 208 192;   /* warm cream text */
+  --lb-accent:   218 152  20;   /* warm gold */
+  --lb-muted:    118 104  88;   /* muted brown */
+  --lb-border:    62  52  42;   /* dark warm border */
+}
+
 /* Smooth theme transition on all elements */
 *, *::before, *::after {
   transition-property: background-color, border-color, color, fill, stroke;

@@ -114,6 +114,12 @@ const AppContent: React.FC = () => {
           isSaving={gs.isSaving}
           isDark={gs.isDark}
           onToggleDark={() => gs.setIsDark(d => !d)}
+          timeThemeEnabled={gs.timeThemeEnabled}
+          ambientSoundEnabled={gs.ambientSoundEnabled}
+          sfxEnabled={gs.sfxEnabled}
+          onToggleAmbient={gs.toggleAmbientSound}
+          onToggleSfx={gs.toggleSfx}
+          onToggleTimeTheme={gs.toggleTimeTheme}
           user={user}
           userProfile={userProfile}
           onSave={() => gs.handleSaveGame()}

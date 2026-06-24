@@ -16,6 +16,7 @@ import {
   PanelLeftClose, PanelLeftOpen, Sun, Moon, User as UserIcon,
   ChevronDown, Save, FolderOpen, LogOut, LogIn, Pencil, RefreshCw,
 } from 'lucide-react';
+import { SettingsPanel } from './SettingsPanel';
 
 interface HeaderProps {
   isSidebarOpen: boolean;
@@ -25,6 +26,12 @@ interface HeaderProps {
   isSaving: boolean;
   isDark: boolean;
   onToggleDark: () => void;
+  timeThemeEnabled: boolean;
+  ambientSoundEnabled: boolean;
+  sfxEnabled: boolean;
+  onToggleAmbient: () => void;
+  onToggleSfx: () => void;
+  onToggleTimeTheme: () => void;
   user: User | null;
   userProfile: UserProfile | null;
   onSave: () => void;
@@ -43,6 +50,12 @@ export const Header: React.FC<HeaderProps> = ({
   isSaving,
   isDark,
   onToggleDark,
+  timeThemeEnabled,
+  ambientSoundEnabled,
+  sfxEnabled,
+  onToggleAmbient,
+  onToggleSfx,
+  onToggleTimeTheme,
   user,
   userProfile,
   onSave,
@@ -131,11 +144,26 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Right — dark mode toggle + profile */}
       <div className="flex items-center gap-2">
 
+        {/* Settings gear */}
+        <SettingsPanel
+          ambientSoundEnabled={ambientSoundEnabled}
+          sfxEnabled={sfxEnabled}
+          timeThemeEnabled={timeThemeEnabled}
+          onToggleAmbient={onToggleAmbient}
+          onToggleSfx={onToggleSfx}
+          onToggleTimeTheme={onToggleTimeTheme}
+        />
+
         {/* Dark / Light toggle */}
         <button
           onClick={onToggleDark}
-          className="p-2 text-lb-muted hover:text-lb-accent hover:bg-lb-primary/5 rounded-md transition-colors"
-          title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          disabled={timeThemeEnabled}
+          className={`p-2 rounded-md transition-colors ${
+            timeThemeEnabled
+              ? 'text-lb-muted/40 cursor-not-allowed'
+              : 'text-lb-muted hover:text-lb-accent hover:bg-lb-primary/5'
+          }`}
+          title={timeThemeEnabled ? 'Controlled by time-based theme' : isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         >
           {isDark ? <Sun size={18} /> : <Moon size={18} />}
