@@ -15,8 +15,8 @@ import type { UserProfile } from '../services/GameRepository';
 import {
   PanelLeftClose, PanelLeftOpen, Sun, Moon, User as UserIcon,
   ChevronDown, Save, FolderOpen, LogOut, LogIn, Pencil, RefreshCw,
+  Palette, Volume2, Waves,
 } from 'lucide-react';
-import { SettingsPanel } from './SettingsPanel';
 
 interface HeaderProps {
   isSidebarOpen: boolean;
@@ -26,12 +26,12 @@ interface HeaderProps {
   isSaving: boolean;
   isDark: boolean;
   onToggleDark: () => void;
-  timeThemeEnabled: boolean;
-  ambientSoundEnabled: boolean;
-  sfxEnabled: boolean;
+  atmosphericTheme: boolean;
+  onToggleAtmospheric: () => void;
+  soundEffects: boolean;
+  onToggleSound: () => void;
+  ambientAudio: boolean;
   onToggleAmbient: () => void;
-  onToggleSfx: () => void;
-  onToggleTimeTheme: () => void;
   user: User | null;
   userProfile: UserProfile | null;
   onSave: () => void;
@@ -50,12 +50,12 @@ export const Header: React.FC<HeaderProps> = ({
   isSaving,
   isDark,
   onToggleDark,
-  timeThemeEnabled,
-  ambientSoundEnabled,
-  sfxEnabled,
+  atmosphericTheme,
+  onToggleAtmospheric,
+  soundEffects,
+  onToggleSound,
+  ambientAudio,
   onToggleAmbient,
-  onToggleSfx,
-  onToggleTimeTheme,
   user,
   userProfile,
   onSave,
@@ -144,29 +144,43 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Right — dark mode toggle + profile */}
       <div className="flex items-center gap-2">
 
-        {/* Settings gear */}
-        <SettingsPanel
-          ambientSoundEnabled={ambientSoundEnabled}
-          sfxEnabled={sfxEnabled}
-          timeThemeEnabled={timeThemeEnabled}
-          onToggleAmbient={onToggleAmbient}
-          onToggleSfx={onToggleSfx}
-          onToggleTimeTheme={onToggleTimeTheme}
-        />
-
         {/* Dark / Light toggle */}
         <button
           onClick={onToggleDark}
-          disabled={timeThemeEnabled}
-          className={`p-2 rounded-md transition-colors ${
-            timeThemeEnabled
-              ? 'text-lb-muted/40 cursor-not-allowed'
-              : 'text-lb-muted hover:text-lb-accent hover:bg-lb-primary/5'
-          }`}
-          title={timeThemeEnabled ? 'Controlled by time-based theme' : isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          className="p-2 text-lb-muted hover:text-lb-accent hover:bg-lb-primary/5 rounded-md transition-colors"
+          title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         >
           {isDark ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+
+        {/* Atmosphere toggles — always visible (independent of sign-in) */}
+        <button
+          onClick={onToggleAtmospheric}
+          className={`p-2 rounded-md hover:bg-lb-primary/5 transition-colors ${atmosphericTheme ? 'text-lb-accent' : 'text-lb-muted hover:text-lb-accent'}`}
+          title={`Time-of-day colours: ${atmosphericTheme ? 'On' : 'Off'}`}
+          aria-label={`Time-of-day colours: ${atmosphericTheme ? 'On' : 'Off'}`}
+          aria-pressed={atmosphericTheme}
+        >
+          <Palette size={18} />
+        </button>
+        <button
+          onClick={onToggleSound}
+          className={`p-2 rounded-md hover:bg-lb-primary/5 transition-colors ${soundEffects ? 'text-lb-accent' : 'text-lb-muted hover:text-lb-accent'}`}
+          title={`Sound effects: ${soundEffects ? 'On' : 'Off'}`}
+          aria-label={`Sound effects: ${soundEffects ? 'On' : 'Off'}`}
+          aria-pressed={soundEffects}
+        >
+          <Volume2 size={18} />
+        </button>
+        <button
+          onClick={onToggleAmbient}
+          className={`p-2 rounded-md hover:bg-lb-primary/5 transition-colors ${ambientAudio ? 'text-lb-accent' : 'text-lb-muted hover:text-lb-accent'}`}
+          title={`Ambient sound: ${ambientAudio ? 'On' : 'Off'}`}
+          aria-label={`Ambient sound: ${ambientAudio ? 'On' : 'Off'}`}
+          aria-pressed={ambientAudio}
+        >
+          <Waves size={18} />
         </button>
 
         {/* Unauthenticated: Sign In pill */}

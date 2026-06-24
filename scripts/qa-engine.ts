@@ -71,6 +71,8 @@ function buildSnapshot(overrides: Partial<SessionSnapshot> = {}): SessionSnapsho
     turnsAtLocationWithoutProgress: 0,
     elapsedMinutes: 0,
     introducedNpcs: [...INITIAL_INTRODUCED_NPCS],
+    locationVisitCounts: {},
+    turnCount: 0,
     ...overrides,
   };
 }
@@ -815,6 +817,237 @@ function runNotebookPoi() {
     : fail('NotebookPoi: Edmund leaked into the POI ledger');
 }
 
+// ── Scenario 16: Intent parser — verb typo correction ─────────────────────────
+
+function runTypoCorrection() {
+  console.log('\n=== SCENARIO: typo-correction ===');
+
+  const cases: Array<{ input: string; type: string; targetId?: string; label: string }> = [
+    { input: 'exmaine the case files wall', type: 'examine', targetId: 'case_files_wall', label: 'transposed examine resolves target' },
+    { input: 'spek to holmes', type: 'talk', targetId: 'holmes', label: 'misspelled speak → talk' },
+    { input: 'shwo letter to holmes', type: 'show', targetId: 'from_hell_letter', label: 'transposed show keeps show intent (not implicit examine)' },
+    { input: 'dorp letter', type: 'drop', targetId: 'from_hell_letter', label: 'transposed drop keeps drop intent' },
+    { input: 'raed letter', type: 'read', targetId: 'from_hell_letter', label: 'transposed read keeps read intent' },
+  ];
+  for (const c of cases) {
+    const r = parseIntent(c.input);
+    r.type === c.type && r.targetId === c.targetId
+      ? pass(`Typo: ${c.label}`)
+      : fail(`Typo: ${c.label}`, `got type=${r.type} targetId=${r.targetId}`);
+  }
+
+  // Raw input is preserved for the AI context
+  const rRaw = parseIntent('exmaine the case files wall');
+  rRaw.raw === 'exmaine the case files wall'
+    ? pass('Typo: original raw input preserved after correction')
+    : fail('Typo: raw input was rewritten', rRaw.raw);
+
+  // No false positives: legitimate inputs and gibberish are untouched
+  const rLegit = parseIntent('take the lantern');
+  rLegit.type === 'take'
+    ? pass('Typo: legitimate verb unaffected')
+    : fail('Typo: legitimate verb misparsed', rLegit.type);
+  const rNoise = parseIntent('blorptastic nonsense');
+  rNoise.type === 'other'
+    ? pass('Typo: gibberish still falls through to other')
+    : fail('Typo: gibberish incorrectly matched a verb', rNoise.type);
+}
+
+// ── Scenario 17: USE combination act gate (spoiler containment) ───────────────
+
+function runUseCombinationActGate() {
+  console.log('\n=== SCENARIO: use-combination-act-gate ===');
+
+  // kidney_parcel + autopsy_ledger grants clue_08 (asylum-reveal content) and
+  // must be blocked before Act 6 even with both documents in hand.
+  const inv = ['Kidney Examination Notes', 'Autopsy Ledger Notes'];
+  const sAct4 = buildSnapshot({ currentAct: 4, location: 'lusk_office', inventory: inv });
+  const r1 = gameEngine.resolve(parseIntent('use kidney parcel with autopsy ledger'), sAct4);
+  !r1.actionSuccess && r1.discoveredClueIds.length === 0
+    ? pass('ActGate: kidney/ledger combination blocked in Act 4')
+    : fail('ActGate: clue_08 grantable before Act 6', JSON.stringify(r1.discoveredClueIds));
+  !r1.aiContext.actionResultNote.toLowerCase().includes('edmund') &&
+  !r1.aiContext.actionResultNote.toLowerCase().includes('asylum')
+    ? pass('ActGate: blocked note leaks neither Edmund nor the asylum')
+    : fail('ActGate: blocked note contains spoiler content');
+
+  const sAct6 = buildSnapshot({ currentAct: 6, location: 'private_asylum', inventory: inv });
+  const r2 = gameEngine.resolve(parseIntent('use kidney parcel with autopsy ledger'), sAct6);
+  r2.actionSuccess && r2.discoveredClueIds.includes('clue_08_preserved_kidney')
+    ? pass('ActGate: combination grants clue_08 in Act 6')
+    : fail('ActGate: combination broken in Act 6', JSON.stringify(r2.discoveredClueIds));
+}
+
+// ── Scenario 18: itemsGained in narration context ─────────────────────────────
+
+function runItemsGained() {
+  console.log('\n=== SCENARIO: items-gained ===');
+
+  // Examine-grant: newspaper_pile yields the Dear Boss clipping (Act 0)
+  const s = buildSnapshot();
+  const r1 = gameEngine.resolve(parseIntent('examine the newspaper pile'), s);
+  r1.aiContext.itemsGained?.some(i => i.includes('Dear Boss'))
+    ? pass('ItemsGained: examine-grant surfaces item in aiContext')
+    : fail('ItemsGained: examine-grant missing from aiContext', JSON.stringify(r1.aiContext.itemsGained));
+
+  // Already-owned: re-examining must NOT report a gain
+  const sOwned = buildSnapshot({
+    inventory: ['Newspaper Clipping (the "Dear Boss" letter)'],
+    flags: { examined_baker_street_newspaper_pile: true },
+  });
+  const r2 = gameEngine.resolve(parseIntent('examine the newspaper pile'), sOwned);
+  !r2.aiContext.itemsGained
+    ? pass('ItemsGained: no phantom gain on re-examine')
+    : fail('ItemsGained: phantom gain reported', JSON.stringify(r2.aiContext.itemsGained));
+
+  // Explicit take
+  const sTake = buildSnapshot();
+  const r3 = gameEngine.resolve(parseIntent('take the newspaper pile'), sTake);
+  r3.aiContext.itemsGained?.some(i => i.includes('Dear Boss'))
+    ? pass('ItemsGained: take surfaces item in aiContext')
+    : fail('ItemsGained: take missing from aiContext', JSON.stringify(r3.aiContext.itemsGained));
+}
+
+// ── Scenario 19: Inventory item awareness ─────────────────────────────────────
+
+function runInventoryAwareness() {
+  console.log('\n=== SCENARIO: inventory-awareness ===');
+
+  // Alias precedence: "dear boss letter" must resolve to newspaper_pile,
+  // not from_hell_letter (the shorter 'letter' alias).
+  const r1 = parseIntent('examine dear boss letter');
+  r1.targetId === 'newspaper_pile'
+    ? pass('InvAware: "dear boss letter" resolves to newspaper_pile (longest alias wins)')
+    : fail('InvAware: alias precedence broken', `got ${r1.targetId}`);
+  const r2 = parseIntent('read the newspaper clipping about the dear boss letter');
+  r2.targetId === 'newspaper_pile'
+    ? pass('InvAware: "newspaper clipping..." resolves to newspaper_pile')
+    : fail('InvAware: clipping alias broken', `got ${r2.targetId}`);
+  // Bare "letter" still resolves to the From Hell letter
+  const r3 = parseIntent('examine the letter');
+  r3.targetId === 'from_hell_letter'
+    ? pass('InvAware: bare "letter" still resolves to from_hell_letter')
+    : fail('InvAware: bare letter alias regressed', `got ${r3.targetId}`);
+
+  // Carried copy: examining an object not present at the location but whose
+  // takeable item is in inventory must succeed, never "not present here".
+  const sCarrying = buildSnapshot({
+    currentAct: 4,
+    location: 'lusk_office',
+    inventory: ['Newspaper Clipping (the "Dear Boss" letter)'],
+  });
+  const r4 = gameEngine.resolve(parseIntent('examine the newspaper clipping'), sCarrying);
+  r4.actionSuccess && r4.aiContext.actionResultNote.includes('medical bag')
+    ? pass('InvAware: carried item examinable away from its source location')
+    : fail('InvAware: carried item blocked', r4.aiContext.actionResultNote.slice(0, 120));
+
+  // Not carried and not present → still correctly blocked
+  const sEmpty = buildSnapshot({ currentAct: 4, location: 'lusk_office' });
+  const r5 = gameEngine.resolve(parseIntent('examine the newspaper clipping'), sEmpty);
+  !r5.actionSuccess
+    ? pass('InvAware: absent + not carried still blocked')
+    : fail('InvAware: phantom examine of absent object');
+}
+
+// ── Scenario 20: Living world (vignettes, weather drift, idle, deduce hint) ───
+
+function runLivingWorld() {
+  console.log('\n=== SCENARIO: living-world ===');
+
+  // Vignette fires once on full-mode narration, then never again
+  const s1 = buildSnapshot({ currentAct: 1, location: 'dorset_street' });
+  const r1 = gameEngine.resolve(parseIntent('look'), s1);
+  const v1 = r1.aiContext.vignette;
+  const vFlag = Object.keys(r1.flagsUpdate ?? {}).find(k => k.startsWith('vignette_dorset_street_'));
+  v1 && vFlag
+    ? pass('LivingWorld: vignette fires on full-mode with once-only flag')
+    : fail('LivingWorld: vignette missing', JSON.stringify({ v1: !!v1, vFlag }));
+  // With ALL vignette flags set, none fires
+  const allVignetteFlags: Record<string, boolean> = {};
+  for (let i = 0; i < 5; i++) allVignetteFlags[`vignette_dorset_street_${i}`] = true;
+  const s2 = buildSnapshot({ currentAct: 1, location: 'dorset_street', flags: allVignetteFlags });
+  const r2 = gameEngine.resolve(parseIntent('look'), s2);
+  !r2.aiContext.vignette
+    ? pass('LivingWorld: spent vignettes never refire')
+    : fail('LivingWorld: vignette refired after flag set');
+
+  // Weather drift: Act 0 shifts to fog after 120 elapsed minutes
+  const sEarly = buildSnapshot({ elapsedMinutes: 30 });
+  const sLate  = buildSnapshot({ elapsedMinutes: 130 });
+  const wEarly = gameEngine.resolve(parseIntent('look'), sEarly).aiContext.weather;
+  const wLate  = gameEngine.resolve(parseIntent('look'), sLate).aiContext.weather;
+  wEarly.condition === 'clear-night' && wLate.condition === 'foggy'
+    ? pass('LivingWorld: intra-act weather drift (clear-night → foggy after 120min)')
+    : fail('LivingWorld: weather drift broken', JSON.stringify({ wEarly, wLate }));
+
+  // Idle behavior rotates with turnCount and never targets the interviewed NPC
+  const idleAt = (tc: number) => {
+    const s = buildSnapshot({ turnCount: tc });
+    const r = gameEngine.resolve(parseIntent('examine the whitechapel map'), s);
+    return (r.aiContext.npcScriptedLines ?? []).find(l =>
+      l.npcId === 'holmes' && l.instruction.startsWith('Background only'))?.instruction;
+  };
+  const i0 = idleAt(0), i1 = idleAt(1);
+  i0 && i1 && i0 !== i1
+    ? pass('LivingWorld: Holmes idle behavior present and rotates by turn')
+    : fail('LivingWorld: idle rotation broken', JSON.stringify({ i0, i1 }));
+  const sTalk = buildSnapshot({ turnCount: 0 });
+  const rTalk = gameEngine.resolve(parseIntent('talk to holmes'), sTalk);
+  !(rTalk.aiContext.npcScriptedLines ?? []).some(l => l.instruction.startsWith('Background only') && l.npcId === 'holmes')
+    ? pass('LivingWorld: no idle line for the NPC being interviewed')
+    : fail('LivingWorld: idle line injected during interview');
+
+  // Blocked deduction names accessible ground not yet covered (spoiler-safe)
+  const sDeduce = buildSnapshot({ currentAct: 2, location: 'whitechapel_mortuary', discoveredClueIds: ['clue_00_case_overview'] });
+  const rD = gameEngine.resolve(parseIntent('deduce Dr Bond is the killer'), sDeduce);
+  const note = rD.aiContext.actionResultNote;
+  !rD.actionSuccess && /ground not yet covered/.test(note)
+    ? pass('LivingWorld: low-clue deduction points at uncovered locations')
+    : fail('LivingWorld: deduce hint missing', note.slice(0, 140));
+  !/prasarved|edmund|halward|asylum/i.test(note)
+    ? pass('LivingWorld: deduce hint is spoiler-safe')
+    : fail('LivingWorld: deduce hint leaks clue content');
+}
+
+// ── Scenario 21: Show dative form + single-NPC default ────────────────────────
+
+function runShowDative() {
+  console.log('\n=== SCENARIO: show-dative ===');
+
+  // "show holmes the newspaper clipping" must keep BOTH npc and item
+  const r1 = parseIntent('Show holmes the newspaper clipping');
+  r1.type === 'show' && r1.targetId === 'newspaper_pile' && r1.showTargetNpcId === 'holmes'
+    ? pass('ShowDative: "show holmes the clipping" resolves npc + item')
+    : fail('ShowDative: dative parse broken', JSON.stringify({ t: r1.targetId, n: r1.showTargetNpcId }));
+  // Classic "show X to Y" unchanged
+  const r2 = parseIntent('show the newspaper clipping to holmes');
+  r2.showTargetNpcId === 'holmes' && r2.targetId === 'newspaper_pile'
+    ? pass('ShowDative: classic "show X to Y" unchanged')
+    : fail('ShowDative: classic form regressed');
+
+  // Engine: "show clipping" with only Holmes present defaults to Holmes and
+  // sets the Act 0 gate flag (this was the prologue softlock).
+  const s = buildSnapshot({
+    inventory: [...INITIAL_INVENTORY, 'Newspaper Clipping (the "Dear Boss" letter)'],
+    flags: { examined_baker_street_newspaper_pile: true },
+  });
+  const r3 = gameEngine.resolve(parseIntent('show the newspaper clipping'), s);
+  r3.actionSuccess && r3.flagsUpdate?.['showed_newspaper_pile_to_holmes']
+    ? pass('ShowDative: single-NPC default sets showed_..._to_holmes gate flag')
+    : fail('ShowDative: single-NPC default broken', JSON.stringify(r3.flagsUpdate));
+
+  // Full dative phrasing also satisfies the gate
+  const r4 = gameEngine.resolve(parseIntent('Show holmes the newspaper clipping'), s);
+  r4.actionSuccess && r4.flagsUpdate?.['showed_newspaper_pile_to_holmes']
+    ? pass('ShowDative: dative phrasing satisfies the Act 0 gate')
+    : fail('ShowDative: dative phrasing fails the gate', JSON.stringify(r4.flagsUpdate));
+
+  // Re-examining the pile with the clipping held must instruct the AI not to re-take
+  const r5 = gameEngine.resolve(parseIntent('examine the newspaper pile'), s);
+  r5.aiContext.actionResultNote.includes('do NOT narrate him taking')
+    ? pass('ShowDative: re-examine carries do-not-retake instruction')
+    : fail('ShowDative: re-take guard missing', r5.aiContext.actionResultNote.slice(0, 140));
+}
 // ── Scenario 16: Partial object matching ──────────────────────────────────────
 
 function runPartialObjectMatching() {
@@ -899,6 +1132,12 @@ try {
   runDropMechanic();
   runTalkGatedAdvance();
   runNotebookPoi();
+  runTypoCorrection();
+  runUseCombinationActGate();
+  runItemsGained();
+  runInventoryAwareness();
+  runLivingWorld();
+  runShowDative();
   runPartialObjectMatching();
   runUnresolvedTargetNarration();
 } catch (err) {

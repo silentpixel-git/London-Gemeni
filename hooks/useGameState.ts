@@ -17,10 +17,9 @@ import { callGemini } from '../services/geminiService';
 import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
-import { parseIntent } from '../engine/intentParser';
-import { soundManager } from '../services/SoundManager';
-import type { SfxEvent } from '../services/soundAssets';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA } from '../engine/gameData';
+import { audioManager } from '../services/AudioManager';
+import { parseIntent, type ParsedIntent } from '../engine/intentParser';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -31,8 +30,60 @@ import {
   INITIAL_INTRODUCED_NPCS,
   NPC_DISPLAY_NAMES,
 } from '../constants';
-import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext } from '../types';
+import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
+
+// ── AI fallback target resolution ─────────────────────────────────────────────
+// The deterministic parser is strict about object NOUNS (exact name / alias /
+// fuzzy only — no semantic understanding). When an EXAMINE fails to land on an
+// object that is actually present here, we ask the AI to pick from THIS
+// location's objects. Constrained to that list → it can never invent an object
+// or grant a clue; the engine still owns every clue decision. Only fires on a
+// genuine miss, so clean inputs keep the instant offline fast-path.
+
+// Per-session memo: `${location}::${normalised raw}` → resolved object id (or null).
+const targetResolveCache = new Map<string, string | null>();
+
+async function resolveTargetWithAI(
+  intent: ParsedIntent,
+  location: string,
+  inventory: string[],
+): Promise<ParsedIntent> {
+  const present = LOCATIONS[location]?.interactables ?? [];
+
+  // A resolved object that is a real object id but not actionable here (not in
+  // this room and not a copy Watson carries) is treated as a soft miss —
+  // typically a fuzzy/alias slip onto an object that lives elsewhere.
+  const tid = intent.targetId;
+  const resolvedButAbsent =
+    !!tid &&
+    !!OBJECT_DISPLAY_NAMES[tid] &&
+    !present.includes(tid) &&
+    !(TAKEABLE_OBJECTS[tid] && inventory.includes(TAKEABLE_OBJECTS[tid]));
+
+  const isMiss =
+    intent.type === 'unresolved_target' ||
+    (intent.type === 'examine' && resolvedButAbsent);
+  if (!isMiss) return intent;
+
+  const raw = (intent.targetRaw || '').trim();
+  if (!raw || present.length === 0) return intent;
+
+  const key = `${location}::${raw.toLowerCase()}`;
+  let objectId: string | null;
+  if (targetResolveCache.has(key)) {
+    objectId = targetResolveCache.get(key)!;
+  } else {
+    const candidates = present.map(id => ({ id, name: OBJECT_DISPLAY_NAMES[id] ?? id }));
+    ({ objectId } = await aiService.resolveTargetObject(raw, 'examine', candidates));
+    targetResolveCache.set(key, objectId);
+  }
+  if (!objectId) return intent;
+
+  // Re-target as a normal examine so the engine runs its standard deterministic
+  // clue lookup against the resolved object. Keep the player's original raw text.
+  return { ...intent, type: 'examine', targetId: objectId };
+}
 
 // ── Public interface ──────────────────────────────────────────────────────────
 
@@ -63,17 +114,19 @@ export interface GameStateReturn {
   weather: ActWeather;
 
   // UI / persistence
-  journalNotes: string;
-  isUpdatingJournal: boolean;
+  diaryEntries: DiaryEntry[];
   isSaving: boolean;
   isDark: boolean;
   setIsDark: React.Dispatch<React.SetStateAction<boolean>>;
-  ambientSoundEnabled: boolean;
-  sfxEnabled: boolean;
-  timeThemeEnabled: boolean;
-  toggleAmbientSound: () => void;
-  toggleSfx: () => void;
-  toggleTimeTheme: () => void;
+
+  // Atmosphere settings (time-of-day theming + audio)
+  timePeriod: TimePeriod;
+  atmosphericTheme: boolean;
+  setAtmosphericTheme: React.Dispatch<React.SetStateAction<boolean>>;
+  soundEffects: boolean;
+  setSoundEffects: React.Dispatch<React.SetStateAction<boolean>>;
+  ambientAudio: boolean;
+  setAmbientAudio: React.Dispatch<React.SetStateAction<boolean>>;
   notification: { message: string; type: 'success' | 'error' } | null;
   setNotification: React.Dispatch<React.SetStateAction<{ message: string; type: 'success' | 'error' } | null>>;
   connectionStatus: { gemini: boolean | null; supabase: boolean | null };
@@ -83,12 +136,18 @@ export interface GameStateReturn {
   scrollRef: React.RefObject<HTMLDivElement>;
   lastUserMessageRef: React.RefObject<HTMLDivElement>;
 
+  // Act-break curtain
+  pendingActTransition: PendingActTransition | null;
+  isActBreakReady: boolean;
+  isCurtainPlaying: boolean;
+  beginNextAct: () => Promise<void>;
+  handleJournalTypewriterDone: () => void;
+
   // Handlers
   handleAction: (userAction: string) => Promise<void>;
   handleSaveGame: (silent?: boolean) => Promise<void>;
   handleLoadGame: () => Promise<void>;
   handleConsultHolmes: () => Promise<void>;
-  handleUpdateJournal: () => Promise<void>;
   handleScroll: () => void;
 
   // Save slots
@@ -99,8 +158,22 @@ export interface GameStateReturn {
   handleDeleteSlot: (investigation: Investigation) => Promise<void>;
 }
 
+const CURTAIN_HOLD_MS = 4500; // enter animation eats ~1s; this leaves ~3.5s to read the act title
+
 const OPENING_FALLBACK_NARRATIVE =
   "> *221B Baker Street. November 1888. The sitting room is no longer quite a sitting room.*\n\nHolmes paces before the fire, his pipe cold in his hand. The case files are everywhere — pinned, spread, stacked. Five murders. Eleven weeks. Scotland Yard is floundering.\n\n**Sherlock Holmes** is here.\n**Objects of interest:** Case Files Wall, Newspapers, Chemistry Table, Watson's Armchair.\n**Possible exits:** Dorset Street.";
+
+// Extract the first prose sentence of a narration (skipping act headers and
+// blockquotes) — used as anti-repetition memory for the AI.
+function extractOpeningSentence(markdown: string): string | null {
+  const line = markdown
+    .split('\n')
+    .map(l => l.trim())
+    .find(l => l.length > 0 && !l.startsWith('#') && !l.startsWith('>') && !l.startsWith('**'));
+  if (!line) return null;
+  const sentence = line.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? line;
+  return sentence.length > 90 ? sentence.slice(0, 90) + '…' : sentence;
+}
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -134,16 +207,61 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // In-game clock — minutes elapsed since act's canonical start time
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  // How many times Watson has visited each location
+  const [locationVisitCounts, setLocationVisitCounts] = useState<Record<string, number>>({});
+  // First sentences of the last few narrations — anti-repetition memory for the AI
+  const [recentOpenings, setRecentOpenings] = useState<string[]>([]);
 
   // Proactive Holmes nudge — turns at current location without discovering a clue
   const [turnsAtLocationWithoutProgress, setTurnsAtLocationWithoutProgress] = useState(0);
   // Procedural act journals — clue IDs accumulated since last act advance
   const [cluesFoundThisAct, setCluesFoundThisAct] = useState<string[]>([]);
 
+  // ── Act-break curtain ─────────────────────────────────────────────────────
+  const [pendingActTransition, setPendingActTransition] = useState<PendingActTransition | null>(null);
+  const [isActBreakReady, setIsActBreakReady] = useState(false);   // diary finished typing → show Begin
+  const [isCurtainPlaying, setIsCurtainPlaying] = useState(false); // cinematic overlay animating
+
   // ── Journal / sidebar ───────────────────────────────────────────────────
+  // journalNotes still persists to the legacy investigations.journal_notes column
+  // but is no longer surfaced anywhere — Watson's diary is now the diaryEntries
+  // casebook below. Kept only to avoid a destructive DB migration.
   const [journalNotes, setJournalNotes] = useState(INITIAL_JOURNAL);
-  const [isUpdatingJournal, setIsUpdatingJournal] = useState(false);
   const [isConsultingHolmes, setIsConsultingHolmes] = useState(false);
+
+  // ── Watson's diary (auto-captured casebook) ───────────────────────────────
+  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
+  const diarySeqRef = useRef(0); // next monotonic sequence number for new entries
+  // Locations already recorded — dedupes arrival entries across reloads/paths.
+  const loggedLocationsRef = useRef<Set<string>>(new Set());
+
+  // Append diary entries: stamp id + sequence, update state, persist if signed in.
+  const captureDiaryEntries = useCallback(
+    (items: Array<Omit<DiaryEntry, 'id' | 'sequence'>>) => {
+      if (items.length === 0) return;
+      const created: DiaryEntry[] = items.map(it => ({
+        ...it,
+        id: crypto.randomUUID(),
+        sequence: diarySeqRef.current++,
+      }));
+      setDiaryEntries(prev => [...prev, ...created]);
+      if (user && activeInvestigation) {
+        GameRepository.addDiaryEntries(activeInvestigation.id, created);
+      }
+    },
+    [user, activeInvestigation],
+  );
+
+  // Record the first arrival at a location (authored Watson line, once per place).
+  const captureLocationArrival = useCallback(
+    (locationId: string, actNumber: number) => {
+      if (!LOCATION_DIARY[locationId]) return;
+      if (loggedLocationsRef.current.has(locationId)) return;
+      loggedLocationsRef.current.add(locationId);
+      captureDiaryEntries([{ kind: 'location', refId: locationId, actNumber }]);
+    },
+    [captureDiaryEntries],
+  );
 
   // ── Persistence / UI ────────────────────────────────────────────────────
   const [isSaving, setIsSaving] = useState(false);
@@ -155,25 +273,30 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const [isDark, setIsDark] = useState<boolean>(() => {
     try { return localStorage.getItem('lb-theme') === 'dark'; } catch { return false; }
   });
-  const [ambientSoundEnabled, setAmbientSoundEnabled] = useState<boolean>(() => {
-    try { return localStorage.getItem('lb-ambient-sound') === 'true'; } catch { return false; }
+  // Atmosphere settings — all default off, persisted to localStorage (POC).
+  const [atmosphericTheme, setAtmosphericTheme] = useState<boolean>(() => {
+    try { return localStorage.getItem('lb-atmospheric-theme') === 'on'; } catch { return false; }
   });
-  const [sfxEnabled, setSfxEnabled] = useState<boolean>(() => {
-    try { return localStorage.getItem('lb-sfx') === 'true'; } catch { return false; }
+  const [soundEffects, setSoundEffects] = useState<boolean>(() => {
+    try { return localStorage.getItem('lb-sound-effects') === 'on'; } catch { return false; }
   });
-  const [timeThemeEnabled, setTimeThemeEnabled] = useState<boolean>(() => {
-    try { return localStorage.getItem('lb-time-theme') === 'true'; } catch { return false; }
+  const [ambientAudio, setAmbientAudio] = useState<boolean>(() => {
+    try { return localStorage.getItem('lb-ambient-audio') === 'on'; } catch { return false; }
   });
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
   const hasGeneratedOpening = useRef(false);
-  const needsJournalUpdate = useRef(false);
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const lastUserMsgIdx = [...history].reverse().findIndex(m => m.role === 'user');
   const actualLastUserIdx = lastUserMsgIdx === -1 ? -1 : history.length - 1 - lastUserMsgIdx;
+
+  // In-game time-of-day phase — drives atmospheric theming and (later) audio.
+  const currentTimePeriod = computeTimePeriod(
+    (ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1]).canonicalMinutes + elapsedMinutes,
+  );
 
   // ── Effects ───────────────────────────────────────────────────────────────
 
@@ -233,45 +356,40 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthReady, pingSupabase]);
 
-  // Theme persistence — localStorage + Supabase cloud sync
+  // Apply the active data-theme. Atmospheric mode follows the in-game clock and
+  // overrides the manual light/dark toggle; otherwise the manual toggle applies.
   useEffect(() => {
-    if (!timeThemeEnabled) {
-      document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+    let theme: string;
+    if (atmosphericTheme) {
+      theme = (currentTimePeriod === 'night' || currentTimePeriod === 'lateNight') ? 'night'
+            : (currentTimePeriod === 'evening' || currentTimePeriod === 'dawn')   ? 'evening'
+            : 'light';
+    } else {
+      theme = isDark ? 'dark' : 'light';
     }
+    document.documentElement.dataset.theme = theme;
+  }, [isDark, atmosphericTheme, currentTimePeriod]);
+
+  // Persist the manual light/dark preference — localStorage + Supabase cloud sync.
+  useEffect(() => {
     try { localStorage.setItem('lb-theme', isDark ? 'dark' : 'light'); } catch {}
+    // Sync to cloud when logged in (user accessed via closure — intentionally omitted from deps)
     if (user) {
       GameRepository.upsertProfile(user.id, { themePreference: isDark ? 'dark' : 'light' });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDark, timeThemeEnabled]);
+  }, [isDark]);
 
-  // Settings persistence
+  // Persist the atmosphere toggles — localStorage only for the POC.
   useEffect(() => {
-    try { localStorage.setItem('lb-ambient-sound', String(ambientSoundEnabled)); } catch {}
-    soundManager.setAmbientEnabled(ambientSoundEnabled);
-  }, [ambientSoundEnabled]);
-
+    try { localStorage.setItem('lb-atmospheric-theme', atmosphericTheme ? 'on' : 'off'); } catch {}
+  }, [atmosphericTheme]);
   useEffect(() => {
-    try { localStorage.setItem('lb-sfx', String(sfxEnabled)); } catch {}
-    soundManager.setSfxEnabled(sfxEnabled);
-  }, [sfxEnabled]);
-
+    try { localStorage.setItem('lb-sound-effects', soundEffects ? 'on' : 'off'); } catch {}
+  }, [soundEffects]);
   useEffect(() => {
-    try { localStorage.setItem('lb-time-theme', String(timeThemeEnabled)); } catch {}
-  }, [timeThemeEnabled]);
-
-  // Time-of-day theme: override data-theme based on in-game clock
-  useEffect(() => {
-    if (!timeThemeEnabled) return;
-    const cfg = ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1];
-    const totalMinutes = cfg.canonicalMinutes + elapsedMinutes;
-    const period = computeTimePeriod(totalMinutes);
-    const themeMap: Record<string, string> = {
-      dawn: 'dawn', morning: 'morning', afternoon: 'light',
-      evening: 'evening', night: 'dark', lateNight: 'dark',
-    };
-    document.documentElement.dataset.theme = themeMap[period] || 'light';
-  }, [timeThemeEnabled, currentAct, elapsedMinutes]);
+    try { localStorage.setItem('lb-ambient-audio', ambientAudio ? 'on' : 'off'); } catch {}
+  }, [ambientAudio]);
 
   // Load theme preference from cloud when user profile becomes available
   useEffect(() => {
@@ -280,19 +398,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userProfile?.id]); // only fire when user identity changes, not on every profile update
-
-  // Auto-generate diary once after the opening scene finishes streaming.
-  // Guard on isLoading: history.length changes to 1 while text is still empty
-  // (streaming), so we wait until loading is false before checking hasContent.
-  useEffect(() => {
-    if (isLoading) return;
-    const hasContent = history.some(h => h.text && h.text.trim().length > 0);
-    if (needsJournalUpdate.current && hasContent && !isUpdatingJournal) {
-      needsJournalUpdate.current = false;
-      handleUpdateJournal();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [history.length, isLoading]);
 
   // Scroll to active turn when new assistant placeholder appears
   const scrollToActiveTurn = useCallback(() => {
@@ -331,11 +436,36 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     [isAutoScrollLocked]
   );
 
+  // The "look"-based scene generators (opening / act arrival / resume) render
+  // one-shot vignettes but, unlike a normal turn in handleAction, never commit
+  // the engine's flagsUpdate — so the vignette's `vignette_*` guard flag was
+  // never recorded and the vignette re-fired on every arrival/resume. Commit just
+  // those keys (NOT location/progression flags, which gate act advancement) so a
+  // vignette fires at most once. `baseFlags` is the freshest known flag set for
+  // the cloud write; persistence is skipped when no investigation id is available.
+  const commitVignetteFlags = useCallback((
+    flagsUpdate: Record<string, boolean> | undefined,
+    baseFlags: Record<string, boolean>,
+    investigationId?: string,
+  ) => {
+    if (!flagsUpdate) return;
+    const vig = Object.fromEntries(
+      Object.entries(flagsUpdate).filter(([k]) => k.startsWith('vignette_'))
+    );
+    if (Object.keys(vig).length === 0) return;
+    setFlags(prev => ({ ...prev, ...vig }));
+    if (user && investigationId) {
+      GameRepository.updateInvestigation(investigationId, { globalFlags: { ...baseFlags, ...vig } });
+    }
+  }, [user]);
+
   // ── Opening scene ─────────────────────────────────────────────────────────
 
   const generateOpeningScene = useCallback(async () => {
     if (hasGeneratedOpening.current) return;
     hasGeneratedOpening.current = true;
+    // Seed the diary with the opening locale so it is never empty on a fresh start.
+    captureLocationArrival(INITIAL_LOCATION, INITIAL_ACT);
     setIsLoading(true);
     setHistory([{ role: 'assistant', text: '' }]);
 
@@ -354,8 +484,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         turnsAtLocationWithoutProgress: 0,
         elapsedMinutes: 0,
         introducedNpcs: INITIAL_INTRODUCED_NPCS,
+        locationVisitCounts: {},
+        turnCount: 0,
       };
       const result = gameEngine.resolve(intent, snapshot);
+      commitVignetteFlags(result.flagsUpdate, {}, activeInvestigation?.id);
 
       const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 - three months after the Jack the Ripper murders had begun, and the day before it concluded.\n\n";
       // Inject fixed line AFTER the ### heading, not before it
@@ -377,22 +510,87 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [captureLocationArrival, commitVignetteFlags]);
 
   // ── Save / load ───────────────────────────────────────────────────────────
+
+  // Stream a single fresh "look" when RESUMING a saved game. The loaded
+  // authoritative snapshot is the source of truth — we do NOT replay the stored
+  // transcript; the diary carries the durable record. Takes the loaded values as
+  // explicit args (the loader's setX calls haven't flushed to closure state yet),
+  // builds a look at the SAVED location/act (not an act anchor), and starts the
+  // feed clean. Mirrors streamArrivalScene minus the act-entry concerns.
+  const streamResumeScene = useCallback(async (resume: {
+    location: string;
+    act: number;
+    inventory: string[];
+    flags: Record<string, boolean>;
+    npcStates: Record<string, NPCState>;
+    medicalPoints: number;
+    moralPoints: number;
+    introducedNpcs: string[];
+    elapsedMinutes: number;
+    investigationId?: string;
+  }) => {
+    setHistory([{ role: 'assistant', text: '' }]);
+    setIsAutoScrollLocked(false);
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
+    try {
+      const intent = parseIntent('look');
+      const snapshot: SessionSnapshot = {
+        location: resume.location,
+        inventory: resume.inventory,
+        flags: resume.flags,
+        npcStates: resume.npcStates,
+        currentAct: resume.act,
+        medicalPoints: resume.medicalPoints,
+        moralPoints: resume.moralPoints,
+        discoveredClueIds: [],
+        investigationId: resume.investigationId,
+        turnsAtLocationWithoutProgress: 0,
+        elapsedMinutes: resume.elapsedMinutes,
+        introducedNpcs: resume.introducedNpcs,
+        locationVisitCounts: {},
+        turnCount: 0,
+      };
+      const result = gameEngine.resolve(intent, snapshot);
+      commitVignetteFlags(result.flagsUpdate, resume.flags, resume.investigationId);
+      let last = '';
+      for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'full', blockquoteHint: 'world_event' })) {
+        if (update.narrative) {
+          last = update.narrative;
+          setHistory(prev => {
+            const next = [...prev];
+            next[next.length - 1] = { ...next[next.length - 1], text: last };
+            return next;
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Resume scene failed', e);
+      setHistory(prev => {
+        const next = [...prev];
+        next[next.length - 1] = { ...next[next.length - 1], text: `### ${ACT_NAMES[resume.act] ?? `Act ${resume.act}`}` };
+        return next;
+      });
+    }
+  }, [commitVignetteFlags]);
 
   // Hydrate all React state from a cloud investigation (a save slot).
   // Shared by the slot menu (handleSelectSlot) and the anonymous-fallback loader.
   const loadInvestigationIntoState = useCallback(async (investigation: Investigation) => {
-    const logs = await GameRepository.getRecentLogs(investigation.id, 100);
-    const historyItems: GameHistoryItem[] = logs.map(l => ({
-      role: l.type === 'action' ? 'user' : 'assistant',
-      text: l.content,
-    }));
-
     const inv = (investigation as any).inventory || INITIAL_INVENTORY;
     // Use ?? not || — Act 0 (the prologue) is a valid act and must not fall back to 1.
     const act = (investigation as any).currentAct ?? INITIAL_ACT;
+    // Strip inert pre-refactor reload markers so old saves don't carry dead flags.
+    const loadedFlags = Object.fromEntries(
+      Object.entries(investigation.globalFlags as Record<string, boolean>)
+        .filter(([k]) => !k.startsWith('__pending_act_to_'))
+    );
+    const loadedIntroduced = (investigation as any).introducedNpcs?.length
+      ? ((investigation as any).introducedNpcs as string[])
+      : INITIAL_INTRODUCED_NPCS;
+    const loadedElapsed = (investigation as any).elapsedMinutes ?? 0;
 
     setLocation(investigation.currentLocation);
     setInventory(inv);
@@ -400,39 +598,66 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setMoralPoints(investigation.moralPoints || 0);
     setCurrentAct(act);
     setIsGameOver(investigation.status === 'solved');
-    setFlags(investigation.globalFlags as Record<string, boolean>);
+    setFlags(loadedFlags);
     setJournalNotes(investigation.journalNotes || INITIAL_JOURNAL);
-    setIntroducedNpcs(
-      (investigation as any).introducedNpcs?.length
-        ? ((investigation as any).introducedNpcs as string[])
-        : INITIAL_INTRODUCED_NPCS,
-    );
-    setElapsedMinutes((investigation as any).elapsedMinutes ?? 0);
-    if (!investigation.journalNotes && historyItems.length > 0) {
-      needsJournalUpdate.current = true;
-    }
+    setIntroducedNpcs(loadedIntroduced);
+    setElapsedMinutes(loadedElapsed);
     setActiveInvestigation(investigation);
 
+    // Load Watson's diary casebook for this investigation.
+    const loadedDiary = await GameRepository.getDiaryEntries(investigation.id);
+    setDiaryEntries(loadedDiary);
+    diarySeqRef.current = loadedDiary.reduce((m, e) => Math.max(m, e.sequence), -1) + 1;
+    loggedLocationsRef.current = new Set(loadedDiary.filter(e => e.kind === 'location').map(e => e.refId));
+
     const npcMap = await GameRepository.getAllNPCStates(investigation.id);
-    setNpcStates(
-      Object.keys(npcMap).length > 0
-        ? { ...(INITIAL_NPC_STATES as Record<string, NPCState>), ...npcMap }
-        : (INITIAL_NPC_STATES as Record<string, NPCState>),
-    );
+    const loadedNpcStates: Record<string, NPCState> = Object.keys(npcMap).length > 0
+      ? { ...(INITIAL_NPC_STATES as Record<string, NPCState>), ...npcMap }
+      : (INITIAL_NPC_STATES as Record<string, NPCState>);
+    setNpcStates(loadedNpcStates);
 
     setStim((investigation as any).stim || {});
 
-    if (historyItems.length > 0) {
-      setHistory(historyItems);
-      setNotification({ message: 'Investigation Resumed!', type: 'success' });
-    } else {
-      // Slot exists but has no logs yet — generate the opening scene
+    // The resume look replaces the opening; clear any held transition.
+    setPendingActTransition(null);
+    setIsActBreakReady(false);
+    setIsCurtainPlaying(false);
+
+    // A brand-new slot (untouched prologue) keeps the authored dated intro.
+    const isFreshSlot = act === INITIAL_ACT
+      && investigation.currentLocation === INITIAL_LOCATION
+      && Object.keys(loadedFlags).length === 0
+      && loadedDiary.length === 0;
+
+    if (isFreshSlot) {
       hasGeneratedOpening.current = false;
-      needsJournalUpdate.current = true;
       setHistory([]);
       generateOpeningScene();
+      return;
     }
-  }, [generateOpeningScene]);
+
+    // Resume: do NOT replay the stored transcript — open with one fresh look at
+    // the saved location/act. The diary holds the durable record of clues/objects.
+    hasGeneratedOpening.current = true;
+    setIsLoading(true);
+    try {
+      await streamResumeScene({
+        location: investigation.currentLocation,
+        act,
+        inventory: inv,
+        flags: loadedFlags,
+        npcStates: loadedNpcStates,
+        medicalPoints: investigation.medicalPoints || 0,
+        moralPoints: investigation.moralPoints || 0,
+        introducedNpcs: loadedIntroduced,
+        elapsedMinutes: loadedElapsed,
+        investigationId: investigation.id,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+    setNotification({ message: 'Investigation Resumed!', type: 'success' });
+  }, [generateOpeningScene, streamResumeScene]);
 
   const handleSaveGame = useCallback(async (silent = false) => {
     setIsSaving(true);
@@ -446,7 +671,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       npcStates,
       flags,
       journalNotes,
+      diaryEntries,
       introducedNpcs,
+      currentAct,
       timestamp: new Date().toLocaleString(),
     };
 
@@ -466,6 +693,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           introducedNpcs,
         });
         if (updated) setActiveInvestigation(updated as Investigation);
+        // Safety net: upsert the whole diary (idempotent by id) so any entry
+        // captured before activeInvestigation was set still reaches the DB.
+        if (diaryEntries.length > 0) {
+          GameRepository.addDiaryEntries(activeInvestigation.id, diaryEntries);
+        }
         if (!silent) setNotification({ message: 'Game Saved to Cloud!', type: 'success' });
       } else {
         if (!silent) setNotification({ message: 'Game Saved Locally!', type: 'success' });
@@ -477,9 +709,184 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsSaving(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, activeInvestigation, history, location, inventory, medicalPoints, moralPoints, npcStates, flags, journalNotes, currentAct, introducedNpcs]);
+  }, [user, activeInvestigation, history, location, inventory, medicalPoints, moralPoints, npcStates, flags, journalNotes, diaryEntries, currentAct, introducedNpcs]);
+
+  // Always-fresh handle to handleSaveGame so async flows (e.g. beginNextAct) can
+  // persist the LATEST committed state rather than a stale closure snapshot.
+  const handleSaveGameRef = useRef(handleSaveGame);
+  useEffect(() => { handleSaveGameRef.current = handleSaveGame; }, [handleSaveGame]);
+
+  // Stream Watson's arrival into a new act's anchor location. Mirrors
+  // generateOpeningScene but for a committed act transition. `npcUpdates` are the
+  // act-entry NPC movements — merged in so the arrival sees the NEW act's positions
+  // (the captured npcStates is still the pre-commit Act-N-1 snapshot).
+  const streamArrivalScene = useCallback(async (
+    toAct: number,
+    anchor: string,
+    npcUpdates: Record<string, Partial<NPCState>>,
+  ) => {
+    const arrivalNpcStates = { ...npcStates };
+    Object.entries(npcUpdates).forEach(([id, upd]) => {
+      arrivalNpcStates[id] = {
+        ...(arrivalNpcStates[id] || { npcId: id, disposition: 50, status: 'alive' }),
+        ...upd,
+      } as NPCState;
+    });
+    // Mirror the act-boundary bag prune so the arrival narration never references
+    // an item Watson just dropped (e.g. the spent "Dear Boss" clipping).
+    const arrivalInventory = inventory.filter(item => {
+      const spentAfter = ITEM_SPENT_AFTER_ACT[item];
+      return spentAfter === undefined || toAct <= spentAfter;
+    });
+    // Fresh feed for the new act — clear the prior act's transcript and pin to
+    // the top so it reads as a clean start (masthead + the act's opening scene).
+    setHistory([{ role: 'assistant', text: '' }]);
+    setIsAutoScrollLocked(false);
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
+    try {
+      const intent = parseIntent('look');
+      const snapshot: SessionSnapshot = {
+        location: anchor,
+        inventory: arrivalInventory,
+        flags,
+        npcStates: arrivalNpcStates,
+        currentAct: toAct,
+        medicalPoints,
+        moralPoints,
+        discoveredClueIds: [],
+        investigationId: activeInvestigation?.id,
+        turnsAtLocationWithoutProgress: 0,
+        elapsedMinutes: 0,
+        introducedNpcs,
+        locationVisitCounts,
+        turnCount,
+      };
+      const result = gameEngine.resolve(intent, snapshot);
+      commitVignetteFlags(result.flagsUpdate, flags, activeInvestigation?.id);
+      let last = '';
+      for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'full', blockquoteHint: 'world_event' })) {
+        if (update.narrative) {
+          last = update.narrative;
+          setHistory(prev => {
+            const next = [...prev];
+            next[next.length - 1] = { ...next[next.length - 1], text: last };
+            return next;
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Arrival scene failed', e);
+      setHistory(prev => {
+        const next = [...prev];
+        next[next.length - 1] = { ...next[next.length - 1], text: `### Act ${toAct}` };
+        return next;
+      });
+    }
+  }, [inventory, flags, npcStates, medicalPoints, moralPoints, activeInvestigation, introducedNpcs, locationVisitCounts, turnCount, commitVignetteFlags]);
+
+  // Player clicked "Begin Act N": play the cinematic curtain, commit the held
+  // state behind it, then stream the arrival scene.
+  const beginNextAct = useCallback(async () => {
+    const pending = pendingActTransition;
+    if (!pending || isCurtainPlaying) return;
+
+    setIsCurtainPlaying(true);
+    setIsActBreakReady(false);
+
+    // Hold the curtain a beat (matches ActBreakCurtain's enter+hold animation).
+    await new Promise(res => setTimeout(res, CURTAIN_HOLD_MS));
+
+    const { toAct, newLocation, npcUpdates } = pending;
+
+    // Commit the four held pieces — sidebar flips to the new act now (behind the overlay).
+    setCurrentAct(toAct);
+    audioManager.playSfx('act-bell');
+    setLocation(newLocation);
+    setLocationVisitCounts(prev => ({ ...prev, [newLocation]: (prev[newLocation] ?? 0) + 1 }));
+    captureLocationArrival(newLocation, toAct); // diary: arriving in the new act's locale
+    setElapsedMinutes(0);
+    if (Object.keys(npcUpdates).length > 0) {
+      setNpcStates(prev => {
+        const next = { ...prev };
+        Object.entries(npcUpdates).forEach(([id, upd]) => {
+          next[id] = { ...(next[id] || { npcId: id, disposition: 50, status: 'alive' }), ...upd } as NPCState;
+        });
+        return next;
+      });
+    }
+
+    // Bag hygiene — time has moved on, so drop any carried item whose authored
+    // "spent" act has now passed (keeps only what later beats still need).
+    setInventory(prev => prev.filter(item => {
+      const spentAfter = ITEM_SPENT_AFTER_ACT[item];
+      return spentAfter === undefined || toAct <= spentAfter;
+    }));
+
+    setPendingActTransition(null);
+    setIsCurtainPlaying(false);
+
+    // Clear the prior act and stream the new act's opening fresh (see
+    // streamArrivalScene). Lock input across the stream so a command can't race
+    // with / clobber it.
+    setIsLoading(true);
+    try {
+      await streamArrivalScene(toAct, newLocation, npcUpdates);
+    } finally {
+      setIsLoading(false);
+    }
+
+    // Persist the committed Act-N state via the fresh ref (flags now marker-free).
+    handleSaveGameRef.current(true);
+  }, [pendingActTransition, isCurtainPlaying, streamArrivalScene, captureLocationArrival]);
 
   const handleLoadGame = useCallback(async () => {
+    // Hydrate authoritative state from a local (guest) save and open with one
+    // fresh look — the stored transcript is ignored (diary carries continuity).
+    // Local saves don't store currentAct/elapsedMinutes, so the act is derived
+    // from the saved location and the clock starts at the act's canonical time.
+    const resumeFromLocalSave = async (state: GameState) => {
+      // Prefer the saved act; fall back to location-derived for older local saves
+      // (ambiguous for shared anchors, e.g. bond_office serves Act 5 and Act 6).
+      const guestAct = state.currentAct ?? LOCATIONS[state.location]?.act ?? INITIAL_ACT;
+      const guestNpcStates = state.npcStates || (INITIAL_NPC_STATES as Record<string, NPCState>);
+      const guestIntroduced = state.introducedNpcs?.length ? state.introducedNpcs : INITIAL_INTRODUCED_NPCS;
+      setLocation(state.location);
+      setInventory(state.inventory);
+      setMedicalPoints(state.medicalPoints || 0);
+      setMoralPoints(state.moralPoints || 0);
+      setCurrentAct(guestAct);
+      setElapsedMinutes(0);
+      setFlags(state.flags || {});
+      setJournalNotes(state.journalNotes || INITIAL_JOURNAL);
+      setNpcStates(guestNpcStates);
+      setIntroducedNpcs(guestIntroduced);
+      if (state.diaryEntries) {
+        setDiaryEntries(state.diaryEntries);
+        diarySeqRef.current = state.diaryEntries.reduce((m, e) => Math.max(m, e.sequence), -1) + 1;
+        loggedLocationsRef.current = new Set(state.diaryEntries.filter(e => e.kind === 'location').map(e => e.refId));
+      }
+      setPendingActTransition(null);
+      setIsActBreakReady(false);
+      setIsCurtainPlaying(false);
+      hasGeneratedOpening.current = true;
+      setIsLoading(true);
+      try {
+        await streamResumeScene({
+          location: state.location,
+          act: guestAct,
+          inventory: state.inventory,
+          flags: state.flags || {},
+          npcStates: guestNpcStates,
+          medicalPoints: state.medicalPoints || 0,
+          moralPoints: state.moralPoints || 0,
+          introducedNpcs: guestIntroduced,
+          elapsedMinutes: 0,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     try {
       if (user) {
         const investigation = await GameRepository.getActiveInvestigation(user.id);
@@ -494,12 +901,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       if (savedData) {
         const state = JSON.parse(savedData) as GameState;
         setNotification({ message: `Local Save Loaded! (${state.timestamp})`, type: 'success' });
-        setHistory(state.history);
-        setLocation(state.location);
-        setInventory(state.inventory);
-        setFlags(state.flags || {});
-        setJournalNotes(state.journalNotes || journalNotes);
-        if (state.npcStates) setNpcStates(state.npcStates);
+        await resumeFromLocalSave(state);
       }
     } catch (e) {
       console.error('Load failed', e);
@@ -509,14 +911,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         const savedData = localStorage.getItem('londonBleedsSave');
         if (savedData) {
           const state = JSON.parse(savedData) as GameState;
-          if (state.history && state.history.length > 0) {
-            setHistory(state.history);
-            setLocation(state.location);
-            setInventory(state.inventory);
-            setFlags(state.flags || {});
-            setJournalNotes(state.journalNotes || INITIAL_JOURNAL);
-            if (state.npcStates) setNpcStates(state.npcStates);
+          if (state.location) {
             setNotification({ message: 'Cloud unavailable — local save loaded.', type: 'error' });
+            await resumeFromLocalSave(state);
             return;
           }
         }
@@ -526,12 +923,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setNotification({ message: 'Cloud unavailable — starting fresh locally.', type: 'error' });
       if (history.length === 0) {
         hasGeneratedOpening.current = false;
-        needsJournalUpdate.current = true;
         generateOpeningScene();
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, generateOpeningScene, loadInvestigationIntoState]);
+  }, [user, generateOpeningScene, loadInvestigationIntoState, streamResumeScene]);
 
   // ── Save slots ──────────────────────────────────────────────────────────────
   // On login the app shows a slot-select menu (see App.tsx) instead of auto-loading,
@@ -558,7 +954,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // Generate opening scene for fresh unauthenticated starts
   useEffect(() => {
     if (!user && isAuthReady && history.length === 0) {
-      needsJournalUpdate.current = true;
       generateOpeningScene();
     }
   }, [isAuthReady, user, generateOpeningScene, history.length]);
@@ -628,22 +1023,10 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           };
         });
       })
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'logs',
-        filter: `investigation_id=eq.${activeInvestigation.id}`,
-      }, (payload) => {
-        const data = payload.new as any;
-        setHistory(prev => {
-          const isDuplicate = prev.some(h => h.text === data.content);
-          if (isDuplicate) return prev;
-          return [...prev, {
-            role: data.type === 'action' ? 'user' : 'assistant',
-            text: data.content,
-          }];
-        });
-      })
+      // NOTE: no logs-INSERT handler. The feed is a clean per-session view (resume
+      // opens with a fresh look; the diary carries continuity), so injecting logged
+      // rows from another tab would reintroduce stale cross-session prose. Only the
+      // authoritative investigations/npc_states sync across tabs.
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -673,7 +1056,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     try {
       // STEP 1: Parse intent deterministically
-      const intent = parseIntent(userAction);
+      let intent = parseIntent(userAction);
+
+      // STEP 2.5: AI fallback — only when the deterministic parse missed a target.
+      // Resolves a natural-language/paraphrased object noun against THIS location's
+      // objects so the engine can fire the clue. No-op (and no latency) on hits.
+      intent = await resolveTargetWithAI(intent, location, inventory);
 
       // STEP 2: Build session snapshot from current React state
       const discoveredClueIds = user && activeInvestigation
@@ -693,6 +1081,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         turnsAtLocationWithoutProgress,
         elapsedMinutes,
         introducedNpcs,
+        locationVisitCounts,
+        turnCount,
       };
 
       // STEP 3: Engine resolves — no AI yet
@@ -728,18 +1118,32 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const newMoralPoints   = result.moralPointsDelta   ? moralPoints  + result.moralPointsDelta   : moralPoints;
       const newFlags         = result.flagsUpdate        ? { ...flags, ...result.flagsUpdate }      : flags;
 
-      setLocation(newLocation);
+      const advancingAct = !!result.newAct && !result.gameOver;
+
+      // On an act-advance we HOLD the sidebar-visible state (location, act, npcs,
+      // clock) in React until the player clicks "Begin Act N" — so the cinematic
+      // (journal beat → Begin button) reads against the old act. The DB, however,
+      // is committed to the NEW act this turn (STEP 5) so a mid-curtain reload
+      // resumes correctly in the new act.
+      if (!advancingAct) {
+        setLocation(newLocation);
+        if (result.newLocation) {
+          setLocationVisitCounts(prev => ({
+            ...prev,
+            [result.newLocation!]: (prev[result.newLocation!] ?? 0) + 1,
+          }));
+        }
+      }
       setInventory(newInventory);
       setMedicalPoints(newMedicalPoints);
       setMoralPoints(newMoralPoints);
       setFlags(newFlags);
-      if (result.newAct)   setCurrentAct(result.newAct);
       if (result.gameOver) {
         setIsGameOver(true);
         if (result.endingType) setEndingType(result.endingType);
       }
 
-      if (result.npcUpdates) {
+      if (result.npcUpdates && !advancingAct) {
         setNpcStates(prev => {
           const next = { ...prev };
           Object.entries(result.npcUpdates!).forEach(([id, upd]) => {
@@ -760,25 +1164,29 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
       // Advance in-game clock. Compute the new value locally so it can be both
       // set in state and persisted this turn (see applyEngineResult below).
-      let newElapsedMinutes: number;
-      if (result.newAct) {
-        newElapsedMinutes = 0; // Reset to new act's canonical start time
-      } else {
-        const ACTION_TIME_MINUTES: Partial<Record<typeof result.actionType, number>> = {
-          move: 10, talk: 5, deduce: 5, examine: 2,
-          use: 2, take: 1, inventory: 0, query: 1, help: 0, other: 2,
-        };
-        newElapsedMinutes = elapsedMinutes + (ACTION_TIME_MINUTES[result.actionType] ?? 2);
-      }
-      setElapsedMinutes(newElapsedMinutes);
+      // The clock resets to the new act's canonical start only at Begin (commit).
+      // On an act-advance turn we keep advancing Act I's clock normally so the
+      // held sidebar stays coherent until the curtain.
+      const ACTION_TIME_MINUTES: Partial<Record<typeof result.actionType, number>> = {
+        move: 10, talk: 5, deduce: 5, examine: 2,
+        use: 2, take: 1, inventory: 0, query: 1, help: 0, other: 2,
+      };
+      // On an act-advance the clock persists at the new act's canonical start (0);
+      // React's elapsedMinutes stays held until Begin (see the hold comment above).
+      const newElapsedMinutes = advancingAct ? 0 : elapsedMinutes + (ACTION_TIME_MINUTES[result.actionType] ?? 2);
+      if (!advancingAct) setElapsedMinutes(newElapsedMinutes);
+      setTurnCount(t => t + 1);
 
-      // Sound triggers
-      if (result.gameOver) soundManager.playSfx('gameOver');
-      else if (result.newAct) soundManager.playSfx('actChange');
-      else if (result.newLocation) soundManager.playSfx('newLocation');
-      if (result.discoveredClueIds?.length) soundManager.playSfx('clue');
-      if (result.inventoryAdd?.length) soundManager.playSfx('item');
-      soundManager.playAmbient(newLocation, (ACT_WEATHER[result.newAct || currentAct] ?? ACT_WEATHER[1]).condition);
+      // Hour-bell clock event — fires when the turn crosses an hour boundary
+      const actStartMinutes = (ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1]).canonicalMinutes;
+      const prevHour = Math.floor((actStartMinutes + elapsedMinutes) / 60);
+      const newHour  = Math.floor((actStartMinutes + newElapsedMinutes) / 60);
+      const clockEvent = !result.newAct && newHour > prevHour
+        ? (() => {
+            const hour12 = ((newHour % 12) === 0 ? 12 : newHour % 12);
+            return `A church bell, streets away, counts ${hour12} — work it into the prose as a passing detail, one clause at most.`;
+          })()
+        : undefined;
 
       // Capture journal data before resetting per-act tracking (if act is advancing)
       let pendingJournalSummary: ActJournalSummary | null = null;
@@ -800,7 +1208,22 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setCluesFoundThisAct(prev => [...prev, ...result.discoveredClueIds!]);
       }
 
-      // STEP 5: Persist engine result to Supabase
+      // On an act-advance, stash the held pieces for the UI-only curtain. The
+      // sidebar-visible React state stays on the old act until Begin; the DB is
+      // committed to the new act below (STEP 5).
+      if (advancingAct) {
+        setPendingActTransition({
+          fromAct: currentAct,
+          toAct: result.newAct!,
+          newLocation: result.newLocation!,
+          npcUpdates: result.npcUpdates ?? {},
+        });
+        setIsActBreakReady(false);
+      }
+
+      // STEP 5: Persist engine result to Supabase. On an act-advance we persist the
+      // RAW result (new act, anchor location, reset clock, act-entry NPC positions)
+      // so a mid-curtain reload reads the committed new act and resume-looks there.
       if (user && activeInvestigation) {
         await GameRepository.applyEngineResult(activeInvestigation.id, result, {
           location, inventory, medicalPoints, moralPoints, currentAct, flags,
@@ -813,12 +1236,47 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         }
       }
 
+      // STEP 5b: Capture Watson's diary entries for clue discoveries and major
+      // decisions. Deterministic — only a reference is stored; the authored
+      // Watson line is resolved from story data at render time. Runs for guests
+      // too (in-memory); persists only when signed in. (Act milestones are
+      // captured later, once the reflective entry has been generated; act-boundary
+      // arrivals are captured in beginNextAct.)
+      {
+        const captured: Array<Omit<DiaryEntry, 'id' | 'sequence'>> = [];
+        if (result.discoveredClueIds) {
+          for (const clueId of result.discoveredClueIds) {
+            if (CLUE_DEFINITIONS[clueId]) captured.push({ kind: 'clue', refId: clueId, actNumber: currentAct });
+          }
+        }
+        if (result.flagsUpdate) {
+          for (const [flag, value] of Object.entries(result.flagsUpdate)) {
+            const decisionId = DECISION_BY_FLAG[flag];
+            if (value === true && !flags[flag] && decisionId) {
+              captured.push({ kind: 'decision', refId: decisionId, actNumber: currentAct });
+            }
+          }
+        }
+        captureDiaryEntries(captured);
+        // First arrival at a new location within the act.
+        if (result.newLocation && !advancingAct) {
+          captureLocationArrival(result.newLocation, currentAct);
+        }
+      }
+
       // STEP 6: Enrich a copy of the engine's context with hook-owned data
-      // (STIM, Holmes synthesis). The engine's aiContext is treated as immutable.
-      const aiContext: NarrationContext = { ...result.aiContext, stim };
+      // (STIM, Holmes synthesis, anti-repetition memory). The engine's aiContext
+      // is treated as immutable.
+      const aiContext: NarrationContext = {
+        ...result.aiContext,
+        stim,
+        recentOpenings: recentOpenings.length > 0 ? recentOpenings : undefined,
+        clockEvent,
+      };
 
       // STEP 6a: Holmes multi-clue synthesis — before Watson narrates
       if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
+        audioManager.playSfx('clue-discovered');
         const allDiscoveredIds = [...discoveredClueIds, ...result.discoveredClueIds];
         const allClueObjects = allDiscoveredIds
           .map(id => CLUE_DEFINITIONS[id])
@@ -838,22 +1296,37 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         }
       }
 
+      // Engine-verified pickup notice — items the player actually gained this
+      // turn (examine can silently grant documents; the player must be told).
+      const itemsPickedUp = (result.inventoryAdd ?? []).filter(i => !inventory.includes(i));
+      if (itemsPickedUp.length > 0) audioManager.playSfx('item-pickup');
+      const pickupNote = itemsPickedUp.length > 0
+        ? `\n\n**You picked up:** ${itemsPickedUp.join(', ')}`
+        : '';
+
       // STEP 7: Stream AI narration
       for await (const update of aiService.stream(aiContext)) {
         const { narrative, isComplete, parsed } = update;
+        const displayText = isComplete ? narrative + pickupNote : narrative;
 
         setHistory(prev => {
           const next = [...prev];
-          next[next.length - 1] = { ...next[next.length - 1], text: narrative };
+          next[next.length - 1] = { ...next[next.length - 1], text: displayText };
           return next;
         });
 
         if (isComplete && parsed) {
+          // Anti-repetition memory: remember this narration's opening sentence
+          const opening = extractOpeningSentence(parsed.markdownOutput);
+          if (opening) {
+            setRecentOpenings(prev => [opening, ...prev].slice(0, 4));
+          }
+
           if (user && activeInvestigation) {
             GameRepository.addLogEntry(activeInvestigation.id, {
               timestamp: new Date().toISOString(),
               type: 'narration',
-              content: parsed.markdownOutput,
+              content: parsed.markdownOutput + pickupNote,
             });
 
             if (parsed.npcMemoryUpdate && Object.keys(parsed.npcMemoryUpdate).length > 0) {
@@ -892,16 +1365,19 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
                 .slice(0, 15);
               return Object.fromEntries(sorted);
             });
-            setTurnCount(t => t + 1);
           }
 
-          // Silent auto-save after every completed turn
-          handleSaveGame(true);
+          // Silent auto-save after every completed turn. Skipped on an act-advance
+          // turn: this closure still holds the OLD currentAct (React is held until
+          // Begin), so saving here would clobber the new act the DB already committed
+          // in STEP 5. beginNextAct persists the reconciled state at Begin.
+          if (!advancingAct) handleSaveGame(true);
         }
       }
 
       // STEP 8: Generate act journal after narration stream completes (act advance only)
       if (pendingJournalSummary) {
+        let appendedJournal = false;
         try {
           const journalText = await aiService.generateJournalEntry(pendingJournalSummary);
           if (journalText) {
@@ -909,10 +1385,28 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
               ...prev,
               { role: 'assistant', text: journalText, type: 'journal' },
             ]);
+            appendedJournal = true;
+
+            // Also save the reflective entry into Watson's diary as the act's
+            // closing note (the in-feed beat stays; this makes it re-readable).
+            const actEntry: DiaryEntry = {
+              id: crypto.randomUUID(),
+              kind: 'act',
+              refId: String(pendingJournalSummary.actNumber),
+              actNumber: pendingJournalSummary.actNumber,
+              sequence: diarySeqRef.current++,
+              text: journalText,
+            };
+            setDiaryEntries(prev => [...prev, actEntry]);
+            if (user && activeInvestigation) {
+              GameRepository.addDiaryEntries(activeInvestigation.id, [actEntry]);
+            }
           }
         } catch {
           // Journal is bonus content — never block the game on failure
         }
+        // No diary to type out → reveal the Begin button immediately (no softlock).
+        if (!appendedJournal) setIsActBreakReady(true);
       }
 
       // STEP 9: The true ending's scripted coda — authored verbatim, never
@@ -941,7 +1435,16 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsAutoScrollLocked(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, handleSaveGame]);
+  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, handleSaveGame, captureDiaryEntries, captureLocationArrival]);
+
+  // Fired by NarrativeFeed when the act-closing diary finishes typing.
+  // NOTE: do NOT scroll here — NarrativeFeed anchors the diary to the top of the
+  // viewport on append, so the player reads it from line one. Jumping to the
+  // bottom to reveal the Begin button would clip the top of a long diary.
+  const handleJournalTypewriterDone = useCallback(() => {
+    if (!pendingActTransition) return;
+    setIsActBreakReady(true);
+  }, [pendingActTransition]);
 
   // ── Holmes hint ───────────────────────────────────────────────────────────
 
@@ -982,38 +1485,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     }
   }, [isConsultingHolmes, isLoading, location, history, flags, medicalPoints, moralPoints, scrollToBottom]);
 
-  // ── Journal update ────────────────────────────────────────────────────────
-
-  const handleUpdateJournal = useCallback(async () => {
-    if (isUpdatingJournal) return;
-    setIsUpdatingJournal(true);
-    try {
-      const fullStory = history
-        .slice(-15)
-        .filter(h => h.role !== 'system')
-        .map(h => h.text || '')
-        .join('\n');
-
-      const prompt = `Source Material: ${fullStory}`;
-      const systemInstruction = `You are Dr. Watson. Update your diary entries based on the case progress.
-      STRICT CONSTRAINTS:
-      1. Use only this section: **Observed:**
-      2. Provide a TOTAL of only 2 to 3 bullet points under Observed.
-      3. Focus on physical evidence, witness accounts, and factual case observations.
-      4. Be brief. No narrative re-telling. No sanity or mental-state commentary.`;
-
-      const notes = await callGemini(prompt, false, 0, systemInstruction);
-      setJournalNotes(notes || 'No updates available.');
-    } catch (error) {
-      console.error('Notes update failed', error);
-      setNotification({ message: 'Notes update failed. Try again.', type: 'error' });
-      // Ensure the diary never stays in the empty/loading state on failure
-      setJournalNotes(prev => prev || '**Observed:**\n* Investigation underway.');
-    } finally {
-      setIsUpdatingJournal(false);
-    }
-  }, [isUpdatingJournal, history]);
-
   // ── New Game (start a fresh investigation in a given save slot) ─────────────
 
   const handleStartInSlot = useCallback(async (slotNumber: number) => {
@@ -1049,6 +1520,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setTurnCount(0);
     setIntroducedNpcs(INITIAL_INTRODUCED_NPCS);
     setJournalNotes(INITIAL_JOURNAL);
+    setDiaryEntries([]);
+    diarySeqRef.current = 0;
+    loggedLocationsRef.current = new Set();
     setActiveInvestigation(null);
 
     // Create a fresh investigation for logged-in users
@@ -1090,18 +1564,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     await refreshSlots();
   }, [activeInvestigation?.id, refreshSlots]);
 
-  const toggleAmbientSound = useCallback(() => setAmbientSoundEnabled(v => !v), []);
-  const toggleSfx = useCallback(() => setSfxEnabled(v => !v), []);
-  const toggleTimeTheme = useCallback(() => setTimeThemeEnabled(v => !v), []);
-
-  // Start ambient on load if enabled
-  useEffect(() => {
-    if (ambientSoundEnabled && location) {
-      soundManager.playAmbient(location, (ACT_WEATHER[currentAct] ?? ACT_WEATHER[1]).condition);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ambientSoundEnabled]);
-
   // ── Return ────────────────────────────────────────────────────────────────
 
   return {
@@ -1137,17 +1599,17 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     weather: ACT_WEATHER[currentAct] ?? ACT_WEATHER[1],
 
-    journalNotes,
-    isUpdatingJournal,
+    diaryEntries,
     isSaving,
     isDark,
     setIsDark,
-    ambientSoundEnabled,
-    sfxEnabled,
-    timeThemeEnabled,
-    toggleAmbientSound,
-    toggleSfx,
-    toggleTimeTheme,
+    timePeriod: currentTimePeriod,
+    atmosphericTheme,
+    setAtmosphericTheme,
+    soundEffects,
+    setSoundEffects,
+    ambientAudio,
+    setAmbientAudio,
     notification,
     setNotification,
     connectionStatus,
@@ -1156,11 +1618,16 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     scrollRef,
     lastUserMessageRef,
 
+    pendingActTransition,
+    isActBreakReady,
+    isCurtainPlaying,
+    beginNextAct,
+    handleJournalTypewriterDone,
+
     handleAction,
     handleSaveGame,
     handleLoadGame,
     handleConsultHolmes,
-    handleUpdateJournal,
     handleScroll,
 
     refreshSlots,

@@ -76,6 +76,10 @@ export interface SessionSnapshot {
   elapsedMinutes: number;                 // minutes elapsed since act's canonical start
   // NPC IDs whose real names Watson now knows (alias system)
   introducedNpcs: string[];
+  // How many times Watson has visited each location (keyed by locationId)
+  locationVisitCounts: Record<string, number>;
+  // Total turns this session — used to rotate idle behaviors / ambient extras
+  turnCount: number;
   // Note: sanity has been removed. Watson's prose register is now fixed
   // at the professional-composure baseline defined in the AI system prompt.
 }
@@ -131,15 +135,10 @@ export class GameEngine {
     // to the act's anchor location and carries follows_watson / follows_bond
     // NPCs along, so Holmes is never left a location behind.
     if (result.newAct !== undefined && !result.gameOver) {
-      const anchor = ACT_ANCHORS[result.newAct];
+      const { anchor, npcUpdates } = this.computeActEntry(result.newAct, session);
       if (anchor && anchor !== (result.newLocation ?? session.location)) {
         result.newLocation = anchor;
-        // Compute follower/canonical positions for the act being ENTERED, not
-        // the act being left — Bond must be at his act-N station on arrival.
-        result.npcUpdates = {
-          ...result.npcUpdates,
-          ...this.computeNpcMovements(anchor, { ...session, currentAct: result.newAct }),
-        };
+        result.npcUpdates = { ...result.npcUpdates, ...npcUpdates };
       }
     }
 
@@ -189,10 +188,16 @@ export class GameEngine {
     // proper, so the AI context that leaves the engine carries verified facts only.
     const ctxWithIntro = result.aiContext as NarrationContext & {
       _introductionFlagsUpdate?: Record<string, boolean>;
+      _vignetteFlagsUpdate?: Record<string, boolean>;
     };
     if (ctxWithIntro._introductionFlagsUpdate) {
       result.introductionFlagsUpdate = ctxWithIntro._introductionFlagsUpdate;
       delete ctxWithIntro._introductionFlagsUpdate;
+    }
+    // Vignette once-only flags ride the normal flags pipeline (persisted with the turn)
+    if (ctxWithIntro._vignetteFlagsUpdate) {
+      result.flagsUpdate = { ...result.flagsUpdate, ...ctxWithIntro._vignetteFlagsUpdate };
+      delete ctxWithIntro._vignetteFlagsUpdate;
     }
 
     return result;
@@ -349,6 +354,23 @@ export class GameEngine {
           }),
         };
       }
+      // Carried copy: the object isn't here, but Watson holds its takeable
+      // item (e.g. the Dear Boss clipping examined away from Baker Street).
+      const carriedItem = TAKEABLE_OBJECTS[targetId];
+      if (carriedItem && session.inventory.includes(carriedItem)) {
+        return {
+          actionSuccess: true,
+          actionType: 'examine',
+          discoveredClueIds: [],
+          aiContext: this.buildContext(intent, session, {
+            success: true,
+            actionDescription: `Watson took ${carriedItem} from his bag and examined it again.`,
+            actionResultNote: `SUCCESS — Watson re-reads the ${carriedItem} he carries. It is in his medical bag; narrate him producing and studying it. No new evidence emerges, but he may reflect on what it means.`,
+            newClueDefs: [],
+          }),
+        };
+      }
+
       const objectName = OBJECT_DISPLAY_NAMES[targetId] || intent.targetRaw;
       return this.blocked(
         intent,
@@ -399,9 +421,10 @@ export class GameEngine {
         actionResultNote: newClueIds.length > 0
           ? `SUCCESS — Watson discovered ${newClueIds.length} new clue(s).`
           : alreadyExamined
-          ? `SUCCESS — Watson re-examined the ${objectName}. (Previously examined — no new clues.)`
+          ? `SUCCESS — Watson re-examined the ${objectName}. (Previously examined — no new clues.${TAKEABLE_OBJECTS[targetId] && session.inventory.includes(TAKEABLE_OBJECTS[targetId]) ? ` Watson already carries ${TAKEABLE_OBJECTS[targetId]} — do NOT narrate him taking or copying it again.` : ''})`
           : `SUCCESS — Watson examined the ${objectName}.`,
         newClueDefs,
+        itemsGained: inventoryAdd,
       }),
     };
   }
@@ -516,6 +539,7 @@ export class GameEngine {
         actionDescription: `Watson took (a copy of) the ${objectName} for his records.`,
         actionResultNote: `SUCCESS — ${inventoryItem} added to Watson's bag.`,
         newClueDefs,
+        itemsGained: [inventoryItem],
       }),
     };
   }
@@ -534,6 +558,15 @@ export class GameEngine {
                        ?? USE_COMBINATIONS[intent.useWithTargetId]?.[targetId];
 
       if (combination) {
+        // Act-locked combinations (spoiler gate — e.g. the kidney cross-reference
+        // grants asylum-reveal content and must not fire before Act 6).
+        if (combination.requiresAct !== undefined && session.currentAct < combination.requiresAct) {
+          return this.blocked(intent, session,
+            `Watson sets the two side by side, but the connection between them refuses to form. Something is still missing — the comparison is premature.`,
+            `USE combination blocked: ${targetId} + ${intent.useWithTargetId} requires act ${combination.requiresAct} (currently act ${session.currentAct}). Narrate Watson sensing the documents are related but lacking the context to see how. Do NOT reveal what the connection is.`
+          );
+        }
+
         // Location-locked combinations (e.g. the document convergence that must
         // happen at Baker Street, against the casefiles).
         if (combination.requiresLocation && session.location !== combination.requiresLocation) {
@@ -717,7 +750,18 @@ export class GameEngine {
       };
     }
 
-    // No NPC specified — Watson examines the item himself
+    // No NPC specified — if exactly one NPC is present, Watson naturally shows
+    // it to them ("show the clipping" with only Holmes in the room).
+    const presentNpcIds = Object.keys(NPCS).filter(id => {
+      const st = session.npcStates[id];
+      const loc = st?.currentLocation ?? NPCS[id]?.canonicalLocationByAct[session.currentAct];
+      return loc === session.location && st?.status !== 'deceased';
+    });
+    if (presentNpcIds.length === 1) {
+      return this.resolveShow({ ...intent, showTargetNpcId: presentNpcIds[0] }, session);
+    }
+
+    // Multiple/no NPCs — Watson examines the item himself
     return this.resolveExamine({ ...intent, type: 'examine' }, session);
   }
 
@@ -888,6 +932,20 @@ export class GameEngine {
 
     // Check if player has enough clues
     if (clueCount < DEDUCTION_THRESHOLD) {
+      // Spoiler-safe pointer: name locations (accessible this act) that still
+      // hold untriggered clues — never the clue content itself.
+      const uncoveredLocations = Object.entries(CLUE_TRIGGERS)
+        .filter(([locId, objMap]) => {
+          const loc = LOCATIONS[locId];
+          if (!loc || loc.act > session.currentAct) return false;
+          return Object.values(objMap).some(clueIds =>
+            clueIds.some(id => !session.discoveredClueIds.includes(id)));
+        })
+        .map(([locId]) => LOCATIONS[locId].name)
+        .slice(0, 2);
+      const groundNote = uncoveredLocations.length > 0
+        ? ` Holmes refuses the theory and — without explaining why — names ground not yet covered: ${uncoveredLocations.join(' and ')}. He says only that the evidence there has not been read, not what it contains.`
+        : '';
       return {
         actionSuccess: false,
         actionType: 'deduce',
@@ -896,7 +954,7 @@ export class GameEngine {
         aiContext: this.buildContext(intent, session, {
           success: false,
           actionDescription: `Watson attempted to name the killer: "${intent.raw}"`,
-          actionResultNote: `BLOCKED — Only ${clueCount} clues discovered. Holmes requires more evidence before committing to a theory.`,
+          actionResultNote: `BLOCKED — Only ${clueCount} clues discovered. Holmes requires more evidence before committing to a theory.${groundNote}`,
           newClueDefs: [],
         }),
       };
@@ -1074,8 +1132,12 @@ export class GameEngine {
       discoveredClueIds: [],
       aiContext: this.buildContext(intent, session, {
         success: true,
-        actionDescription: `Watson considered: "${intent.raw}"`,
-        actionResultNote: 'Watson reflects on the situation. No specific action was taken.',
+        actionDescription: `Watson heard himself mutter something unclear: "${intent.raw}"`,
+        actionResultNote:
+          'UNRECOGNISED INPUT — the instruction was not understood. Watson should briefly, ' +
+          'in character, admit he is unsure what he meant to do (e.g. pausing, collecting his ' +
+          'thoughts) and naturally suggest what he COULD do here: examine something present, ' +
+          'speak to someone present, or move on. Do NOT invent an action or narrate progress.',
         newClueDefs: [],
       }),
     };
@@ -1121,6 +1183,7 @@ export class GameEngine {
       actionDescription: string;
       actionResultNote: string;
       newClueDefs: Array<{ name: string; description: string; holmesDeduction: string }>;
+      itemsGained?: string[];         // Inventory items gained this turn (verified)
       targetLocationId?: string;      // For move actions, the destination
       targetNpcId?: string;
       newNpcUpdates?: Record<string, Partial<NPCState>>;
@@ -1172,6 +1235,45 @@ export class GameEngine {
         if (line.act !== undefined && line.act !== session.currentAct) continue;
         npcScriptedLines.push({ npcId, label, instruction: line.instruction });
       }
+    }
+
+    // Act 5 safety net: the convergence needs the From Hell letter transcript,
+    // but the Act 4 gate is the location flag — a player can reach Act 5 without
+    // ever copying the letter. If so, Holmes steers Watson back to Lusk's office.
+    if (session.currentAct === 5 &&
+        !session.inventory.includes(TAKEABLE_OBJECTS['from_hell_letter']) &&
+        npcsPresent.some(n => n.npcId === 'holmes')) {
+      npcScriptedLines.push({
+        npcId: 'holmes',
+        label: 'Sherlock Holmes',
+        instruction: 'Watson never copied the From Hell letter. Holmes notes, with mild impatience, that a comparison wants both documents — and the letter still sits in Lusk\'s office. He suggests Watson return there and take the text down word for word. Do not say what the comparison will reveal.',
+      });
+    }
+
+    // Idle behaviors — one rotating flat beat per present NPC who is not being
+    // interviewed this turn, cycled by turn count so it never repeats twice running.
+    for (const { npcId, label } of npcsPresent) {
+      if (npcId === outcome.targetNpcId) continue;
+      const idle = NPCS[npcId]?.idleBehaviors;
+      if (idle && idle.length > 0) {
+        npcScriptedLines.push({
+          npcId, label,
+          instruction: `Background only, no emphasis: ${idle[session.turnCount % idle.length]}`,
+        });
+      }
+    }
+
+    // Holmes case-state demeanor — derived, no new state. Colors how he carries
+    // himself this act; injected only when he is present and not interviewed.
+    if (npcsPresent.some(n => n.npcId === 'holmes') && outcome.targetNpcId !== 'holmes') {
+      const clueCount = session.discoveredClueIds.length;
+      const convergenceDone = session.flags['used_edmund_forensic_note_with_from_hell_letter'];
+      const demeanor = convergenceDone
+        ? 'Holmes is grim and certain now — coiled, economical, already three moves ahead. The chase has replaced the puzzle.'
+        : clueCount >= 3
+        ? 'Holmes is absorbed — the abstracted intensity of a mind cross-referencing everything it sees. He answers a beat late.'
+        : 'Holmes is restless, irritable at the want of data — snapping at small noises, retreating into tobacco.';
+      npcScriptedLines.push({ npcId: 'holmes', label: 'Sherlock Holmes', instruction: `Demeanor note: ${demeanor}` });
     }
 
     // Available exits (filtered by act)
@@ -1267,17 +1369,46 @@ export class GameEngine {
     const timePeriod   = computeTimePeriod(totalMinutes);
     const timeLabel    = formatTimeLabel(totalMinutes, actTimeCfg.dayOfWeek, actTimeCfg.displayDate);
 
+    const locationVisitCount = (session.locationVisitCounts[locationId] ?? 0) + 1;
+
+    // Intra-act weather drift — the act's weather may shift late in the act
+    const baseWeather = ACT_WEATHER[act] ?? ACT_WEATHER[1];
+    const weather = baseWeather.lateShift && session.elapsedMinutes >= baseWeather.lateShift.afterMinutes
+      ? { condition: baseWeather.lateShift.condition, label: baseWeather.lateShift.label }
+      : { condition: baseWeather.condition, label: baseWeather.label };
+
+    // One-shot vignette — fires on full-mode narration only, at most once each
+    // per playthrough (flag vignette_<locId>_<idx>), replacing the random seed.
+    let vignette: string | undefined;
+    const vignetteFlagsUpdate: Record<string, boolean> = {};
+    if (narrationMode === 'full' && loc.vignettes) {
+      const idx = loc.vignettes.findIndex((v, i) =>
+        !session.flags[`vignette_${locationId}_${i}`] && (v.act === undefined || v.act === act));
+      if (idx !== -1) {
+        vignette = loc.vignettes[idx].text;
+        vignetteFlagsUpdate[`vignette_${locationId}_${idx}`] = true;
+      }
+    }
+
+    // Ambient extra — prose-only background figure, rotated by visit count
+    const ambientExtra = loc.extras && loc.extras.length > 0
+      ? loc.extras[(locationVisitCount - 1) % loc.extras.length]
+      : undefined;
+
     return {
       locationName: loc.name,
       locationAtmosphere: loc.atmosphere,
       locationDescription: loc.description,
+      locationVisitCount,
       locationTimeframe: loc.timeframe ?? 'present',
       locationReconstitutionNote: loc.reconstitutionNote,
       act,
       actName: ACT_NAMES[act] || `Act ${act}`,
       timeLabel,
       timePeriod,
-      weather: ACT_WEATHER[act] ?? ACT_WEATHER[1],
+      weather,
+      vignette,
+      ambientExtra,
       npcsPresent,
       availableObjects,
       availableExits,
@@ -1295,6 +1426,7 @@ export class GameEngine {
         description: c.description,
         holmesDeduction: c.holmesDeduction,
       })),
+      itemsGained: outcome.itemsGained?.length ? outcome.itemsGained : undefined,
       atmosphericNote,
       npcRecentMemory: Object.keys(npcRecentMemory).length > 0 ? npcRecentMemory : undefined,
       targetNpcInterview,
@@ -1305,7 +1437,14 @@ export class GameEngine {
       _introductionFlagsUpdate: Object.keys(introductionFlagsUpdate).length > 0
         ? introductionFlagsUpdate
         : undefined,
-    } as NarrationContext & { _introductionFlagsUpdate?: Record<string, boolean> };
+      // Vignette once-only flags — lifted onto result.flagsUpdate in resolve()
+      _vignetteFlagsUpdate: Object.keys(vignetteFlagsUpdate).length > 0
+        ? vignetteFlagsUpdate
+        : undefined,
+    } as NarrationContext & {
+      _introductionFlagsUpdate?: Record<string, boolean>;
+      _vignetteFlagsUpdate?: Record<string, boolean>;
+    };
   }
 
   /**
@@ -1329,6 +1468,20 @@ export class GameEngine {
         newClueDefs: [],
       }),
     };
+  }
+
+  /**
+   * Compute the state Watson enters a new act with: the anchor location and the
+   * NPC movements for that act. Used both by resolve() on a live act-advance and
+   * by the UI when committing a deferred act transition (e.g. after reload).
+   */
+  public computeActEntry(
+    toAct: number,
+    session: SessionSnapshot
+  ): { anchor: string; npcUpdates: Record<string, Partial<NPCState>> } {
+    const anchor = ACT_ANCHORS[toAct];
+    const npcUpdates = this.computeNpcMovements(anchor, { ...session, currentAct: toAct });
+    return { anchor, npcUpdates };
   }
 
   /**

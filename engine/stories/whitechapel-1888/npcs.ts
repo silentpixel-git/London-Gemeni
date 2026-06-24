@@ -55,11 +55,25 @@ export const NPCS: Record<string, NPCDefinition> = {
         instruction: 'Holmes, weighing the fled American and the vanished gentleman, observes that two men have obligingly removed themselves from view, and the public will pick whichever culprit it prefers. But the hand that preserved that kidney did not flee and did not vanish — it is still here, keeping its specimens, exactly as it always has.',
       },
       {
+        // Proactive Act 5 nudge — fires unconditionally at Bond's office so a
+        // player who never attempts a comparison still learns the convergence
+        // wants a desk at Baker Street. Stops firing once Act 5 closes.
+        locationId: 'bond_office',
+        act: 5,
+        instruction: 'If Watson lingers or seems unsure, Holmes remarks — without looking up from whatever occupies him — that they have papers enough now; what the papers want is a desk, good light, and the casefiles at Baker Street. He says nothing about what the comparison will show. One sentence or two, dropped naturally; do not repeat it if already conveyed this scene.',
+      },
+      {
         locationId: 'baker_street',
         act: 5,
         triggerFlag: 'used_edmund_forensic_note_with_from_hell_letter',
         instruction: 'The convergence is made — the documents lie side by side on the desk and the casefiles wall has given up its answer. Holmes is certain, and grim with it: "We know the man, Watson. Knowing him and proving him are not the same act — and proving him and stopping him may prove a third thing entirely." He is already reaching for his coat.',
       },
+    ],
+    idleBehaviors: [
+      'Holmes draws a single long note from the violin, then sets it down unfinished',
+      'Holmes re-pins a thread on the case map a quarter-inch to the left, studies it, moves it back',
+      'Holmes stands at the window with his hands behind his back, perfectly still',
+      'Holmes leafs through his index of criminal records, not appearing to read it',
     ],
   },
 
@@ -110,6 +124,11 @@ export const NPCS: Record<string, NPCDefinition> = {
         act: 4,
         instruction: 'Abberline brings the day\'s news, weary and flat: the American, Tumblety, has jumped his bail and fled the country — France, they think, and on to America. The public will call that a confession; Abberline is not so sure — a man may flee an indecency charge without being a murderer. And there is the other file: the vanished barrister, a gentleman of good family, erratic, dismissed, not to be found. "A family of standing does not let a son hang, Doctor. They make the embarrassment disappear." He says it of the barrister, without weight.',
       },
+    ],
+    idleBehaviors: [
+      'Abberline works through a stack of witness statements, initialing each page without looking up',
+      'Abberline rubs his eyes with thumb and forefinger, then squares the papers and continues',
+      'Abberline stands a moment over a map of the district, saying nothing, then returns to his desk',
     ],
   },
 
@@ -165,6 +184,11 @@ export const NPCS: Record<string, NPCDefinition> = {
         // "He's gone." Bond's devastation on the Act 6 arrival.
         instruction: 'Bond is ashen. His assistant is gone — taken at dawn. The family came with a private physician, had the young man declared of unsound mind, and committed him to a private asylum before any charge could be laid. Bond vouched for him for years; the man stood at his elbow through every post-mortem. His horror is quiet and his self-reproach absolute. He gives Watson the asylum\'s name without being asked twice.',
       },
+    ],
+    idleBehaviors: [
+      'Bond cleans an instrument that is already clean, sets it in its place, takes up the next',
+      'Bond writes steadily in his report book, pausing only to date the page',
+      'Bond checks a label on a specimen jar against his ledger, makes a small tick',
     ],
   },
 
@@ -226,6 +250,13 @@ export const NPCS: Record<string, NPCDefinition> = {
         // The confrontation. Edmund is the one who speaks. He doesn't understand what he reveals.
         instruction: "Edmund stands at the window. When spoken to, he describes Miller's Court — the quality of lamplight through a small window at a specific hour of the morning. He speaks as an aesthete describes a painting. When Holmes asks how he knows what the light looked like at that hour, Edmund pauses for exactly one breath, then says: 'I have always had an eye for light.' He returns to his chair. He says nothing further. He does not appear distressed.",
       },
+    ],
+    // RECESSION RULE: idle beats must be the dullest in the game — pure
+    // clerical texture, no narrator weight, nothing the eye would catch.
+    idleBehaviors: [
+      'He continues his cataloguing, pen moving at an even pace',
+      'He blots a line dry and turns the page',
+      'He straightens a stack of papers so the edges align',
     ],
   },
 

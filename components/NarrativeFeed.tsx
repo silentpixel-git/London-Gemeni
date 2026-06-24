@@ -6,13 +6,14 @@
  * AI narration), and the GameOverScreen when the case closes.
  */
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Feather } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { StoryRenderer } from './StoryRenderer';
 import { TypewriterBlock } from './TypewriterBlock';
 import { GameOverScreen } from './GameOverScreen';
-import { GameHistoryItem } from '../types';
+import { GameHistoryItem, PendingActTransition } from '../types';
+import { ACT_ROMAN } from '../constants';
 
 interface NarrativeFeedProps {
   history: GameHistoryItem[];
@@ -21,6 +22,10 @@ interface NarrativeFeedProps {
   lastUserMessageRef: React.RefObject<HTMLDivElement>;
   scrollRef: React.RefObject<HTMLDivElement>;
   onScroll: () => void;
+  onJournalDone?: () => void;
+  pendingActTransition: PendingActTransition | null;
+  isActBreakReady: boolean;
+  onBeginAct: () => void;
 }
 
 export function NarrativeFeed({
@@ -30,7 +35,23 @@ export function NarrativeFeed({
   lastUserMessageRef,
   scrollRef,
   onScroll,
+  onJournalDone,
+  pendingActTransition,
+  isActBreakReady,
+  onBeginAct,
 }: NarrativeFeedProps) {
+  // Anchor the act-closing diary to the TOP of the viewport when it appears, so
+  // the player reads it from line one (rather than the feed jumping to the bottom
+  // and clipping the top of a multi-paragraph entry). Fires once on append —
+  // keyed on history.length, so it does not re-fire during the typewriter.
+  const journalRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const last = history[history.length - 1];
+    if (last?.role === 'assistant' && last.type === 'journal' && journalRef.current) {
+      journalRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [history.length]);
+
   return (
   <div
     ref={scrollRef}
@@ -76,24 +97,36 @@ export function NarrativeFeed({
             );
           }
 
-          // Act-closing journal entry — always static, distinct diary styling
+          // Act-closing journal entry — diary styling. The latest one types out.
           if (isJournal && msg.text !== '') {
+            const diaryInnerClass =
+              "font-serif text-lb-primary/60 italic text-sm md:text-[15px] leading-relaxed";
             return (
               <motion.div
                 key={index}
+                ref={isLast ? journalRef : null}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.6 }}
-                className="my-10"
+                className="my-10 scroll-mt-8"
               >
                 <div className="border-l-2 border-lb-muted/40 pl-6 py-1">
                   <div className="flex items-center gap-2 mb-3 text-lb-muted opacity-50">
                     <Feather size={11} />
                     <span className="text-[10px] font-sans uppercase tracking-widest">Watson's Journal</span>
                   </div>
-                  <div className="font-serif text-lb-primary/60 italic text-sm md:text-[15px] leading-relaxed">
-                    <StoryRenderer text={msg.text} />
-                  </div>
+                  {isLast ? (
+                    <TypewriterBlock
+                      text={msg.text}
+                      onComplete={onJournalDone}
+                      className={diaryInnerClass}
+                      cursorClassName="inline-block w-1 h-[1em] bg-lb-muted opacity-40 animate-pulse ml-0.5 align-text-bottom"
+                    />
+                  ) : (
+                    <div className={diaryInnerClass}>
+                      <StoryRenderer text={msg.text} />
+                    </div>
+                  )}
                 </div>
               </motion.div>
             );
@@ -130,6 +163,22 @@ export function NarrativeFeed({
           return null;
         })}
       </AnimatePresence>
+
+      {pendingActTransition && isActBreakReady && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="my-10 flex justify-center"
+        >
+          <button
+            onClick={onBeginAct}
+            className="font-sans text-xs tracking-[0.08em] uppercase text-lb-accent border border-lb-accent/50 rounded px-5 py-2.5 hover:bg-lb-accent/10 transition-colors"
+          >
+            Begin Act {ACT_ROMAN[pendingActTransition.toAct] ?? pendingActTransition.toAct} →
+          </button>
+        </motion.div>
+      )}
 
       {isGameOver && <GameOverScreen />}
     </div>

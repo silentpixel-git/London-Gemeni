@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { AnimatePresence } from 'motion/react';
 import { SupabaseProvider, useSupabase } from './components/SupabaseProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Notification } from './components/Notification';
@@ -20,8 +21,11 @@ import { CommandInput } from './components/CommandInput';
 import { AuthModal } from './components/AuthModal';
 import { EditProfileModal } from './components/EditProfileModal';
 import { SaveSlotsModal } from './components/SaveSlotsModal';
+import { DiaryModal } from './components/DiaryModal';
 import { ResetPasswordModal } from './components/ResetPasswordModal';
+import { ActBreakCurtain } from './components/ActBreakCurtain';
 import { useGameState } from './hooks/useGameState';
+import { useAudio } from './hooks/useAudio';
 
 // ── Inner app (has access to Supabase context) ──────────────────────────────
 
@@ -36,8 +40,25 @@ const AppContent: React.FC = () => {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isFirstRunProfile, setIsFirstRunProfile] = useState(false);
   const [isSlotMenuOpen, setIsSlotMenuOpen] = useState(false);
+  const [isDiaryOpen, setIsDiaryOpen] = useState(false);
+  // Entries seen as of the last time the diary was opened — drives the unread badge.
+  const [diarySeenCount, setDiarySeenCount] = useState(0);
 
   const gs = useGameState({ user, isAuthReady, userProfile });
+
+  // Drive the ambient audio layer from game state (SFX fire from inside the hook).
+  useAudio({
+    location: gs.location,
+    weatherCondition: gs.weather?.condition,
+    soundEffects: gs.soundEffects,
+    ambientAudio: gs.ambientAudio,
+  });
+
+  const diaryUnreadCount = Math.max(0, gs.diaryEntries.length - diarySeenCount);
+  const openDiary = () => {
+    setDiarySeenCount(gs.diaryEntries.length);
+    setIsDiaryOpen(true);
+  };
 
   // On login, show the slot-select menu instead of auto-loading the last game.
   useEffect(() => {
@@ -92,6 +113,16 @@ const AppContent: React.FC = () => {
         />
       )}
 
+      <AnimatePresence>
+        {gs.isCurtainPlaying && gs.pendingActTransition && (
+          <ActBreakCurtain
+            key="act-curtain"
+            fromAct={gs.pendingActTransition.fromAct}
+            toAct={gs.pendingActTransition.toAct}
+          />
+        )}
+      </AnimatePresence>
+
       <Sidebar
         isSidebarOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -99,10 +130,11 @@ const AppContent: React.FC = () => {
         inventory={gs.inventory}
         currentAct={gs.currentAct}
         npcStates={gs.npcStates}
-        journalNotes={gs.journalNotes}
-        isUpdatingJournal={gs.isUpdatingJournal}
-        onUpdateJournal={gs.handleUpdateJournal}
+        onOpenDiary={openDiary}
+        diaryUnreadCount={diaryUnreadCount}
         displayTime={gs.displayTime}
+        displayDate={gs.displayDate}
+        weather={gs.weather}
       />
 
       <div className="flex-1 flex flex-col h-full relative w-full transition-all duration-300">
@@ -114,12 +146,12 @@ const AppContent: React.FC = () => {
           isSaving={gs.isSaving}
           isDark={gs.isDark}
           onToggleDark={() => gs.setIsDark(d => !d)}
-          timeThemeEnabled={gs.timeThemeEnabled}
-          ambientSoundEnabled={gs.ambientSoundEnabled}
-          sfxEnabled={gs.sfxEnabled}
-          onToggleAmbient={gs.toggleAmbientSound}
-          onToggleSfx={gs.toggleSfx}
-          onToggleTimeTheme={gs.toggleTimeTheme}
+          atmosphericTheme={gs.atmosphericTheme}
+          onToggleAtmospheric={() => gs.setAtmosphericTheme(v => !v)}
+          soundEffects={gs.soundEffects}
+          onToggleSound={() => gs.setSoundEffects(v => !v)}
+          ambientAudio={gs.ambientAudio}
+          onToggleAmbient={() => gs.setAmbientAudio(v => !v)}
           user={user}
           userProfile={userProfile}
           onSave={() => gs.handleSaveGame()}
@@ -137,10 +169,14 @@ const AppContent: React.FC = () => {
           lastUserMessageRef={gs.lastUserMessageRef}
           scrollRef={gs.scrollRef}
           onScroll={gs.handleScroll}
+          onJournalDone={gs.handleJournalTypewriterDone}
+          pendingActTransition={gs.pendingActTransition}
+          isActBreakReady={gs.isActBreakReady}
+          onBeginAct={gs.beginNextAct}
         />
 
         <CommandInput
-          isLoading={gs.isLoading}
+          isLoading={gs.isLoading || gs.pendingActTransition !== null || gs.isCurtainPlaying}
           isGameOver={gs.isGameOver}
           isConsultingHolmes={gs.isConsultingHolmes}
           history={gs.history}
@@ -158,6 +194,12 @@ const AppContent: React.FC = () => {
         onContinue={() => { gs.handleContinue(); setIsSlotMenuOpen(false); }}
         onDelete={(inv) => gs.handleDeleteSlot(inv)}
         onClose={() => setIsSlotMenuOpen(false)}
+      />
+      <DiaryModal
+        isOpen={isDiaryOpen}
+        onClose={() => setIsDiaryOpen(false)}
+        entries={gs.diaryEntries}
+        currentAct={gs.currentAct}
       />
       <ResetPasswordModal isOpen={isPasswordRecovery} />
       <AuthModal

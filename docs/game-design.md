@@ -118,7 +118,7 @@ Clues are triggered by examining specific objects at specific locations (first e
 | `clue_08_preserved_kidney` | The Other Half | `edmund_room_furnishings` | Private Asylum | 10 | 10 |
 | `clue_10_asylum_commitment` | The Murders Stop | `patient_records` | Private Asylum | 5 | 10 |
 
-**Deduction threshold:** 5 clues minimum to attempt a solution (`DEDUCTION_THRESHOLD`).
+**Deduction threshold:** 4 clues minimum to attempt a solution (`DEDUCTION_THRESHOLD`).
 
 ### The Smoking Gun Clue Chain
 1. `clue_05_from_hell_letter` reveals the word *"prasarved"* in the From Hell letter (Act IV)

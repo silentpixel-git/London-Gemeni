@@ -4,7 +4,14 @@ export type TimePeriod = 'dawn' | 'morning' | 'afternoon' | 'evening' | 'night' 
 export interface GameHistoryItem {
   role: 'user' | 'assistant' | 'system';
   text: string;
-  type?: 'journal'; // marks act-closing journal entries in the narrative feed
+  type?: 'journal'; // marks act-closing diary entries in the narrative feed
+}
+
+export interface PendingActTransition {
+  fromAct: number;
+  toAct: number;
+  newLocation: string;
+  npcUpdates: Record<string, Partial<NPCState>>;
 }
 
 export interface DispositionStats {
@@ -93,9 +100,13 @@ export interface GameState {
   npcStates?: Record<string, NPCState>;
   flags: Record<string, boolean>;
   journalNotes: string;
+  diaryEntries?: DiaryEntry[];
   timestamp: string;
   // NPC introduction tracking — IDs of NPCs whose real names Watson now knows
   introducedNpcs: string[];
+  // Current act. Optional for back-compat with older local saves (which derived
+  // the act from the location — ambiguous for shared anchors like bond_office).
+  currentAct?: number;
 }
 
 export interface WorldLocation {
@@ -189,6 +200,8 @@ export interface NarrationContext {
   locationName: string;
   locationAtmosphere: string;
   locationDescription: string;
+  // How many times Watson has visited this location (1 = first visit)
+  locationVisitCount: number;
   // Temporal framing — drives Watson's emotional register in narration
   // 'present'        — Watson is here now (November 1888, live investigation)
   // 'reconstruction' — Watson is revisiting a past crime scene weeks/months later
@@ -223,6 +236,16 @@ export interface NarrationContext {
   }>;
   // Atmospheric fallback note for the examined object (if no clue triggered)
   atmosphericNote?: string;
+  // Items Watson gained this turn (verified) — the AI must narrate the acquisition
+  itemsGained?: string[];
+  // First sentences of the last few narrations — anti-repetition memory
+  recentOpenings?: string[];
+  // One-line clock event when the turn crosses an hour boundary (hook-computed)
+  clockEvent?: string;
+  // Prose-only background figure for this location (engine-rotated, non-interactive)
+  ambientExtra?: string;
+  // One-shot authored vignette — replaces the random blockquote seed this turn
+  vignette?: string;
   // Recent NPC memory for present NPCs (max 2 entries each)
   npcRecentMemory?: Record<string, string[]>;
   // Session observations (STIM) — injected by useGameState before AI call
@@ -282,6 +305,24 @@ export interface ActJournalSummary {
   actNumber: number;
   actName: string;
   cluesFound: Array<{ name: string; description: string }>;
+}
+
+/**
+ * Watson's auto-captured casebook. An append-only record of important events the
+ * engine already tracks (clue discoveries, act milestones, major decisions). For
+ * 'clue'/'decision' entries we store only a refId — the displayed Watson line is
+ * looked up from authored story data at render time. 'act' entries carry the
+ * reflective prose verbatim so it stays re-readable in the diary.
+ */
+export type DiaryEntryKind = 'clue' | 'act' | 'decision' | 'revelation' | 'location';
+
+export interface DiaryEntry {
+  id: string;            // uuid — also the dedupe key for persistence
+  kind: DiaryEntryKind;
+  refId: string;         // clueId, decision id, beat id, or actNumber-as-string
+  actNumber: number;     // which act this was captured in (drives grouping)
+  sequence: number;      // monotonic order within the game
+  text?: string;         // 'act' entries only: the reflective act-closing prose
 }
 
 /** Simplified AI response schema — narration only, no state mutations */

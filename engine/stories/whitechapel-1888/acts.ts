@@ -43,13 +43,20 @@ export type WeatherCondition =
 export interface ActWeather {
   condition: WeatherCondition;
   label: string; // Short sidebar label, e.g. "Foggy"
+  // Intra-act weather drift: once elapsedMinutes passes afterMinutes, the act's
+  // weather shifts (e.g. a clear evening surrendering to fog). Derived in
+  // buildContext — no persistence required.
+  lateShift?: { afterMinutes: number; condition: WeatherCondition; label: string };
 }
 
 export const ACT_WEATHER: Record<number, ActWeather> = {
-  0: { condition: 'clear-night', label: 'Cold, Clear' },  // Thu 8 Nov, 8:00 PM  — Baker Street evening
-  1: { condition: 'drizzle',     label: 'Drizzle' },       // Fri 9 Nov, 10:45 AM — wet morning, body discovered
+  0: { condition: 'clear-night', label: 'Cold, Clear',     // Thu 8 Nov, 8:00 PM  — Baker Street evening
+       lateShift: { afterMinutes: 120, condition: 'foggy', label: 'Fog Rising' } },
+  1: { condition: 'drizzle',     label: 'Drizzle',          // Fri 9 Nov, 10:45 AM — wet morning, body discovered
+       lateShift: { afterMinutes: 150, condition: 'overcast', label: 'Grey, Clearing' } },
   2: { condition: 'overcast',    label: 'Overcast' },      // Sun 11 Nov, 9:00 AM — damp grey morning
-  3: { condition: 'foggy',       label: 'Foggy' },          // Wed 14 Nov, 10:00 AM — fog lingering into the day
+  3: { condition: 'foggy',       label: 'Foggy',             // Wed 14 Nov, 10:00 AM — fog lingering into the day
+       lateShift: { afterMinutes: 180, condition: 'overcast', label: 'Fog Lifting' } },
   4: { condition: 'clear-cold',  label: 'Cold, Clear' },   // Sat 17 Nov, 11:00 AM — crisp morning
   5: { condition: 'overcast',    label: 'Overcast' },      // Tue 20 Nov, 10:00 AM — grey morning
   6: { condition: 'foggy',       label: 'Fog Settling' },  // Thu 22 Nov, 2:00 PM — fog thickening

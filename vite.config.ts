@@ -8,7 +8,8 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       server: {
-        port: 3000,
+        // PORT is set by tooling (e.g. preview harness); fall back to 3000
+        port: Number(process.env.PORT) || 3000,
         host: '0.0.0.0',
       },
       plugins: [react()],

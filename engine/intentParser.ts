@@ -317,9 +317,38 @@ function matchObjectId(raw: string): string | undefined {
     'doorway': 'club_doorway',
     'posters': 'posters',
   };
+  // Longest alias wins — "dear boss letter" must match 'dear boss'
+  // (newspaper_pile), not the shorter 'letter' (from_hell_letter).
+  let bestId: string | undefined;
+  let bestLen = 0;
   for (const [alias, id] of Object.entries(objectAliases)) {
-    if (norm.includes(alias)) return id;
+    if (norm.includes(alias) && alias.length > bestLen) {
+      bestId = id;
+      bestLen = alias.length;
+    }
   }
+  if (bestId) return bestId;
+
+  // Fuzzy stage (last resort): typo tolerance against object display-name words,
+  // giving object nouns the same forgiveness verbs already get via correctVerbTypo.
+  // EVERY meaningful input word must near-match a word in the name (full coverage,
+  // mirroring the subset rule) and the object must be UNIQUE — so "autopsi ledger"
+  // / "newspaper pyle" land, but a stray name word like "holmes" in "spek to
+  // holmes" never hijacks an object match.
+  const fuzzyWords = norm.split(/\s+/).filter(w => w.length >= 4 && !STOP_WORDS.has(w));
+  if (fuzzyWords.length >= 1) {
+    const fuzzyCandidates: string[] = [];
+    for (const [id, displayName] of Object.entries(OBJECT_DISPLAY_NAMES)) {
+      const dnWords = normalise(displayName).split(/\s+/).filter(w => w.length >= 4);
+      const allCovered = fuzzyWords.every(iw => {
+        const maxDist = iw.length >= 6 ? 2 : 1;
+        return dnWords.some(dw => editDistance(iw, dw, maxDist) <= maxDist);
+      });
+      if (allCovered) fuzzyCandidates.push(id);
+    }
+    if (fuzzyCandidates.length === 1) return fuzzyCandidates[0];
+  }
+
   return undefined;
 }
 
@@ -339,6 +368,66 @@ function stripVerb(input: string, verbs: string[]): string {
     if (norm === verb) return '';
   }
   return input;
+}
+
+/**
+ * Damerau-Levenshtein edit distance (adjacent transpositions like "shwo"→"show"
+ * count as 1 edit) with early exit once the distance exceeds max.
+ */
+function editDistance(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev2: number[] | null = null;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const curr = [i];
+    let rowMin = i;
+    for (let j = 1; j <= b.length; j++) {
+      let d = Math.min(
+        prev[j] + 1,
+        curr[j - 1] + 1,
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+      if (prev2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        d = Math.min(d, prev2[j - 2] + 1);
+      }
+      curr[j] = d;
+      rowMin = Math.min(rowMin, d);
+    }
+    if (rowMin > max) return max + 1;
+    prev2 = prev;
+    prev = curr;
+  }
+  return prev[b.length];
+}
+
+// Single-word verbs eligible for typo correction (multi-word verbs are matched
+// exactly; correcting them word-by-word isn't worth the false-positive risk).
+const FUZZY_VERBS: string[] = [
+  ...MOVE_VERBS, ...EXAMINE_VERBS, ...TALK_VERBS, ...TAKE_VERBS,
+  ...USE_VERBS, ...SHOW_VERBS, ...READ_VERBS, ...DROP_VERBS,
+].filter(v => !v.includes(' '));
+
+/**
+ * If the first word of the input is a near-miss of a known verb
+ * (e.g. "exmaine"), return the input with the verb corrected. Otherwise null.
+ * Only fires for words of 4+ letters that aren't already a known verb —
+ * short words like "go" are too easy to false-positive on.
+ */
+function correctVerbTypo(rawInput: string): string | null {
+  const firstWord = normalise(rawInput).split(' ')[0];
+  if (firstWord.length < 4 || FUZZY_VERBS.includes(firstWord)) return null;
+  const maxDist = firstWord.length >= 6 ? 2 : 1;
+  let best: string | null = null;
+  let bestDist = maxDist + 1;
+  for (const verb of FUZZY_VERBS) {
+    if (verb.length < 4) continue;
+    const d = editDistance(firstWord, verb, maxDist);
+    if (d < bestDist) { bestDist = d; best = verb; }
+  }
+  if (!best) return null;
+  // Replace the first word in the original input, preserving the rest
+  const rest = rawInput.trim().split(/\s+/).slice(1).join(' ');
+  return rest ? `${best} ${rest}` : best;
 }
 
 /**
@@ -443,7 +532,22 @@ export function parseIntent(rawInput: string): ParsedIntent {
           raw: rawInput,
         };
       }
-      // No "to" — treat as show <item> with no specific target
+      // No "to" — first try the dative form: "show holmes the clipping"
+      // (NPC name leads, item follows). The NPC must match the LEADING words
+      // only, otherwise "show the holmes letter" would misparse.
+      const words = afterVerb.trim().split(/\s+/);
+      for (let n = Math.min(3, words.length - 1); n >= 1; n--) {
+        const leading = words.slice(0, n).join(' ');
+        const npcId = matchNpcId(leading);
+        if (npcId) {
+          const itemRaw = words.slice(n).join(' ').replace(/^(the|a|an)\s+/i, '');
+          const itemId = matchObjectId(itemRaw);
+          if (itemId) {
+            return { type: 'show', targetId: itemId, targetRaw: itemRaw, showTargetNpcId: npcId, raw: rawInput };
+          }
+        }
+      }
+      // Otherwise: show <item> with no specific target
       const targetId = matchObjectId(afterVerb) || matchNpcId(afterVerb);
       return { type: 'show', targetId, targetRaw: afterVerb, raw: rawInput };
     }
@@ -532,7 +636,20 @@ export function parseIntent(rawInput: string): ParsedIntent {
     return { type: 'query', targetRaw: rawInput, raw: rawInput };
   }
 
-  // 9. Implicit movement: if the whole input matches a location name
+  // 9. Typo correction: if no verb matched, try fixing a misspelled verb in
+  // the first word (e.g. "exmaine the case wall", "dorp letter") and re-parse.
+  // Must run BEFORE implicit entity matching, otherwise a typo'd verb followed
+  // by a known item gets swallowed (e.g. "dorp letter" → implicit examine).
+  const corrected = correctVerbTypo(rawInput);
+  if (corrected) {
+    const reparsed = parseIntent(corrected);
+    if (reparsed.type !== 'other') {
+      // Keep the player's original text as raw for display/AI context
+      return { ...reparsed, raw: rawInput };
+    }
+  }
+
+  // 10. Implicit movement: if the whole input matches a location name
   const directLocationMatch = matchLocationId(rawInput);
   if (directLocationMatch) {
     return {
@@ -543,7 +660,7 @@ export function parseIntent(rawInput: string): ParsedIntent {
     };
   }
 
-  // 10. Implicit examine: if the whole input matches an object or NPC
+  // 11. Implicit examine: if the whole input matches an object or NPC
   const directObjectMatch = matchObjectId(rawInput);
   if (directObjectMatch) {
     return {
@@ -564,7 +681,7 @@ export function parseIntent(rawInput: string): ParsedIntent {
     };
   }
 
-  // 11. Fallback
+  // 12. Fallback
   return {
     type: 'other',
     raw: rawInput,

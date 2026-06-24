@@ -20,7 +20,7 @@
  */
 
 import { supabase } from '../supabase';
-import { Investigation, NPCState, Clue, LogEntry } from '../types';
+import { Investigation, NPCState, Clue, LogEntry, DiaryEntry } from '../types';
 import type { EngineResult } from '../types';
 import { CLUE_DEFINITIONS } from '../engine/gameData';
 
@@ -442,6 +442,54 @@ export class GameRepository {
       }));
     } catch (err) {
       console.error('GameRepository.getAllDiscoveredClues:', err);
+      return [];
+    }
+  }
+
+  // ----------------------------------------------------------
+  // DIARY (Watson's auto-captured casebook)
+  // ----------------------------------------------------------
+
+  static async addDiaryEntries(investigationId: string, entries: DiaryEntry[]): Promise<void> {
+    if (entries.length === 0) return;
+    const rows = entries.map(e => ({
+      investigation_id: investigationId,
+      id: e.id,
+      kind: e.kind,
+      ref_id: e.refId,
+      act_number: e.actNumber,
+      sequence: e.sequence,
+      text: e.text ?? null,
+    }));
+
+    try {
+      const { error } = await supabase
+        .from('diary_entries')
+        .upsert(rows as Record<string, unknown>[], { onConflict: 'investigation_id,id' });
+      if (error) throw error;
+    } catch (err) {
+      console.error('GameRepository.addDiaryEntries:', err);
+    }
+  }
+
+  static async getDiaryEntries(investigationId: string): Promise<DiaryEntry[]> {
+    try {
+      const { data, error } = await supabase
+        .from('diary_entries')
+        .select('*')
+        .eq('investigation_id', investigationId)
+        .order('sequence', { ascending: true });
+      if (error) throw error;
+      return (data || []).map((d: Record<string, unknown>) => ({
+        id: d.id as string,
+        kind: d.kind as DiaryEntry['kind'],
+        refId: d.ref_id as string,
+        actNumber: d.act_number as number,
+        sequence: d.sequence as number,
+        text: (d.text as string | null) ?? undefined,
+      }));
+    } catch (err) {
+      console.error('GameRepository.getDiaryEntries:', err);
       return [];
     }
   }

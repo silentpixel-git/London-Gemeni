@@ -50,6 +50,7 @@ function makeCtx(overrides: Partial<NarrationContext>): NarrationContext {
     timeLabel: '10:45 PM — Friday, 9 November 1888',
     timePeriod: 'night',
     weather: { condition: 'foggy', label: 'Foggy' },
+    locationVisitCount: 1,
     ...overrides,
   };
 }
@@ -270,7 +271,152 @@ const fixtures: Array<{ label: string; rubric: string; ctx: NarrationContext }> 
       blockquoteHint: 'world_event',
     }),
   },
+  {
+    label: 'quality-revisit-no-redescription',
+    rubric: '2c_writing_quality',
+    ctx: makeCtx({
+      narrationMode: 'full',
+      locationVisitCount: 3,
+      actionDescription: 'Watson returns to Baker Street.',
+      actionResultNote: 'Watson is back at 221B with the documents gathered from Bond\'s office.',
+      inventory: ["Watson's Diary", 'From Hell Letter (transcript)', "Assistant's Forensic Note (copy)"],
+    }),
+    // EVALUATE: opening sentence must NOT describe fog/weather/fire/windows or
+    // re-describe the room — it should anchor on Watson's purpose or what changed.
+  },
+  {
+    label: 'quality-unrecognised-input',
+    rubric: '2c_writing_quality',
+    ctx: makeCtx({
+      narrationMode: 'compact',
+      actionType: 'other',
+      actionDescription: 'Watson heard himself mutter something unclear: "flibber the wainscoting"',
+      actionResultNote:
+        'UNRECOGNISED INPUT — the instruction was not understood. Watson should briefly, ' +
+        'in character, admit he is unsure what he meant to do (e.g. pausing, collecting his ' +
+        'thoughts) and naturally suggest what he COULD do here: examine something present, ' +
+        'speak to someone present, or move on. Do NOT invent an action or narrate progress.',
+      blockquoteHint: 'none',
+    }),
+    // EVALUATE: Watson must admit confusion, invent no action/progress, and
+    // hint at real options (examine / talk / move).
+  },
+  {
+    label: 'quality-acquisition-correlation',
+    rubric: '2c_writing_quality',
+    ctx: makeCtx({
+      narrationMode: 'compact',
+      actionType: 'examine',
+      actionDescription: 'Watson examined the Newspaper Pile at 221B Baker Street.',
+      actionResultNote: 'SUCCESS — Watson examined the Newspaper Pile.',
+      itemsGained: ['Newspaper Clipping (the "Dear Boss" letter)'],
+      atmosphericNote: "The Star, the Evening Standard, the Times. Every front page from August onward. Headlines grow more hysterical with each passing week. Near the top of the pile, the Star has reprinted the 'Dear Boss' letter in facsimile — the letter that gave the killer his name. Watson cuts the column out carefully and folds it into his notebook before setting the papers down.",
+      blockquoteHint: 'none',
+    }),
+    // EVALUATE (STATE_MISMATCH check): the prose must convey that Watson took/
+    // clipped the Dear Boss letter — the acquisition cannot be silent.
+  },
 ];
+
+// ── Repetition analysis (3 sequential narrations, n-gram overlap) ─────────────
+
+function extractOpening(markdown: string): string {
+  const line = markdown
+    .split('\n')
+    .map(l => l.trim())
+    .find(l => l.length > 0 && !l.startsWith('#') && !l.startsWith('>') && !l.startsWith('**'));
+  if (!line) return '';
+  return line.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? line;
+}
+
+// Strip non-prose lines before measuring repetition: act headers and the
+// engine-appended verified-data footer ("X is here.", "Objects of interest:",
+// "Possible exits:") are identical by design and would inflate the overlap.
+function proseOnly(markdown: string): string {
+  return markdown
+    .split('\n')
+    .filter(l => {
+      const t = l.trim();
+      return !t.startsWith('#') &&
+        !t.startsWith('**Objects of interest:') &&
+        !t.startsWith('**Possible exits:') &&
+        !t.startsWith('**No exits available') &&
+        !/^\*\*.+\*\*( and \*\*.+\*\*)?,? (is|are) here\.$/.test(t);
+    })
+    .join('\n');
+}
+
+function trigrams(text: string): Set<string> {
+  const words = proseOnly(text).toLowerCase().replace(/[^a-z\s']/g, ' ').split(/\s+/).filter(Boolean);
+  const grams = new Set<string>();
+  for (let i = 0; i + 2 < words.length; i++) grams.add(`${words[i]} ${words[i + 1]} ${words[i + 2]}`);
+  return grams;
+}
+
+async function generateRepetitionAnalysis(): Promise<string> {
+  const lines: string[] = ['## Repetition Analysis (3 sequential Baker Street narrations)', ''];
+  const outputs: string[] = [];
+  const openings: string[] = [];
+
+  for (let i = 0; i < 3; i++) {
+    console.log(`Running repetition pass ${i + 1}/3...`);
+    const ctx = makeCtx({
+      narrationMode: 'full',
+      locationVisitCount: i + 1,
+      recentOpenings: openings.length > 0 ? [...openings].reverse() : undefined,
+      actionDescription: i === 0 ? 'Watson surveys the room.' : 'Watson looks around the room again.',
+      actionResultNote: 'Watson takes stock of the investigation.',
+    });
+    try {
+      const out = await getNarration(ctx);
+      outputs.push(out);
+      const op = extractOpening(out);
+      if (op) openings.push(op);
+    } catch (err) {
+      lines.push(`(ERROR on pass ${i + 1}: ${err instanceof Error ? err.message : String(err)})`);
+      return lines.join('\n');
+    }
+  }
+
+  // Pairwise shared trigram analysis
+  const sets = outputs.map(trigrams);
+  const repeated: string[] = [];
+  for (let a = 0; a < sets.length; a++) {
+    for (let b = a + 1; b < sets.length; b++) {
+      for (const g of sets[a]) if (sets[b].has(g)) repeated.push(g);
+    }
+  }
+  const unique = [...new Set(repeated)];
+  const totalGrams = sets.reduce((s, g) => s + g.size, 0);
+  const overlapPct = totalGrams > 0 ? ((repeated.length / totalGrams) * 100).toFixed(1) : '0';
+
+  lines.push(`**Shared 3-word phrases across passes:** ${unique.length} (${overlapPct}% pairwise overlap)`);
+  lines.push('');
+  if (unique.length > 0) {
+    lines.push('**Repeated phrases** (appearing in 2+ of 3 outputs):');
+    lines.push('');
+    for (const g of unique.slice(0, 25)) lines.push(`- "${g}"`);
+    lines.push('');
+  }
+  lines.push('**Opening sentences:**');
+  lines.push('');
+  openings.forEach((o, i) => lines.push(`${i + 1}. ${o}`));
+  lines.push('');
+  lines.push('**QA Agent: flag REPETITION if the same imagery family (fire/shadows/fog) or any phrase appears in 2+ openings, or if shared-phrase overlap exceeds ~3%.**');
+  lines.push('');
+  outputs.forEach((o, i) => {
+    lines.push(`<details><summary>Pass ${i + 1} full output</summary>`);
+    lines.push('');
+    lines.push('```');
+    lines.push(o);
+    lines.push('```');
+    lines.push('</details>');
+    lines.push('');
+  });
+  lines.push('---');
+  lines.push('');
+  return lines.join('\n');
+}
 
 // ── Static difficulty analysis ────────────────────────────────────────────────
 
@@ -281,25 +427,25 @@ function generateDifficultyAnalysis(): string {
 
 | Act | Gate Flags Required | Min Actions to Satisfy |
 |-----|--------------------|-----------------------|
-| 0   | 3 (case_files_wall, telegrams_pile, talk_holmes) | 3 examine/talk |
-| 1   | 1 (examined_millers_court — any object triggers it) | 1 examine |
-| 2   | 3 (mortuary + bucks_row + hanbury_street) | 3 examines across 3 locations |
-| 3   | 3 (dutfields_yard + mitre_square + working_mens_club) | 3 examines across 3 locations |
-| 4   | 1 (examined_lusk_office) | 1 examine |
-| 5   | 1 (examined_bond_office) | 1 examine |
-| 6   | 1 (visited_private_asylum) + correct deduction | 1 move + deduce |
+| 0   | 4 (case wall, talk Holmes, show clipping, telegrams) | 3 examine/show + 1 talk |
+| 1   | 4 (talk Hutchinson, burned clothing, the bed, talk Bond) | 2 examines + 2 talks |
+| 2   | 5 (mortuary + bucks_row + hanbury + talk Tumblety + talk Holmes) | 3 examines + 2 talks, 4 locations |
+| 3   | 5 (dutfields + talk Pizer + mitre_square + goulston + talk Holmes) | 3 examines + 2 talks, 4 locations |
+| 4   | 3 (lusk_office + talk Abberline + talk Holmes) | 1 examine + 2 talks |
+| 5   | correct deduction only (sentinel flag — requires clue_06 via Baker Street convergence) | gather + use-with + deduce |
+| 6   | 2 (visit asylum + talk Edmund) | 1 move + 1 talk |
 
 ### Clue Distribution
 
 - Total clues in game: ~14 (clue_00 through clue_10, with variants)
-- Minimum clues for deduction threshold (5): requires visiting mortuary, hanbury_street, mitre_square, lusk_office, bond_office
+- Minimum clues for deduction threshold (4): requires visiting mortuary, hanbury_street, mitre_square, lusk_office, bond_office
 - Smoking gun clue (clue_06_prasarved_spelling): only discoverable at bond_office Act 5
 - Red herring suspects: Dr. Bond (plausible — medical access), Inspector Abberline (authority figure)
 
 ### Questions for QA agent to assess:
 
-1. **Is Act 1 gate too easy?** Only one examine required — player barely engages with Miller's Court before moving on.
-2. **Is the deduction threshold (5 clues) appropriate?** The minimum path collects exactly 5 — no margin for missed clues.
+1. **Is the Act 1 gate well paced?** Four flags required (2 examines + 2 talks at Dorset Street / Miller's Court) — does this give the central murder scene enough weight?
+2. **Is the deduction threshold (4 clues) appropriate?** The minimum path collects close to the threshold — little margin for missed clues.
 3. **Are red herrings distinguishable?** Bond is present at the mortuary and his name appears on notes — he's a strong red herring. Does the game provide enough differentiators for Edmund?
 4. **Minimum path length:** ~18 actions (moves + examines + talk + deduce). Is this sufficient for player investment?
 5. **Is clue_06 (prasarved spelling) the only definitive proof?** If a player misses bond_office objects, can they still solve the case?
@@ -370,6 +516,10 @@ async function main() {
       lines.push('');
     }
   }
+
+  // Repetition analysis — 3 sequential full-mode narrations at the same
+  // location, each fed the previous openings (mirrors live anti-repetition).
+  lines.push(await generateRepetitionAnalysis());
 
   // Static difficulty analysis (no AI call)
   lines.push(generateDifficultyAnalysis());

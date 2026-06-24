@@ -27,9 +27,9 @@ Read all output. Any `[FAIL]` line is a confirmed bug. Any `[WARN]` line is a lo
 
 ## Step 2: AI narration quality tests
 
-Run:
+Run (the key lives in `.env.local` — never hardcode it):
 ```
-GEMINI_API_KEY=<key> npx tsx scripts/qa-narration.ts
+export $(grep '^GEMINI_API_KEY' .env.local) && npx tsx scripts/qa-narration.ts
 ```
 
 This writes `qa-narration-report.md`. Read it carefully and evaluate each narration output against the four rubrics below.
@@ -81,14 +81,30 @@ Compare overall writing quality to the Doyle standard. Be honest — rate the ga
 Read the static difficulty analysis in `qa-narration-report.md` and give your verdict:
 
 Answer these questions:
-1. Is the Act 1 gate (single examine) too easy?
-2. Is the 5-clue deduction threshold appropriate or too easy/hard?
+1. Are the act gates (multi-flag: examines + talks per act) appropriately paced?
+2. Is the 4-clue deduction threshold appropriate or too easy/hard?
 3. Are Bond and Abberline distinguishable enough as red herrings from Edmund?
 4. Is the minimum path length (~18 actions) sufficient for player investment?
 5. Is there enough evidence to solve the case if a player misses the bond_office forensic note?
 
 Rate overall difficulty: **EASY / BALANCED / HARD**
 Identify specific bottlenecks or pacing issues.
+
+### 2e. Repetition & state consistency
+
+The report contains a **Repetition Analysis** section (3 sequential Baker Street narrations with shared-trigram stats) and a `quality-acquisition-correlation` fixture.
+
+**Repetition** — flag **REPETITION** when:
+- The same imagery family (fire crackling, dancing/flickering shadows, fog at the panes) appears in 2+ of the 3 sequential outputs
+- Any 3-word phrase repeats across outputs (see the shared-phrases list; >~3% overlap is a fail)
+- Opening sentences share subject or sentence shape
+
+**State consistency** — flag **STATE_MISMATCH** when narration contradicts or silently omits verified state:
+- `itemsGained` present but the prose never conveys Watson taking/copying the item (check `quality-acquisition-correlation`)
+- NPCs listed as present but absent from full-mode prose (or vice versa)
+- Exits/objects mentioned that aren't in the verified lists
+
+Both are high-priority player-experience bugs: repetition kills immersion; state mismatches make the player miss mechanics.
 
 ## Output format
 
@@ -118,6 +134,9 @@ Return a structured report:
 ### 2d. Difficulty
 [EASY/BALANCED/HARD]
 [Specific bottlenecks]
+
+### 2e. Repetition & Consistency
+[PASS or REPETITION / STATE_MISMATCH items with quotes]
 
 ## Priority Fixes
 [Ranked list: blocking → major → minor]
