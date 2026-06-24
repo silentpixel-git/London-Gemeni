@@ -187,6 +187,7 @@ function matchNpcId(raw: string): string | undefined {
     'leather apron': 'pizer',
     'the bootmaker': 'pizer',
     'the witness': 'hutchinson',
+    'labourer': 'hutchinson',
     'dr phillips': 'phillips',
     'doctor phillips': 'phillips',
   };

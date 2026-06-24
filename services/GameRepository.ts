@@ -43,7 +43,7 @@ export interface UserProfile {
   displayName: string | null;
   avatarUrl: string | null;
   role: VictorianRole;
-  themePreference: 'light' | 'dark';
+  themePreference: 'light' | 'dark' | 'auto';
   createdAt: string;
   updatedAt: string;
 }
@@ -69,7 +69,7 @@ export class GameRepository {
         displayName: data.display_name,
         avatarUrl: data.avatar_url,
         role: (data.role as VictorianRole) ?? 'Field Surgeon',
-        themePreference: (data.theme_preference as 'light' | 'dark') ?? 'light',
+        themePreference: (data.theme_preference as 'light' | 'dark' | 'auto') ?? 'light',
         createdAt: data.created_at,
         updatedAt: data.updated_at,
       };
@@ -460,6 +460,7 @@ export class GameRepository {
       act_number: e.actNumber,
       sequence: e.sequence,
       text: e.text ?? null,
+      time_label: e.timeLabel ?? null,
     }));
 
     try {
@@ -487,6 +488,7 @@ export class GameRepository {
         actNumber: d.act_number as number,
         sequence: d.sequence as number,
         text: (d.text as string | null) ?? undefined,
+        timeLabel: (d.time_label as string | null) ?? undefined,
       }));
     } catch (err) {
       console.error('GameRepository.getDiaryEntries:', err);

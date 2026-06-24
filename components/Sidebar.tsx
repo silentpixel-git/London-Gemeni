@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { MapPin, Briefcase, DoorOpen, User, ScrollText, Feather, X, CloudFog, CloudDrizzle, CloudRain, Cloudy, Moon, type LucideIcon } from 'lucide-react';
-import { LOCATIONS } from '../engine/gameData';
+import { LOCATIONS, NPCS, NPC_ALIASES } from '../engine/gameData';
 import type { ActWeather, WeatherCondition } from '../engine/gameData';
 import { INITIAL_NPC_STATES, NPC_DISPLAY_NAMES } from '../constants';
 import { NPCState } from '../types';
@@ -30,6 +30,7 @@ interface SidebarProps {
   inventory: string[];
   currentAct: number;
   npcStates: Record<string, NPCState>;
+  introducedNpcs: string[];
   onOpenDiary: () => void;
   diaryUnreadCount: number;
   displayTime: string;
@@ -44,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   inventory,
   currentAct,
   npcStates,
+  introducedNpcs,
   onOpenDiary,
   diaryUnreadCount,
   displayTime,
@@ -145,8 +147,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <p className="text-sm text-lb-muted italic">No one else is here.</p>
             ) : (
               presentNpcs.map(state => {
-                const displayName =
-                  NPC_DISPLAY_NAMES[state.npcId as keyof typeof NPC_DISPLAY_NAMES] || state.npcId;
+                // Mirror the engine's label resolution (GameEngine.ts): show the
+                // real name only once Watson has been introduced; otherwise the alias.
+                const npc = NPCS[state.npcId];
+                const isIntroduced =
+                  !npc?.requiresIntroduction || introducedNpcs.includes(state.npcId);
+                const displayName = isIntroduced
+                  ? (NPC_DISPLAY_NAMES[state.npcId as keyof typeof NPC_DISPLAY_NAMES] || npc?.displayName || state.npcId)
+                  : (npc?.alias ?? NPC_ALIASES[state.npcId] ?? NPC_DISPLAY_NAMES[state.npcId as keyof typeof NPC_DISPLAY_NAMES] ?? state.npcId);
                 return (
                   <li key={state.npcId} className="flex flex-col gap-1 text-lb-primary opacity-90">
                     <div className="flex items-center gap-3">

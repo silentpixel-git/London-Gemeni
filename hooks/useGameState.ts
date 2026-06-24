@@ -19,7 +19,7 @@ import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
 import { audioManager } from '../services/AudioManager';
 import { parseIntent, type ParsedIntent } from '../engine/intentParser';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -30,7 +30,7 @@ import {
   INITIAL_INTRODUCED_NPCS,
   NPC_DISPLAY_NAMES,
 } from '../constants';
-import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod } from '../types';
+import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod, ThemeMode } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
 
 // ── AI fallback target resolution ─────────────────────────────────────────────
@@ -105,6 +105,7 @@ export interface GameStateReturn {
   currentAct: number;
   flags: Record<string, boolean>;
   npcStates: Record<string, NPCState>;
+  introducedNpcs: string[];
   activeInvestigation: Investigation | null;
   slots: Investigation[];
 
@@ -116,13 +117,12 @@ export interface GameStateReturn {
   // UI / persistence
   diaryEntries: DiaryEntry[];
   isSaving: boolean;
-  isDark: boolean;
-  setIsDark: React.Dispatch<React.SetStateAction<boolean>>;
 
-  // Atmosphere settings (time-of-day theming + audio)
+  // Appearance + atmosphere settings. themeMode is the single appearance choice
+  // (light / dark / auto-by-the-hour); 'auto' follows timePeriod.
+  themeMode: ThemeMode;
+  setThemeMode: React.Dispatch<React.SetStateAction<ThemeMode>>;
   timePeriod: TimePeriod;
-  atmosphericTheme: boolean;
-  setAtmosphericTheme: React.Dispatch<React.SetStateAction<boolean>>;
   soundEffects: boolean;
   setSoundEffects: React.Dispatch<React.SetStateAction<boolean>>;
   ambientAudio: boolean;
@@ -254,11 +254,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // Record the first arrival at a location (authored Watson line, once per place).
   const captureLocationArrival = useCallback(
-    (locationId: string, actNumber: number) => {
+    (locationId: string, actNumber: number, timeLabel: string) => {
       if (!LOCATION_DIARY[locationId]) return;
       if (loggedLocationsRef.current.has(locationId)) return;
       loggedLocationsRef.current.add(locationId);
-      captureDiaryEntries([{ kind: 'location', refId: locationId, actNumber }]);
+      captureDiaryEntries([{ kind: 'location', refId: locationId, actNumber, timeLabel }]);
     },
     [captureDiaryEntries],
   );
@@ -270,13 +270,19 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     gemini: boolean | null;
     supabase: boolean | null;
   }>({ gemini: null, supabase: null });
-  const [isDark, setIsDark] = useState<boolean>(() => {
-    try { return localStorage.getItem('lb-theme') === 'dark'; } catch { return false; }
+  // Single appearance choice — defaults to light. Reads the new key first, then
+  // falls back to the legacy lb-theme / lb-atmospheric-theme pair so existing
+  // players keep their setting (atmospheric → 'auto', dark → 'dark').
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    try {
+      const stored = localStorage.getItem('lb-theme-mode');
+      if (stored === 'light' || stored === 'dark' || stored === 'auto') return stored;
+      if (localStorage.getItem('lb-atmospheric-theme') === 'on') return 'auto';
+      if (localStorage.getItem('lb-theme') === 'dark') return 'dark';
+    } catch {}
+    return 'light';
   });
-  // Atmosphere settings — all default off, persisted to localStorage (POC).
-  const [atmosphericTheme, setAtmosphericTheme] = useState<boolean>(() => {
-    try { return localStorage.getItem('lb-atmospheric-theme') === 'on'; } catch { return false; }
-  });
+  // Atmosphere audio — default off, persisted to localStorage (POC).
   const [soundEffects, setSoundEffects] = useState<boolean>(() => {
     try { return localStorage.getItem('lb-sound-effects') === 'on'; } catch { return false; }
   });
@@ -356,34 +362,32 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthReady, pingSupabase]);
 
-  // Apply the active data-theme. Atmospheric mode follows the in-game clock and
-  // overrides the manual light/dark toggle; otherwise the manual toggle applies.
+  // Apply the active data-theme. In 'auto' the palette follows the in-game clock
+  // (evening/night); 'light' and 'dark' apply that palette directly. Because it's
+  // one choice, a manual dark selection can never be silently overridden.
   useEffect(() => {
     let theme: string;
-    if (atmosphericTheme) {
+    if (themeMode === 'auto') {
       theme = (currentTimePeriod === 'night' || currentTimePeriod === 'lateNight') ? 'night'
             : (currentTimePeriod === 'evening' || currentTimePeriod === 'dawn')   ? 'evening'
             : 'light';
     } else {
-      theme = isDark ? 'dark' : 'light';
+      theme = themeMode; // 'light' | 'dark'
     }
     document.documentElement.dataset.theme = theme;
-  }, [isDark, atmosphericTheme, currentTimePeriod]);
+  }, [themeMode, currentTimePeriod]);
 
-  // Persist the manual light/dark preference — localStorage + Supabase cloud sync.
+  // Persist the appearance choice — localStorage + Supabase cloud sync.
   useEffect(() => {
-    try { localStorage.setItem('lb-theme', isDark ? 'dark' : 'light'); } catch {}
+    try { localStorage.setItem('lb-theme-mode', themeMode); } catch {}
     // Sync to cloud when logged in (user accessed via closure — intentionally omitted from deps)
     if (user) {
-      GameRepository.upsertProfile(user.id, { themePreference: isDark ? 'dark' : 'light' });
+      GameRepository.upsertProfile(user.id, { themePreference: themeMode });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDark]);
+  }, [themeMode]);
 
-  // Persist the atmosphere toggles — localStorage only for the POC.
-  useEffect(() => {
-    try { localStorage.setItem('lb-atmospheric-theme', atmosphericTheme ? 'on' : 'off'); } catch {}
-  }, [atmosphericTheme]);
+  // Persist the atmosphere audio toggles — localStorage only for the POC.
   useEffect(() => {
     try { localStorage.setItem('lb-sound-effects', soundEffects ? 'on' : 'off'); } catch {}
   }, [soundEffects]);
@@ -391,10 +395,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     try { localStorage.setItem('lb-ambient-audio', ambientAudio ? 'on' : 'off'); } catch {}
   }, [ambientAudio]);
 
-  // Load theme preference from cloud when user profile becomes available
+  // Load appearance preference from cloud when user profile becomes available
   useEffect(() => {
-    if (userProfile?.themePreference) {
-      setIsDark(userProfile.themePreference === 'dark');
+    const pref = userProfile?.themePreference;
+    if (pref === 'light' || pref === 'dark' || pref === 'auto') {
+      setThemeMode(pref);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userProfile?.id]); // only fire when user identity changes, not on every profile update
@@ -465,7 +470,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     if (hasGeneratedOpening.current) return;
     hasGeneratedOpening.current = true;
     // Seed the diary with the opening locale so it is never empty on a fresh start.
-    captureLocationArrival(INITIAL_LOCATION, INITIAL_ACT);
+    captureLocationArrival(INITIAL_LOCATION, INITIAL_ACT, formatGameClock(INITIAL_ACT, 0));
     setIsLoading(true);
     setHistory([{ role: 'assistant', text: '' }]);
 
@@ -803,7 +808,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     audioManager.playSfx('act-bell');
     setLocation(newLocation);
     setLocationVisitCounts(prev => ({ ...prev, [newLocation]: (prev[newLocation] ?? 0) + 1 }));
-    captureLocationArrival(newLocation, toAct); // diary: arriving in the new act's locale
+    captureLocationArrival(newLocation, toAct, formatGameClock(toAct, 0)); // diary: arriving in the new act's locale at its canonical start
     setElapsedMinutes(0);
     if (Object.keys(npcUpdates).length > 0) {
       setNpcStates(prev => {
@@ -1173,8 +1178,13 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       };
       // On an act-advance the clock persists at the new act's canonical start (0);
       // React's elapsedMinutes stays held until Begin (see the hold comment above).
-      const newElapsedMinutes = advancingAct ? 0 : elapsedMinutes + (ACTION_TIME_MINUTES[result.actionType] ?? 2);
+      const actionMinutes = ACTION_TIME_MINUTES[result.actionType] ?? 2;
+      const newElapsedMinutes = advancingAct ? 0 : elapsedMinutes + actionMinutes;
       if (!advancingAct) setElapsedMinutes(newElapsedMinutes);
+      // Clock label for any diary entries captured this turn. Use the held clock
+      // (current act + this action's time), not the next act's reset — entries
+      // captured this turn belong to the current act even on an advancing turn.
+      const captureTimeLabel = formatGameClock(currentAct, elapsedMinutes + actionMinutes);
       setTurnCount(t => t + 1);
 
       // Hour-bell clock event — fires when the turn crosses an hour boundary
@@ -1246,21 +1256,21 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         const captured: Array<Omit<DiaryEntry, 'id' | 'sequence'>> = [];
         if (result.discoveredClueIds) {
           for (const clueId of result.discoveredClueIds) {
-            if (CLUE_DEFINITIONS[clueId]) captured.push({ kind: 'clue', refId: clueId, actNumber: currentAct });
+            if (CLUE_DEFINITIONS[clueId]) captured.push({ kind: 'clue', refId: clueId, actNumber: currentAct, timeLabel: captureTimeLabel });
           }
         }
         if (result.flagsUpdate) {
           for (const [flag, value] of Object.entries(result.flagsUpdate)) {
             const decisionId = DECISION_BY_FLAG[flag];
             if (value === true && !flags[flag] && decisionId) {
-              captured.push({ kind: 'decision', refId: decisionId, actNumber: currentAct });
+              captured.push({ kind: 'decision', refId: decisionId, actNumber: currentAct, timeLabel: captureTimeLabel });
             }
           }
         }
         captureDiaryEntries(captured);
         // First arrival at a new location within the act.
         if (result.newLocation && !advancingAct) {
-          captureLocationArrival(result.newLocation, currentAct);
+          captureLocationArrival(result.newLocation, currentAct, captureTimeLabel);
         }
       }
 
@@ -1396,6 +1406,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
               actNumber: pendingJournalSummary.actNumber,
               sequence: diarySeqRef.current++,
               text: journalText,
+              timeLabel: captureTimeLabel, // the clock at the act's close
             };
             setDiaryEntries(prev => [...prev, actEntry]);
             if (user && activeInvestigation) {
@@ -1582,18 +1593,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     currentAct,
     flags,
     npcStates,
+    introducedNpcs,
     activeInvestigation,
     slots,
 
-    displayTime: (() => {
-      const cfg = ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1];
-      const m = (cfg.canonicalMinutes + elapsedMinutes) % 1440;
-      const h24 = Math.floor(m / 60);
-      const mins = m % 60;
-      const ampm = h24 < 12 ? 'AM' : 'PM';
-      const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-      return `${h12}:${mins.toString().padStart(2, '0')} ${ampm}`;
-    })(),
+    displayTime: formatGameClock(currentAct, elapsedMinutes),
 
     displayDate: (ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1]).displayDate,
 
@@ -1601,11 +1605,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     diaryEntries,
     isSaving,
-    isDark,
-    setIsDark,
+    themeMode,
+    setThemeMode,
     timePeriod: currentTimePeriod,
-    atmosphericTheme,
-    setAtmosphericTheme,
     soundEffects,
     setSoundEffects,
     ambientAudio,

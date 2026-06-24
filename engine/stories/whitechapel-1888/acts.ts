@@ -28,6 +28,21 @@ export const ACT_TIME_CONFIG: Record<number, ActTimeConfig> = {
   6: { canonicalMinutes: 840,  dayOfWeek: 'Thursday',  displayDate: '22 November 1888' }, // 2:00 PM  — the rush; the asylum
 };
 
+/**
+ * Format the in-game clock for a given act + minutes elapsed within it, as a
+ * 12-hour label (e.g. "10:41 PM"). Shared by the sidebar clock and diary
+ * timestamps so both read identically.
+ */
+export function formatGameClock(actNumber: number, elapsedMinutes: number): string {
+  const cfg = ACT_TIME_CONFIG[actNumber] ?? ACT_TIME_CONFIG[1];
+  const m = (cfg.canonicalMinutes + elapsedMinutes) % 1440;
+  const h24 = Math.floor(m / 60);
+  const mins = m % 60;
+  const ampm = h24 < 12 ? 'AM' : 'PM';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${mins.toString().padStart(2, '0')} ${ampm}`;
+}
+
 // ============================================================
 // ACT WEATHER
 // Canonical weather per act, anchored like the clock above.

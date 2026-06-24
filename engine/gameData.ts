@@ -41,6 +41,7 @@ export {
   ACT_WEATHER,
   DEDUCTION_THRESHOLD,
   DEDUCTION_KEYWORDS,
+  formatGameClock,
 } from './stories/whitechapel-1888/acts';
 export type { ActTimeConfig, ActWeather, WeatherCondition } from './stories/whitechapel-1888/acts';
 
