@@ -460,6 +460,7 @@ export class GameRepository {
       act_number: e.actNumber,
       sequence: e.sequence,
       text: e.text ?? null,
+      time_label: e.timeLabel ?? null,
     }));
 
     try {
@@ -487,6 +488,7 @@ export class GameRepository {
         actNumber: d.act_number as number,
         sequence: d.sequence as number,
         text: (d.text as string | null) ?? undefined,
+        timeLabel: (d.time_label as string | null) ?? undefined,
       }));
     } catch (err) {
       console.error('GameRepository.getDiaryEntries:', err);

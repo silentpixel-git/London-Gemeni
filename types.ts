@@ -328,6 +328,7 @@ export interface DiaryEntry {
   actNumber: number;     // which act this was captured in (drives grouping)
   sequence: number;      // monotonic order within the game
   text?: string;         // 'act' entries only: the reflective act-closing prose
+  timeLabel?: string;    // in-game clock when logged (e.g. "10:41 PM"); absent on pre-006 entries
 }
 
 /** Simplified AI response schema — narration only, no state mutations */

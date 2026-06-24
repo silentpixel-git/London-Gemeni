@@ -320,8 +320,9 @@ export const NPCS: Record<string, NPCDefinition> = {
   hutchinson: {
     id: 'hutchinson',
     displayName: 'George Hutchinson',
-    alias: 'George Hutchinson',
-    requiresIntroduction: false, // gives his name freely — he came forward as a witness
+    alias: 'a lingering labourer',
+    aliasDescription: 'A working man lingering at the edge of the crowd outside the court, watching with an attention that outlasts ordinary curiosity.',
+    requiresIntroduction: true, // a stranger in the crowd until he comes forward and gives his name
     role: 'Labourer; witness — knew Mary Jane Kelly',
     description: 'A labourer who knew Kelly and saw her with a well-dressed stranger hours before her death. His account is extraordinarily detailed — suspiciously so — and he admits he loitered outside the court that night. A lonely, sad man, not a killer; but the player should wonder.',
     speakingStyle: 'Eager and over-precise. Volunteers detail nobody asked for. Defensive when his own movements come up.',

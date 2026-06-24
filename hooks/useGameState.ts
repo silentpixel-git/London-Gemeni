@@ -19,7 +19,7 @@ import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
 import { audioManager } from '../services/AudioManager';
 import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -53,6 +53,7 @@ export interface GameStateReturn {
   currentAct: number;
   flags: Record<string, boolean>;
   npcStates: Record<string, NPCState>;
+  introducedNpcs: string[];
   activeInvestigation: Investigation | null;
   slots: Investigation[];
 
@@ -201,11 +202,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // Record the first arrival at a location (authored Watson line, once per place).
   const captureLocationArrival = useCallback(
-    (locationId: string, actNumber: number) => {
+    (locationId: string, actNumber: number, timeLabel: string) => {
       if (!LOCATION_DIARY[locationId]) return;
       if (loggedLocationsRef.current.has(locationId)) return;
       loggedLocationsRef.current.add(locationId);
-      captureDiaryEntries([{ kind: 'location', refId: locationId, actNumber }]);
+      captureDiaryEntries([{ kind: 'location', refId: locationId, actNumber, timeLabel }]);
     },
     [captureDiaryEntries],
   );
@@ -417,7 +418,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     if (hasGeneratedOpening.current) return;
     hasGeneratedOpening.current = true;
     // Seed the diary with the opening locale so it is never empty on a fresh start.
-    captureLocationArrival(INITIAL_LOCATION, INITIAL_ACT);
+    captureLocationArrival(INITIAL_LOCATION, INITIAL_ACT, formatGameClock(INITIAL_ACT, 0));
     setIsLoading(true);
     setHistory([{ role: 'assistant', text: '' }]);
 
@@ -755,7 +756,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     audioManager.playSfx('act-bell');
     setLocation(newLocation);
     setLocationVisitCounts(prev => ({ ...prev, [newLocation]: (prev[newLocation] ?? 0) + 1 }));
-    captureLocationArrival(newLocation, toAct); // diary: arriving in the new act's locale
+    captureLocationArrival(newLocation, toAct, formatGameClock(toAct, 0)); // diary: arriving in the new act's locale at its canonical start
     setElapsedMinutes(0);
     if (Object.keys(npcUpdates).length > 0) {
       setNpcStates(prev => {
@@ -1120,8 +1121,13 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       };
       // On an act-advance the clock persists at the new act's canonical start (0);
       // React's elapsedMinutes stays held until Begin (see the hold comment above).
-      const newElapsedMinutes = advancingAct ? 0 : elapsedMinutes + (ACTION_TIME_MINUTES[result.actionType] ?? 2);
+      const actionMinutes = ACTION_TIME_MINUTES[result.actionType] ?? 2;
+      const newElapsedMinutes = advancingAct ? 0 : elapsedMinutes + actionMinutes;
       if (!advancingAct) setElapsedMinutes(newElapsedMinutes);
+      // Clock label for any diary entries captured this turn. Use the held clock
+      // (current act + this action's time), not the next act's reset — entries
+      // captured this turn belong to the current act even on an advancing turn.
+      const captureTimeLabel = formatGameClock(currentAct, elapsedMinutes + actionMinutes);
       setTurnCount(t => t + 1);
 
       // Hour-bell clock event — fires when the turn crosses an hour boundary
@@ -1193,21 +1199,21 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         const captured: Array<Omit<DiaryEntry, 'id' | 'sequence'>> = [];
         if (result.discoveredClueIds) {
           for (const clueId of result.discoveredClueIds) {
-            if (CLUE_DEFINITIONS[clueId]) captured.push({ kind: 'clue', refId: clueId, actNumber: currentAct });
+            if (CLUE_DEFINITIONS[clueId]) captured.push({ kind: 'clue', refId: clueId, actNumber: currentAct, timeLabel: captureTimeLabel });
           }
         }
         if (result.flagsUpdate) {
           for (const [flag, value] of Object.entries(result.flagsUpdate)) {
             const decisionId = DECISION_BY_FLAG[flag];
             if (value === true && !flags[flag] && decisionId) {
-              captured.push({ kind: 'decision', refId: decisionId, actNumber: currentAct });
+              captured.push({ kind: 'decision', refId: decisionId, actNumber: currentAct, timeLabel: captureTimeLabel });
             }
           }
         }
         captureDiaryEntries(captured);
         // First arrival at a new location within the act.
         if (result.newLocation && !advancingAct) {
-          captureLocationArrival(result.newLocation, currentAct);
+          captureLocationArrival(result.newLocation, currentAct, captureTimeLabel);
         }
       }
 
@@ -1343,6 +1349,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
               actNumber: pendingJournalSummary.actNumber,
               sequence: diarySeqRef.current++,
               text: journalText,
+              timeLabel: captureTimeLabel, // the clock at the act's close
             };
             setDiaryEntries(prev => [...prev, actEntry]);
             if (user && activeInvestigation) {
@@ -1529,18 +1536,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     currentAct,
     flags,
     npcStates,
+    introducedNpcs,
     activeInvestigation,
     slots,
 
-    displayTime: (() => {
-      const cfg = ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1];
-      const m = (cfg.canonicalMinutes + elapsedMinutes) % 1440;
-      const h24 = Math.floor(m / 60);
-      const mins = m % 60;
-      const ampm = h24 < 12 ? 'AM' : 'PM';
-      const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-      return `${h12}:${mins.toString().padStart(2, '0')} ${ampm}`;
-    })(),
+    displayTime: formatGameClock(currentAct, elapsedMinutes),
 
     displayDate: (ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1]).displayDate,
 
