@@ -144,10 +144,8 @@ const AppContent: React.FC = () => {
           connectionStatus={gs.connectionStatus}
           onRetryConnection={gs.retryConnections}
           isSaving={gs.isSaving}
-          isDark={gs.isDark}
-          onToggleDark={() => gs.setIsDark(d => !d)}
-          atmosphericTheme={gs.atmosphericTheme}
-          onToggleAtmospheric={() => gs.setAtmosphericTheme(v => !v)}
+          themeMode={gs.themeMode}
+          onSetThemeMode={gs.setThemeMode}
           soundEffects={gs.soundEffects}
           onToggleSound={() => gs.setSoundEffects(v => !v)}
           ambientAudio={gs.ambientAudio}

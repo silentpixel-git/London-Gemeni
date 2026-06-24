@@ -30,7 +30,7 @@ import {
   INITIAL_INTRODUCED_NPCS,
   NPC_DISPLAY_NAMES,
 } from '../constants';
-import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod } from '../types';
+import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod, ThemeMode } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
 
 // ── Public interface ──────────────────────────────────────────────────────────
@@ -64,13 +64,12 @@ export interface GameStateReturn {
   // UI / persistence
   diaryEntries: DiaryEntry[];
   isSaving: boolean;
-  isDark: boolean;
-  setIsDark: React.Dispatch<React.SetStateAction<boolean>>;
 
-  // Atmosphere settings (time-of-day theming + audio)
+  // Appearance + atmosphere settings. themeMode is the single appearance choice
+  // (light / dark / auto-by-the-hour); 'auto' follows timePeriod.
+  themeMode: ThemeMode;
+  setThemeMode: React.Dispatch<React.SetStateAction<ThemeMode>>;
   timePeriod: TimePeriod;
-  atmosphericTheme: boolean;
-  setAtmosphericTheme: React.Dispatch<React.SetStateAction<boolean>>;
   soundEffects: boolean;
   setSoundEffects: React.Dispatch<React.SetStateAction<boolean>>;
   ambientAudio: boolean;
@@ -218,13 +217,19 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     gemini: boolean | null;
     supabase: boolean | null;
   }>({ gemini: null, supabase: null });
-  const [isDark, setIsDark] = useState<boolean>(() => {
-    try { return localStorage.getItem('lb-theme') === 'dark'; } catch { return false; }
+  // Single appearance choice — defaults to light. Reads the new key first, then
+  // falls back to the legacy lb-theme / lb-atmospheric-theme pair so existing
+  // players keep their setting (atmospheric → 'auto', dark → 'dark').
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    try {
+      const stored = localStorage.getItem('lb-theme-mode');
+      if (stored === 'light' || stored === 'dark' || stored === 'auto') return stored;
+      if (localStorage.getItem('lb-atmospheric-theme') === 'on') return 'auto';
+      if (localStorage.getItem('lb-theme') === 'dark') return 'dark';
+    } catch {}
+    return 'light';
   });
-  // Atmosphere settings — all default off, persisted to localStorage (POC).
-  const [atmosphericTheme, setAtmosphericTheme] = useState<boolean>(() => {
-    try { return localStorage.getItem('lb-atmospheric-theme') === 'on'; } catch { return false; }
-  });
+  // Atmosphere audio — default off, persisted to localStorage (POC).
   const [soundEffects, setSoundEffects] = useState<boolean>(() => {
     try { return localStorage.getItem('lb-sound-effects') === 'on'; } catch { return false; }
   });
@@ -304,34 +309,32 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthReady, pingSupabase]);
 
-  // Apply the active data-theme. Atmospheric mode follows the in-game clock and
-  // overrides the manual light/dark toggle; otherwise the manual toggle applies.
+  // Apply the active data-theme. In 'auto' the palette follows the in-game clock
+  // (evening/night); 'light' and 'dark' apply that palette directly. Because it's
+  // one choice, a manual dark selection can never be silently overridden.
   useEffect(() => {
     let theme: string;
-    if (atmosphericTheme) {
+    if (themeMode === 'auto') {
       theme = (currentTimePeriod === 'night' || currentTimePeriod === 'lateNight') ? 'night'
             : (currentTimePeriod === 'evening' || currentTimePeriod === 'dawn')   ? 'evening'
             : 'light';
     } else {
-      theme = isDark ? 'dark' : 'light';
+      theme = themeMode; // 'light' | 'dark'
     }
     document.documentElement.dataset.theme = theme;
-  }, [isDark, atmosphericTheme, currentTimePeriod]);
+  }, [themeMode, currentTimePeriod]);
 
-  // Persist the manual light/dark preference — localStorage + Supabase cloud sync.
+  // Persist the appearance choice — localStorage + Supabase cloud sync.
   useEffect(() => {
-    try { localStorage.setItem('lb-theme', isDark ? 'dark' : 'light'); } catch {}
+    try { localStorage.setItem('lb-theme-mode', themeMode); } catch {}
     // Sync to cloud when logged in (user accessed via closure — intentionally omitted from deps)
     if (user) {
-      GameRepository.upsertProfile(user.id, { themePreference: isDark ? 'dark' : 'light' });
+      GameRepository.upsertProfile(user.id, { themePreference: themeMode });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDark]);
+  }, [themeMode]);
 
-  // Persist the atmosphere toggles — localStorage only for the POC.
-  useEffect(() => {
-    try { localStorage.setItem('lb-atmospheric-theme', atmosphericTheme ? 'on' : 'off'); } catch {}
-  }, [atmosphericTheme]);
+  // Persist the atmosphere audio toggles — localStorage only for the POC.
   useEffect(() => {
     try { localStorage.setItem('lb-sound-effects', soundEffects ? 'on' : 'off'); } catch {}
   }, [soundEffects]);
@@ -339,10 +342,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     try { localStorage.setItem('lb-ambient-audio', ambientAudio ? 'on' : 'off'); } catch {}
   }, [ambientAudio]);
 
-  // Load theme preference from cloud when user profile becomes available
+  // Load appearance preference from cloud when user profile becomes available
   useEffect(() => {
-    if (userProfile?.themePreference) {
-      setIsDark(userProfile.themePreference === 'dark');
+    const pref = userProfile?.themePreference;
+    if (pref === 'light' || pref === 'dark' || pref === 'auto') {
+      setThemeMode(pref);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userProfile?.id]); // only fire when user identity changes, not on every profile update
@@ -1544,11 +1548,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     diaryEntries,
     isSaving,
-    isDark,
-    setIsDark,
+    themeMode,
+    setThemeMode,
     timePeriod: currentTimePeriod,
-    atmosphericTheme,
-    setAtmosphericTheme,
     soundEffects,
     setSoundEffects,
     ambientAudio,

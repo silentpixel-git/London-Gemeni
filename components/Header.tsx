@@ -13,10 +13,12 @@ import React, { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import type { UserProfile } from '../services/GameRepository';
 import {
-  PanelLeftClose, PanelLeftOpen, Sun, Moon, User as UserIcon,
-  ChevronDown, Save, FolderOpen, LogOut, LogIn, Pencil, RefreshCw,
-  Palette, Volume2, Waves,
+  PanelLeftClose, PanelLeftOpen, User as UserIcon,
+  ChevronDown, ChevronLeft, ChevronRight, Save, FolderOpen, LogOut, LogIn, Pencil, RefreshCw,
+  Settings,
 } from 'lucide-react';
+import { SettingsPanel } from './SettingsPanel';
+import type { ThemeMode } from '../types';
 
 interface HeaderProps {
   isSidebarOpen: boolean;
@@ -24,10 +26,8 @@ interface HeaderProps {
   connectionStatus: { gemini: boolean | null; supabase: boolean | null };
   onRetryConnection: () => void;
   isSaving: boolean;
-  isDark: boolean;
-  onToggleDark: () => void;
-  atmosphericTheme: boolean;
-  onToggleAtmospheric: () => void;
+  themeMode: ThemeMode;
+  onSetThemeMode: (mode: ThemeMode) => void;
   soundEffects: boolean;
   onToggleSound: () => void;
   ambientAudio: boolean;
@@ -48,10 +48,8 @@ export const Header: React.FC<HeaderProps> = ({
   connectionStatus,
   onRetryConnection,
   isSaving,
-  isDark,
-  onToggleDark,
-  atmosphericTheme,
-  onToggleAtmospheric,
+  themeMode,
+  onSetThemeMode,
   soundEffects,
   onToggleSound,
   ambientAudio,
@@ -67,9 +65,19 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isConfirmingNewGame, setIsConfirmingNewGame] = useState(false);
+  // Settings sub-page within the profile dropdown (slide-over, iOS-style).
+  const [settingsView, setSettingsView] = useState(false);
+  // Settings popover for signed-out players (no profile menu exists for them).
+  const [isGuestSettingsOpen, setIsGuestSettingsOpen] = useState(false);
 
   const displayName = userProfile?.displayName || user?.user_metadata?.full_name || user?.email;
   const displayRole = userProfile?.role || 'Field Surgeon';
+
+  const closeProfileMenu = () => {
+    setIsProfileMenuOpen(false);
+    setIsConfirmingNewGame(false);
+    setSettingsView(false);
+  };
 
   return (
     <header className="sticky top-0 z-30 px-8 md:px-16 py-4 flex items-center justify-between bg-lb-bg/90 backdrop-blur-sm border-b border-lb-border">
@@ -141,64 +149,55 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Right — dark mode toggle + profile */}
+      {/* Right — settings + profile */}
       <div className="flex items-center gap-2">
 
-        {/* Dark / Light toggle */}
-        <button
-          onClick={onToggleDark}
-          className="p-2 text-lb-muted hover:text-lb-accent hover:bg-lb-primary/5 rounded-md transition-colors"
-          title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-        >
-          {isDark ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
-
-        {/* Atmosphere toggles — always visible (independent of sign-in) */}
-        <button
-          onClick={onToggleAtmospheric}
-          className={`p-2 rounded-md hover:bg-lb-primary/5 transition-colors ${atmosphericTheme ? 'text-lb-accent' : 'text-lb-muted hover:text-lb-accent'}`}
-          title={`Time-of-day colours: ${atmosphericTheme ? 'On' : 'Off'}`}
-          aria-label={`Time-of-day colours: ${atmosphericTheme ? 'On' : 'Off'}`}
-          aria-pressed={atmosphericTheme}
-        >
-          <Palette size={18} />
-        </button>
-        <button
-          onClick={onToggleSound}
-          className={`p-2 rounded-md hover:bg-lb-primary/5 transition-colors ${soundEffects ? 'text-lb-accent' : 'text-lb-muted hover:text-lb-accent'}`}
-          title={`Sound effects: ${soundEffects ? 'On' : 'Off'}`}
-          aria-label={`Sound effects: ${soundEffects ? 'On' : 'Off'}`}
-          aria-pressed={soundEffects}
-        >
-          <Volume2 size={18} />
-        </button>
-        <button
-          onClick={onToggleAmbient}
-          className={`p-2 rounded-md hover:bg-lb-primary/5 transition-colors ${ambientAudio ? 'text-lb-accent' : 'text-lb-muted hover:text-lb-accent'}`}
-          title={`Ambient sound: ${ambientAudio ? 'On' : 'Off'}`}
-          aria-label={`Ambient sound: ${ambientAudio ? 'On' : 'Off'}`}
-          aria-pressed={ambientAudio}
-        >
-          <Waves size={18} />
-        </button>
-
-        {/* Unauthenticated: Sign In pill */}
+        {/* Unauthenticated: lone Settings gear + Sign In pill. The profile menu
+            (which carries Settings when signed in) doesn't exist for guests, so
+            a standalone gear keeps appearance/sound reachable. */}
         {!user && (
-          <button
-            onClick={onOpenAuth}
-            className="flex items-center gap-2 px-4 py-2 bg-lb-primary text-lb-bg rounded-full text-xs font-bold tracking-widest uppercase hover:bg-lb-accent transition-colors"
-          >
-            <LogIn size={14} />
-            <span className="hidden sm:inline">Sign In</span>
-          </button>
+          <>
+            <div className="relative">
+              <button
+                onClick={() => setIsGuestSettingsOpen(o => !o)}
+                className="p-2 text-lb-muted hover:text-lb-accent hover:bg-lb-primary/5 rounded-md transition-colors"
+                title="Settings"
+                aria-label="Settings"
+                aria-expanded={isGuestSettingsOpen}
+              >
+                <Settings size={18} />
+              </button>
+              {isGuestSettingsOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setIsGuestSettingsOpen(false)} />
+                  <div className="absolute right-0 top-full mt-2 w-60 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 overflow-hidden">
+                    <SettingsPanel
+                      themeMode={themeMode}
+                      onSetThemeMode={onSetThemeMode}
+                      soundEffects={soundEffects}
+                      onToggleSound={onToggleSound}
+                      ambientAudio={ambientAudio}
+                      onToggleAmbient={onToggleAmbient}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            <button
+              onClick={onOpenAuth}
+              className="flex items-center gap-2 px-4 py-2 bg-lb-primary text-lb-bg rounded-full text-xs font-bold tracking-widest uppercase hover:bg-lb-accent transition-colors"
+            >
+              <LogIn size={14} />
+              <span className="hidden sm:inline">Sign In</span>
+            </button>
+          </>
         )}
 
         {/* Authenticated: Profile dropdown */}
         {user && (
           <div className="relative">
             <button
-              onClick={() => setIsProfileMenuOpen(o => !o)}
+              onClick={() => { setIsProfileMenuOpen(o => !o); setIsConfirmingNewGame(false); setSettingsView(false); }}
               className="flex items-center gap-3 text-lb-primary group"
             >
               <div className="text-right hidden sm:block">
@@ -229,83 +228,111 @@ export const Header: React.FC<HeaderProps> = ({
 
             {isProfileMenuOpen && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => { setIsProfileMenuOpen(false); setIsConfirmingNewGame(false); }} />
+                <div className="fixed inset-0 z-10" onClick={closeProfileMenu} />
                 <div className="absolute right-0 top-full mt-2 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 overflow-hidden">
-                  <div className="p-1">
-                    {/* User info */}
-                    <div className="px-3 py-2 border-b border-lb-border mb-1">
-                      <p className="text-[10px] uppercase tracking-widest text-lb-muted font-bold">Signed In As</p>
-                      <p className="text-xs font-medium text-lb-primary truncate">{displayName}</p>
-                      <p className="text-[10px] text-lb-muted truncate">{user.email}</p>
-                    </div>
+                  <div className={`flex w-[200%] items-start transition-transform duration-300 ease-in-out ${settingsView ? '-translate-x-1/2' : ''}`}>
 
-                    {/* Edit Profile */}
-                    <button
-                      onClick={() => { onOpenEditProfile(); setIsProfileMenuOpen(false); setIsConfirmingNewGame(false); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                    >
-                      <Pencil size={14} /><span>Edit Profile</span>
-                    </button>
-
-                    <div className="h-px bg-lb-border my-1" />
-
-                    {/* Save / Load */}
-                    <button
-                      onClick={() => { onSave(); setIsProfileMenuOpen(false); setIsConfirmingNewGame(false); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                    >
-                      <Save size={14} /><span>Save to Cloud</span>
-                    </button>
-                    <button
-                      onClick={() => { onLoad(); setIsProfileMenuOpen(false); setIsConfirmingNewGame(false); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                    >
-                      <FolderOpen size={14} /><span>Load from Cloud</span>
-                    </button>
-
-                    <div className="h-px bg-lb-border my-1" />
-
-                    {/* New Game */}
-                    {isConfirmingNewGame ? (
-                      <div className="px-3 py-2">
-                        <p className="text-xs text-lb-muted mb-2">Archive current progress and start fresh?</p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => {
-                              setIsConfirmingNewGame(false);
-                              setIsProfileMenuOpen(false);
-                              onNewGame();
-                            }}
-                            className="flex-1 px-2 py-1.5 bg-lb-primary text-lb-bg text-xs font-semibold rounded hover:bg-lb-accent transition-colors"
-                          >
-                            Yes, start fresh
-                          </button>
-                          <button
-                            onClick={() => setIsConfirmingNewGame(false)}
-                            className="flex-1 px-2 py-1.5 border border-lb-border text-lb-primary text-xs font-semibold rounded hover:bg-lb-bg transition-colors"
-                          >
-                            Cancel
-                          </button>
-                        </div>
+                    {/* Page 1 — profile menu */}
+                    <div className="w-1/2 p-1">
+                      {/* User info */}
+                      <div className="px-3 py-2 border-b border-lb-border mb-1">
+                        <p className="text-[10px] uppercase tracking-widest text-lb-muted font-bold">Signed In As</p>
+                        <p className="text-xs font-medium text-lb-primary truncate">{displayName}</p>
+                        <p className="text-[10px] text-lb-muted truncate">{user.email}</p>
                       </div>
-                    ) : (
+
+                      {/* Edit Profile */}
                       <button
-                        onClick={() => setIsConfirmingNewGame(true)}
+                        onClick={() => { onOpenEditProfile(); closeProfileMenu(); }}
                         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
                       >
-                        <RefreshCw size={14} /><span>New Game</span>
+                        <Pencil size={14} /><span>Edit Profile</span>
                       </button>
-                    )}
 
-                    <div className="h-px bg-lb-border my-1" />
+                      {/* Settings — slides to the sub-page */}
+                      <button
+                        onClick={() => setSettingsView(true)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
+                      >
+                        <Settings size={14} /><span>Settings</span>
+                        <ChevronRight size={14} className="ml-auto opacity-50" />
+                      </button>
 
-                    {/* Sign out */}
-                    <button
-                      onClick={() => { onLogout(); setIsProfileMenuOpen(false); setIsConfirmingNewGame(false); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded text-left"
-                    >
-                      <LogOut size={14} /><span>Sign Out</span>
-                    </button>
+                      <div className="h-px bg-lb-border my-1" />
+
+                      {/* Save / Load */}
+                      <button
+                        onClick={() => { onSave(); closeProfileMenu(); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
+                      >
+                        <Save size={14} /><span>Save to Cloud</span>
+                      </button>
+                      <button
+                        onClick={() => { onLoad(); closeProfileMenu(); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
+                      >
+                        <FolderOpen size={14} /><span>Load from Cloud</span>
+                      </button>
+
+                      <div className="h-px bg-lb-border my-1" />
+
+                      {/* New Game */}
+                      {isConfirmingNewGame ? (
+                        <div className="px-3 py-2">
+                          <p className="text-xs text-lb-muted mb-2">Archive current progress and start fresh?</p>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { setIsConfirmingNewGame(false); closeProfileMenu(); onNewGame(); }}
+                              className="flex-1 px-2 py-1.5 bg-lb-primary text-lb-bg text-xs font-semibold rounded hover:bg-lb-accent transition-colors"
+                            >
+                              Yes, start fresh
+                            </button>
+                            <button
+                              onClick={() => setIsConfirmingNewGame(false)}
+                              className="flex-1 px-2 py-1.5 border border-lb-border text-lb-primary text-xs font-semibold rounded hover:bg-lb-bg transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setIsConfirmingNewGame(true)}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
+                        >
+                          <RefreshCw size={14} /><span>New Game</span>
+                        </button>
+                      )}
+
+                      <div className="h-px bg-lb-border my-1" />
+
+                      {/* Sign out */}
+                      <button
+                        onClick={() => { onLogout(); closeProfileMenu(); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded text-left"
+                      >
+                        <LogOut size={14} /><span>Sign Out</span>
+                      </button>
+                    </div>
+
+                    {/* Page 2 — settings sub-page */}
+                    <div className="w-1/2">
+                      <button
+                        onClick={() => setSettingsView(false)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-lb-primary border-b border-lb-border hover:bg-lb-bg text-left"
+                      >
+                        <ChevronLeft size={16} /><span>Settings</span>
+                      </button>
+                      <SettingsPanel
+                        themeMode={themeMode}
+                        onSetThemeMode={onSetThemeMode}
+                        soundEffects={soundEffects}
+                        onToggleSound={onToggleSound}
+                        ambientAudio={ambientAudio}
+                        onToggleAmbient={onToggleAmbient}
+                      />
+                    </div>
+
                   </div>
                 </div>
               </>

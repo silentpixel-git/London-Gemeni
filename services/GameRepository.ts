@@ -43,7 +43,7 @@ export interface UserProfile {
   displayName: string | null;
   avatarUrl: string | null;
   role: VictorianRole;
-  themePreference: 'light' | 'dark';
+  themePreference: 'light' | 'dark' | 'auto';
   createdAt: string;
   updatedAt: string;
 }
@@ -69,7 +69,7 @@ export class GameRepository {
         displayName: data.display_name,
         avatarUrl: data.avatar_url,
         role: (data.role as VictorianRole) ?? 'Field Surgeon',
-        themePreference: (data.theme_preference as 'light' | 'dark') ?? 'light',
+        themePreference: (data.theme_preference as 'light' | 'dark' | 'auto') ?? 'light',
         createdAt: data.created_at,
         updatedAt: data.updated_at,
       };

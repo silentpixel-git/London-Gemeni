@@ -1,6 +1,11 @@
 
 export type TimePeriod = 'dawn' | 'morning' | 'afternoon' | 'evening' | 'night' | 'lateNight';
 
+// Player's appearance choice. 'auto' hands the palette to the in-game clock
+// (evening/night), replacing the old separate dark-mode + time-of-day toggles —
+// so a manual dark choice can never be silently overridden by atmospheric colours.
+export type ThemeMode = 'light' | 'dark' | 'auto';
+
 export interface GameHistoryItem {
   role: 'user' | 'assistant' | 'system';
   text: string;
