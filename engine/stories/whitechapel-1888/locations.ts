@@ -14,8 +14,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: 'The sitting room is barely recognisable. Case files have colonised the mantelpiece, the armchairs, and most of the floor. A large map of Whitechapel is pinned to the wall with coloured threads running between locations. Holmes stands at the window, his back to the room.',
     exits: ['dorset_street'],
     interactables: ['whitechapel_map', 'holmes_chemistry_table', 'telegrams_pile', 'newspaper_pile', 'case_files_wall'],
-    keyClues: ['Holmes has been building a case map', 'The newspapers document public panic and press speculation', 'A clipping of the published "Dear Boss" letter is worth showing to Holmes'],
-    criticalPathLead: 'Speak with Holmes — he has been at this for weeks. Examine the case files wall and the newspapers; show Holmes the clipping of the published letter; read the telegrams last.',
     locationExaminedFlag: 'examined_baker_street',
     timeOfDay: 'night',
     vignettes: [
@@ -34,8 +32,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: "The air is thick with the smell of coal smoke and the press of humanity. A crowd has gathered outside Miller's Court, their whispers a low hum against the city's noise.",
     exits: ['millers_court', 'baker_street', 'h_division_station'],
     interactables: ['police_barricade', 'street_lamps', 'lodging_house_entrances', 'crowd'],
-    keyClues: ["Crowd rumors about Miller's Court", 'Abberline can brief Watson on the situation'],
-    criticalPathLead: "Speak with the inspector or enter Miller's Court to begin the investigation.",
     locationExaminedFlag: 'examined_dorset_street',
     timeOfDay: 'morning',
     extras: [
@@ -59,8 +55,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: 'A small rented room, barely large enough for the bed that dominates it. The fireplace is cold now, but the ash in the grate speaks of a fire that burned for hours. The air is thick with what Watson\'s medical training tells him not to name aloud.',
     exits: ['dorset_street'],
     interactables: ['the_bed', 'burned_clothing', 'examination_instruments', 'bloodstained_sheets'],
-    keyClues: ['Killer had time and confidence', 'Burned clothing used for light', 'Extensive mutilation indicates medical familiarity'],
-    criticalPathLead: "Examine the fireplace and the bed. Speak with Dr. Bond about the nature of the injuries.",
     locationExaminedFlag: 'examined_millers_court',
     timeOfDay: 'morning',
   },
@@ -75,8 +69,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: "The mortuary on Eagle Street is a plain municipal building that has processed more violent death this autumn than in the previous decade combined. Bond's examination table is spotless. His records are meticulous. On a shelf above his desk, five manila folders — one for each victim — are arranged in chronological order.",
     exits: ['dorset_street', 'bucks_row'],
     interactables: ['autopsy_ledger', 'specimen_cabinet', 'bonds_desk', 'victim_folders'],
-    keyClues: ['All five victims examined here — patterns emerge across the campaign', "Bond's assistant has transcribed every report"],
-    criticalPathLead: "Examine the autopsy ledger and the victim folders. The pattern across five murders is visible here in a way it is not at individual scenes.",
     locationExaminedFlag: 'examined_whitechapel_mortuary',
     timeOfDay: 'midday',
     extras: [
@@ -98,8 +90,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: "The main room of Commercial Street station is papered with witness statements, sketch portraits, and contradictory descriptions. Abberline has a small office at the back. The door is always open. He is rarely sitting down.",
     exits: ['dorset_street', 'whitechapel_pub'],
     interactables: ['witness_description_wall', 'abberline_desk', 'investigation_board', 'case_files_cabinet'],
-    keyClues: ['Dozens of contradictory witness descriptions — the killer presented differently to each', "Abberline's personal cost is visible here"],
-    criticalPathLead: "Study the witness description wall. The contradictions are not a failure of investigation — they are a clue in themselves.",
     locationExaminedFlag: 'examined_h_division_station',
     timeOfDay: 'afternoon',
     extras: [
@@ -122,8 +112,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: "The Ten Bells on Commercial Street stands directly opposite Spitalfields Market. It is the kind of pub that doesn't need a reputation — it simply exists, as it always has, as a place where the people of this neighbourhood come to be warm. Several of the women who worked these streets drank here. Watson is not sure all of them are still alive.",
     exits: ['h_division_station', 'bucks_row'],
     interactables: ['pub_regulars', 'the_barmaid', 'corner_table', 'notice_board'],
-    keyClues: ['The human cost of these murders — women who had no protection', 'Neighbourhood fear and anger'],
-    criticalPathLead: "There are no clues here in the forensic sense. But Watson is a doctor and a gentleman, and he needs to understand what is actually at stake in this investigation.",
     locationExaminedFlag: 'examined_whitechapel_pub',
     timeOfDay: 'night',
     extras: [
@@ -146,8 +134,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: 'The office is small and cramped, filled with the correspondence of a terrified district. Lusk sits behind a desk that has become a clearing house for public fear.',
     exits: ['goulston_street', 'bond_office'],
     interactables: ['parcel_box', 'from_hell_letter', 'kidney_parcel'],
-    keyClues: ['From Hell letter with irregular spelling', 'Half a human kidney — Watson can confirm it is human'],
-    criticalPathLead: "Examine the From Hell letter carefully — note the spelling — and have Watson examine the kidney parcel.",
     locationExaminedFlag: 'examined_lusk_office',
     timeOfDay: 'afternoon',
     extras: [
@@ -169,8 +155,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: 'The room smells of formaldehyde and old paper. Medical reports are stacked neatly on the desk. Near the window, Bond\'s assistant sits cataloguing notes — head down, pen moving steadily, apparently unaware of Watson\'s scrutiny.',
     exits: ['lusk_office', 'private_asylum', 'baker_street'],
     interactables: ['medical_reports', 'anatomical_texts', 'specimen_jars', 'edmund_forensic_note'],
-    keyClues: ["The assistant's handwritten forensic note is worth copying for later study", 'Patterns across all five murders'],
-    criticalPathLead: "Gather the assistant's handwritten notes. Careful document comparison wants a desk and good light — better done back at Baker Street.",
     locationExaminedFlag: 'examined_bond_office',
     timeOfDay: 'midday',
     extras: [
@@ -191,8 +175,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: "The grounds are well-kept, but the high walls and locked doors speak of a different kind of poverty — the poverty of the mind. The superintendent receives Watson with professional courtesy. He does not ask why Watson has come.",
     exits: ['bond_office', 'baker_street'],
     interactables: ['patient_records', 'edmund_room_furnishings'],
-    keyClues: ["Edmund committed after Kelly's murder", 'Family discovered disturbing medical evidence — a preserved kidney'],
-    criticalPathLead: "Speak with the superintendent, examine the patient records, and look over the furnishings of Edmund's room. The truth of this case ends here.",
     locationExaminedFlag: 'visited_private_asylum',
     timeOfDay: 'afternoon',
   },
@@ -213,8 +195,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: 'The cobblestones are slick with November damp. The warehouses loom like silent sentinels. Nothing marks this spot as different from any other street in Whitechapel — which is, Watson realises, precisely the point.',
     exits: ['whitechapel_mortuary', 'hanbury_street', 'whitechapel_pub'],
     interactables: ['cobblestone_roadway', 'warehouse_doors', 'street_lamps'],
-    keyClues: ['Killer approached Nichols calmly', 'Witnesses believed she was merely drunk — no alarm raised'],
-    criticalPathLead: "Examine the street and work through Abberline's notes. The geography tells you something about how the killer was perceived.",
     locationExaminedFlag: 'examined_bucks_row',
     timeOfDay: 'night',
     extras: [
@@ -237,8 +217,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: 'The yard is small, enclosed by a wooden fence. People pass through it daily now, indifferent or unaware. Watson consults Bond\'s report: the organ removal was clean, deliberate, and practised. Not the act of a man who had never done this before.',
     exits: ['bucks_row', 'dutfields_yard'],
     interactables: ['wooden_fence', 'yard_steps', 'ground_where_body_was_discovered'],
-    keyClues: ['Organ removal (uterus)', 'Killer has anatomical familiarity — not surgical mastery, but practised knowledge'],
-    criticalPathLead: "Examine the yard and consult Bond's report on the anatomical precision of the organ removal.",
     locationExaminedFlag: 'examined_hanbury_street',
     timeOfDay: 'morning',
     extras: [
@@ -261,8 +239,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: "A small yard beside the International Working Men's Club. The sounds of political discussion drift from the open windows above, as they did on the night of September 30th. Diemschutz's cart entered through the gate. The horse shied. That was all it took.",
     exits: ['hanbury_street', 'working_mens_club', 'mitre_square'],
     interactables: ['yard_entrance_gate', 'cart_path', 'club_doorway'],
-    keyClues: ['Killer was interrupted mid-act', 'Only a throat wound — no mutilation — proves ritual incompleteness', 'Compelled to seek another victim within 45 minutes'],
-    criticalPathLead: "Inspect the gate and walk the cart path. The interrupted murder tells you something about compulsion that the completed ones do not.",
     locationExaminedFlag: 'examined_dutfields_yard',
     timeOfDay: 'night',
     extras: [
@@ -285,8 +261,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: 'The room is filled with the scent of cheap tobacco and the energy of debate. Posters and newspapers line the walls. Diemschutz stands near the bar, a man who discovered a body six weeks ago and has not quite recovered his equilibrium.',
     exits: ['dutfields_yard'],
     interactables: ['tables', 'posters', 'newspapers', 'club_members'],
-    keyClues: ["Witness accounts of Stride's discovery", "Holmes' false theory: dock connection — he will abandon it by Act 4", 'Social tension and the foreign community being scapegoated by the press'],
-    criticalPathLead: "Speak with Diemschutz and examine the newspapers. Holmes is pursuing a theory Watson finds unconvincing.",
     locationExaminedFlag: 'examined_working_mens_club',
     timeOfDay: 'night',
   },
@@ -302,8 +276,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: 'The dark alleyways provide multiple escape routes across three jurisdictions. Within minutes of the murder here, the killer had left City Police territory entirely. Watson reads from Bond\'s report: kidney and uterus removed in under four minutes. Holmes says nothing for a long moment.',
     exits: ['dutfields_yard', 'goulston_street'],
     interactables: ['alleyways', 'square_walls', 'police_lanterns'],
-    keyClues: ['Kidney removal — surgical speed and precision', 'Killer knew the city and its escape routes', 'Two murders in 45 minutes — this is compulsion, not opportunism'],
-    criticalPathLead: "Examine the alleyways and discuss the kidney removal with Holmes. The speed and precision tell you something critical about the killer's experience.",
     locationExaminedFlag: 'examined_mitre_square',
     timeOfDay: 'night',
     extras: [
@@ -324,8 +296,6 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     description: "The street is bustling, but Watson stands at the precise spot where, on the night of September 30th, a Metropolitan constable found a piece of Eddowes' apron and a chalk inscription on the wall above it. The inscription was wiped away before it could be photographed. Watson finds this inexplicable and infuriating.",
     exits: ['mitre_square', 'lusk_office'],
     interactables: ['graffiti_wall', 'apron_fragment_location'],
-    keyClues: ['Killer moved between jurisdictions deliberately', 'Apron fragment links Mitre Square to Goulston Street', 'Graffito erased by order of Commissioner Warren — to prevent anti-Semitic riots'],
-    criticalPathLead: "Examine the graffiti location and the apron fragment. The police decision to erase the inscription was a choice between evidence and public order.",
     locationExaminedFlag: 'examined_goulston_street',
     timeOfDay: 'night',
     extras: [

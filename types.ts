@@ -122,8 +122,6 @@ export interface WorldLocation {
   description: string;
   exits: string[];
   interactables: string[];
-  keyClues: string[];
-  criticalPathLead: string;
 }
 
 export interface GameResponse {
