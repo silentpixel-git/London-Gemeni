@@ -17,11 +17,11 @@ import { callGemini } from '../services/geminiService';
 import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { injectAfterHeading } from '../services/narrationFormat';
-import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
+import { gameEngine, SessionSnapshot, computeTimePeriod, getPresentNpcIds } from '../engine/GameEngine';
 import { audioManager } from '../services/AudioManager';
 import { parseIntent, type ParsedIntent } from '../engine/intentParser';
 import { selectHint } from '../engine/stories/whitechapel-1888/hints';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_BRIDGES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, formatGameClock } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_BRIDGES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, NPCS, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -36,21 +36,53 @@ import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJour
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
 
 // ── AI fallback target resolution ─────────────────────────────────────────────
-// The deterministic parser is strict about object NOUNS (exact name / alias /
-// fuzzy only — no semantic understanding). When an EXAMINE fails to land on an
-// object that is actually present here, we ask the AI to pick from THIS
-// location's objects. Constrained to that list → it can never invent an object
-// or grant a clue; the engine still owns every clue decision. Only fires on a
-// genuine miss, so clean inputs keep the instant offline fast-path.
+// The deterministic parser is strict about NOUNS (exact name / alias / fuzzy
+// only — no semantic understanding). When a parse fails to land on a target
+// that is actually present here, we ask the AI to pick from THIS location's
+// entities — objects for EXAMINE, people for TALK. Constrained to that list →
+// it can never invent an entity or grant a clue; the engine still owns every
+// clue and introduction decision. Only fires on a genuine miss, so clean inputs
+// keep the instant offline fast-path.
 
-// Per-session memo: `${location}::${normalised raw}` → resolved object id (or null).
+// Per-session memo: `${kind}::${location}::${normalised raw}` → resolved id (or null).
 const targetResolveCache = new Map<string, string | null>();
 
 async function resolveTargetWithAI(
   intent: ParsedIntent,
   location: string,
   inventory: string[],
+  npcStates: Record<string, NPCState>,
+  currentAct: number,
+  introducedNpcs: string[],
 ): Promise<ParsedIntent> {
+  // ── NPC branch: a TALK whose person the parser could not resolve. Map the
+  // phrase against the people actually present (alias-aware, so an unintroduced
+  // NPC's real name never enters the prompt). Catches semantic references that
+  // fuzzy matching cannot — "the witness who saw Mary", "that eager fellow".
+  if (intent.type === 'talk' && !intent.targetId) {
+    const raw = (intent.targetRaw || '').trim();
+    const presentNpcIds = getPresentNpcIds(location, npcStates, currentAct);
+    if (!raw || presentNpcIds.length === 0) return intent;
+
+    const key = `npc::${location}::${raw.toLowerCase()}`;
+    let npcId: string | null;
+    if (targetResolveCache.has(key)) {
+      npcId = targetResolveCache.get(key)!;
+    } else {
+      const candidates = presentNpcIds.map(id => {
+        const npc = NPCS[id];
+        const introduced = !npc.requiresIntroduction || introducedNpcs.includes(id);
+        const name = introduced
+          ? `${npc.displayName} — ${npc.role}`
+          : `${npc.alias ?? 'a stranger'} — ${npc.aliasDescription ?? npc.role}`;
+        return { id, name };
+      });
+      ({ objectId: npcId } = await aiService.resolveTargetObject(raw, 'talk', candidates, 'person'));
+      targetResolveCache.set(key, npcId);
+    }
+    return npcId ? { ...intent, targetId: npcId } : intent;
+  }
+
   const present = LOCATIONS[location]?.interactables ?? [];
 
   // A resolved object that is a real object id but not actionable here (not in
@@ -1064,9 +1096,10 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       let intent = parseIntent(userAction);
 
       // STEP 2.5: AI fallback — only when the deterministic parse missed a target.
-      // Resolves a natural-language/paraphrased object noun against THIS location's
-      // objects so the engine can fire the clue. No-op (and no latency) on hits.
-      intent = await resolveTargetWithAI(intent, location, inventory);
+      // Resolves a natural-language/paraphrased object (examine) or person (talk)
+      // against THIS location's entities so the engine can fire. No-op (and no
+      // latency) on hits.
+      intent = await resolveTargetWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs);
 
       // STEP 2: Build session snapshot from current React state
       const discoveredClueIds = user && activeInvestigation

@@ -85,6 +85,24 @@ export interface SessionSnapshot {
   // at the professional-composure baseline defined in the AI system prompt.
 }
 
+/**
+ * The NPC IDs physically present at a location right now: those whose live
+ * position (npcStates override, else the act's canonical spot) is here and who
+ * are not deceased. Shared by the engine's narration build and the hook's AI
+ * target fallback so both agree on who Watson can actually address.
+ */
+export function getPresentNpcIds(
+  locationId: string,
+  npcStates: Record<string, NPCState>,
+  currentAct: number,
+): string[] {
+  return Object.keys(NPCS).filter(npcId => {
+    const state = npcStates[npcId];
+    const npcLoc = state?.currentLocation ?? NPCS[npcId]?.canonicalLocationByAct[currentAct];
+    return npcLoc === locationId && state?.status !== 'deceased';
+  });
+}
+
 // ============================================================
 // Main Engine Class
 // ============================================================
@@ -1179,12 +1197,8 @@ export class GameEngine {
       }
     }
 
-    const presentNPCEntries = Object.entries(NPCS)
-      .filter(([npcId]) => {
-        const state = resolvedNpcStates[npcId];
-        const npcLoc = state?.currentLocation ?? NPCS[npcId]?.canonicalLocationByAct[session.currentAct];
-        return npcLoc === locationId && state?.status !== 'deceased';
-      });
+    const presentNPCEntries = getPresentNpcIds(locationId, resolvedNpcStates, session.currentAct)
+      .map(npcId => [npcId, NPCS[npcId]] as const);
 
     // Build alias-aware NPC list for NarrationContext
     const npcsPresent = presentNPCEntries.map(([npcId, npc]) => {
@@ -1295,6 +1309,13 @@ export class GameEngine {
       const npc = NPCS[outcome.targetNpcId];
       const isIntroduced = !npc.requiresIntroduction ||
         session.introducedNpcs.includes(outcome.targetNpcId);
+      // True only on the single turn the player first talks to a self-introducing
+      // NPC — mirrors the introductionFlagsUpdate condition below. On this turn the
+      // sidebar reveals the real name; the AI must narrate the name reveal in-fiction
+      // to match. Edmund never self-introduces (his name comes from the forensic note).
+      const introducingThisTurn = !!npc.requiresIntroduction &&
+        !session.introducedNpcs.includes(outcome.targetNpcId) &&
+        outcome.targetNpcId !== 'edmund';
       const label = isIntroduced
         ? npc.displayName
         : (npc.alias ?? NPC_ALIASES[outcome.targetNpcId] ?? npc.displayName);
@@ -1302,6 +1323,8 @@ export class GameEngine {
         npcId: outcome.targetNpcId,
         label,
         isIntroduced,
+        introducingThisTurn,
+        realName: introducingThisTurn ? npc.displayName : undefined,
         role: npc.role,
         speakingStyle: npc.speakingStyle,
         personality: npc.personality,

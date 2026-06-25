@@ -278,6 +278,8 @@ export interface NarrationContext {
     npcId: string;
     label: string;        // Alias or displayName depending on introduction state
     isIntroduced: boolean;
+    introducingThisTurn?: boolean; // true on the single turn the NPC first gives their name
+    realName?: string;             // the name to reveal in-fiction (set only when introducingThisTurn)
     role: string;
     speakingStyle: string;
     personality: string[];

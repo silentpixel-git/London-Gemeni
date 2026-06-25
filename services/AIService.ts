@@ -284,9 +284,11 @@ Result: ${ctx.actionResultNote}
 ${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${clueSection}${synthesisSection}`;
 
   if (ctx.targetNpcInterview) {
-    const { label, isIntroduced, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion } = ctx.targetNpcInterview;
+    const { label, isIntroduced, introducingThisTurn, realName, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion } = ctx.targetNpcInterview;
     const nameInstruction = isIntroduced
       ? `Watson is speaking with: ${label} (${role})`
+      : introducingThisTurn
+      ? `Watson is speaking with: ${label} (${role}) — until this moment a stranger whose name Watson did not know. THIS IS THE TURN HE COMES FORWARD AND GIVES HIS NAME. Have him state his name, "${realName}", naturally in his own dialogue near the start of his reply (e.g. "${realName}, sir — ..."). Only after he has spoken it may the narration use "${realName}"; Watson registers it as he hears it. Do not have Watson know the name before it is said aloud.`
       : `Watson is speaking with: ${label} — their real name is unknown to Watson. Refer to them only as "${label}" throughout.`;
     // Token diet: cap the knowledge envelope at 8 items, preferring those that
     // overlap the player's question (simple keyword match), falling back to
@@ -652,15 +654,17 @@ No action instructions. No game language. Pure Victorian diary prose.`;
     rawInput: string,
     intentType: string,
     candidates: Array<{ id: string; name: string }>,
+    entityNoun: 'object' | 'person' = 'object',
   ): Promise<{ objectId: string | null }> {
     if (candidates.length === 0) return { objectId: null };
 
+    const plural = entityNoun === 'person' ? 'people' : 'objects';
     const list = candidates.map(c => `- ${c.id} — "${c.name}"`).join('\n');
     const prompt = `The player typed: "${rawInput}" (action: ${intentType}).
-Which of these objects in the current scene did they most likely mean?
+Which of these ${plural} in the current scene did they most likely mean?
 ${list}
 
-Reply with the matching id, or "none" if the phrase clearly refers to no object in the list. Only match when the meaning genuinely corresponds — do not guess wildly.`;
+Reply with the matching id, or "none" if the phrase clearly refers to no ${entityNoun} in the list. Only match when the meaning genuinely corresponds — do not guess wildly.`;
 
     try {
       const response = await this.ai.models.generateContent({
@@ -668,7 +672,7 @@ Reply with the matching id, or "none" if the phrase clearly refers to no object 
         contents: [{ parts: [{ text: prompt }] }],
         config: {
           systemInstruction:
-            'You map a player\'s phrase to exactly one object id from a fixed list, by meaning (synonyms, paraphrase, physical description). Return one id verbatim from the list, or "none". Never invent an id.',
+            `You map a player's phrase to exactly one ${entityNoun} id from a fixed list, by meaning (synonyms, paraphrase, ${entityNoun === 'person' ? 'role or description' : 'physical description'}). Return one id verbatim from the list, or "none". Never invent an id.`,
           thinkingConfig: { thinkingBudget: 0 },
           responseMimeType: 'application/json',
           responseSchema: {
