@@ -16,11 +16,12 @@ import { User } from '@supabase/supabase-js';
 import { callGemini } from '../services/geminiService';
 import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
+import { injectAfterHeading } from '../services/narrationFormat';
 import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
 import { audioManager } from '../services/AudioManager';
 import { parseIntent, type ParsedIntent } from '../engine/intentParser';
 import { selectHint } from '../engine/stories/whitechapel-1888/hints';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, formatGameClock } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_BRIDGES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -497,16 +498,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       commitVignetteFlags(result.flagsUpdate, {}, activeInvestigation?.id);
 
       const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 - three months after the Jack the Ripper murders had begun, and the day before it concluded.\n\n";
-      // Inject fixed line AFTER the ### heading, not before it
-      const injectAfterHeading = (text: string) => {
-        const match = text.match(/^(###[^\n]*\n\n?)/);
-        return match ? match[1] + OPENING_FIXED_LINE + text.slice(match[1].length) : OPENING_FIXED_LINE + text;
-      };
       let lastText = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening', blockquoteHint: 'none' })) {
         if (update.narrative) {
           lastText = update.narrative;
-          setHistory([{ role: 'assistant', text: injectAfterHeading(lastText) }]);
+          setHistory([{ role: 'assistant', text: injectAfterHeading(lastText, OPENING_FIXED_LINE) }]);
         }
       }
       if (!lastText) setHistory([{ role: 'assistant', text: OPENING_FIXED_LINE + OPENING_FALLBACK_NARRATIVE }]);
@@ -769,13 +765,16 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       };
       const result = gameEngine.resolve(intent, snapshot);
       commitVignetteFlags(result.flagsUpdate, flags, activeInvestigation?.id);
+      // Authored bridge ("why we are here") injected after the AI's act heading,
+      // mirroring the opening's fixed line. Empty for any act without one.
+      const bridge = ACT_BRIDGES[toAct] ? ACT_BRIDGES[toAct] + '\n\n' : '';
       let last = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'full', blockquoteHint: 'world_event' })) {
         if (update.narrative) {
           last = update.narrative;
           setHistory(prev => {
             const next = [...prev];
-            next[next.length - 1] = { ...next[next.length - 1], text: last };
+            next[next.length - 1] = { ...next[next.length - 1], text: injectAfterHeading(last, bridge) };
             return next;
           });
         }

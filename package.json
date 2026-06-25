@@ -10,7 +10,8 @@
     "lint": "tsc --noEmit",
     "qa:engine": "npx tsx scripts/qa-engine.ts",
     "qa:parser": "npx tsx scripts/qa-parser.ts",
-    "qa:hints": "npx tsx scripts/qa-hints.ts"
+    "qa:hints": "npx tsx scripts/qa-hints.ts",
+    "qa:narration-inject": "npx tsx scripts/qa-narration-inject.ts"
   },
   "dependencies": {
     "@google/genai": "^1.33.0",

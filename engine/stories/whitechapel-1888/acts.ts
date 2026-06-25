@@ -100,6 +100,24 @@ export const ACT_NAMES: Record<number, string> = {
   6: 'The Confrontation',
 };
 
+// Authored bridge line for each act arrival — the connective tissue between the
+// curtain and the scene. Days pass and the anchor changes between acts (see
+// ACT_TIME_CONFIG / ACT_ANCHORS), so without this the player is dropped into a
+// new place with no sense of why Watson is there. Injected as its own paragraph
+// after the streamed `### ACT …` heading, mirroring the opening's fixed line.
+// Authored fact, not AI prose: the reason for the journey is canonical and must
+// never be hallucinated. Watson's voice, first-person past tense; no time-of-
+// death claim for Kelly, no naming of the murderer. Act 0 is the opening proper
+// and carries its own fixed line, so it has no bridge.
+export const ACT_BRIDGES: Record<number, string> = {
+  1: "Our night's vigil had availed nothing. Then, that morning, word came that the killer had struck once more — behind a locked door, this time, in Miller's Court — and a cab bore us east into Whitechapel.",
+  2: "Two days I spent turning Miller's Court over in my mind. If the killer's hand could be read anywhere, it was in the wounds of those who had gone before — and so, on the Sunday, we sought out Dr. Bond.",
+  3: "The mortuary had given us a method; now we wanted the ground itself. No one had properly walked the night of the double murder — two women killed within the hour, across two jurisdictions — and on the Wednesday we set out to retrace it.",
+  4: "Three days on, a different thread drew us. George Lusk, of the Vigilance Committee, had received through the post a letter and a parcel that no sane man would have sent — and the time had come to see them for ourselves.",
+  5: "The pieces would not sit quietly. Three days I turned them over, and each time they pointed back to the records themselves — and so, on the Tuesday, we made our way to Bond's office, where the whole grim catalogue was kept.",
+  6: "Two days had passed since I had given my conclusion its name. Holmes had been silent through most of them; then, on the Thursday afternoon, he rose without a word, and I knew the waiting was over.",
+};
+
 // Acts advance automatically when all required flags are set.
 // The engine checks these after every action (including talk/show).
 // REWEAVE: each act's gate now includes its suspect-theory beats —
