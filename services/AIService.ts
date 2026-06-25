@@ -19,7 +19,7 @@
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
-import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod } from '../types';
+import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod, HintTarget } from '../types';
 import { ATMOSPHERIC_SEEDS } from '../engine/gameData';
 import { ACT_ROMAN } from '../constants';
 
@@ -566,42 +566,43 @@ Reason across ALL of this evidence as Sherlock Holmes. Deliver a sharp cross-ref
   }
 
   /**
-   * Non-streaming call for Holmes hints (used by handleConsultHolmes).
-   * Kept here for convenience but delegates to the underlying Gemini SDK.
+   * Non-streaming Watson-voiced hint. The engine has already chosen the target
+   * (what to do next); Watson only phrases it. Directed but never spoils.
    */
-  async getHolmesHint(context: {
-    locationName: string;
-    criticalPathLead: string;
-    recentHistory: string;
-    flags: Record<string, boolean>;
-    medicalPoints: number;
-    moralPoints: number;
-  }): Promise<string> {
-    const styleNote =
-      context.medicalPoints > context.moralPoints
-        ? 'Watson has been highly analytical. Holmes should prompt deeper clinical observation.'
-        : context.moralPoints > context.medicalPoints
-        ? 'Watson has been deeply empathetic. Holmes should push toward forensic reasoning.'
-        : 'Holmes should balance analytical and emotional perspectives.';
+  async getWatsonHint(target: HintTarget): Promise<string> {
+    const where = target.isCurrentLocation
+      ? 'It is here, where Watson already stands.'
+      : `It is at ${target.locationName}; Watson would need to make his way there.`;
 
-    const prompt = `Location: ${context.locationName}
-Critical progression: ${context.criticalPathLead}
-Watson's investigation style: ${styleNote}
-Recent context: ${context.recentHistory}
+    const verbCue: Record<string, string> = {
+      examine: 'look more closely at',
+      talk: 'speak with',
+      show: 'put before the right person',
+      use: 'lay together and compare',
+      deduce: 'draw his conclusion about',
+      reflect: 'turn over again in his mind',
+    };
 
-Deliver a single sharp, cryptic Holmesian observation — maximum 40 words. No preamble.`;
+    const focus = target.verb === 'reflect'
+      ? `Watson senses he has gathered what this place can give, and should weigh ${target.subject}.`
+      : `The avenue Watson has not yet pursued: ${verbCue[target.verb]} ${target.subject}. ${where}`;
+
+    const prompt = `${focus}
+
+Write Watson's private thought nudging himself toward this — first person, past tense, no more than 45 words. Name the avenue plainly so the reader knows what to do, but NEVER state what it will reveal or name the murderer. No preamble.`;
 
     const response = await this.ai.models.generateContent({
       model: MODEL_ID,
       contents: [{ parts: [{ text: prompt }] }],
       config: {
         systemInstruction:
-          `${HOLMES_PERSONA_PROMPT} Watson is stuck — give one brief, cryptic deduction pointing toward the next clue. Maximum 40 words.`,
+          `You are Dr. John Watson in 1888 London, writing in the first person, past tense. Restrained, observant, medical. You are recalling a moment when you realised what you had not yet done. One short reflection. Never reveal conclusions or the killer's identity.`,
         thinkingConfig: { thinkingBudget: 0 },
       },
     });
 
-    return response.text?.trim() || 'Observe more carefully, Watson.';
+    return response.text?.trim()
+      || 'I realised there was still ground I had not covered, and resolved to put that right.';
   }
 
   /**
