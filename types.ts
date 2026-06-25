@@ -197,6 +197,19 @@ export interface EngineResult {
   aiContext: NarrationContext;
 }
 
+export type HintVerb = 'examine' | 'talk' | 'show' | 'use' | 'deduce' | 'reflect';
+
+/** The chosen next-step target the engine hands to the AI to phrase in Watson's voice. */
+export interface HintTarget {
+  verb: HintVerb;
+  /** Neutral, player-facing noun phrase. Never contains clue findings/spoilers. */
+  subject: string;
+  /** Display name of the location the step happens at ('' for the reflect fallback). */
+  locationName: string;
+  /** True when that location is where Watson currently stands. */
+  isCurrentLocation: boolean;
+}
+
 /**
  * Verified, authoritative context passed to the AI for narration.
  * The AI must not contradict or extend this context.
