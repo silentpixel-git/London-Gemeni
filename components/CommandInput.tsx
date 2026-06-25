@@ -97,7 +97,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
             {isConsultingHolmes ? (
               <>
                 <Feather size={14} className="animate-bounce" />
-                <span className="text-sm italic font-serif">Holmes is contemplating...</span>
+                <span className="text-sm italic font-serif">Watson is contemplating...</span>
               </>
             ) : (
               <>
