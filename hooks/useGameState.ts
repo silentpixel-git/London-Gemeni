@@ -19,6 +19,7 @@ import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
 import { audioManager } from '../services/AudioManager';
 import { parseIntent, type ParsedIntent } from '../engine/intentParser';
+import { selectHint } from '../engine/stories/whitechapel-1888/hints';
 import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
@@ -1465,26 +1466,14 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setIsLoading(true);
 
     try {
-      const currentLocationData = LOCATIONS[location];
-      const recentHistory = history
-        .slice(-4)
-        .map(m => `${m.role}: ${m.text?.substring(0, 300) || ''}`)
-        .join('\n');
-
-      const hint = await aiService.getHolmesHint({
-        locationName: currentLocationData?.name || location,
-        criticalPathLead: (currentLocationData as any)?.criticalPathLead || '',
-        recentHistory,
-        flags,
-        medicalPoints,
-        moralPoints,
-      });
+      const target = selectHint({ currentAct, location, flags, inventory, npcStates, locationVisitCounts });
+      const hint = await aiService.getWatsonHint(target);
 
       setHistory(prev => [
         ...prev,
         {
           role: 'assistant',
-          text: `> *Holmes leans in, his eyes sharp and analytical...*\n\n**Sherlock Holmes**: "${hint || 'Focus on the facts at hand, Watson!'}"`
+          text: `> *A thought surfaced, unbidden.*\n\n${hint}`,
         },
       ]);
       setTimeout(() => scrollToBottom(true), 100);
@@ -1494,7 +1483,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsConsultingHolmes(false);
       setIsLoading(false);
     }
-  }, [isConsultingHolmes, isLoading, location, history, flags, medicalPoints, moralPoints, scrollToBottom]);
+  }, [isConsultingHolmes, isLoading, currentAct, location, flags, inventory, npcStates, locationVisitCounts, scrollToBottom]);
 
   // ── New Game (start a fresh investigation in a given save slot) ─────────────
 
