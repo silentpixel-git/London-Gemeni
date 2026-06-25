@@ -36,6 +36,7 @@ import {
   DOCUMENT_TEXT,
   SUSPECT_PROFILES,
 } from './gameData';
+import { selectHint } from './stories/whitechapel-1888/hints';
 
 // ── Time helpers ──────────────────────────────────────────────────────────────
 
@@ -150,38 +151,13 @@ export class GameEngine {
           : 'true_ending';
     }
 
-    // Proactive Holmes nudge — fires once per location when player is stuck
+    // Proactive Watson hint — fires once per location when the player is stuck.
     if (this.shouldFireHolmesNudge(session, result)) {
-      result.aiContext.holmesNudge = {
-        locationKeyClues: LOCATIONS[session.location].keyClues,
-        turnsStuck: session.turnsAtLocationWithoutProgress,
-      };
+      result.aiContext.watsonHint = selectHint(session);
       result.flagsUpdate = {
         ...result.flagsUpdate,
         [`holmes_nudged_at_${session.location}`]: true,
       };
-
-      // Cross-location redirect: if all interactables at the current location are already
-      // examined, Holmes redirects Watson toward another accessible location with work to do.
-      const currentInteractables = LOCATIONS[session.location].interactables || [];
-      const allExamined = currentInteractables.length > 0 && currentInteractables.every(
-        obj => session.flags[`examined_${session.location}_${obj}`]
-      );
-      if (allExamined) {
-        const crossTarget = Object.entries(LOCATIONS).find(([locId, loc]) => {
-          if ((loc as any).act > session.currentAct) return false;
-          if (locId === session.location) return false;
-          return ((loc as any).interactables || []).some(
-            (obj: string) => !session.flags[`examined_${locId}_${obj}`]
-          );
-        });
-        if (crossTarget) {
-          result.aiContext.holmesNudge!.crossLocationTarget = {
-            locationName: (crossTarget[1] as any).name,
-            locationId: crossTarget[0],
-          };
-        }
-      }
     }
 
     // Lift NPC introduction flags off the narration context onto the result

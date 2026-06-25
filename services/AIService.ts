@@ -355,25 +355,14 @@ NO blockquote this turn.`;
     }
   }
 
-  if (ctx.holmesNudge) {
-    const { locationKeyClues, turnsStuck, crossLocationTarget } = ctx.holmesNudge;
-    if (crossLocationTarget) {
-      compactPrompt += `
+  if (ctx.watsonHint) {
+    const h = ctx.watsonHint;
+    const place = h.isCurrentLocation ? 'here' : `at ${h.locationName}`;
+    compactPrompt += `
 
-=== HOLMES REDIRECTS (mandatory — append as the final paragraph) ===
-Watson has examined everything here. Holmes sees it too.
-Add ONE brief observation from Holmes redirecting Watson toward ${crossLocationTarget.locationName}.
-He does not explain his reasoning. He simply indicates — in his oblique, certain way — that there is more to be found elsewhere. 2–3 sentences. No act header.`;
-    } else {
-      compactPrompt += `
-
-=== HOLMES INTERJECTS (mandatory — append as the final paragraph) ===
-Watson has spent ${turnsStuck} turns here without new evidence. Holmes notices.
-Add ONE brief, cryptic observation from Holmes as the closing paragraph.
-He nudges Watson toward what hasn't been found, using only these verified leads:
-${locationKeyClues.map(c => `• ${c}`).join('\n')}
-Holmes does NOT give direct answers. 2–3 sentences. No act header.`;
-    }
+=== WATSON'S THOUGHT (mandatory — append as the final paragraph) ===
+Watson has spent several turns without progress. As the closing paragraph, add ONE brief private reflection (2–3 sentences, first person, past tense) in which he realises he has not yet ${h.verb === 'reflect' ? `weighed ${h.subject}` : `pursued ${h.subject} (${place})`}.
+Name the avenue plainly so the reader knows what to do next. Do NOT reveal what it will show, and do NOT name the murderer. No act header.`;
   }
 
   if (ctx.npcScriptedLines && ctx.npcScriptedLines.length > 0) {

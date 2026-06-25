@@ -281,17 +281,9 @@ export interface NarrationContext {
     knowledgeEnvelope: string[]; // publicKnowledge — AI hard ceiling
     playerQuestion: string;      // intent.raw
   };
-  // Proactive Holmes Nudge — populated by engine when player is stuck
-  holmesNudge?: {
-    locationKeyClues: string[];
-    turnsStuck: number;
-    // Set when all interactables at current location are already examined —
-    // redirects Watson to another accessible location instead of repeating local hints
-    crossLocationTarget?: {
-      locationName: string;
-      locationId: string;
-    };
-  };
+  // Proactive hint woven into the turn when the player is stuck — chosen by the
+  // engine's selectHint, phrased by the AI in Watson's voice.
+  watsonHint?: HintTarget;
   // Scripted NPC presence moments — directorial instructions for the AI.
   // Populated by engine when a present NPC has a scriptedLine that matches
   // the current location (and optional trigger flag).
