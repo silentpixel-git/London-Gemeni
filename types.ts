@@ -197,17 +197,22 @@ export interface EngineResult {
   aiContext: NarrationContext;
 }
 
-export type HintVerb = 'examine' | 'talk' | 'show' | 'use' | 'deduce' | 'reflect';
+export type HintVerb = 'examine' | 'talk' | 'show' | 'use' | 'deduce' | 'reflect' | 'travel';
 
 /** The chosen next-step target the engine hands to the AI to phrase in Watson's voice. */
 export interface HintTarget {
   verb: HintVerb;
-  /** Neutral, player-facing noun phrase. Never contains clue findings/spoilers. */
+  /** Neutral, player-facing noun phrase. Never contains clue findings/spoilers.
+   *  Empty for 'travel' (location not yet visited) and 'reflect' targets. */
   subject: string;
   /** Display name of the location the step happens at ('' for the reflect fallback). */
   locationName: string;
   /** True when that location is where Watson currently stands. */
   isCurrentLocation: boolean;
+  /** True when Watson has been to the target location (currently there or previously
+   *  visited). When false the hint may only direct him toward the location — never name
+   *  what is inside it, since Watson cannot yet know its contents. */
+  locationKnown: boolean;
 }
 
 /**

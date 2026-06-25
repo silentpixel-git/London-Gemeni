@@ -358,10 +358,17 @@ NO blockquote this turn.`;
   if (ctx.watsonHint) {
     const h = ctx.watsonHint;
     const place = h.isCurrentLocation ? 'here' : `at ${h.locationName}`;
+    const realisation =
+      h.verb === 'reflect'
+        ? `weighed ${h.subject}`
+        : h.verb === 'travel'
+        // Location not yet visited — direct Watson there without naming its contents.
+        ? `made his way to ${h.locationName} (he has not been there yet and cannot know what it holds — do NOT describe its contents)`
+        : `pursued ${h.subject} (${place})`;
     compactPrompt += `
 
 === WATSON'S THOUGHT (mandatory — append as the final paragraph) ===
-Watson has spent several turns without progress. As the closing paragraph, add ONE brief private reflection (2–3 sentences, first person, past tense) in which he realises he has not yet ${h.verb === 'reflect' ? `weighed ${h.subject}` : `pursued ${h.subject} (${place})`}.
+Watson has spent several turns without progress. As the closing paragraph, add ONE brief private reflection (2–3 sentences, first person, past tense) in which he realises he has not yet ${realisation}.
 Name the avenue plainly so the reader knows what to do next. Do NOT reveal what it will show, and do NOT name the murderer. No act header.`;
   }
 
@@ -570,11 +577,17 @@ Reason across ALL of this evidence as Sherlock Holmes. Deliver a sharp cross-ref
       use: 'lay together and compare',
       deduce: 'draw his conclusion about',
       reflect: 'turn over again in his mind',
+      travel: 'make his way to',
     };
 
-    const focus = target.verb === 'reflect'
-      ? `Watson senses he has gathered what this place can give, and should weigh ${target.subject}.`
-      : `The avenue Watson has not yet pursued: ${verbCue[target.verb]} ${target.subject}. ${where}`;
+    const focus =
+      target.verb === 'reflect'
+        ? `Watson senses he has gathered what this place can give, and should weigh ${target.subject}.`
+        : target.verb === 'travel'
+        // Location not yet visited: Watson cannot know its contents, so direct him
+        // there only — never describe what waits inside.
+        ? `Watson has not yet been to ${target.locationName}, and realises he ought to make his way there. He has no notion of what he will find — only that the place itself is the next step. Do NOT invent or describe its contents, and do NOT name or describe where Watson currently stands.`
+        : `The avenue Watson has not yet pursued: ${verbCue[target.verb]} ${target.subject}. ${where}`;
 
     const prompt = `${focus}
 

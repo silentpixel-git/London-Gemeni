@@ -9,6 +9,9 @@ export interface HintState {
   flags: Record<string, boolean>;
   inventory: string[];
   npcStates: Record<string, { currentLocation?: string; status?: string }>;
+  /** Visit count per location id. Used to decide whether Watson may know a
+   *  location's contents (a hint must not name objects he has never seen). */
+  locationVisitCounts: Record<string, number>;
 }
 
 export interface HintObjective {
@@ -187,15 +190,28 @@ const FALLBACK: HintTarget = {
   subject: 'everything gathered so far',
   locationName: '',
   isCurrentLocation: true,
+  locationKnown: true,
 };
+
+function visited(s: HintState, locId: string): boolean {
+  return locId === s.location || (s.locationVisitCounts?.[locId] ?? 0) > 0;
+}
 
 function toTarget(o: HintObjective, s: HintState): HintTarget {
   const loc = LOCATIONS[o.locationId] as any;
+  const locationName = loc?.name ?? o.locationId;
+  // If Watson has never been to the target location, he cannot know what is inside
+  // it — so the hint may only point him there. We drop the interior subject entirely
+  // (it never reaches the AI), turning the target into a plain 'travel' nudge.
+  if (!visited(s, o.locationId)) {
+    return { verb: 'travel', subject: '', locationName, isCurrentLocation: false, locationKnown: false };
+  }
   return {
     verb: o.verb,
     subject: o.subject,
-    locationName: loc?.name ?? o.locationId,
+    locationName,
     isCurrentLocation: o.locationId === s.location,
+    locationKnown: true,
   };
 }
 

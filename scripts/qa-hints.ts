@@ -11,7 +11,7 @@ function pass(l: string) { console.log(`[PASS] ${l}`); passes++; }
 function fail(l: string, d?: string) { console.error(`[FAIL] ${l}${d ? ` — ${d}` : ''}`); fails++; }
 
 function state(p: Partial<HintState>): HintState {
-  return { currentAct: 0, location: '', flags: {}, inventory: [], npcStates: {}, ...p };
+  return { currentAct: 0, location: '', flags: {}, inventory: [], npcStates: {}, locationVisitCounts: {}, ...p };
 }
 
 const SENTINEL = '__advance_via_correct_deduction_only__';
@@ -86,6 +86,36 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
   for (let i = 0; i < 20; i++) if (selectHint(s).subject.includes('Buck')) localHits++;
   localHits === 20 ? pass('local-first: always picks the current-location step when available')
                    : fail('local-first tiering failed', `${localHits}/20`);
+}
+
+// 6) Unvisited-location guard: a hint must never name a location's contents before
+//    Watson has been there. Act 1 at Dorset Street with Hutchinson already spoken to →
+//    the only steps left are inside Miller's Court, which has NOT been visited.
+{
+  const s = state({ currentAct: 1, location: 'dorset_street',
+    flags: { talked_to_hutchinson_at_dorset_street: true },
+    npcStates: { bond: { currentLocation: 'millers_court', status: 'alive' } } });
+  let leaks = 0;
+  for (let i = 0; i < 30; i++) {
+    const t = selectHint(s);
+    // Every remaining step is in unvisited Miller's Court → must be a 'travel' nudge
+    // with no interior subject, pointing only at the location.
+    if (t.verb !== 'travel' || t.subject !== '' || t.locationKnown !== false) leaks++;
+    if (t.verb === 'travel' && !t.locationName.includes("Miller")) leaks++;
+  }
+  leaks === 0 ? pass("unvisited location → travel nudge, no interior subject leaked")
+              : fail('unvisited location leaked interior detail', `${leaks}/30 bad targets`);
+}
+
+// 7) Once visited, the interior subject is allowed again.
+{
+  const s = state({ currentAct: 1, location: 'dorset_street',
+    flags: { talked_to_hutchinson_at_dorset_street: true },
+    locationVisitCounts: { millers_court: 1 } });
+  const t = selectHint(s);
+  (t.verb !== 'travel' && t.locationKnown === true && t.subject.length > 0)
+    ? pass('previously-visited location → interior subject restored')
+    : fail('visited location should expose subject', JSON.stringify(t));
 }
 
 console.log(`\n${passes} passed, ${fails} failed`);

@@ -1466,7 +1466,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setIsLoading(true);
 
     try {
-      const target = selectHint({ currentAct, location, flags, inventory, npcStates });
+      const target = selectHint({ currentAct, location, flags, inventory, npcStates, locationVisitCounts });
       const hint = await aiService.getWatsonHint(target);
 
       setHistory(prev => [
@@ -1483,7 +1483,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsConsultingHolmes(false);
       setIsLoading(false);
     }
-  }, [isConsultingHolmes, isLoading, currentAct, location, flags, inventory, npcStates, scrollToBottom]);
+  }, [isConsultingHolmes, isLoading, currentAct, location, flags, inventory, npcStates, locationVisitCounts, scrollToBottom]);
 
   // ── New Game (start a fresh investigation in a given save slot) ─────────────
 
