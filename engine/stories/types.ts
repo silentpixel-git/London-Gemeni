@@ -11,8 +11,6 @@ export interface LocationDefinition {
   description: string;
   exits: string[];                 // Location IDs. Engine validates these.
   interactables: string[];         // Object IDs present here
-  keyClues: string[];              // Hint text for critical path
-  criticalPathLead: string;
   locationExaminedFlag: string;    // Flag set when player examines anything here
   // Temporal framing — drives AI narration register
   timeframe: 'present' | 'reconstruction';

@@ -36,6 +36,7 @@ import {
   DOCUMENT_TEXT,
   SUSPECT_PROFILES,
 } from './gameData';
+import { selectHint } from './stories/whitechapel-1888/hints';
 
 // ── Time helpers ──────────────────────────────────────────────────────────────
 
@@ -82,6 +83,24 @@ export interface SessionSnapshot {
   turnCount: number;
   // Note: sanity has been removed. Watson's prose register is now fixed
   // at the professional-composure baseline defined in the AI system prompt.
+}
+
+/**
+ * The NPC IDs physically present at a location right now: those whose live
+ * position (npcStates override, else the act's canonical spot) is here and who
+ * are not deceased. Shared by the engine's narration build and the hook's AI
+ * target fallback so both agree on who Watson can actually address.
+ */
+export function getPresentNpcIds(
+  locationId: string,
+  npcStates: Record<string, NPCState>,
+  currentAct: number,
+): string[] {
+  return Object.keys(NPCS).filter(npcId => {
+    const state = npcStates[npcId];
+    const npcLoc = state?.currentLocation ?? NPCS[npcId]?.canonicalLocationByAct[currentAct];
+    return npcLoc === locationId && state?.status !== 'deceased';
+  });
 }
 
 // ============================================================
@@ -150,38 +169,13 @@ export class GameEngine {
           : 'true_ending';
     }
 
-    // Proactive Holmes nudge — fires once per location when player is stuck
+    // Proactive Watson hint — fires once per location when the player is stuck.
     if (this.shouldFireHolmesNudge(session, result)) {
-      result.aiContext.holmesNudge = {
-        locationKeyClues: LOCATIONS[session.location].keyClues,
-        turnsStuck: session.turnsAtLocationWithoutProgress,
-      };
+      result.aiContext.watsonHint = selectHint(session);
       result.flagsUpdate = {
         ...result.flagsUpdate,
         [`holmes_nudged_at_${session.location}`]: true,
       };
-
-      // Cross-location redirect: if all interactables at the current location are already
-      // examined, Holmes redirects Watson toward another accessible location with work to do.
-      const currentInteractables = LOCATIONS[session.location].interactables || [];
-      const allExamined = currentInteractables.length > 0 && currentInteractables.every(
-        obj => session.flags[`examined_${session.location}_${obj}`]
-      );
-      if (allExamined) {
-        const crossTarget = Object.entries(LOCATIONS).find(([locId, loc]) => {
-          if ((loc as any).act > session.currentAct) return false;
-          if (locId === session.location) return false;
-          return ((loc as any).interactables || []).some(
-            (obj: string) => !session.flags[`examined_${locId}_${obj}`]
-          );
-        });
-        if (crossTarget) {
-          result.aiContext.holmesNudge!.crossLocationTarget = {
-            locationName: (crossTarget[1] as any).name,
-            locationId: crossTarget[0],
-          };
-        }
-      }
     }
 
     // Lift NPC introduction flags off the narration context onto the result
@@ -1203,12 +1197,8 @@ export class GameEngine {
       }
     }
 
-    const presentNPCEntries = Object.entries(NPCS)
-      .filter(([npcId]) => {
-        const state = resolvedNpcStates[npcId];
-        const npcLoc = state?.currentLocation ?? NPCS[npcId]?.canonicalLocationByAct[session.currentAct];
-        return npcLoc === locationId && state?.status !== 'deceased';
-      });
+    const presentNPCEntries = getPresentNpcIds(locationId, resolvedNpcStates, session.currentAct)
+      .map(npcId => [npcId, NPCS[npcId]] as const);
 
     // Build alias-aware NPC list for NarrationContext
     const npcsPresent = presentNPCEntries.map(([npcId, npc]) => {
@@ -1319,6 +1309,13 @@ export class GameEngine {
       const npc = NPCS[outcome.targetNpcId];
       const isIntroduced = !npc.requiresIntroduction ||
         session.introducedNpcs.includes(outcome.targetNpcId);
+      // True only on the single turn the player first talks to a self-introducing
+      // NPC — mirrors the introductionFlagsUpdate condition below. On this turn the
+      // sidebar reveals the real name; the AI must narrate the name reveal in-fiction
+      // to match. Edmund never self-introduces (his name comes from the forensic note).
+      const introducingThisTurn = !!npc.requiresIntroduction &&
+        !session.introducedNpcs.includes(outcome.targetNpcId) &&
+        outcome.targetNpcId !== 'edmund';
       const label = isIntroduced
         ? npc.displayName
         : (npc.alias ?? NPC_ALIASES[outcome.targetNpcId] ?? npc.displayName);
@@ -1326,6 +1323,8 @@ export class GameEngine {
         npcId: outcome.targetNpcId,
         label,
         isIntroduced,
+        introducingThisTurn,
+        realName: introducingThisTurn ? npc.displayName : undefined,
         role: npc.role,
         speakingStyle: npc.speakingStyle,
         personality: npc.personality,

@@ -20,7 +20,8 @@
  */
 
 import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS, OBJECT_DISPLAY_NAMES } from '../engine/gameData';
+import { LOCATIONS, OBJECT_DISPLAY_NAMES, NPCS } from '../engine/gameData';
+import { getPresentNpcIds } from '../engine/GameEngine';
 import { CLUE_TRIGGERS } from '../engine/stories/whitechapel-1888/clues';
 
 type Category = 'exact' | 'alias' | 'typo' | 'partial' | 'paraphrase';
@@ -162,6 +163,61 @@ const FIXTURES: Fixture[] = [
   ]},
 ];
 
+// ── NPC fixtures — guards two paths: the matchNpcId() alias + fuzzy tier-1
+// resolution (must pass offline), and the talk→person AI fallback on paraphrase
+// (recovered in the hybrid pass). A null npcId is a false-positive guard: the
+// phrase must resolve to NO npc even with those people standing right there.
+interface NpcFixture {
+  npcId: string | null;
+  scene: { location: string; act: number }; // for AI candidate scoping
+  phrasings: Array<{ text: string; category: Category }>;
+}
+
+const NPC_FIXTURES: NpcFixture[] = [
+  { npcId: 'hutchinson', scene: { location: 'dorset_street', act: 1 }, phrasings: [
+    { text: 'hutchinson', category: 'exact' },
+    { text: 'the witness', category: 'alias' },
+    { text: 'the labourer', category: 'alias' },
+    { text: 'labrourer', category: 'typo' },
+    { text: 'hutchison', category: 'typo' },
+    { text: 'george hutchinson', category: 'partial' },
+    { text: 'the witness who saw mary', category: 'paraphrase' },
+    { text: 'that eager fellow lingering in the crowd', category: 'paraphrase' },
+  ]},
+  { npcId: 'abberline', scene: { location: 'dorset_street', act: 1 }, phrasings: [
+    { text: 'abberline', category: 'exact' },
+    { text: 'inspector', category: 'alias' },
+    { text: 'the detective', category: 'alias' },
+    { text: 'abberlin', category: 'typo' },
+    { text: 'aberline', category: 'typo' },
+    { text: 'inspector abberline', category: 'partial' },
+    { text: 'the policeman in charge', category: 'paraphrase' },
+  ]},
+  { npcId: null, scene: { location: 'dorset_street', act: 1 }, phrasings: [
+    { text: 'the queen of england', category: 'paraphrase' },
+    { text: 'a passing fishmonger', category: 'paraphrase' },
+  ]},
+];
+
+// Whether an NPC fixture case is expected to resolve deterministically (tier 1).
+// Positive paraphrases are AI territory; everything else (exact/alias/typo/partial,
+// and every negative case) must already resolve offline.
+const npcIsTier1 = (fx: NpcFixture, category: Category) =>
+  !(fx.npcId !== null && category === 'paraphrase');
+
+// Present people at a scene, as alias-aware AI candidates (mirrors the hook so an
+// unintroduced NPC's real name never enters the prompt). Nobody introduced yet.
+function npcCandidatesFor(scene: { location: string; act: number }): Array<{ id: string; name: string }> {
+  return getPresentNpcIds(scene.location, {}, scene.act).map(id => {
+    const npc = NPCS[id];
+    const introduced = !npc.requiresIntroduction;
+    const name = introduced
+      ? `${npc.displayName} — ${npc.role}`
+      : `${npc.alias ?? 'a stranger'} — ${npc.aliasDescription ?? npc.role}`;
+    return { id, name };
+  });
+}
+
 // ── Build location candidate lists (id + display name) for the AI pass ─────────
 function candidatesFor(locId: string): Array<{ id: string; name: string }> {
   const loc = (LOCATIONS as Record<string, { interactables?: string[] }>)[locId];
@@ -225,15 +281,68 @@ async function main() {
     console.log('\n(Set GEMINI_API_KEY to run the hybrid AI-fallback pass.)');
   }
 
-  // Regression gate: deterministic accuracy should not drop below the documented
-  // pre-tune baseline. Update GATE only when intentionally raising the floor.
-  const GATE = 0.75;
-  const accuracy = hit / total;
-  if (accuracy < GATE) {
-    console.error(`\n[FAIL] Deterministic accuracy ${(accuracy * 100).toFixed(0)}% below gate ${(GATE * 100).toFixed(0)}%.`);
-    process.exit(1);
+  // ── NPC pass: tier-1 (offline alias + fuzzy) resolution, then tier-2 (AI)
+  // recovery of paraphrases. Tier-1 is the regression guard for matchNpcId(). ──
+  console.log('\n=== NPC PASS (talk → person) ===\n');
+  let npcGateTotal = 0, npcGateHit = 0;
+  const npcParaMisses: Array<{ npcId: string; scene: NpcFixture['scene']; text: string }> = [];
+  const npcTier1Misses: string[] = [];
+  for (const fx of NPC_FIXTURES) {
+    for (const p of fx.phrasings) {
+      const got = parseIntent(`talk to ${p.text}`).targetId;
+      const ok = fx.npcId === null ? !got : got === fx.npcId;
+      const want = fx.npcId ?? 'none';
+      if (npcIsTier1(fx, p.category)) {
+        npcGateTotal++;
+        if (ok) npcGateHit++;
+        else npcTier1Misses.push(`  [${p.category.padEnd(10)}] "talk to ${p.text}" → ${got ?? 'none'} (want ${want})`);
+      } else if (!ok) {
+        npcParaMisses.push({ npcId: fx.npcId!, scene: fx.scene, text: p.text });
+      }
+    }
   }
-  console.log(`\n[PASS] Deterministic accuracy ${(accuracy * 100).toFixed(0)}% ≥ gate ${(GATE * 100).toFixed(0)}%.`);
+  console.log(`  Tier-1 (offline): ${pct(npcGateHit, npcGateTotal)}  (${npcGateHit}/${npcGateTotal})`);
+  if (npcTier1Misses.length > 0) { console.log('  Tier-1 misses:'); npcTier1Misses.forEach(d => console.log(d)); }
+
+  if (process.env.GEMINI_API_KEY) {
+    console.log('\n  Tier-2 (AI fallback) on paraphrases:');
+    const { aiService } = await import('../services/AIService');
+    let npcRecovered = 0;
+    for (const m of npcParaMisses) {
+      try {
+        const { objectId } = await aiService.resolveTargetObject(m.text, 'talk', npcCandidatesFor(m.scene), 'person');
+        const ok = objectId === m.npcId;
+        if (ok) npcRecovered++;
+        console.log(`    [${ok ? 'OK ' : '   '}] "talk to ${m.text}" → ${objectId ?? 'none'} (want ${m.npcId})`);
+      } catch (e) {
+        console.log(`    [ERR] "talk to ${m.text}" → ${(e as Error).message}`);
+      }
+    }
+    console.log(`    Recovered ${npcRecovered}/${npcParaMisses.length} NPC paraphrases via AI.`);
+  } else {
+    console.log('  (Set GEMINI_API_KEY to run the tier-2 NPC paraphrase recovery.)');
+  }
+
+  // Regression gates: neither deterministic accuracy should drop below its floor.
+  // Update a GATE only when intentionally raising the floor.
+  const GATE = 0.75;          // object resolution (matchObjectId fuzzy tune)
+  const NPC_GATE = 0.90;      // NPC tier-1 alias + fuzzy — these must not regress
+  const accuracy = hit / total;
+  const npcAccuracy = npcGateTotal === 0 ? 1 : npcGateHit / npcGateTotal;
+  let failed = false;
+  if (accuracy < GATE) {
+    console.error(`\n[FAIL] Object accuracy ${(accuracy * 100).toFixed(0)}% below gate ${(GATE * 100).toFixed(0)}%.`);
+    failed = true;
+  } else {
+    console.log(`\n[PASS] Object accuracy ${(accuracy * 100).toFixed(0)}% ≥ gate ${(GATE * 100).toFixed(0)}%.`);
+  }
+  if (npcAccuracy < NPC_GATE) {
+    console.error(`[FAIL] NPC tier-1 accuracy ${(npcAccuracy * 100).toFixed(0)}% below gate ${(NPC_GATE * 100).toFixed(0)}%.`);
+    failed = true;
+  } else {
+    console.log(`[PASS] NPC tier-1 accuracy ${(npcAccuracy * 100).toFixed(0)}% ≥ gate ${(NPC_GATE * 100).toFixed(0)}%.`);
+  }
+  if (failed) process.exit(1);
 }
 
 main();

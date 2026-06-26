@@ -16,10 +16,12 @@ import { User } from '@supabase/supabase-js';
 import { callGemini } from '../services/geminiService';
 import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
-import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
+import { injectAfterHeading } from '../services/narrationFormat';
+import { gameEngine, SessionSnapshot, computeTimePeriod, getPresentNpcIds } from '../engine/GameEngine';
 import { audioManager } from '../services/AudioManager';
 import { parseIntent, type ParsedIntent } from '../engine/intentParser';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, formatGameClock } from '../engine/gameData';
+import { selectHint } from '../engine/stories/whitechapel-1888/hints';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_BRIDGES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, NPCS, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -34,21 +36,53 @@ import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJour
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
 
 // ── AI fallback target resolution ─────────────────────────────────────────────
-// The deterministic parser is strict about object NOUNS (exact name / alias /
-// fuzzy only — no semantic understanding). When an EXAMINE fails to land on an
-// object that is actually present here, we ask the AI to pick from THIS
-// location's objects. Constrained to that list → it can never invent an object
-// or grant a clue; the engine still owns every clue decision. Only fires on a
-// genuine miss, so clean inputs keep the instant offline fast-path.
+// The deterministic parser is strict about NOUNS (exact name / alias / fuzzy
+// only — no semantic understanding). When a parse fails to land on a target
+// that is actually present here, we ask the AI to pick from THIS location's
+// entities — objects for EXAMINE, people for TALK. Constrained to that list →
+// it can never invent an entity or grant a clue; the engine still owns every
+// clue and introduction decision. Only fires on a genuine miss, so clean inputs
+// keep the instant offline fast-path.
 
-// Per-session memo: `${location}::${normalised raw}` → resolved object id (or null).
+// Per-session memo: `${kind}::${location}::${normalised raw}` → resolved id (or null).
 const targetResolveCache = new Map<string, string | null>();
 
 async function resolveTargetWithAI(
   intent: ParsedIntent,
   location: string,
   inventory: string[],
+  npcStates: Record<string, NPCState>,
+  currentAct: number,
+  introducedNpcs: string[],
 ): Promise<ParsedIntent> {
+  // ── NPC branch: a TALK whose person the parser could not resolve. Map the
+  // phrase against the people actually present (alias-aware, so an unintroduced
+  // NPC's real name never enters the prompt). Catches semantic references that
+  // fuzzy matching cannot — "the witness who saw Mary", "that eager fellow".
+  if (intent.type === 'talk' && !intent.targetId) {
+    const raw = (intent.targetRaw || '').trim();
+    const presentNpcIds = getPresentNpcIds(location, npcStates, currentAct);
+    if (!raw || presentNpcIds.length === 0) return intent;
+
+    const key = `npc::${location}::${raw.toLowerCase()}`;
+    let npcId: string | null;
+    if (targetResolveCache.has(key)) {
+      npcId = targetResolveCache.get(key)!;
+    } else {
+      const candidates = presentNpcIds.map(id => {
+        const npc = NPCS[id];
+        const introduced = !npc.requiresIntroduction || introducedNpcs.includes(id);
+        const name = introduced
+          ? `${npc.displayName} — ${npc.role}`
+          : `${npc.alias ?? 'a stranger'} — ${npc.aliasDescription ?? npc.role}`;
+        return { id, name };
+      });
+      ({ objectId: npcId } = await aiService.resolveTargetObject(raw, 'talk', candidates, 'person'));
+      targetResolveCache.set(key, npcId);
+    }
+    return npcId ? { ...intent, targetId: npcId } : intent;
+  }
+
   const present = LOCATIONS[location]?.interactables ?? [];
 
   // A resolved object that is a real object id but not actionable here (not in
@@ -496,16 +530,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       commitVignetteFlags(result.flagsUpdate, {}, activeInvestigation?.id);
 
       const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 - three months after the Jack the Ripper murders had begun, and the day before it concluded.\n\n";
-      // Inject fixed line AFTER the ### heading, not before it
-      const injectAfterHeading = (text: string) => {
-        const match = text.match(/^(###[^\n]*\n\n?)/);
-        return match ? match[1] + OPENING_FIXED_LINE + text.slice(match[1].length) : OPENING_FIXED_LINE + text;
-      };
       let lastText = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening', blockquoteHint: 'none' })) {
         if (update.narrative) {
           lastText = update.narrative;
-          setHistory([{ role: 'assistant', text: injectAfterHeading(lastText) }]);
+          setHistory([{ role: 'assistant', text: injectAfterHeading(lastText, OPENING_FIXED_LINE) }]);
         }
       }
       if (!lastText) setHistory([{ role: 'assistant', text: OPENING_FIXED_LINE + OPENING_FALLBACK_NARRATIVE }]);
@@ -768,13 +797,16 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       };
       const result = gameEngine.resolve(intent, snapshot);
       commitVignetteFlags(result.flagsUpdate, flags, activeInvestigation?.id);
+      // Authored bridge ("why we are here") injected after the AI's act heading,
+      // mirroring the opening's fixed line. Empty for any act without one.
+      const bridge = ACT_BRIDGES[toAct] ? ACT_BRIDGES[toAct] + '\n\n' : '';
       let last = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'full', blockquoteHint: 'world_event' })) {
         if (update.narrative) {
           last = update.narrative;
           setHistory(prev => {
             const next = [...prev];
-            next[next.length - 1] = { ...next[next.length - 1], text: last };
+            next[next.length - 1] = { ...next[next.length - 1], text: injectAfterHeading(last, bridge) };
             return next;
           });
         }
@@ -1064,9 +1096,10 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       let intent = parseIntent(userAction);
 
       // STEP 2.5: AI fallback — only when the deterministic parse missed a target.
-      // Resolves a natural-language/paraphrased object noun against THIS location's
-      // objects so the engine can fire the clue. No-op (and no latency) on hits.
-      intent = await resolveTargetWithAI(intent, location, inventory);
+      // Resolves a natural-language/paraphrased object (examine) or person (talk)
+      // against THIS location's entities so the engine can fire. No-op (and no
+      // latency) on hits.
+      intent = await resolveTargetWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs);
 
       // STEP 2: Build session snapshot from current React state
       const discoveredClueIds = user && activeInvestigation
@@ -1465,26 +1498,14 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setIsLoading(true);
 
     try {
-      const currentLocationData = LOCATIONS[location];
-      const recentHistory = history
-        .slice(-4)
-        .map(m => `${m.role}: ${m.text?.substring(0, 300) || ''}`)
-        .join('\n');
-
-      const hint = await aiService.getHolmesHint({
-        locationName: currentLocationData?.name || location,
-        criticalPathLead: (currentLocationData as any)?.criticalPathLead || '',
-        recentHistory,
-        flags,
-        medicalPoints,
-        moralPoints,
-      });
+      const target = selectHint({ currentAct, location, flags, inventory, npcStates, locationVisitCounts });
+      const hint = await aiService.getWatsonHint(target);
 
       setHistory(prev => [
         ...prev,
         {
           role: 'assistant',
-          text: `> *Holmes leans in, his eyes sharp and analytical...*\n\n**Sherlock Holmes**: "${hint || 'Focus on the facts at hand, Watson!'}"`
+          text: `> *A thought surfaced, unbidden.*\n\n${hint}`,
         },
       ]);
       setTimeout(() => scrollToBottom(true), 100);
@@ -1494,7 +1515,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsConsultingHolmes(false);
       setIsLoading(false);
     }
-  }, [isConsultingHolmes, isLoading, location, history, flags, medicalPoints, moralPoints, scrollToBottom]);
+  }, [isConsultingHolmes, isLoading, currentAct, location, flags, inventory, npcStates, locationVisitCounts, scrollToBottom]);
 
   // ── New Game (start a fresh investigation in a given save slot) ─────────────
 

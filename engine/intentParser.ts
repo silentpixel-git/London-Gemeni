@@ -194,6 +194,37 @@ function matchNpcId(raw: string): string | undefined {
   for (const [alias, id] of Object.entries(npcAliases)) {
     if (norm.includes(alias)) return id;
   }
+
+  // Fuzzy last resort: typo tolerance against NPC name words, the id, and the
+  // alias keys — giving NPC nouns the same forgiveness objects already get above.
+  // EVERY meaningful input word must near-match a known word, and the NPC must be
+  // UNIQUE — so "labrourer"→labourer/hutchinson and "abberlin"→abberline land,
+  // while ambiguous near-misses resolve to nothing rather than the wrong person.
+  const fuzzyWords = norm.split(/\s+/).filter(w => w.length >= 4 && !STOP_WORDS.has(w));
+  if (fuzzyWords.length >= 1) {
+    const npcWords: Record<string, Set<string>> = {};
+    const addWord = (id: string, w: string) => {
+      if (w.length >= 4 && !STOP_WORDS.has(w)) (npcWords[id] ??= new Set()).add(w);
+    };
+    for (const [id, npc] of Object.entries(NPCS)) {
+      for (const w of normalise(npc.displayName).split(/\s+/)) addWord(id, w);
+      for (const w of id.replace(/_/g, ' ').split(/\s+/)) addWord(id, w);
+    }
+    for (const [alias, id] of Object.entries(npcAliases)) {
+      for (const w of normalise(alias).split(/\s+/)) addWord(id, w);
+    }
+    const candidates: string[] = [];
+    for (const [id, words] of Object.entries(npcWords)) {
+      const dnWords = [...words];
+      const allCovered = fuzzyWords.every(iw => {
+        const maxDist = iw.length >= 6 ? 2 : 1;
+        return dnWords.some(dw => editDistance(iw, dw, maxDist) <= maxDist);
+      });
+      if (allCovered) candidates.push(id);
+    }
+    if (candidates.length === 1) return candidates[0];
+  }
+
   return undefined;
 }
 

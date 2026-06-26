@@ -1,0 +1,107 @@
+/**
+ * scripts/qa-narration-inject.ts
+ *
+ * Deterministic regression guard for the authored-line injection that splices
+ * the opening's fixed line and each act's arrival "bridge" into AI-streamed
+ * narration (services/narrationFormat.ts → injectAfterHeading, consumed by
+ * hooks/useGameState.ts generateOpeningScene / streamArrivalScene).
+ *
+ * This covers the MECHANICAL seam only — that the authored line lands as its own
+ * paragraph after the `### ACT …` heading, survives the mid-stream partial
+ * heading, and is a no-op when absent. The AI *content* seam (does the model
+ * duplicate or contradict the bridge?) is non-deterministic and is assessed by
+ * the qa-narration rubric / qa-playthrough agent, not here.
+ *
+ *   Deterministic pass — offline, no API key.
+ *
+ * Run: npx tsx scripts/qa-narration-inject.ts
+ * Exit code 1 if any assertion fails.
+ */
+
+import { injectAfterHeading } from '../services/narrationFormat';
+import { ACT_BRIDGES, ACT_NAMES } from '../engine/gameData';
+import { ACT_ROMAN } from '../constants';
+
+let passed = 0;
+const failures: string[] = [];
+function check(label: string, cond: boolean) {
+  if (cond) { passed++; } else { failures.push(label); }
+}
+
+// ── Helper-level cases ────────────────────────────────────────────────────────
+
+const HEADING = '### ACT I: The Last Murder\n\n';
+const SCENE = 'The drizzle coated the cobbles of Dorset Street.';
+const LINE = 'A bridge sentence.';
+
+// 1. Complete heading: line becomes its own paragraph between heading and scene.
+{
+  const out = injectAfterHeading(HEADING + SCENE, LINE);
+  check('complete heading: heading stays first', out.startsWith(HEADING));
+  check('complete heading: line sits after heading, before scene',
+    out === HEADING + LINE + SCENE);
+  check('complete heading: line appears exactly once', out.split(LINE).length === 2);
+}
+
+// 2. Mid-stream: heading not yet terminated by a newline → line prepends, and
+//    the prepend must not survive once the newline arrives (case 1 proves the
+//    snap-back). Here we only assert the transient prepend is well-formed.
+{
+  const partial = '### ACT I: The Last';
+  const out = injectAfterHeading(partial, LINE);
+  check('mid-stream: line prepends ahead of the partial heading', out === LINE + partial);
+}
+
+// 3. Empty line is a strict no-op (acts without a bridge pass '').
+{
+  const full = HEADING + SCENE;
+  check('empty line: returns input unchanged', injectAfterHeading(full, '') === full);
+}
+
+// 4. No heading at all: degrade to a plain prepend (never drop the line).
+{
+  const out = injectAfterHeading(SCENE, LINE);
+  check('no heading: line prepends to plain text', out === LINE + SCENE);
+}
+
+// 5. Only the FIRST heading is targeted (a later `###` in the scene is untouched).
+{
+  const body = HEADING + 'Intro.\n\n### A later subhead\n\nMore.';
+  const out = injectAfterHeading(body, LINE);
+  check('multiple headings: line lands after the first only',
+    out === HEADING + LINE + 'Intro.\n\n### A later subhead\n\nMore.');
+}
+
+// ── ACT_BRIDGES integration ───────────────────────────────────────────────────
+
+// Act 0 is the opening proper (its own fixed line) — it must NOT carry a bridge.
+check('ACT_BRIDGES: no entry for act 0 (the opening)', ACT_BRIDGES[0] === undefined);
+
+// Acts 1–6 each have a non-empty bridge that composes correctly with a real
+// `### ACT <roman>: <name>` heading (the format generateOpeningScene/
+// streamArrivalScene rely on).
+for (let act = 1; act <= 6; act++) {
+  const bridge = ACT_BRIDGES[act];
+  check(`act ${act}: bridge is a non-empty string`, typeof bridge === 'string' && bridge.length > 0);
+  if (typeof bridge !== 'string' || bridge.length === 0) continue;
+
+  const heading = `### ACT ${ACT_ROMAN[act] ?? act}: ${ACT_NAMES[act]}\n\n`;
+  const scene = 'Watson surveys the scene.';
+  const out = injectAfterHeading(heading + scene, bridge + '\n\n');
+
+  check(`act ${act}: heading remains first`, out.startsWith(heading));
+  check(`act ${act}: bridge follows the heading immediately`,
+    out === heading + bridge + '\n\n' + scene);
+  check(`act ${act}: bridge text appears exactly once`, out.split(bridge).length === 2);
+}
+
+// ── Report ────────────────────────────────────────────────────────────────────
+
+const total = passed + failures.length;
+console.log(`\nNarration injection — ${passed}/${total} assertions passed.`);
+if (failures.length > 0) {
+  console.error('\nFailures:');
+  for (const f of failures) console.error(`  [FAIL] ${f}`);
+  process.exit(1);
+}
+console.log('[PASS] Authored-line injection is intact.');

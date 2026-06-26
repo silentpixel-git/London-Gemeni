@@ -19,7 +19,7 @@
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
-import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod } from '../types';
+import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod, HintTarget } from '../types';
 import { ATMOSPHERIC_SEEDS } from '../engine/gameData';
 import { ACT_ROMAN } from '../constants';
 
@@ -284,9 +284,11 @@ Result: ${ctx.actionResultNote}
 ${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${clueSection}${synthesisSection}`;
 
   if (ctx.targetNpcInterview) {
-    const { label, isIntroduced, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion } = ctx.targetNpcInterview;
+    const { label, isIntroduced, introducingThisTurn, realName, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion } = ctx.targetNpcInterview;
     const nameInstruction = isIntroduced
       ? `Watson is speaking with: ${label} (${role})`
+      : introducingThisTurn
+      ? `Watson is speaking with: ${label} (${role}) — until this moment a stranger whose name Watson did not know. THIS IS THE TURN HE COMES FORWARD AND GIVES HIS NAME. Have him state his name, "${realName}", naturally in his own dialogue near the start of his reply (e.g. "${realName}, sir — ..."). Only after he has spoken it may the narration use "${realName}"; Watson registers it as he hears it. Do not have Watson know the name before it is said aloud.`
       : `Watson is speaking with: ${label} — their real name is unknown to Watson. Refer to them only as "${label}" throughout.`;
     // Token diet: cap the knowledge envelope at 8 items, preferring those that
     // overlap the player's question (simple keyword match), falling back to
@@ -355,25 +357,21 @@ NO blockquote this turn.`;
     }
   }
 
-  if (ctx.holmesNudge) {
-    const { locationKeyClues, turnsStuck, crossLocationTarget } = ctx.holmesNudge;
-    if (crossLocationTarget) {
-      compactPrompt += `
+  if (ctx.watsonHint) {
+    const h = ctx.watsonHint;
+    const place = h.isCurrentLocation ? 'here' : `at ${h.locationName}`;
+    const realisation =
+      h.verb === 'reflect'
+        ? `weighed ${h.subject}`
+        : h.verb === 'travel'
+        // Location not yet visited — direct Watson there without naming its contents.
+        ? `made his way to ${h.locationName} (he has not been there yet and cannot know what it holds — do NOT describe its contents)`
+        : `pursued ${h.subject} (${place})`;
+    compactPrompt += `
 
-=== HOLMES REDIRECTS (mandatory — append as the final paragraph) ===
-Watson has examined everything here. Holmes sees it too.
-Add ONE brief observation from Holmes redirecting Watson toward ${crossLocationTarget.locationName}.
-He does not explain his reasoning. He simply indicates — in his oblique, certain way — that there is more to be found elsewhere. 2–3 sentences. No act header.`;
-    } else {
-      compactPrompt += `
-
-=== HOLMES INTERJECTS (mandatory — append as the final paragraph) ===
-Watson has spent ${turnsStuck} turns here without new evidence. Holmes notices.
-Add ONE brief, cryptic observation from Holmes as the closing paragraph.
-He nudges Watson toward what hasn't been found, using only these verified leads:
-${locationKeyClues.map(c => `• ${c}`).join('\n')}
-Holmes does NOT give direct answers. 2–3 sentences. No act header.`;
-    }
+=== WATSON'S THOUGHT (mandatory — append as the final paragraph) ===
+Watson has spent several turns without progress. As the closing paragraph, add ONE brief private reflection (2–3 sentences, first person, past tense) in which he realises he has not yet ${realisation}.
+Name the avenue plainly so the reader knows what to do next. Do NOT reveal what it will show, and do NOT name the murderer. No act header.`;
   }
 
   if (ctx.npcScriptedLines && ctx.npcScriptedLines.length > 0) {
@@ -566,42 +564,49 @@ Reason across ALL of this evidence as Sherlock Holmes. Deliver a sharp cross-ref
   }
 
   /**
-   * Non-streaming call for Holmes hints (used by handleConsultHolmes).
-   * Kept here for convenience but delegates to the underlying Gemini SDK.
+   * Non-streaming Watson-voiced hint. The engine has already chosen the target
+   * (what to do next); Watson only phrases it. Directed but never spoils.
    */
-  async getHolmesHint(context: {
-    locationName: string;
-    criticalPathLead: string;
-    recentHistory: string;
-    flags: Record<string, boolean>;
-    medicalPoints: number;
-    moralPoints: number;
-  }): Promise<string> {
-    const styleNote =
-      context.medicalPoints > context.moralPoints
-        ? 'Watson has been highly analytical. Holmes should prompt deeper clinical observation.'
-        : context.moralPoints > context.medicalPoints
-        ? 'Watson has been deeply empathetic. Holmes should push toward forensic reasoning.'
-        : 'Holmes should balance analytical and emotional perspectives.';
+  async getWatsonHint(target: HintTarget): Promise<string> {
+    const where = target.isCurrentLocation
+      ? 'It is here, where Watson already stands.'
+      : `It is at ${target.locationName}; Watson would need to make his way there.`;
 
-    const prompt = `Location: ${context.locationName}
-Critical progression: ${context.criticalPathLead}
-Watson's investigation style: ${styleNote}
-Recent context: ${context.recentHistory}
+    const verbCue: Record<string, string> = {
+      examine: 'look more closely at',
+      talk: 'speak with',
+      show: 'put before the right person',
+      use: 'lay together and compare',
+      deduce: 'draw his conclusion about',
+      reflect: 'turn over again in his mind',
+      travel: 'make his way to',
+    };
 
-Deliver a single sharp, cryptic Holmesian observation — maximum 40 words. No preamble.`;
+    const focus =
+      target.verb === 'reflect'
+        ? `Watson senses he has gathered what this place can give, and should weigh ${target.subject}.`
+        : target.verb === 'travel'
+        // Location not yet visited: Watson cannot know its contents, so direct him
+        // there only — never describe what waits inside.
+        ? `Watson has not yet been to ${target.locationName}, and realises he ought to make his way there. He has no notion of what he will find — only that the place itself is the next step. Do NOT invent or describe its contents, and do NOT name or describe where Watson currently stands.`
+        : `The avenue Watson has not yet pursued: ${verbCue[target.verb]} ${target.subject}. ${where}`;
+
+    const prompt = `${focus}
+
+Write Watson's private thought nudging himself toward this — first person, past tense, no more than 45 words. Name the avenue plainly so the reader knows what to do, but NEVER state what it will reveal or name the murderer. No preamble.`;
 
     const response = await this.ai.models.generateContent({
       model: MODEL_ID,
       contents: [{ parts: [{ text: prompt }] }],
       config: {
         systemInstruction:
-          `${HOLMES_PERSONA_PROMPT} Watson is stuck — give one brief, cryptic deduction pointing toward the next clue. Maximum 40 words.`,
+          `You are Dr. John Watson in 1888 London, writing in the first person, past tense. Restrained, observant, medical. You are recalling a moment when you realised what you had not yet done. One short reflection. Never reveal conclusions or the killer's identity.`,
         thinkingConfig: { thinkingBudget: 0 },
       },
     });
 
-    return response.text?.trim() || 'Observe more carefully, Watson.';
+    return response.text?.trim()
+      || 'I realised there was still ground I had not covered, and resolved to put that right.';
   }
 
   /**
@@ -649,15 +654,17 @@ No action instructions. No game language. Pure Victorian diary prose.`;
     rawInput: string,
     intentType: string,
     candidates: Array<{ id: string; name: string }>,
+    entityNoun: 'object' | 'person' = 'object',
   ): Promise<{ objectId: string | null }> {
     if (candidates.length === 0) return { objectId: null };
 
+    const plural = entityNoun === 'person' ? 'people' : 'objects';
     const list = candidates.map(c => `- ${c.id} — "${c.name}"`).join('\n');
     const prompt = `The player typed: "${rawInput}" (action: ${intentType}).
-Which of these objects in the current scene did they most likely mean?
+Which of these ${plural} in the current scene did they most likely mean?
 ${list}
 
-Reply with the matching id, or "none" if the phrase clearly refers to no object in the list. Only match when the meaning genuinely corresponds — do not guess wildly.`;
+Reply with the matching id, or "none" if the phrase clearly refers to no ${entityNoun} in the list. Only match when the meaning genuinely corresponds — do not guess wildly.`;
 
     try {
       const response = await this.ai.models.generateContent({
@@ -665,7 +672,7 @@ Reply with the matching id, or "none" if the phrase clearly refers to no object 
         contents: [{ parts: [{ text: prompt }] }],
         config: {
           systemInstruction:
-            'You map a player\'s phrase to exactly one object id from a fixed list, by meaning (synonyms, paraphrase, physical description). Return one id verbatim from the list, or "none". Never invent an id.',
+            `You map a player's phrase to exactly one ${entityNoun} id from a fixed list, by meaning (synonyms, paraphrase, ${entityNoun === 'person' ? 'role or description' : 'physical description'}). Return one id verbatim from the list, or "none". Never invent an id.`,
           thinkingConfig: { thinkingBudget: 0 },
           responseMimeType: 'application/json',
           responseSchema: {

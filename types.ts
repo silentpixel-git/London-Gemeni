@@ -122,8 +122,6 @@ export interface WorldLocation {
   description: string;
   exits: string[];
   interactables: string[];
-  keyClues: string[];
-  criticalPathLead: string;
 }
 
 export interface GameResponse {
@@ -197,6 +195,24 @@ export interface EngineResult {
   aiContext: NarrationContext;
 }
 
+export type HintVerb = 'examine' | 'talk' | 'show' | 'use' | 'deduce' | 'reflect' | 'travel';
+
+/** The chosen next-step target the engine hands to the AI to phrase in Watson's voice. */
+export interface HintTarget {
+  verb: HintVerb;
+  /** Neutral, player-facing noun phrase. Never contains clue findings/spoilers.
+   *  Empty for 'travel' (location not yet visited) and 'reflect' targets. */
+  subject: string;
+  /** Display name of the location the step happens at ('' for the reflect fallback). */
+  locationName: string;
+  /** True when that location is where Watson currently stands. */
+  isCurrentLocation: boolean;
+  /** True when Watson has been to the target location (currently there or previously
+   *  visited). When false the hint may only direct him toward the location — never name
+   *  what is inside it, since Watson cannot yet know its contents. */
+  locationKnown: boolean;
+}
+
 /**
  * Verified, authoritative context passed to the AI for narration.
  * The AI must not contradict or extend this context.
@@ -262,23 +278,17 @@ export interface NarrationContext {
     npcId: string;
     label: string;        // Alias or displayName depending on introduction state
     isIntroduced: boolean;
+    introducingThisTurn?: boolean; // true on the single turn the NPC first gives their name
+    realName?: string;             // the name to reveal in-fiction (set only when introducingThisTurn)
     role: string;
     speakingStyle: string;
     personality: string[];
     knowledgeEnvelope: string[]; // publicKnowledge — AI hard ceiling
     playerQuestion: string;      // intent.raw
   };
-  // Proactive Holmes Nudge — populated by engine when player is stuck
-  holmesNudge?: {
-    locationKeyClues: string[];
-    turnsStuck: number;
-    // Set when all interactables at current location are already examined —
-    // redirects Watson to another accessible location instead of repeating local hints
-    crossLocationTarget?: {
-      locationName: string;
-      locationId: string;
-    };
-  };
+  // Proactive hint woven into the turn when the player is stuck — chosen by the
+  // engine's selectHint, phrased by the AI in Watson's voice.
+  watsonHint?: HintTarget;
   // Scripted NPC presence moments — directorial instructions for the AI.
   // Populated by engine when a present NPC has a scriptedLine that matches
   // the current location (and optional trigger flag).

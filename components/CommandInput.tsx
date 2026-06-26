@@ -97,7 +97,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
             {isConsultingHolmes ? (
               <>
                 <Feather size={14} className="animate-bounce" />
-                <span className="text-sm italic font-serif">Holmes is contemplating...</span>
+                <span className="text-sm italic font-serif">Watson is contemplating...</span>
               </>
             ) : (
               <>
@@ -123,7 +123,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
               onClick={onConsultHolmes}
               disabled={isLoading}
               className="p-2 text-lb-muted hover:text-lb-accent transition-colors disabled:opacity-50"
-              title="Consult Holmes"
+              title="Gather your thoughts"
             >
               <Lightbulb size={20} />
             </button>
