@@ -174,6 +174,7 @@ export interface GameStateReturn {
   pendingActTransition: PendingActTransition | null;
   isActBreakReady: boolean;
   isCurtainPlaying: boolean;
+  isAdvancingAct: boolean;
   beginNextAct: () => Promise<void>;
   handleJournalTypewriterDone: () => void;
 
@@ -255,6 +256,10 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const [pendingActTransition, setPendingActTransition] = useState<PendingActTransition | null>(null);
   const [isActBreakReady, setIsActBreakReady] = useState(false);   // diary finished typing → show Begin
   const [isCurtainPlaying, setIsCurtainPlaying] = useState(false); // cinematic overlay animating
+  // True only while the NEW act's opening scene is streaming, after the curtain
+  // has closed. Distinguishes this (much longer) generation from a normal turn
+  // so the command bar can show a dedicated message instead of a generic one.
+  const [isAdvancingAct, setIsAdvancingAct] = useState(false);
 
   // ── Journal / sidebar ───────────────────────────────────────────────────
   // journalNotes still persists to the legacy investigations.journal_notes column
@@ -866,10 +871,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     // streamArrivalScene). Lock input across the stream so a command can't race
     // with / clobber it.
     setIsLoading(true);
+    setIsAdvancingAct(true);
     try {
       await streamArrivalScene(toAct, newLocation, npcUpdates);
     } finally {
       setIsLoading(false);
+      setIsAdvancingAct(false);
     }
 
     // Persist the committed Act-N state via the fresh ref (flags now marker-free).
@@ -1644,6 +1651,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     pendingActTransition,
     isActBreakReady,
     isCurtainPlaying,
+    isAdvancingAct,
     beginNextAct,
     handleJournalTypewriterDone,
 

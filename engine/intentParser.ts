@@ -148,22 +148,9 @@ function matchLocationId(raw: string): string | undefined {
   return undefined;
 }
 
-/**
- * Try to match a raw target string to a known NPC ID.
- */
-function matchNpcId(raw: string): string | undefined {
-  const norm = normalise(raw);
-  for (const [id, npc] of Object.entries(NPCS)) {
-    if (
-      norm.includes(normalise(npc.displayName)) ||
-      normalise(npc.displayName).includes(norm) ||
-      norm.includes(id.replace(/_/g, ' '))
-    ) {
-      return id;
-    }
-  }
-  // Common NPC aliases
-  const npcAliases: Record<string, string> = {
+// Common NPC aliases — hoisted to module scope so matchNpcIdExact can also
+// consult it without duplicating the list.
+const NPC_ALIASES: Record<string, string> = {
     'inspector': 'abberline',
     'detective': 'abberline',
     'dr bond': 'bond',
@@ -190,8 +177,23 @@ function matchNpcId(raw: string): string | undefined {
     'labourer': 'hutchinson',
     'dr phillips': 'phillips',
     'doctor phillips': 'phillips',
-  };
-  for (const [alias, id] of Object.entries(npcAliases)) {
+};
+
+/**
+ * Try to match a raw target string to a known NPC ID.
+ */
+function matchNpcId(raw: string): string | undefined {
+  const norm = normalise(raw);
+  for (const [id, npc] of Object.entries(NPCS)) {
+    if (
+      norm.includes(normalise(npc.displayName)) ||
+      normalise(npc.displayName).includes(norm) ||
+      norm.includes(id.replace(/_/g, ' '))
+    ) {
+      return id;
+    }
+  }
+  for (const [alias, id] of Object.entries(NPC_ALIASES)) {
     if (norm.includes(alias)) return id;
   }
 
@@ -210,7 +212,7 @@ function matchNpcId(raw: string): string | undefined {
       for (const w of normalise(npc.displayName).split(/\s+/)) addWord(id, w);
       for (const w of id.replace(/_/g, ' ').split(/\s+/)) addWord(id, w);
     }
-    for (const [alias, id] of Object.entries(npcAliases)) {
+    for (const [alias, id] of Object.entries(NPC_ALIASES)) {
       for (const w of normalise(alias).split(/\s+/)) addWord(id, w);
     }
     const candidates: string[] = [];
@@ -226,6 +228,23 @@ function matchNpcId(raw: string): string | undefined {
   }
 
   return undefined;
+}
+
+/**
+ * Exact NPC identity match only — whole-string equality against the NPC's
+ * display name, id, or a known alias, with no substring/fuzzy matching.
+ * Used to give a bare NPC name ("holmes") priority over an object whose
+ * display name happens to embed that name (e.g. "Holmes' Chemistry Table"
+ * normalises to "holmes chemistry table", which contains "holmes").
+ */
+function matchNpcIdExact(raw: string): string | undefined {
+  const norm = normalise(raw);
+  for (const [id, npc] of Object.entries(NPCS)) {
+    if (norm === normalise(npc.displayName) || norm === id.replace(/_/g, ' ')) {
+      return id;
+    }
+  }
+  return NPC_ALIASES[norm];
 }
 
 // Stop-words ignored when comparing a phrase against object names.
@@ -636,7 +655,7 @@ export function parseIntent(rawInput: string): ParsedIntent {
       // which triggers full narration mode. An empty string passed to the matchers
       // would incorrectly match everything via String.includes('').
       const targetId = targetRaw
-        ? matchObjectId(targetRaw) || matchNpcId(targetRaw) || matchLocationId(targetRaw)
+        ? matchNpcIdExact(targetRaw) || matchObjectId(targetRaw) || matchNpcId(targetRaw) || matchLocationId(targetRaw)
         : undefined;
       // Examine verb + unresolvable target. If the phrase reaches for a real
       // object ("examine the case archives"), Watson should name what he missed
@@ -692,7 +711,20 @@ export function parseIntent(rawInput: string): ParsedIntent {
     };
   }
 
-  // 11. Implicit examine: if the whole input matches an object or NPC
+  // 11. Implicit talk: a bare NPC name ("holmes") takes priority over a loose
+  // object-name match — an object like "Holmes' Chemistry Table" also embeds
+  // "holmes" and would otherwise win via the substring check in step 12.
+  const directNpcExactMatch = matchNpcIdExact(rawInput);
+  if (directNpcExactMatch) {
+    return {
+      type: 'talk',
+      targetId: directNpcExactMatch,
+      targetRaw: rawInput,
+      raw: rawInput,
+    };
+  }
+
+  // 12. Implicit examine: if the whole input matches an object or NPC
   const directObjectMatch = matchObjectId(rawInput);
   if (directObjectMatch) {
     return {
@@ -713,7 +745,7 @@ export function parseIntent(rawInput: string): ParsedIntent {
     };
   }
 
-  // 12. Fallback
+  // 13. Fallback
   return {
     type: 'other',
     raw: rawInput,

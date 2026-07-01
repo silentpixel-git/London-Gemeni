@@ -203,6 +203,7 @@ const AppContent: React.FC = () => {
           isLoading={gs.isLoading || gs.pendingActTransition !== null || gs.isCurtainPlaying}
           isGameOver={gs.isGameOver}
           isConsultingHolmes={gs.isConsultingHolmes}
+          isAdvancingAct={gs.isAdvancingAct}
           history={gs.history}
           onAction={gs.handleAction}
           onConsultHolmes={gs.handleConsultHolmes}
