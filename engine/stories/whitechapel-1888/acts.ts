@@ -154,6 +154,7 @@ export const ACT_PROGRESSION: Record<number, ActCondition> = {
     name: 'The First Victims',
     requireFlags: [
       'examined_whitechapel_mortuary',
+      'talked_to_phillips_at_whitechapel_mortuary', // the second medical voice — "watched and studied, not qualified"
       'examined_bucks_row',
       'examined_hanbury_street',
       'talked_to_tumblety_at_h_division_station', // the Mad Doctor blazes

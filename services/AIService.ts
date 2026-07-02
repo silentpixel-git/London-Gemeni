@@ -19,7 +19,7 @@
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
-import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod, HintTarget } from '../types';
+import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod, HintTarget, STIMEntry } from '../types';
 import { ATMOSPHERIC_SEEDS } from '../engine/gameData';
 import { ACT_ROMAN } from '../constants';
 
@@ -77,6 +77,7 @@ ABSOLUTE RULES:
 OUTPUT — return a JSON object:
 - "markdownOutput": the narrative text (Markdown, real line breaks — never a literal "\\n"). Full mode max 160 words (110 on a revisit); compact mode max 130.
 - "npcMemoryUpdate": optional ~10-word interaction summary keyed by npcId (e.g. {"holmes": "Watson and Holmes discussed the burned clothing."}).
+- "stimUpdate": optional array of NEW sensory first-observations to remember, each {"key": snake_case id, "summary": "10-15 words", "scope": "npc"|"object"|"environment"} (e.g. {"key":"holmes_coat","summary":"...","scope":"npc"}). Only when the result note asks for it and the subject is not already in SESSION OBSERVATIONS.
 NpcIds: holmes, abberline, bond, edmund, lusk, diemschutz, superintendent.`;
 
 // ============================================================
@@ -101,6 +102,19 @@ const NARRATION_SCHEMA = {
         lusk: { type: Type.STRING },
         diemschutz: { type: Type.STRING },
         superintendent: { type: Type.STRING },
+      },
+    },
+    stimUpdate: {
+      type: Type.ARRAY,
+      description: 'Optional. New first-observation sensory details to remember. Each entry: a stable snake_case key (e.g. "holmes_coat"), a 10-15 word summary, and a scope. Omit or leave empty when no new observation was made.',
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          key: { type: Type.STRING, description: 'Stable snake_case id, e.g. "holmes_coat", "abberline_hands".' },
+          summary: { type: Type.STRING, description: '10-15 word sensory description Watson noticed.' },
+          scope: { type: Type.STRING, enum: ['npc', 'object', 'environment'] },
+        },
+        required: ['key', 'summary', 'scope'],
       },
     },
   },
@@ -496,6 +510,21 @@ export class AIService {
       parsed = JSON.parse(clean) as NarrationResponse;
     } catch {
       parsed = { markdownOutput: lastNarrative || 'The ink on Watson\'s pen ran dry.' };
+    }
+
+    // The schema expresses stimUpdate as an array (Gemini structured output
+    // cannot describe an arbitrary-key map); the rest of the app consumes it as
+    // a Record<key, STIMEntry>. Normalize here. turnCreated is set by the
+    // consumer, so 0 is a placeholder.
+    const rawStim = parsed.stimUpdate as unknown;
+    if (Array.isArray(rawStim)) {
+      const record: Record<string, STIMEntry> = {};
+      for (const e of rawStim as Array<{ key?: string; summary?: string; scope?: STIMEntry['scope'] }>) {
+        if (e?.key && e.summary && e.scope) {
+          record[e.key] = { summary: e.summary, scope: e.scope, turnCreated: 0 };
+        }
+      }
+      parsed.stimUpdate = Object.keys(record).length > 0 ? record : undefined;
     }
 
     // For full-mode turns (move / look-around), append a verified data summary.
