@@ -75,7 +75,6 @@ export const Header: React.FC<HeaderProps> = ({
   const [isGuestSettingsOpen, setIsGuestSettingsOpen] = useState(false);
 
   const displayName = userProfile?.displayName || user?.user_metadata?.full_name || user?.email;
-  const displayRole = userProfile?.role || 'Field Surgeon';
 
   const closeProfileMenu = () => {
     setIsProfileMenuOpen(false);
