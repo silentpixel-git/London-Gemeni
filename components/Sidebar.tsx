@@ -1,8 +1,8 @@
 /**
  * components/Sidebar.tsx
  *
- * Left panel showing current location, medical bag, available exits,
- * present NPCs, and Watson's diary with an AI-refresh button.
+ * Left panel showing current location, medical bag, present NPCs,
+ * objects of interest, and available exits.
  */
 
 import React from 'react';
