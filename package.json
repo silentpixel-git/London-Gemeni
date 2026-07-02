@@ -11,6 +11,7 @@
     "qa:engine": "npx tsx scripts/qa-engine.ts",
     "qa:parser": "npx tsx scripts/qa-parser.ts",
     "qa:hints": "npx tsx scripts/qa-hints.ts",
+    "qa:diary-leads": "npx tsx scripts/qa-diary-leads.ts",
     "qa:narration-inject": "npx tsx scripts/qa-narration-inject.ts"
   },
   "dependencies": {
