@@ -19,7 +19,7 @@
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
-import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod, HintTarget, STIMEntry } from '../types';
+import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod, HintTarget, HintVerb, STIMEntry } from '../types';
 import { ATMOSPHERIC_SEEDS } from '../engine/gameData';
 import { ACT_ROMAN } from '../constants';
 
@@ -668,6 +668,66 @@ No action instructions. No game language. Pure Victorian diary prose.`;
     });
 
     return response.text?.trim() || '';
+  }
+
+  /**
+   * Non-streaming call that fills in Watson's diary for a progression-gate flag
+   * that has no hand-authored text (no clue trigger, no DECISION_DIARY entry).
+   * Runs async, after the turn's narration has already completed — never blocks
+   * the turn. `context` is deterministic, spoiler-safe, engine-supplied (reused
+   * from the hint objective table); the AI only phrases it in Watson's voice,
+   * grounded in what actually happened this turn.
+   */
+  async generateLeadDiaryEntry(context: {
+    actName: string;
+    verb: HintVerb;
+    subject: string;
+    narrationText: string;
+  }): Promise<{ title: string; body: string }> {
+    const verbCue: Record<string, string> = {
+      examine: 'examined',
+      talk: 'spoke with',
+      show: 'showed',
+      use: 'made use of',
+      deduce: 'drew his conclusion about',
+      reflect: 'turned over in his mind',
+      travel: 'made his way to',
+    };
+
+    const prompt = `Watson has just ${verbCue[context.verb] || 'attended to'} ${context.subject}, during Act "${context.actName}".
+
+What actually happened, in the turn's narration:
+${context.narrationText}
+
+Write a short diary entry recording this. First-person past tense, Watson's voice. A short evocative title (3-6 words, like a diary heading, no ending punctuation) and a body of 1-2 sentences. Ground the body in the narration above — do not invent details it doesn't contain. Never state a conclusion or name a suspect.`;
+
+    try {
+      const response = await this.ai.models.generateContent({
+        model: MODEL_ID,
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          systemInstruction:
+            "You are Dr. John H. Watson recording a private diary entry. First-person past tense. Reflective, understated, historically authentic Victorian prose. Never reveal conclusions or the killer's identity.",
+          thinkingConfig: { thinkingBudget: 0 },
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING, description: 'A short evocative diary heading, 3-6 words.' },
+              body: { type: Type.STRING, description: "Watson's diary prose, 1-2 sentences." },
+            },
+            required: ['title', 'body'],
+          },
+        },
+      });
+      const parsed = JSON.parse(response.text || '{}');
+      return {
+        title: (parsed.title || '').trim(),
+        body: (parsed.body || '').trim(),
+      };
+    } catch {
+      return { title: '', body: '' };
+    }
   }
 
   /**

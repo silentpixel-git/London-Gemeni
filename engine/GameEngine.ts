@@ -1312,9 +1312,12 @@ export class GameEngine {
     }
 
     // 'full' narration: moving to a new location or looking around with no specific target.
-    // 'compact' narration: examining an object, talking, taking, using, etc.
+    // 'compact' narration: examining an object, talking, taking, using, etc. A
+    // blocked move (invalid/unavailable destination) must stay 'compact' too —
+    // the full template has no instruction to acknowledge a failed action, so a
+    // blocked move rendered in full mode silently reads as a normal look-around.
     const narrationMode: 'full' | 'compact' =
-      intent.type === 'move' ||
+      (intent.type === 'move' && outcome.success) ||
       (intent.type === 'examine' && !intent.targetId) ||
       (intent.type === 'other' && !intent.targetId)
         ? 'full'

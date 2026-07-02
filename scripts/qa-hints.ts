@@ -118,5 +118,29 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
     : fail('visited location should expose subject', JSON.stringify(t));
 }
 
+// 8) Every objective's optional `flag` — where present — matches a real gate
+//    flag for that act, and no two objectives in the same act share one.
+{
+  const seenPerAct = new Map<number, Set<string>>();
+  let bad = 0;
+  for (const o of OBJECTIVES) {
+    if (!o.flag) continue;
+    const gate = ACT_PROGRESSION[o.act];
+    if (!gate || !gate.requireFlags.includes(o.flag)) {
+      fail(`objective ${o.id} has flag "${o.flag}" not in ACT_PROGRESSION[${o.act}].requireFlags`);
+      bad++;
+      continue;
+    }
+    const seen = seenPerAct.get(o.act) ?? new Set<string>();
+    if (seen.has(o.flag)) {
+      fail(`duplicate flag "${o.flag}" tagged on two objectives in act ${o.act}`);
+      bad++;
+    }
+    seen.add(o.flag);
+    seenPerAct.set(o.act, seen);
+  }
+  bad === 0 && pass('every tagged objective.flag matches a real, unique gate flag for its act');
+}
+
 console.log(`\n${passes} passed, ${fails} failed`);
 if (fails > 0) process.exit(1);

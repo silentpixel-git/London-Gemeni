@@ -8,7 +8,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Feather, Lightbulb, Send, Eye, Search, Glasses, Compass, Brain, Microscope, type LucideIcon } from 'lucide-react';
+import { Feather, Lightbulb, Send, Eye, Search, Glasses, Compass, Brain, Microscope, BookOpen, type LucideIcon } from 'lucide-react';
 import { GameHistoryItem } from '../types';
 
 const LOADING_VARIANTS: Array<{ icon: LucideIcon; text: string }> = [
@@ -44,6 +44,7 @@ interface CommandInputProps {
   isLoading: boolean;
   isGameOver: boolean;
   isConsultingHolmes: boolean;
+  isAdvancingAct: boolean;
   history: GameHistoryItem[];
   onAction: (userAction: string) => Promise<void>;
   onConsultHolmes: () => void;
@@ -53,6 +54,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
   isLoading,
   isGameOver,
   isConsultingHolmes,
+  isAdvancingAct,
   history,
   onAction,
   onConsultHolmes,
@@ -98,6 +100,11 @@ export const CommandInput: React.FC<CommandInputProps> = ({
               <>
                 <Feather size={14} className="animate-bounce" />
                 <span className="text-sm italic font-serif">Watson is contemplating...</span>
+              </>
+            ) : isAdvancingAct ? (
+              <>
+                <BookOpen size={14} className="animate-bounce" />
+                <span className="text-sm italic font-serif">Turning the page to a new act...</span>
               </>
             ) : (
               <>
