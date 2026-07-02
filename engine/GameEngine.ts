@@ -343,7 +343,7 @@ export class GameEngine {
               `Do NOT write dialogue. Use the CHARACTER PROFILES section to inform physical details (build, manner, staining, wear). ` +
               `Check SESSION OBSERVATIONS (STIM) first — if this subject is already there, reproduce it exactly. ` +
               `If not in STIM, invent one vivid 10-15 word medical/forensic observation Watson would notice, ` +
-              `then return it in stimUpdate with a stable snake_case key (e.g. "holmes_coat", "abberline_hands").`,
+              `then add it to stimUpdate as { key: stable snake_case id (e.g. "holmes_coat", "abberline_hands"), summary, scope: "npc" }.`,
             newClueDefs: [],
           }),
         };
@@ -391,9 +391,13 @@ export class GameEngine {
     const allFlags = { ...session.flags, ...flagsUpdate };
     const actCheck = this.checkActProgression(session, allFlags);
 
-    // Inventory: add evidence notes for takeable objects (first time only)
+    // Inventory: add evidence notes for takeable objects whenever Watson is at
+    // the source and is not already carrying it. The inventory check is the only
+    // dedup needed — gating on !alreadyExamined would strand a dropped item
+    // (examined flag stays set, so re-examining could never re-add it), breaking
+    // DROP's promise that "He can retrieve it if he returns".
     const inventoryAdd: string[] = [];
-    if (!alreadyExamined && TAKEABLE_OBJECTS[targetId] && !session.inventory.includes(TAKEABLE_OBJECTS[targetId])) {
+    if (TAKEABLE_OBJECTS[targetId] && !session.inventory.includes(TAKEABLE_OBJECTS[targetId])) {
       inventoryAdd.push(TAKEABLE_OBJECTS[targetId]);
     }
 
@@ -1006,10 +1010,30 @@ export class GameEngine {
       };
     }
 
+    // No recognised suspect was named. The deduction parser keys on broad
+    // phrases ("i believe", "theory", "the answer is…"), so an exploratory
+    // line that happens to contain one — but names nobody — lands here. That
+    // is not a deliberate accusation, so it must NOT close the case. Ask
+    // Watson to name a specific person instead of ending the game.
+    if (!matchedProfile) {
+      return {
+        actionSuccess: false,
+        actionType: 'deduce',
+        blockedReason: `Holmes raises an eyebrow. "If you mean to accuse a man, Watson, then name him plainly — give me the person, not a feeling."`,
+        discoveredClueIds: [],
+        aiContext: this.buildContext(intent, session, {
+          success: false,
+          actionDescription: `Watson reached toward a conclusion without naming anyone: "${intent.raw}"`,
+          actionResultNote: `BLOCKED — Watson did not name a specific suspect. The case is NOT closed and this is NOT a failed deduction. Holmes presses him to state plainly whom he accuses; invite Watson to name a person directly.`,
+          newClueDefs: [],
+        }),
+      };
+    }
+
     // Wrong suspect — cold case ending.
     // The case goes unsolved; Watson closes his diary without a resolution.
     // A named red herring (isGuilty:false profile) gets a tailored rebuttal.
-    const coldCaseNote = matchedProfile?.wrongDeductionNote ??
+    const coldCaseNote = matchedProfile.wrongDeductionNote ??
       `COLD CASE — Watson's theory cannot be supported by the evidence. Holmes gently but firmly disagrees. ` +
       `The Whitechapel murders will go unsolved. Write a 150-word final diary entry: Watson reflects on the ` +
       `failure, the unanswered questions, and the shadow this case casts over London. Tone: sombre and resigned. ` +

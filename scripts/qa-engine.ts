@@ -206,6 +206,7 @@ function runWinningPath() {
 
   // Act 2 — "The Mad Doctor". Mortuary + cold scenes, then Tumblety in custody.
   s = step('Act2', s, 'examine bonds desk',          { expectSuccess: true, expectFlag: 'examined_whitechapel_mortuary', expectClue: 'clue_02c_small_hands' });
+  s = step('Act2', s, 'talk to phillips',            { expectSuccess: true, expectFlag: 'talked_to_phillips_at_whitechapel_mortuary' });
   s = step('Act2', s, 'go to bucks row',             { expectSuccess: true, expectLocation: 'bucks_row' });
   s = step('Act2', s, 'examine cobblestone roadway', { expectSuccess: true, expectFlag: 'examined_bucks_row', expectClue: 'clue_01_respectable_approach' });
   s = step('Act2', s, 'go to hanbury street',        { expectSuccess: true, expectLocation: 'hanbury_street' });
@@ -375,8 +376,8 @@ function runActGateBoundary() {
     ? pass('Act0 gate — held with 2/3 flags (expected)')
     : fail('Act0 gate — advanced with 2/3 flags (missing talk to holmes)');
 
-  // Act 2: 2/3 flags (mortuary + bucks_row, missing hanbury_street)
-  // Examine something at baker_street — doesn't set hanbury flag → gate holds
+  // Act 2: partial flags (mortuary + bucks_row only; missing phillips talk,
+  // hanbury, tumblety, holmes) — examine at baker_street → gate holds
   const s2 = buildSnapshot({
     currentAct: 2,
     location: 'baker_street',

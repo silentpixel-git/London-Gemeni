@@ -187,6 +187,9 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
     description: "At Holmes's desk, Watson lays the assistant's forensic note beside the From Hell letter. The styles diverge — one clinical, one a performance of ignorance — but there it is, in both hands, written without hesitation: 'prasarved.' The same idiosyncratic vowel in the same uncertain position. Watson's eye goes to the casefiles wall — the assistant present at every scene — and then to the name signed at the foot of the note: Edmund Halward.",
     holmesDeduction: "Two men do not spell 'preserved' as 'prasarved'. The small hands. The laboratory fixative. The man present at every post-mortem whom no one has ever once remarked. It was all there, Watson — from the first morning. So that is his name.",
     locationFound: 'baker_street',
+    // Synthetic label, NOT a physical interactable: this clue is granted only via
+    // USE_COMBINATIONS (forensic note + From Hell letter, gated to baker_street).
+    // Intentionally absent from any location's interactables and from CLUE_TRIGGERS.
     triggerObject: 'document_convergence',
     connections: ['clue_05_from_hell_letter', 'clue_07_edmunds_presence'],
     clueGroup: 6,
@@ -263,7 +266,6 @@ export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
     whitechapel_map: [],
     holmes_chemistry_table: [],
     telegrams_pile: [],
-    watson_armchair: [],
     newspaper_pile: [],
   },
   millers_court: {
