@@ -156,8 +156,6 @@ const AppContent: React.FC = () => {
         currentAct={gs.currentAct}
         npcStates={gs.npcStates}
         introducedNpcs={gs.introducedNpcs}
-        onOpenDiary={openDiary}
-        diaryUnreadCount={diaryUnreadCount}
         displayTime={gs.displayTime}
         displayDate={gs.displayDate}
         weather={gs.weather}
@@ -184,6 +182,8 @@ const AppContent: React.FC = () => {
           onOpenAuth={() => setIsAuthModalOpen(true)}
           onOpenEditProfile={handleOpenEditProfile}
           onLogout={logout}
+          onOpenDiary={openDiary}
+          diaryUnreadCount={diaryUnreadCount}
         />
 
         <NarrativeFeed
