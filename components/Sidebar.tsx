@@ -6,8 +6,8 @@
  */
 
 import React from 'react';
-import { MapPin, Briefcase, DoorOpen, User, ScrollText, Feather, X, CloudFog, CloudDrizzle, CloudRain, Cloudy, Moon, type LucideIcon } from 'lucide-react';
-import { LOCATIONS, NPCS, NPC_ALIASES } from '../engine/gameData';
+import { MapPin, Briefcase, DoorOpen, User, Search, X, CloudFog, CloudDrizzle, CloudRain, Cloudy, Moon, type LucideIcon } from 'lucide-react';
+import { LOCATIONS, NPCS, NPC_ALIASES, OBJECT_DISPLAY_NAMES } from '../engine/gameData';
 import type { ActWeather, WeatherCondition } from '../engine/gameData';
 import { INITIAL_NPC_STATES, NPC_DISPLAY_NAMES } from '../constants';
 import { NPCState } from '../types';
@@ -31,8 +31,6 @@ interface SidebarProps {
   currentAct: number;
   npcStates: Record<string, NPCState>;
   introducedNpcs: string[];
-  onOpenDiary: () => void;
-  diaryUnreadCount: number;
   displayTime: string;
   displayDate: string;
   weather: ActWeather;
@@ -46,8 +44,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentAct,
   npcStates,
   introducedNpcs,
-  onOpenDiary,
-  diaryUnreadCount,
   displayTime,
   displayDate,
   weather,
@@ -64,6 +60,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const exitData = LOCATIONS[exitId];
     return exitData && exitData.act <= currentAct;
   });
+
+  // Objects of interest — same source data the narration line "**Objects of
+  // interest:** ..." is built from (engine/GameEngine.ts buildContext()).
+  const visibleObjects = (LOCATIONS[location]?.interactables || []).map(
+    id => OBJECT_DISPLAY_NAMES[id] || id
+  );
 
   return (
     <div className={`
@@ -113,29 +115,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </ul>
         </div>
 
-        {/* Available exits */}
-        <div className="mb-8">
-          <div className="flex items-center gap-2 text-lb-accent mb-4">
-            <DoorOpen size={18} />
-            <span className="uppercase tracking-widest text-xs font-bold">Avenues</span>
-          </div>
-          {visibleExits.length > 0 ? (
-            <ul className="space-y-3">
-              {visibleExits.map((exitId, idx) => {
-                const exitData = LOCATIONS[exitId];
-                return (
-                  <li key={idx} className="flex items-center gap-3 text-lb-primary opacity-90">
-                    <div className="w-1.5 h-1.5 rounded-full bg-lb-accent" />
-                    <span className="font-sans text-md">{exitData?.shortName || exitId}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="font-sans text-sm text-lb-primary opacity-70 italic">Investigate further before leaving</p>
-          )}
-        </div>
-
         {/* Present NPCs */}
         <div className="mb-8">
           <div className="flex items-center gap-2 text-lb-accent mb-4">
@@ -168,39 +147,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </ul>
         </div>
 
-        {/* Watson's Diary — opens the casebook modal. When there's a fresh entry
-            the button takes on a brass cast and a quill, with a pulsing count. */}
+        {/* Objects of interest — a reminder of what's in the current scene,
+            mirrored from the narration text. Static list, not interactive. */}
         <div className="mb-8">
-          {(() => {
-            const hasNew = diaryUnreadCount > 0;
-            return (
-              <button
-                onClick={onOpenDiary}
-                className={`w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg border transition-colors ${
-                  hasNew
-                    ? 'border-lb-accent bg-lb-accent/10 hover:bg-lb-accent/15'
-                    : 'border-lb-border bg-lb-paper hover:border-lb-accent hover:bg-lb-accent/5'
-                }`}
-                title="Read Watson's Diary"
-                aria-label={hasNew ? `Read Watson's Diary — ${diaryUnreadCount} new ${diaryUnreadCount === 1 ? 'entry' : 'entries'}` : "Read Watson's Diary"}
-              >
-                <span className="flex items-center gap-2 text-lb-accent">
-                  {hasNew
-                    ? <Feather size={18} className="animate-bounce" />
-                    : <ScrollText size={18} />}
-                  <span className="uppercase tracking-widest text-xs font-bold">Read Watson's Diary</span>
-                </span>
-                {hasNew && (
-                  <span className="relative flex items-center justify-center">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-lb-accent/40 animate-ping" />
-                    <span className="relative min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-lb-primary text-lb-bg text-[11px] font-bold">
-                      {diaryUnreadCount}
-                    </span>
-                  </span>
-                )}
-              </button>
-            );
-          })()}
+          <div className="flex items-center gap-2 text-lb-accent mb-4">
+            <Search size={18} />
+            <span className="uppercase tracking-widest text-xs font-bold">Objects of Interest</span>
+          </div>
+          {visibleObjects.length > 0 ? (
+            <ul className="space-y-3">
+              {visibleObjects.map((name, idx) => (
+                <li key={idx} className="flex items-center gap-3 text-lb-primary opacity-90">
+                  <div className="w-1.5 h-1.5 rounded-full bg-lb-accent" />
+                  <span className="font-sans text-md">{name}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="font-sans text-sm text-lb-primary opacity-70 italic">Nothing here catches the eye.</p>
+          )}
+        </div>
+
+        {/* Available exits */}
+        <div className="mb-8">
+          <div className="flex items-center gap-2 text-lb-accent mb-4">
+            <DoorOpen size={18} />
+            <span className="uppercase tracking-widest text-xs font-bold">Avenues</span>
+          </div>
+          {visibleExits.length > 0 ? (
+            <ul className="space-y-3">
+              {visibleExits.map((exitId, idx) => {
+                const exitData = LOCATIONS[exitId];
+                return (
+                  <li key={idx} className="flex items-center gap-3 text-lb-primary opacity-90">
+                    <div className="w-1.5 h-1.5 rounded-full bg-lb-accent" />
+                    <span className="font-sans text-md">{exitData?.shortName || exitId}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="font-sans text-sm text-lb-primary opacity-70 italic">Investigate further before leaving</p>
+          )}
         </div>
 
       </div>
