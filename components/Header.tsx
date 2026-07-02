@@ -15,7 +15,7 @@ import type { UserProfile } from '../services/GameRepository';
 import {
   PanelLeftClose, PanelLeftOpen, User as UserIcon,
   ChevronDown, ChevronLeft, ChevronRight, Save, FolderOpen, LogOut, LogIn, Pencil, RefreshCw,
-  Settings,
+  Settings, BookOpenText,
 } from 'lucide-react';
 import { SettingsPanel } from './SettingsPanel';
 import type { ThemeMode } from '../types';
@@ -25,6 +25,8 @@ interface HeaderProps {
   onToggleSidebar: () => void;
   connectionStatus: { gemini: boolean | null; supabase: boolean | null };
   onRetryConnection: () => void;
+  onOpenDiary: () => void;
+  diaryUnreadCount: number;
   isSaving: boolean;
   themeMode: ThemeMode;
   onSetThemeMode: (mode: ThemeMode) => void;
@@ -47,6 +49,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
   connectionStatus,
   onRetryConnection,
+  onOpenDiary,
+  diaryUnreadCount,
   isSaving,
   themeMode,
   onSetThemeMode,
@@ -71,13 +75,31 @@ export const Header: React.FC<HeaderProps> = ({
   const [isGuestSettingsOpen, setIsGuestSettingsOpen] = useState(false);
 
   const displayName = userProfile?.displayName || user?.user_metadata?.full_name || user?.email;
-  const displayRole = userProfile?.role || 'Field Surgeon';
 
   const closeProfileMenu = () => {
     setIsProfileMenuOpen(false);
     setIsConfirmingNewGame(false);
     setSettingsView(false);
   };
+
+  // Shared between the guest and signed-in layouts below — a plain JSX
+  // value (not a nested component) so it doesn't remount on every render.
+  const hasNewDiaryEntries = diaryUnreadCount > 0;
+  const diaryButton = (
+    <button
+      onClick={onOpenDiary}
+      className="relative w-10 h-10 rounded-full border-2 border-lb-primary/30 text-lb-primary flex items-center justify-center shrink-0 hover:border-lb-accent hover:text-lb-accent transition-colors"
+      title="Read Watson's Diary"
+      aria-label={hasNewDiaryEntries ? `Read Watson's Diary — ${diaryUnreadCount} new ${diaryUnreadCount === 1 ? 'entry' : 'entries'}` : "Read Watson's Diary"}
+    >
+      <BookOpenText size={20} />
+      {hasNewDiaryEntries && (
+        <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-lb-accent text-white text-[10px] font-bold leading-none">
+          {diaryUnreadCount > 9 ? '9+' : diaryUnreadCount}
+        </span>
+      )}
+    </button>
+  );
 
   return (
     <header className="sticky top-0 z-30 px-8 md:px-16 py-4 flex items-center justify-between bg-lb-bg/90 backdrop-blur-sm border-b border-lb-border">
@@ -86,7 +108,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-4">
         <button
           onClick={onToggleSidebar}
-          className="p-2 text-lb-primary hover:bg-lb-primary/5 rounded-md"
+          className="w-10 h-10 flex items-center justify-center text-lb-primary hover:bg-lb-primary/5 rounded-full shrink-0"
         >
           {isSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
         </button>
@@ -157,6 +179,7 @@ export const Header: React.FC<HeaderProps> = ({
             a standalone gear keeps appearance/sound reachable. */}
         {!user && (
           <>
+            {diaryButton}
             <div className="relative">
               <button
                 onClick={() => setIsGuestSettingsOpen(o => !o)}
@@ -195,148 +218,143 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Authenticated: Profile dropdown */}
         {user && (
-          <div className="relative">
-            <button
-              onClick={() => { setIsProfileMenuOpen(o => !o); setIsConfirmingNewGame(false); setSettingsView(false); }}
-              className="flex items-center gap-3 text-lb-primary group"
-            >
-              <div className="text-right hidden sm:block">
-                <span className="block text-sm font-bold group-hover:text-lb-accent truncate max-w-[140px]">
-                  {displayName}
-                </span>
-                <span className="text-[10px] uppercase tracking-widest opacity-60">
-                  {displayRole}
-                </span>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-lb-primary text-lb-bg flex items-center justify-center overflow-hidden shrink-0">
-                {user.user_metadata?.avatar_url ? (
-                  <img
-                    src={user.user_metadata.avatar_url}
-                    alt="Profile"
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <UserIcon size={16} />
-                )}
-              </div>
-              <ChevronDown
-                size={14}
-                className={`transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180' : ''}`}
-              />
-            </button>
+          <div className="flex items-center gap-3">
+            {diaryButton}
+            <div className="relative">
+              <button
+                onClick={() => { setIsProfileMenuOpen(o => !o); setIsConfirmingNewGame(false); setSettingsView(false); }}
+                className="flex items-center gap-2 text-lb-primary group"
+              >
+                <div className="w-10 h-10 rounded-full bg-lb-primary text-lb-bg flex items-center justify-center overflow-hidden shrink-0">
+                  {user.user_metadata?.avatar_url ? (
+                    <img
+                      src={user.user_metadata.avatar_url}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <UserIcon size={18} />
+                  )}
+                </div>
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
 
-            {isProfileMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={closeProfileMenu} />
-                <div className="absolute right-0 top-full mt-2 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 overflow-hidden">
-                  <div className={`flex w-[200%] items-start transition-transform duration-300 ease-in-out ${settingsView ? '-translate-x-1/2' : ''}`}>
+              {isProfileMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={closeProfileMenu} />
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 overflow-hidden">
+                    <div className={`flex w-[200%] items-start transition-transform duration-300 ease-in-out ${settingsView ? '-translate-x-1/2' : ''}`}>
 
-                    {/* Page 1 — profile menu */}
-                    <div className="w-1/2 p-1">
-                      {/* User info */}
-                      <div className="px-3 py-2 border-b border-lb-border mb-1">
-                        <p className="text-[10px] uppercase tracking-widest text-lb-muted font-bold">Signed In As</p>
-                        <p className="text-xs font-medium text-lb-primary truncate">{displayName}</p>
-                        <p className="text-[10px] text-lb-muted truncate">{user.email}</p>
-                      </div>
-
-                      {/* Edit Profile */}
-                      <button
-                        onClick={() => { onOpenEditProfile(); closeProfileMenu(); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                      >
-                        <Pencil size={14} /><span>Edit Profile</span>
-                      </button>
-
-                      {/* Settings — slides to the sub-page */}
-                      <button
-                        onClick={() => setSettingsView(true)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                      >
-                        <Settings size={14} /><span>Settings</span>
-                        <ChevronRight size={14} className="ml-auto opacity-50" />
-                      </button>
-
-                      <div className="h-px bg-lb-border my-1" />
-
-                      {/* Save / Load */}
-                      <button
-                        onClick={() => { onSave(); closeProfileMenu(); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                      >
-                        <Save size={14} /><span>Save to Cloud</span>
-                      </button>
-                      <button
-                        onClick={() => { onLoad(); closeProfileMenu(); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                      >
-                        <FolderOpen size={14} /><span>Load from Cloud</span>
-                      </button>
-
-                      <div className="h-px bg-lb-border my-1" />
-
-                      {/* New Game */}
-                      {isConfirmingNewGame ? (
-                        <div className="px-3 py-2">
-                          <p className="text-xs text-lb-muted mb-2">Archive current progress and start fresh?</p>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => { setIsConfirmingNewGame(false); closeProfileMenu(); onNewGame(); }}
-                              className="flex-1 px-2 py-1.5 bg-lb-primary text-lb-bg text-xs font-semibold rounded hover:bg-lb-accent transition-colors"
-                            >
-                              Yes, start fresh
-                            </button>
-                            <button
-                              onClick={() => setIsConfirmingNewGame(false)}
-                              className="flex-1 px-2 py-1.5 border border-lb-border text-lb-primary text-xs font-semibold rounded hover:bg-lb-bg transition-colors"
-                            >
-                              Cancel
-                            </button>
-                          </div>
+                      {/* Page 1 — profile menu */}
+                      <div className="w-1/2 p-1">
+                        {/* User info */}
+                        <div className="px-3 py-2 border-b border-lb-border mb-1">
+                          <p className="text-[10px] uppercase tracking-widest text-lb-muted font-bold">Signed In As</p>
+                          <p className="text-xs font-medium text-lb-primary truncate">{displayName}</p>
+                          <p className="text-[10px] text-lb-muted truncate">{user.email}</p>
                         </div>
-                      ) : (
+
+                        {/* Edit Profile */}
                         <button
-                          onClick={() => setIsConfirmingNewGame(true)}
+                          onClick={() => { onOpenEditProfile(); closeProfileMenu(); }}
                           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
                         >
-                          <RefreshCw size={14} /><span>New Game</span>
+                          <Pencil size={14} /><span>Edit Profile</span>
                         </button>
-                      )}
 
-                      <div className="h-px bg-lb-border my-1" />
+                        {/* Settings — slides to the sub-page */}
+                        <button
+                          onClick={() => setSettingsView(true)}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
+                        >
+                          <Settings size={14} /><span>Settings</span>
+                          <ChevronRight size={14} className="ml-auto opacity-50" />
+                        </button>
 
-                      {/* Sign out */}
-                      <button
-                        onClick={() => { onLogout(); closeProfileMenu(); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded text-left"
-                      >
-                        <LogOut size={14} /><span>Sign Out</span>
-                      </button>
+                        <div className="h-px bg-lb-border my-1" />
+
+                        {/* Save / Load */}
+                        <button
+                          onClick={() => { onSave(); closeProfileMenu(); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
+                        >
+                          <Save size={14} /><span>Save to Cloud</span>
+                        </button>
+                        <button
+                          onClick={() => { onLoad(); closeProfileMenu(); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
+                        >
+                          <FolderOpen size={14} /><span>Load from Cloud</span>
+                        </button>
+
+                        <div className="h-px bg-lb-border my-1" />
+
+                        {/* New Game */}
+                        {isConfirmingNewGame ? (
+                          <div className="px-3 py-2">
+                            <p className="text-xs text-lb-muted mb-2">Archive current progress and start fresh?</p>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => { setIsConfirmingNewGame(false); closeProfileMenu(); onNewGame(); }}
+                                className="flex-1 px-2 py-1.5 bg-lb-primary text-lb-bg text-xs font-semibold rounded hover:bg-lb-accent transition-colors"
+                              >
+                                Yes, start fresh
+                              </button>
+                              <button
+                                onClick={() => setIsConfirmingNewGame(false)}
+                                className="flex-1 px-2 py-1.5 border border-lb-border text-lb-primary text-xs font-semibold rounded hover:bg-lb-bg transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setIsConfirmingNewGame(true)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
+                          >
+                            <RefreshCw size={14} /><span>New Game</span>
+                          </button>
+                        )}
+
+                        <div className="h-px bg-lb-border my-1" />
+
+                        {/* Sign out */}
+                        <button
+                          onClick={() => { onLogout(); closeProfileMenu(); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded text-left"
+                        >
+                          <LogOut size={14} /><span>Sign Out</span>
+                        </button>
+                      </div>
+
+                      {/* Page 2 — settings sub-page */}
+                      <div className="w-1/2">
+                        <button
+                          onClick={() => setSettingsView(false)}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-lb-primary border-b border-lb-border hover:bg-lb-bg text-left"
+                        >
+                          <ChevronLeft size={16} /><span>Settings</span>
+                        </button>
+                        <SettingsPanel
+                          themeMode={themeMode}
+                          onSetThemeMode={onSetThemeMode}
+                          soundEffects={soundEffects}
+                          onToggleSound={onToggleSound}
+                          ambientAudio={ambientAudio}
+                          onToggleAmbient={onToggleAmbient}
+                        />
+                      </div>
+
                     </div>
-
-                    {/* Page 2 — settings sub-page */}
-                    <div className="w-1/2">
-                      <button
-                        onClick={() => setSettingsView(false)}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-lb-primary border-b border-lb-border hover:bg-lb-bg text-left"
-                      >
-                        <ChevronLeft size={16} /><span>Settings</span>
-                      </button>
-                      <SettingsPanel
-                        themeMode={themeMode}
-                        onSetThemeMode={onSetThemeMode}
-                        soundEffects={soundEffects}
-                        onToggleSound={onToggleSound}
-                        ambientAudio={ambientAudio}
-                        onToggleAmbient={onToggleAmbient}
-                      />
-                    </div>
-
                   </div>
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
