@@ -71,9 +71,10 @@ Rejected alternatives:
 ### 5.2 Detecting silent gate flags
 
 In STEP 5b, after the existing clue/decision loops, compute the set of `requireFlags` (excluding `__` sentinels) that just transitioned false→true this turn (`result.flagsUpdate[flag] === true && !flags[flag]`) and are **not** already covered by:
-- a `DECISION_BY_FLAG[flag]` entry,
-- the clue naming-convention match in 5.1 (a clue was discovered this same turn whose `examined_<locationFound>_<triggerObject>` equals this flag), or
-- a `visited_<loc>`-style gate flag that corresponds to `result.newLocation` this same turn (already covered by `captureLocationArrival`, kept as flavor per 5.1 — not promoted to a lead entry).
+- a `DECISION_BY_FLAG[flag]` entry, or
+- the clue naming-convention match in 5.1 (a clue was discovered this same turn whose `examined_<locationFound>_<triggerObject>` equals this flag).
+
+(Note: `captureLocationArrival` is keyed off physically moving to a new place, not off any `requireFlags` gate — there is no overlap to guard against. A location-level examine gate like Act 6's `visited_private_asylum` — despite its name, it's `locationExaminedFlag` on that location, set by examining any object there, functionally identical to `examined_baker_street` elsewhere — has no existing diary coverage and is treated like any other silent lead flag, not excluded.)
 
 Each remaining flag is queued (mirroring `pendingJournalSummary`) as a `pendingLeadFlag: { flag, actNumber, actName }`, one queue entry per flag, processed in a new async step alongside STEP 8.
 
