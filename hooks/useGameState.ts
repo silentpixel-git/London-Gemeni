@@ -21,6 +21,7 @@ import { gameEngine, SessionSnapshot, computeTimePeriod, getPresentNpcIds } from
 import { audioManager } from '../services/AudioManager';
 import { parseIntent, type ParsedIntent } from '../engine/intentParser';
 import { selectHint } from '../engine/stories/whitechapel-1888/hints';
+import { isRequiredFlag, clueGateFlag, leadContextFor, detectSilentLeadFlags } from '../engine/stories/whitechapel-1888/diaryLeads';
 import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_BRIDGES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, NPCS, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
@@ -1240,6 +1241,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
       // Capture journal data before resetting per-act tracking (if act is advancing)
       let pendingJournalSummary: ActJournalSummary | null = null;
+      // Gate flags this turn satisfied with no existing diary text — filled in
+      // asynchronously below (STEP 8b), once the turn's narration is known.
+      let pendingLeadFlags: string[] = [];
+      // The turn's final narration text, captured inside the STEP 7 stream loop —
+      // used to ground STEP 8b's AI-generated diary prose.
+      let finalNarrationText = '';
       if (result.newAct) {
         const allActClueIds = [
           ...cluesFoundThisAct,
@@ -1296,14 +1303,29 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         const captured: Array<Omit<DiaryEntry, 'id' | 'sequence'>> = [];
         if (result.discoveredClueIds) {
           for (const clueId of result.discoveredClueIds) {
-            if (CLUE_DEFINITIONS[clueId]) captured.push({ kind: 'clue', refId: clueId, actNumber: currentAct, timeLabel: captureTimeLabel });
+            const def = CLUE_DEFINITIONS[clueId];
+            if (def) {
+              captured.push({
+                kind: 'clue',
+                refId: clueId,
+                actNumber: currentAct,
+                timeLabel: captureTimeLabel,
+                isLead: isRequiredFlag(currentAct, clueGateFlag(def)),
+              });
+            }
           }
         }
         if (result.flagsUpdate) {
           for (const [flag, value] of Object.entries(result.flagsUpdate)) {
             const decisionId = DECISION_BY_FLAG[flag];
             if (value === true && !flags[flag] && decisionId) {
-              captured.push({ kind: 'decision', refId: decisionId, actNumber: currentAct, timeLabel: captureTimeLabel });
+              captured.push({
+                kind: 'decision',
+                refId: decisionId,
+                actNumber: currentAct,
+                timeLabel: captureTimeLabel,
+                isLead: isRequiredFlag(currentAct, flag),
+              });
             }
           }
         }
@@ -1311,6 +1333,15 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         // First arrival at a new location within the act.
         if (result.newLocation && !advancingAct) {
           captureLocationArrival(result.newLocation, currentAct, captureTimeLabel);
+        }
+        // Gate flags with no existing diary coverage — filled in async, STEP 8b.
+        if (result.flagsUpdate) {
+          pendingLeadFlags = detectSilentLeadFlags({
+            actNumber: currentAct,
+            flagsUpdate: result.flagsUpdate,
+            priorFlags: flags,
+            discoveredClueIds: result.discoveredClueIds || [],
+          });
         }
       }
 
@@ -1366,6 +1397,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         });
 
         if (isComplete && parsed) {
+          finalNarrationText = parsed.markdownOutput;
+
           // Anti-repetition memory: remember this narration's opening sentence
           const opening = extractOpeningSentence(parsed.markdownOutput);
           if (opening) {
@@ -1458,6 +1491,36 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         }
         // No diary to type out → reveal the Begin button immediately (no softlock).
         if (!appendedJournal) setIsActBreakReady(true);
+      }
+
+      // STEP 8b: Fill any progression-gate flags this turn left with no diary
+      // text. Async, after narration — mirrors STEP 8, never blocks the turn.
+      if (pendingLeadFlags.length > 0) {
+        const actName = ACT_NAMES[currentAct] || `Act ${currentAct}`;
+        for (const leadFlag of pendingLeadFlags) {
+          const context = leadContextFor(currentAct, leadFlag);
+          if (!context) continue; // no hint objective mapped to this flag — skip rather than guess
+          try {
+            const { title, body } = await aiService.generateLeadDiaryEntry({
+              actName,
+              verb: context.verb,
+              subject: context.subject,
+              narrationText: finalNarrationText,
+            });
+            if (title && body) {
+              captureDiaryEntries([{
+                kind: 'decision',
+                refId: leadFlag,
+                actNumber: currentAct,
+                timeLabel: captureTimeLabel,
+                text: `${title}\n${body}`,
+                isLead: true,
+              }]);
+            }
+          } catch {
+            // Lead prose is bonus content — never block the game on failure
+          }
+        }
       }
 
       // STEP 9: The true ending's scripted coda — authored verbatim, never

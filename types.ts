@@ -325,20 +325,22 @@ export interface ActJournalSummary {
 /**
  * Watson's auto-captured casebook. An append-only record of important events the
  * engine already tracks (clue discoveries, act milestones, major decisions). For
- * 'clue'/'decision' entries we store only a refId — the displayed Watson line is
- * looked up from authored story data at render time. 'act' entries carry the
- * reflective prose verbatim so it stays re-readable in the diary.
+ * hand-authored 'clue'/'decision' entries we store only a refId — the displayed
+ * Watson line is looked up from authored story data at render time. 'act' entries,
+ * and AI-generated 'decision' entries with no hand-authored match, carry their
+ * prose verbatim in `text` so they stay re-readable in the diary.
  */
 export type DiaryEntryKind = 'clue' | 'act' | 'decision' | 'revelation' | 'location';
 
 export interface DiaryEntry {
   id: string;            // uuid — also the dedupe key for persistence
   kind: DiaryEntryKind;
-  refId: string;         // clueId, decision id, beat id, or actNumber-as-string
+  refId: string;         // clueId, decision id (or flag, for AI-generated leads), beat id, or actNumber-as-string
   actNumber: number;     // which act this was captured in (drives grouping)
   sequence: number;      // monotonic order within the game
-  text?: string;         // 'act' entries only: the reflective act-closing prose
+  text?: string;         // 'act' entries; AI-generated 'decision' entries store "title\nbody" here
   timeLabel?: string;    // in-game clock when logged (e.g. "10:41 PM"); absent on pre-006 entries
+  isLead?: boolean;      // true when this entry corresponds to an ACT_PROGRESSION gate flag
 }
 
 /** Simplified AI response schema — narration only, no state mutations */

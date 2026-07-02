@@ -51,8 +51,13 @@ export function resolveDiaryEntry(entry: {
     }
     case 'decision': {
       const d = DECISION_DIARY[entry.refId];
-      if (!d) return null;
-      return { title: d.name, body: d.diaryNote };
+      if (d) return { title: d.name, body: d.diaryNote };
+      // AI-generated lead entry (no hand-authored DECISION_DIARY match): the
+      // capture site stored "title\nbody" in entry.text.
+      if (!entry.text) return null;
+      const sep = entry.text.indexOf('\n');
+      if (sep === -1) return { title: entry.text.trim(), body: '' };
+      return { title: entry.text.slice(0, sep).trim(), body: entry.text.slice(sep + 1).trim() };
     }
     case 'location': {
       const l = LOCATION_DIARY[entry.refId];

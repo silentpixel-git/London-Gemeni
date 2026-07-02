@@ -175,13 +175,15 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                               <Icon size={16} className="text-lb-accent mt-1 shrink-0" />
                               <div className="min-w-0">
                                 <div className="flex items-baseline justify-between gap-3">
-                                  <p className={`text-sm text-lb-primary ${isReflection ? 'font-sans italic font-semibold' : 'font-semibold'}`}>
-                                    {resolved.title}
+                                  <p className={`text-sm text-lb-primary flex items-center flex-wrap gap-x-2 ${isReflection ? 'font-sans italic font-semibold' : 'font-semibold'}`}>
+                                    <span>{resolved.title}</span>
+                                    {entry.isLead && (
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-lb-accent/50 bg-lb-accent/10 text-lb-accent text-[9px] font-bold tracking-wider uppercase">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-current" />Lead
+                                      </span>
+                                    )}
                                     {isNew && (
-                                      <span
-                                        className="inline-block w-1.5 h-1.5 ml-2 rounded-full bg-lb-accent align-middle"
-                                        title="New since you last opened your diary"
-                                      />
+                                      <span className="text-lb-accent text-xs font-bold italic" title="New since you last opened your diary">New</span>
                                     )}
                                   </p>
                                   {entry.timeLabel && (
