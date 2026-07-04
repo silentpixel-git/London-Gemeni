@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
+    "qa:validate": "npx tsx scripts/qa-validate.ts",
     "qa:engine": "npx tsx scripts/qa-engine.ts",
     "qa:parser": "npx tsx scripts/qa-parser.ts",
     "qa:hints": "npx tsx scripts/qa-hints.ts",
