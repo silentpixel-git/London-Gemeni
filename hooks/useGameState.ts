@@ -20,6 +20,7 @@ import { gameEngine, SessionSnapshot, computeTimePeriod, getPresentNpcIds } from
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { audioManager } from '../services/AudioManager';
 import { parseIntent, type ParsedIntent } from '../engine/intentParser';
+import { needsAiParse, buildParseCandidates } from '../engine/parseFallback';
 import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_BRIDGES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, NPCS, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
@@ -120,6 +121,43 @@ async function resolveTargetWithAI(
   // Re-target as a normal examine so the engine runs its standard deterministic
   // clue lookup against the resolved object. Keep the player's original raw text.
   return { ...intent, type: 'examine', targetId: objectId };
+}
+
+// ── Phase 3: tool-calling parse fallback ─────────────────────────────────────
+// When the deterministic parse misses, route the WHOLE input through the
+// constrained parseAction op — every verb, not just examine/talk targets.
+// Flag-gated: VITE_AI_PARSER='on' uses this path; anything else keeps
+// resolveTargetWithAI byte-for-byte. Deleted-at-cutover: the old path.
+// Plain (non-optional-chained) access: Vite's define replaces the exact token
+// `import.meta.env.VITE_AI_PARSER`, same pattern as supabase.ts.
+const AI_PARSER_ENABLED = (import.meta.env.VITE_AI_PARSER ?? '') === 'on';
+
+// Per-session memo, same pattern as targetResolveCache above.
+const parseActionCache = new Map<string, ParsedIntent | null>();
+
+async function resolveIntentWithAI(
+  intent: ParsedIntent,
+  location: string,
+  inventory: string[],
+  npcStates: Record<string, NPCState>,
+  currentAct: number,
+  introducedNpcs: string[],
+): Promise<ParsedIntent> {
+  if (!needsAiParse(intent, location, inventory)) return intent;
+  const raw = intent.raw.trim();
+  if (!raw) return intent;
+
+  const key = `parse::${location}::${currentAct}::${raw.toLowerCase()}`;
+  let resolved: ParsedIntent | null;
+  if (parseActionCache.has(key)) {
+    resolved = parseActionCache.get(key)!;
+  } else {
+    const candidates = buildParseCandidates(location, inventory, npcStates, currentAct, introducedNpcs);
+    ({ intent: resolved } = await aiService.parseAction(raw, candidates));
+    parseActionCache.set(key, resolved);
+  }
+  // null = no confident match → keep the regex intent (engine misses in character).
+  return resolved ?? intent;
 }
 
 // ── Public interface ──────────────────────────────────────────────────────────
@@ -1108,8 +1146,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // STEP 2.5: AI fallback — only when the deterministic parse missed a target.
       // Resolves a natural-language/paraphrased object (examine) or person (talk)
       // against THIS location's entities so the engine can fire. No-op (and no
-      // latency) on hits.
-      intent = await resolveTargetWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs);
+      // latency) on hits. With VITE_AI_PARSER='on', the Phase 3 tool-calling parse
+      // handles ALL miss types instead.
+      intent = AI_PARSER_ENABLED
+        ? await resolveIntentWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs)
+        : await resolveTargetWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs);
 
       // STEP 2: Build session snapshot from current React state
       const discoveredClueIds = user && activeInvestigation
