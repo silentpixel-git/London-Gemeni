@@ -79,6 +79,18 @@ export interface ActCondition {
   advanceTo: number;
 }
 
+// ── Fact graph (Phase 2a) ────────────────────────────────────────────────────
+// World knowledge as atomic facts. NPC knowledge envelopes are DERIVED views:
+// facts where knownBy includes the NPC and the act gate passes. One edit
+// updates every NPC consistently; spoiler gating is mechanical.
+export interface StoryFact {
+  id: string;             // unique, snake_case
+  statement: string;      // the prose line rendered into the AI prompt (the hard knowledge ceiling)
+  knownBy: string[];      // NPC ids that can voice this fact
+  visibleFromAct: number; // earliest act (0-6) this fact may surface; 0 = always
+  relatedClues?: string[]; // clue ids this fact supports (validator-checked)
+}
+
 export interface SuspectProfile {
   npcId: string;
   aliases: string[];           // lowercase name variants the player might type
