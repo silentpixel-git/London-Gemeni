@@ -256,7 +256,8 @@ export interface StoryManifest {
   suspectProfiles: SuspectProfile[];
   personsOfInterest: PersonOfInterest[];
 
-  // Hint + diary-lead systems
+  // Hint + diary-lead systems. selectHint/diaryLeads are consumed today;
+  // hintObjectives is unused in 2b — scaffolding for Phase 3.
   selectHint: (s: HintState) => HintTarget;
   hintObjectives: HintObjective[];
   diaryLeads: DiaryLeadHelpers;
@@ -264,7 +265,9 @@ export interface StoryManifest {
   // Fact graph (Phase 2a)
   facts: StoryFact[];
 
-  // Story constants previously inlined in GameEngine
+  // Story constants previously inlined in GameEngine. smokingGunClueId is
+  // consumed by GameEngine today; convergenceFlag and playerNpcId are unused
+  // in 2b — scaffolding for Phase 3 (tool-calling turn loop).
   smokingGunClueId: string;
   convergenceFlag: string;
   playerNpcId: string;
