@@ -159,6 +159,17 @@ export interface GameResponse {
 /** The type of action the player is attempting */
 export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'show' | 'read' | 'drop' | 'inventory' | 'deduce' | 'help' | 'query' | 'notebook' | 'other' | 'unresolved_target';
 
+// Phase 3 — candidate lists for the constrained tool-calling parse fallback.
+// Built client-side (spoiler-safe: unintroduced NPCs are alias-masked) and
+// enforced server-side: parseAction may only return ids from these lists.
+export interface ParseCandidateEntry { id: string; name: string }
+export interface ParseCandidates {
+  objects: ParseCandidateEntry[];    // present interactables + carried copies (object ids)
+  carried: ParseCandidateEntry[];    // subset of objects the player carries (show/drop enums)
+  people: ParseCandidateEntry[];     // NPCs present this act, alias-masked if unintroduced
+  locations: ParseCandidateEntry[];  // all locations (names are public)
+}
+
 /**
  * The result of the GameEngine resolving a player action.
  * All state changes are decided here BEFORE the AI is consulted.

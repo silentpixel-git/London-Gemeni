@@ -24,6 +24,8 @@ import { LOCATIONS, OBJECT_DISPLAY_NAMES, NPCS } from '../engine/gameData';
 import { getPresentNpcIds } from '../engine/GameEngine';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { CLUE_TRIGGERS } from '../engine/stories/whitechapel-1888/clues';
+import { toolCallToIntent } from '../server/parseAction.js';
+import type { ParseCandidates } from '../types';
 
 type Category = 'exact' | 'alias' | 'typo' | 'partial' | 'paraphrase';
 
@@ -228,7 +230,66 @@ function candidatesFor(locId: string): Array<{ id: string; name: string }> {
 
 interface Miss { objectId: string; locId: string; text: string; category: Category; got?: string }
 
+// ── Offline validation of the Phase 3 tool-call → intent mapping ──────────────
+// No API key needed: feeds synthetic function calls into toolCallToIntent and
+// asserts the enum enforcement (an id outside its list must NEVER pass through).
+function runToolCallValidationChecks(): void {
+  console.log('\n=== TOOL-CALL VALIDATION (offline) ===\n');
+  const C: ParseCandidates = {
+    objects: [
+      { id: 'the_bed', name: 'The Bed' },
+      { id: 'from_hell_letter', name: 'From Hell Letter' },
+    ],
+    carried: [{ id: 'from_hell_letter', name: 'From Hell Letter' }],
+    people: [{ id: 'holmes', name: 'Sherlock Holmes — consulting detective' }],
+    locations: [{ id: 'baker_street', name: '221B Baker Street' }],
+  };
+  let failures = 0;
+  const check = (label: string, cond: boolean) => {
+    console.log(`  [${cond ? 'OK ' : 'FAIL'}] ${label}`);
+    if (!cond) failures++;
+  };
+
+  let r = toolCallToIntent('examine', { target: 'the_bed' }, C, 'peer beneath the bedframe');
+  check('examine valid id → examine intent',
+    r.intent?.type === 'examine' && r.intent.targetId === 'the_bed' && !r.invalidArgs);
+  r = toolCallToIntent('examine', { target: 'the_window' }, C, 'x');
+  check('examine out-of-enum id → null + invalidArgs', r.intent === null && r.invalidArgs);
+  r = toolCallToIntent('move', { destination: 'baker_street' }, C, 'go home');
+  check('move valid → move intent', r.intent?.type === 'move' && r.intent.targetId === 'baker_street');
+  r = toolCallToIntent('move', { destination: 'narnia' }, C, 'x');
+  check('move out-of-enum → null + invalidArgs', r.intent === null && r.invalidArgs);
+  r = toolCallToIntent('talk', { person: 'holmes' }, C, 'x');
+  check('talk valid → talk intent', r.intent?.type === 'talk' && r.intent.targetId === 'holmes');
+  r = toolCallToIntent('show', { item: 'from_hell_letter', person: 'holmes' }, C, 'x');
+  check('show carried item to person → show intent',
+    r.intent?.type === 'show' && r.intent.targetId === 'from_hell_letter' && r.intent.showTargetNpcId === 'holmes');
+  r = toolCallToIntent('show', { item: 'the_bed', person: 'holmes' }, C, 'x');
+  check('show non-carried item → null + invalidArgs', r.intent === null && r.invalidArgs);
+  r = toolCallToIntent('use', { object: 'the_bed' }, C, 'x');
+  check('use without second object → use intent', r.intent?.type === 'use' && r.intent.targetId === 'the_bed');
+  r = toolCallToIntent('use', { object: 'the_bed', with: 'the_window' }, C, 'x');
+  check('use with out-of-enum second object → null + invalidArgs', r.intent === null && r.invalidArgs);
+  r = toolCallToIntent('drop', { item: 'from_hell_letter' }, C, 'x');
+  check('drop carried item → drop intent', r.intent?.type === 'drop' && r.intent.targetId === 'from_hell_letter');
+  r = toolCallToIntent('no_action', { reason: 'question' }, C, 'what hour is it');
+  check('no_action(question) → query intent', r.intent?.type === 'query' && !r.invalidArgs);
+  r = toolCallToIntent('no_action', { reason: 'atmospheric' }, C, 'the fog is thick');
+  check('no_action(atmospheric) → null, NOT invalid', r.intent === null && !r.invalidArgs);
+  r = toolCallToIntent('deduce', {}, C, 'i believe it was the assistant');
+  check('deduce → deduce intent carrying the raw text',
+    r.intent?.type === 'deduce' && r.intent.deductionText === 'i believe it was the assistant');
+  r = toolCallToIntent('dance', {}, C, 'x');
+  check('unknown tool → null + invalidArgs', r.intent === null && r.invalidArgs);
+
+  if (failures > 0) {
+    console.error(`\n[FAIL] ${failures} tool-call validation checks failed.`);
+    process.exit(1);
+  }
+}
+
 async function main() {
+  runToolCallValidationChecks();
   const byCategory: Record<Category, { total: number; hit: number }> = {
     exact: { total: 0, hit: 0 }, alias: { total: 0, hit: 0 }, typo: { total: 0, hit: 0 },
     partial: { total: 0, hit: 0 }, paraphrase: { total: 0, hit: 0 },
