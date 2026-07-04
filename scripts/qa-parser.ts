@@ -25,6 +25,7 @@ import { getPresentNpcIds } from '../engine/GameEngine';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { CLUE_TRIGGERS } from '../engine/stories/whitechapel-1888/clues';
 import { toolCallToIntent } from '../server/parseAction.js';
+import { needsAiParse, buildParseCandidates } from '../engine/parseFallback';
 import type { ParseCandidates } from '../types';
 
 type Category = 'exact' | 'alias' | 'typo' | 'partial' | 'paraphrase';
@@ -230,6 +231,62 @@ function candidatesFor(locId: string): Array<{ id: string; name: string }> {
 
 interface Miss { objectId: string; locId: string; text: string; category: Category; got?: string }
 
+// ── Fast-path guard: the free offline path must never silently regress into
+// paid AI calls, and the AI path's candidate lists must never leak a spoiler. ─
+function runFastPathGuard(): void {
+  console.log('\n=== FAST-PATH GUARD (offline) ===\n');
+  let failures = 0;
+
+  // 1. Every tier-1 object phrasing that deterministically resolves must NOT
+  //    trigger the AI parse (needsAiParse must be false for a clean hit).
+  for (const fx of FIXTURES) {
+    const locId = OBJECT_LOCATION[fx.objectId];
+    for (const p of fx.phrasings) {
+      if (p.category === 'paraphrase') continue;
+      const intent = parseIntent(`examine ${p.text}`);
+      if (intent.targetId === fx.objectId && needsAiParse(intent, locId, [])) {
+        console.error(`  [FAIL] clean hit would still call AI: "examine ${p.text}" @ ${locId}`);
+        failures++;
+      }
+    }
+  }
+
+  // 2. Misses MUST route: an unrecognised action phrase triggers the AI parse.
+  const miss = parseIntent('crouch down and look under the sleeping pallet');
+  if (!needsAiParse(miss, 'millers_court', [])) {
+    console.error('  [FAIL] unparseable action did not route to the AI parse');
+    failures++;
+  }
+
+  // 3. World questions never route (queries stay with narration).
+  const q = parseIntent('why would the killer strike twice in one night');
+  if (q.type !== 'query' || needsAiParse(q, 'baker_street', [])) {
+    console.error('  [FAIL] query routed to the AI parse');
+    failures++;
+  }
+
+  // 4. Spoiler mask: across every location and act, an unintroduced NPC's real
+  //    name must never appear in the people candidates.
+  for (const locId of Object.keys(LOCATIONS)) {
+    for (let act = 0; act <= 6; act++) {
+      const c = buildParseCandidates(locId, [], {}, act, []);
+      for (const person of c.people) {
+        const npc = NPCS[person.id];
+        if (npc?.requiresIntroduction && person.name.includes(npc.displayName)) {
+          console.error(`  [FAIL] spoiler: ${npc.displayName} unmasked at ${locId} act ${act}`);
+          failures++;
+        }
+      }
+    }
+  }
+
+  if (failures > 0) {
+    console.error(`\n[FAIL] ${failures} fast-path guard checks failed.`);
+    process.exit(1);
+  }
+  console.log('  All fast-path guard checks passed.');
+}
+
 // ── Offline validation of the Phase 3 tool-call → intent mapping ──────────────
 // No API key needed: feeds synthetic function calls into toolCallToIntent and
 // asserts the enum enforcement (an id outside its list must NEVER pass through).
@@ -290,6 +347,7 @@ function runToolCallValidationChecks(): void {
 
 async function main() {
   runToolCallValidationChecks();
+  runFastPathGuard();
   const byCategory: Record<Category, { total: number; hit: number }> = {
     exact: { total: 0, hit: 0 }, alias: { total: 0, hit: 0 }, typo: { total: 0, hit: 0 },
     partial: { total: 0, hit: 0 }, paraphrase: { total: 0, hit: 0 },
