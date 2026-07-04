@@ -1,6 +1,8 @@
 // Shared type definitions for all story manifests.
 // Each story's data files import from here.
 
+import type { HintTarget, HintVerb } from '../../types';
+
 export interface LocationDefinition {
   id: string;
   name: string;
@@ -43,6 +45,9 @@ export interface NPCDefinition {
   alias?: string;                  // e.g. "Bond's assistant", "a police inspector"
   aliasDescription?: string;       // Brief sensory description shown before introduction
   requiresIntroduction?: boolean;  // If true, shown as alias until introduced via flag
+  // How the real name is learned. Absent = self (first TALK). 'document' NPCs
+  // are introduced when the player examines the named object instead.
+  introduction?: NPCIntroduction;
   // Scripted presence moments — directorial instructions injected into AI context
   // when this NPC is present at the specified location (and optional flag is satisfied).
   // The AI works them in naturally; they are spirit-of-the-moment guidance, not fixed lines.
@@ -98,4 +103,176 @@ export interface SuspectProfile {
   successAct?: number;
   successVisitFlag?: string;   // if this flag is already set, the game ends on correct deduction
   wrongDeductionNote?: string; // for isGuilty:false red herrings — tailored cold-case narration instruction
+}
+
+export interface ActTimeConfig {
+  canonicalMinutes: number; // Minutes from midnight at act start
+  dayOfWeek: string;
+  displayDate: string;      // e.g. "9 November 1888"
+}
+
+export type WeatherCondition =
+  | 'foggy' | 'drizzle' | 'pouring' | 'overcast' | 'clear-night' | 'clear-cold';
+
+export interface ActWeather {
+  condition: WeatherCondition;
+  label: string; // Short sidebar label, e.g. "Foggy"
+  // Intra-act weather drift: once elapsedMinutes passes afterMinutes, the act's
+  // weather shifts (e.g. a clear evening surrendering to fog). Derived in
+  // buildContext — no persistence required.
+  lateShift?: { afterMinutes: number; condition: WeatherCondition; label: string };
+}
+
+export interface ShowInteraction {
+  clueId?: string;       // Clue unlocked by this show action (optional)
+  resultNote: string;    // Passed to AI as actionResultNote
+}
+
+export interface UseCombination {
+  clueId?: string;
+  resultNote: string;
+  // Optional: the combination only works at this location (e.g. the document
+  // comparison that must happen at Baker Street, against the casefiles).
+  requiresLocation?: string;
+  // Optional: the combination only works from this act onward (spoiler gate —
+  // e.g. the kidney cross-reference grants asylum-reveal content).
+  requiresAct?: number;
+}
+
+export interface PersonOfInterest {
+  id: string;            // stable key
+  label: string;         // e.g. "The Mad Doctor (Francis Tumblety)"
+  detail: string;        // one-line motive/means note shown in the notebook
+  requiresFlag?: string; // only listed once this flag is set
+  clearedByFlag?: string;// annotated as cleared once this flag is set
+  clearedNote?: string;  // e.g. "alibied and released" — shown when cleared
+}
+
+/** Narrow, read-only slice of session state the selector needs. */
+export interface HintState {
+  currentAct: number;
+  location: string;
+  flags: Record<string, boolean>;
+  inventory: string[];
+  npcStates: Record<string, { currentLocation?: string; status?: string }>;
+  /** Visit count per location id. Used to decide whether Watson may know a
+   *  location's contents (a hint must not name objects he has never seen). */
+  locationVisitCounts: Record<string, number>;
+}
+
+export interface HintObjective {
+  id: string;
+  act: number;
+  locationId: string;
+  verb: HintVerb;
+  /** Neutral, player-facing noun phrase. MUST NOT reveal clue content. */
+  subject: string;
+  /** The exact ACT_PROGRESSION gate flag this objective's `done` tracks, when
+   *  it maps 1:1 onto one (most do). Absent for prerequisite-only steps (e.g.
+   *  examining the newspaper pile before it can be shown) and for objectives
+   *  whose `done` isn't a single-flag check (Act 5's inventory-based steps). */
+  flag?: string;
+  done: (s: HintState) => boolean;
+  available: (s: HintState) => boolean;
+}
+
+export interface LeadContext {
+  verb: HintVerb;
+  subject: string;
+}
+
+// ── Story manifest (Phase 2b) ────────────────────────────────────────────────
+// One object aggregating everything the engine layer consumes from a story.
+// tsc is the schema; predicates are plain functions over a narrow SessionView.
+
+/** Read-only slice of SessionSnapshot that manifest predicates may inspect. */
+export interface SessionView {
+  currentAct: number;
+  location: string;
+  flags: Record<string, boolean>;
+  inventory: string[];
+  discoveredClueIds: string[];
+  turnCount: number;
+}
+
+/** How an NPC's real name is learned. Absent = 'self' (introduces on first TALK). */
+export type NPCIntroduction =
+  | { type: 'self' }
+  | { type: 'document'; objectId: string };
+
+/** Case-state demeanor for a companion NPC — first matching variant wins. */
+export interface CompanionDemeanor {
+  npcId: string;
+  variants: Array<{ when: (s: SessionView) => boolean; text: string }>;
+}
+
+/** Directorial nudge injected when an act's failure-path condition holds. */
+export interface ActSafetyNet {
+  act: number;
+  requiresNpcPresent: string;
+  when: (s: SessionView) => boolean;
+  instruction: string;
+}
+
+export interface DiaryLeadHelpers {
+  isRequiredFlag(actNumber: number, flag: string): boolean;
+  clueGateFlag(def: ClueDefinition): string;
+  leadContextFor(actNumber: number, flag: string): LeadContext | null;
+  detectSilentLeadFlags(params: {
+    actNumber: number;
+    flagsUpdate: Record<string, boolean>;
+    priorFlags: Record<string, boolean>;
+    discoveredClueIds: string[];
+  }): string[];
+}
+
+export interface StoryManifest {
+  id: string;
+
+  // World data tables (same objects the story files already export)
+  locations: Record<string, LocationDefinition>;
+  npcs: Record<string, NPCDefinition>;
+  npcAliases: Record<string, string>;
+  npcDisplayNames: Record<string, string>;
+  objectDisplayNames: Record<string, string>;
+  clueDefinitions: Record<string, ClueDefinition>;
+  clueTriggers: Record<string, Record<string, string[]>>;
+  atmosphericNotes: Record<string, Record<string, string>>;
+  takeableObjects: Record<string, string>;
+  useInteractions: Record<string, Record<string, string>>;
+  showInteractions: Record<string, Record<string, ShowInteraction>>;
+  useCombinations: Record<string, Record<string, UseCombination>>;
+  documentText: Record<string, string>;
+
+  // Act structure
+  actNames: Record<number, string>;
+  actProgression: Record<number, ActCondition>;
+  actAnchors: Record<number, string>;
+  actTimeConfig: Record<number, ActTimeConfig>;
+  actWeather: Record<number, ActWeather>;
+
+  // Deduction
+  deductionThreshold: number;
+  suspectProfiles: SuspectProfile[];
+  personsOfInterest: PersonOfInterest[];
+
+  // Hint + diary-lead systems. selectHint/diaryLeads are consumed today;
+  // hintObjectives is unused in 2b — scaffolding for Phase 3.
+  selectHint: (s: HintState) => HintTarget;
+  hintObjectives: HintObjective[];
+  diaryLeads: DiaryLeadHelpers;
+
+  // Fact graph (Phase 2a)
+  facts: StoryFact[];
+
+  // Story constants previously inlined in GameEngine. smokingGunClueId is
+  // consumed by GameEngine today; convergenceFlag and playerNpcId are unused
+  // in 2b — scaffolding for Phase 3 (tool-calling turn loop).
+  smokingGunClueId: string;
+  convergenceFlag: string;
+  playerNpcId: string;
+
+  // Declarative behavior hooks (replace NPC-id-keyed engine blocks)
+  companionDemeanors: CompanionDemeanor[];
+  actSafetyNets: ActSafetyNet[];
 }

@@ -1,34 +1,9 @@
-import type { HintTarget, HintVerb } from '../../../types';
+import type { HintTarget } from '../../../types';
+import type { HintState, HintObjective } from '../types';
 import { LOCATIONS } from './locations';
 import { NPCS } from './npcs';
 
-/** Narrow, read-only slice of session state the selector needs. */
-export interface HintState {
-  currentAct: number;
-  location: string;
-  flags: Record<string, boolean>;
-  inventory: string[];
-  npcStates: Record<string, { currentLocation?: string; status?: string }>;
-  /** Visit count per location id. Used to decide whether Watson may know a
-   *  location's contents (a hint must not name objects he has never seen). */
-  locationVisitCounts: Record<string, number>;
-}
-
-export interface HintObjective {
-  id: string;
-  act: number;
-  locationId: string;
-  verb: HintVerb;
-  /** Neutral, player-facing noun phrase. MUST NOT reveal clue content. */
-  subject: string;
-  /** The exact ACT_PROGRESSION gate flag this objective's `done` tracks, when
-   *  it maps 1:1 onto one (most do). Absent for prerequisite-only steps (e.g.
-   *  examining the newspaper pile before it can be shown) and for objectives
-   *  whose `done` isn't a single-flag check (Act 5's inventory-based steps). */
-  flag?: string;
-  done: (s: HintState) => boolean;
-  available: (s: HintState) => boolean;
-}
+export type { HintState, HintObjective } from '../types';
 
 // ── Inventory display names (must match TAKEABLE_OBJECTS values in clues.ts) ──
 const CLIPPING = 'Newspaper Clipping (the "Dear Boss" letter)';

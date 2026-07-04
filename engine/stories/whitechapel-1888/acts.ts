@@ -1,4 +1,6 @@
-import type { ActCondition } from '../types';
+import type { ActCondition, ActTimeConfig, WeatherCondition, ActWeather } from '../types';
+
+export type { ActTimeConfig, WeatherCondition, ActWeather } from '../types';
 
 // ============================================================
 // ACT TIME CONFIGURATION
@@ -11,12 +13,6 @@ import type { ActCondition } from '../types';
 // Reconstruction locations use the original crime's time, not
 // Watson's visit time — see locations.ts timeOfDay field.
 // ============================================================
-
-export interface ActTimeConfig {
-  canonicalMinutes: number; // Minutes from midnight at act start
-  dayOfWeek: string;
-  displayDate: string;      // e.g. "9 November 1888"
-}
 
 export const ACT_TIME_CONFIG: Record<number, ActTimeConfig> = {
   0: { canonicalMinutes: 1200, dayOfWeek: 'Thursday',  displayDate: '8 November 1888' },  // 8:00 PM  — the vigil; Warren resigned today; Kelly dies tonight
@@ -51,18 +47,6 @@ export function formatGameClock(actNumber: number, elapsedMinutes: number): stri
 // season's characteristic mix of damp grey and cold fog.
 // Derived purely from currentAct — no persistence required.
 // ============================================================
-
-export type WeatherCondition =
-  | 'foggy' | 'drizzle' | 'pouring' | 'overcast' | 'clear-night' | 'clear-cold';
-
-export interface ActWeather {
-  condition: WeatherCondition;
-  label: string; // Short sidebar label, e.g. "Foggy"
-  // Intra-act weather drift: once elapsedMinutes passes afterMinutes, the act's
-  // weather shifts (e.g. a clear evening surrendering to fog). Derived in
-  // buildContext — no persistence required.
-  lateShift?: { afterMinutes: number; condition: WeatherCondition; label: string };
-}
 
 export const ACT_WEATHER: Record<number, ActWeather> = {
   0: { condition: 'clear-night', label: 'Cold, Clear',     // Thu 8 Nov, 8:00 PM  — Baker Street evening
