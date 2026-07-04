@@ -17,7 +17,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { aiService } from '../services/AIService';
+import { aiService } from '../server/aiCore';
 import { NarrationContext } from '../types';
 import {
   LOCATIONS,

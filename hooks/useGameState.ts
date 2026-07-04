@@ -13,7 +13,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
-import { callGemini } from '../services/geminiService';
 import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { injectAfterHeading } from '../services/narrationFormat';
@@ -375,7 +374,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     }
 
     try {
-      const test = await callGemini("Say 'ok'", false, 0);
+      const test = await aiService.ping();
       setConnectionStatus(prev => ({ ...prev, gemini: test.toLowerCase().includes('ok') }));
     } catch {
       setConnectionStatus(prev => ({ ...prev, gemini: false }));
