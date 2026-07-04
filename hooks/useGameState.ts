@@ -20,8 +20,6 @@ import { gameEngine, SessionSnapshot, computeTimePeriod, getPresentNpcIds } from
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { audioManager } from '../services/AudioManager';
 import { parseIntent, type ParsedIntent } from '../engine/intentParser';
-import { selectHint } from '../engine/stories/whitechapel-1888/hints';
-import { isRequiredFlag, clueGateFlag, leadContextFor, detectSilentLeadFlags } from '../engine/stories/whitechapel-1888/diaryLeads';
 import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_BRIDGES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, NPCS, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
@@ -35,6 +33,10 @@ import {
 } from '../constants';
 import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod, ThemeMode } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
+
+// ── Destructure hints and diary leads from the story manifest ────────────────
+const { selectHint } = WHITECHAPEL_MANIFEST;
+const { isRequiredFlag, clueGateFlag, leadContextFor, detectSilentLeadFlags } = WHITECHAPEL_MANIFEST.diaryLeads;
 
 // ── AI fallback target resolution ─────────────────────────────────────────────
 // The deterministic parser is strict about NOUNS (exact name / alias / fuzzy
