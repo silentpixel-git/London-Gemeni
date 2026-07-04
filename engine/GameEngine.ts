@@ -1230,17 +1230,14 @@ export class GameEngine {
       }
     }
 
-    // Act 5 safety net: the convergence needs the From Hell letter transcript,
-    // but the Act 4 gate is the location flag — a player can reach Act 5 without
-    // ever copying the letter. If so, Holmes steers Watson back to Lusk's office.
-    if (session.currentAct === 5 &&
-        !session.inventory.includes(this.story.takeableObjects['from_hell_letter']) &&
-        npcsPresent.some(n => n.npcId === 'holmes')) {
-      npcScriptedLines.push({
-        npcId: 'holmes',
-        label: 'Sherlock Holmes',
-        instruction: 'Watson never copied the From Hell letter. Holmes notes, with mild impatience, that a comparison wants both documents — and the letter still sits in Lusk\'s office. He suggests Watson return there and take the text down word for word. Do not say what the comparison will reveal.',
-      });
+    // Act safety nets — story-authored failure-path nudges. Fire when the
+    // act matches, the named NPC is present, and the condition holds.
+    for (const net of this.story.actSafetyNets) {
+      if (net.act !== session.currentAct) continue;
+      if (!net.when(session)) continue;
+      const present = npcsPresent.find(n => n.npcId === net.requiresNpcPresent);
+      if (!present) continue;
+      npcScriptedLines.push({ npcId: present.npcId, label: present.label, instruction: net.instruction });
     }
 
     // Idle behaviors — one rotating flat beat per present NPC who is not being
@@ -1256,17 +1253,16 @@ export class GameEngine {
       }
     }
 
-    // Holmes case-state demeanor — derived, no new state. Colors how he carries
-    // himself this act; injected only when he is present and not interviewed.
-    if (npcsPresent.some(n => n.npcId === 'holmes') && outcome.targetNpcId !== 'holmes') {
-      const clueCount = session.discoveredClueIds.length;
-      const convergenceDone = session.flags['used_edmund_forensic_note_with_from_hell_letter'];
-      const demeanor = convergenceDone
-        ? 'Holmes is grim and certain now — coiled, economical, already three moves ahead. The chase has replaced the puzzle.'
-        : clueCount >= 3
-        ? 'Holmes is absorbed — the abstracted intensity of a mind cross-referencing everything it sees. He answers a beat late.'
-        : 'Holmes is restless, irritable at the want of data — snapping at small noises, retreating into tobacco.';
-      npcScriptedLines.push({ npcId: 'holmes', label: 'Sherlock Holmes', instruction: `Demeanor note: ${demeanor}` });
+    // Companion case-state demeanor — derived, no new state. First matching
+    // variant wins; injected only when the NPC is present and not interviewed.
+    for (const cd of this.story.companionDemeanors) {
+      if (outcome.targetNpcId === cd.npcId) continue;
+      const present = npcsPresent.find(n => n.npcId === cd.npcId);
+      if (!present) continue;
+      const variant = cd.variants.find(v => v.when(session));
+      if (variant) {
+        npcScriptedLines.push({ npcId: cd.npcId, label: present.label, instruction: `Demeanor note: ${variant.text}` });
+      }
     }
 
     // Available exits (filtered by act)
@@ -1321,7 +1317,7 @@ export class GameEngine {
       // to match. Edmund never self-introduces (his name comes from the forensic note).
       const introducingThisTurn = !!npc.requiresIntroduction &&
         !session.introducedNpcs.includes(outcome.targetNpcId) &&
-        outcome.targetNpcId !== 'edmund';
+        this.introductionOf(npc).type === 'self';
       const label = isIntroduced
         ? npc.displayName
         : (npc.alias ?? this.story.npcAliases[outcome.targetNpcId] ?? npc.displayName);
@@ -1348,21 +1344,27 @@ export class GameEngine {
         : undefined;
 
     // Introduction flags: talking to an NPC introduces them (if they self-introduce)
-    // Document-based introductions are handled by examine (see clue_06 / edmund_forensic_note)
+    // Document-based introductions are handled by the examine check below.
     const introductionFlagsUpdate: Record<string, boolean> = {};
     if (outcome.targetNpcId) {
       const npc = this.story.npcs[outcome.targetNpcId];
       if (npc?.requiresIntroduction &&
           !session.introducedNpcs.includes(outcome.targetNpcId) &&
-          outcome.targetNpcId !== 'edmund') {
-        // NPC self-introduces on first TALK (everyone except Edmund)
+          this.introductionOf(npc).type === 'self') {
+        // NPC self-introduces on first TALK
         introductionFlagsUpdate[`npc_introduced_${outcome.targetNpcId}`] = true;
       }
     }
-    // Edmund's name is revealed when the player examines his forensic note
-    if (intent.targetId === 'edmund_forensic_note' &&
-        !session.introducedNpcs.includes('edmund')) {
-      introductionFlagsUpdate['npc_introduced_edmund'] = true;
+    // Document-introduced NPCs: examining their introduction object reveals the name
+    if (intent.targetId) {
+      for (const [npcId, npcDef] of Object.entries(this.story.npcs)) {
+        const intro = this.introductionOf(npcDef);
+        if (intro.type === 'document' &&
+            intro.objectId === intent.targetId &&
+            !session.introducedNpcs.includes(npcId)) {
+          introductionFlagsUpdate[`npc_introduced_${npcId}`] = true;
+        }
+      }
     }
 
     const act = session.currentAct;
@@ -1450,6 +1452,11 @@ export class GameEngine {
       _introductionFlagsUpdate?: Record<string, boolean>;
       _vignetteFlagsUpdate?: Record<string, boolean>;
     };
+  }
+
+  /** An NPC's introduction mode; absent = self-introduces on first TALK. */
+  private introductionOf(npc: NPCDefinition): { type: 'self' } | { type: 'document'; objectId: string } {
+    return npc.introduction ?? { type: 'self' };
   }
 
   /**

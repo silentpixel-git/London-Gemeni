@@ -157,6 +157,9 @@ export const NPCS: Record<string, NPCDefinition> = {
     alias: "Bond's assistant",
     aliasDescription: 'A quiet young man, perhaps thirty, standing near Dr. Bond with a small leather notebook. He does not look up.',
     requiresIntroduction: true,
+    // Edmund never self-introduces — his name is revealed when the player
+    // examines his forensic note (the 'prasarved' document).
+    introduction: { type: 'document', objectId: 'edmund_forensic_note' },
     role: "Dr. Bond's Medical Assistant",
     description: 'Young, quiet, and outwardly respectable. Son of a physician. Studied medicine but left unexpectedly. Almost invisible. Never speaks unless directly addressed. His ordinariness is not accidental.',
     speakingStyle: 'Soft and measured. Avoids emotional language. Mundane and functional. Never asks questions. Never volunteers curiosity.',
