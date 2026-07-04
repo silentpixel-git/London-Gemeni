@@ -24,9 +24,9 @@
  */
 
 import { GoogleGenAI, Type } from '@google/genai';
-import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod, HintTarget, HintVerb, STIMEntry } from '../types';
-import { ATMOSPHERIC_SEEDS } from '../engine/gameData';
-import { ACT_ROMAN } from '../constants';
+import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod, HintTarget, HintVerb, STIMEntry } from '../types.js';
+import { ATMOSPHERIC_SEEDS } from '../engine/gameData.js';
+import { ACT_ROMAN } from '../constants.js';
 
 // ============================================================
 // MODEL CONFIG

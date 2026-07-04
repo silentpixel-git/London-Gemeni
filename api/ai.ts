@@ -17,7 +17,7 @@
  * ai-dev-gateway plugin in vite.config.ts.
  */
 
-import { aiService } from '../server/aiCore';
+import { aiService } from '../server/aiCore.js';
 
 export async function POST(request: Request): Promise<Response> {
   let body: Record<string, unknown>;
