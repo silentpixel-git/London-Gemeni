@@ -23,10 +23,11 @@
  * still owns every clue and state decision. It returns a selection, never a mutation.
  */
 
-import { GoogleGenAI, Type } from '@google/genai';
-import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod, HintTarget, HintVerb, STIMEntry } from '../types.js';
+import { GoogleGenAI, Type, FunctionCallingConfigMode } from '@google/genai';
+import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod, HintTarget, HintVerb, STIMEntry, ParseCandidates } from '../types.js';
 import { ATMOSPHERIC_SEEDS } from '../engine/gameData.js';
 import { ACT_ROMAN } from '../constants.js';
+import { buildParseTools, buildParsePrompt, toolCallToIntent, type ToolCallOutcome } from './parseAction.js';
 
 // ============================================================
 // MODEL CONFIG
@@ -45,6 +46,14 @@ const MODEL_ID = process.env.GEMINI_MODEL_ID || 'gemini-3-flash-preview';
 const HOLMES_PERSONA_PROMPT =
   'You are Sherlock Holmes in 1888 London. Cold precision; no preamble, no pleasantries. ' +
   'Never name Edmund Halward or identify the killer directly before the final act.';
+
+// System prompt for the Phase 3 tool-calling parse (constrained, non-narration).
+const PARSE_ACTION_SYSTEM =
+  "You translate a detective-game player's typed command into exactly one game action by calling a function. " +
+  'Choose ids only from the declared parameter enums — never invent one. ' +
+  'If the input is a question about the world, call no_action with reason "question". ' +
+  'If it is atmospheric musing or not a command, use reason "atmospheric" or "unintelligible". ' +
+  "Do not guess wildly: when no candidate genuinely matches the player's meaning, prefer no_action.";
 
 // Dev-only prompt-size logger (token diet instrumentation).
 // Enable with LOG_PROMPT_SIZES=1 (works in Vite and tsx — process.env is defined in both).
@@ -803,6 +812,40 @@ Reply with the matching id, or "none" if the phrase clearly refers to no ${entit
       return { objectId: match ? match.id : null };
     } catch {
       return { objectId: null };
+    }
+  }
+
+  /**
+   * Phase 3 tool-calling parse (NOT narration) — the same constrained contract
+   * as resolveTargetObject, generalised to every verb. Maps a missed player
+   * input to one validated ParsedIntent via forced function calling; every
+   * argument is enum-locked to the client-supplied candidate lists and
+   * re-validated in toolCallToIntent. Never throws into the turn loop.
+   */
+  async parseAction(rawInput: string, candidates: ParseCandidates): Promise<ToolCallOutcome> {
+    try {
+      const prompt = buildParsePrompt(rawInput, candidates);
+      logPromptSize('parseAction', PARSE_ACTION_SYSTEM, prompt);
+      const response = await this.ai.models.generateContent({
+        model: MODEL_ID,
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          systemInstruction: PARSE_ACTION_SYSTEM,
+          thinkingConfig: { thinkingBudget: 0 },
+          tools: [{ functionDeclarations: buildParseTools(candidates) }],
+          toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.ANY } },
+        },
+      });
+      const call = response.functionCalls?.[0];
+      if (!call) return { intent: null, invalidArgs: false };
+      return toolCallToIntent(
+        call.name,
+        (call.args ?? {}) as Record<string, unknown>,
+        candidates,
+        rawInput,
+      );
+    } catch {
+      return { intent: null, invalidArgs: false };
     }
   }
 }

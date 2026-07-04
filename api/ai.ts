@@ -12,6 +12,7 @@
  * - ping | holmes | hint | journal  → { text }
  * - leadDiary     → { title, body }
  * - resolveTarget → { objectId }
+ * - parseAction   → { intent, invalidArgs }
  *
  * In dev, the same handler is mounted on the Vite dev server by the
  * ai-dev-gateway plugin in vite.config.ts.
@@ -89,6 +90,11 @@ export async function POST(request: Request): Promise<Response> {
             body.candidates as never,
             body.entityNoun as never,
           ),
+        );
+
+      case 'parseAction':
+        return Response.json(
+          await aiService.parseAction(body.rawInput as never, body.candidates as never),
         );
 
       default:
