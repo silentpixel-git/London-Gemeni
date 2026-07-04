@@ -304,7 +304,6 @@ section('Spoiler guard');
   for (const [npcId, npc] of Object.entries(NPCS)) {
     if (npcId === 'edmund') continue;
     const surfaces: Array<[string, string]> = [
-      ...npc.publicKnowledge.map((k, i) => [`publicKnowledge[${i}]`, k] as [string, string]),
       ...(npc.aliasDescription ? [[`aliasDescription`, npc.aliasDescription] as [string, string]] : []),
       ...(npc.idleBehaviors ?? []).map((k, i) => [`idleBehaviors[${i}]`, k] as [string, string]),
     ];

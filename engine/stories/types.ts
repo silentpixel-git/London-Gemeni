@@ -35,7 +35,6 @@ export interface NPCDefinition {
   description: string;
   speakingStyle: string;
   personality: string[];
-  publicKnowledge: string[];  // Facts/topics this NPC knows and can discuss
   followingRule: 'follows_watson' | 'follows_bond' | 'location_based' | 'fixed';
   followsNpcId?: string;       // For follows_watson/'follows_bond': the entity ID to shadow ('watson' = player)
   followsUntilAct?: number;    // After this act, the NPC stops following and reverts to its canonical location (e.g. Edmund committed in Act 6)
