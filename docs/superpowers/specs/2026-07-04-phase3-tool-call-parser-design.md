@@ -54,6 +54,14 @@ intent proceeds and the engine gives its in-character miss.
 This set is a strict superset of what `resolveTargetWithAI` handles today, so
 the new path subsumes it; the old function is deleted at cutover.
 
+Note one asymmetry: every other miss condition above is the AI filling in a
+`targetId` on the SAME intent type the regex parser already chose. The
+`no_action(question)` case is the exception — it lets the AI *reclassify* a
+`type: 'other'` miss into `type: 'query'`, a different intent category
+entirely. This is safe (query is narration-only, never a state mutation) and
+intentional, but it's worth naming explicitly since it's the one place the AI
+changes more than just a target.
+
 ## Tool surface
 
 One function declaration per verb, plus an escape hatch:

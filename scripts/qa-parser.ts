@@ -378,7 +378,8 @@ const INTENT_FIXTURES: IntentFixture[] = [
     expect: { type: 'talk', targetId: 'hutchinson' } },
   { scene: { location: 'dorset_street', act: 1 }, input: 'i should like to question the policeman leading this investigation',
     expect: { type: 'talk', targetId: 'abberline' } },
-  // take via AI
+  // take via AI — act 4 matches lusk_office's own canonical act (object presence
+  // isn't act-gated, so this is a consistency tidy-up, not a correctness fix)
   { scene: { location: 'lusk_office', act: 4 }, input: 'gather up that vile correspondence',
     expect: { type: 'take', targetId: 'from_hell_letter' } },
   // read via AI
