@@ -22,6 +22,7 @@
 import { parseIntent } from '../engine/intentParser';
 import { LOCATIONS, OBJECT_DISPLAY_NAMES, NPCS } from '../engine/gameData';
 import { getPresentNpcIds } from '../engine/GameEngine';
+import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { CLUE_TRIGGERS } from '../engine/stories/whitechapel-1888/clues';
 
 type Category = 'exact' | 'alias' | 'typo' | 'partial' | 'paraphrase';
@@ -208,7 +209,7 @@ const npcIsTier1 = (fx: NpcFixture, category: Category) =>
 // Present people at a scene, as alias-aware AI candidates (mirrors the hook so an
 // unintroduced NPC's real name never enters the prompt). Nobody introduced yet.
 function npcCandidatesFor(scene: { location: string; act: number }): Array<{ id: string; name: string }> {
-  return getPresentNpcIds(scene.location, {}, scene.act).map(id => {
+  return getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, scene.location, {}, scene.act).map(id => {
     const npc = NPCS[id];
     const introduced = !npc.requiresIntroduction;
     const name = introduced

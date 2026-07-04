@@ -17,6 +17,7 @@ import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { injectAfterHeading } from '../services/narrationFormat';
 import { gameEngine, SessionSnapshot, computeTimePeriod, getPresentNpcIds } from '../engine/GameEngine';
+import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { audioManager } from '../services/AudioManager';
 import { parseIntent, type ParsedIntent } from '../engine/intentParser';
 import { selectHint } from '../engine/stories/whitechapel-1888/hints';
@@ -61,7 +62,7 @@ async function resolveTargetWithAI(
   // fuzzy matching cannot — "the witness who saw Mary", "that eager fellow".
   if (intent.type === 'talk' && !intent.targetId) {
     const raw = (intent.targetRaw || '').trim();
-    const presentNpcIds = getPresentNpcIds(location, npcStates, currentAct);
+    const presentNpcIds = getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, location, npcStates, currentAct);
     if (!raw || presentNpcIds.length === 0) return intent;
 
     const key = `npc::${location}::${raw.toLowerCase()}`;
