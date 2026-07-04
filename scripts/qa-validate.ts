@@ -31,6 +31,7 @@ import { FACTS } from '../engine/stories/whitechapel-1888/facts';
 import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
 import { DECISION_BY_FLAG } from '../engine/stories/whitechapel-1888/diaryDecisions';
 import { INITIAL_INVENTORY } from '../constants';
+import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 
 // ── Logging helpers (same conventions as qa-engine.ts) ──────────────────────
 
@@ -397,6 +398,66 @@ section('Suspects');
     ok = false;
   }
   if (ok) pass(`all ${SUSPECT_PROFILES.length} suspect profiles resolve (1 guilty)`);
+}
+
+// ── 7. Story manifest (Phase 2b) ──────────────────────────────────────────────
+
+section('Story manifest (Phase 2b)');
+
+// Document-introduced NPCs point at a real examinable object.
+for (const [npcId, npc] of Object.entries(NPCS)) {
+  if (npc.introduction?.type === 'document') {
+    if (allObjectIds.has(npc.introduction.objectId)) {
+      pass(`introduction: ${npcId} document '${npc.introduction.objectId}' exists`);
+    } else {
+      fail(`introduction: ${npcId} document object '${npc.introduction.objectId}' does not exist in the world`);
+    }
+    if (!npc.requiresIntroduction) {
+      warn(`introduction: ${npcId} has a document introduction but requiresIntroduction is not true`);
+    }
+  }
+}
+
+// Companion demeanors reference real NPCs and end in a catch-all variant.
+for (const cd of WHITECHAPEL_MANIFEST.companionDemeanors) {
+  if (npcIds.has(cd.npcId)) {
+    pass(`companionDemeanors: '${cd.npcId}' is a real NPC`);
+  } else {
+    fail(`companionDemeanors: unknown NPC '${cd.npcId}'`);
+  }
+  if (cd.variants.length === 0) {
+    fail(`companionDemeanors: '${cd.npcId}' has no variants`);
+  } else {
+    // The last variant should be a catch-all so a present companion always
+    // carries a demeanor. Heuristic: it must match a bare default session.
+    const emptySession = { currentAct: 1, location: '', flags: {}, inventory: [], discoveredClueIds: [], turnCount: 0 };
+    if (cd.variants[cd.variants.length - 1].when(emptySession)) {
+      pass(`companionDemeanors: '${cd.npcId}' last variant is a catch-all`);
+    } else {
+      warn(`companionDemeanors: '${cd.npcId}' last variant is not a catch-all — some states will carry no demeanor`);
+    }
+  }
+}
+
+// Act safety nets reference real acts and NPCs.
+for (const net of WHITECHAPEL_MANIFEST.actSafetyNets) {
+  if (npcIds.has(net.requiresNpcPresent)) {
+    pass(`actSafetyNets: act ${net.act} NPC '${net.requiresNpcPresent}' is real`);
+  } else {
+    fail(`actSafetyNets: act ${net.act} references unknown NPC '${net.requiresNpcPresent}'`);
+  }
+  if (net.act >= 1 && net.act <= 6) {
+    pass(`actSafetyNets: act ${net.act} is a valid act number`);
+  } else {
+    fail(`actSafetyNets: act ${net.act} is out of range (1-6)`);
+  }
+}
+
+// Manifest story constants resolve.
+if (clueIds.has(WHITECHAPEL_MANIFEST.smokingGunClueId)) {
+  pass(`manifest: smokingGunClueId '${WHITECHAPEL_MANIFEST.smokingGunClueId}' is a real clue`);
+} else {
+  fail(`manifest: smokingGunClueId '${WHITECHAPEL_MANIFEST.smokingGunClueId}' does not resolve`);
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────
