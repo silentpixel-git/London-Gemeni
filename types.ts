@@ -283,7 +283,7 @@ export interface NarrationContext {
     role: string;
     speakingStyle: string;
     personality: string[];
-    knowledgeEnvelope: string[]; // publicKnowledge — AI hard ceiling
+    knowledgeEnvelope: string[]; // derived from the story fact graph — AI hard ceiling
     playerQuestion: string;      // intent.raw
   };
   // Proactive hint woven into the turn when the player is stuck — chosen by the

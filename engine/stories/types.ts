@@ -35,7 +35,6 @@ export interface NPCDefinition {
   description: string;
   speakingStyle: string;
   personality: string[];
-  publicKnowledge: string[];  // Facts/topics this NPC knows and can discuss
   followingRule: 'follows_watson' | 'follows_bond' | 'location_based' | 'fixed';
   followsNpcId?: string;       // For follows_watson/'follows_bond': the entity ID to shadow ('watson' = player)
   followsUntilAct?: number;    // After this act, the NPC stops following and reverts to its canonical location (e.g. Edmund committed in Act 6)
@@ -77,6 +76,18 @@ export interface ActCondition {
   name: string;
   requireFlags: string[];        // All must be set to auto-advance
   advanceTo: number;
+}
+
+// ── Fact graph (Phase 2a) ────────────────────────────────────────────────────
+// World knowledge as atomic facts. NPC knowledge envelopes are DERIVED views:
+// facts where knownBy includes the NPC and the act gate passes. One edit
+// updates every NPC consistently; spoiler gating is mechanical.
+export interface StoryFact {
+  id: string;             // unique, snake_case
+  statement: string;      // the prose line rendered into the AI prompt (the hard knowledge ceiling)
+  knownBy: string[];      // NPC ids that can voice this fact
+  visibleFromAct: number; // earliest act (0-6) this fact may surface; 0 = always
+  relatedClues?: string[]; // clue ids this fact supports (validator-checked)
 }
 
 export interface SuspectProfile {

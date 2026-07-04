@@ -37,6 +37,8 @@ import {
   SUSPECT_PROFILES,
 } from './gameData';
 import { selectHint } from './stories/whitechapel-1888/hints';
+import { FACTS } from './stories/whitechapel-1888/facts';
+import { deriveKnowledgeEnvelope } from './stories/knowledge';
 
 // ── Time helpers ──────────────────────────────────────────────────────────────
 
@@ -1355,7 +1357,7 @@ export class GameEngine {
         role: npc.role,
         speakingStyle: npc.speakingStyle,
         personality: npc.personality,
-        knowledgeEnvelope: npc.publicKnowledge,
+        knowledgeEnvelope: deriveKnowledgeEnvelope(FACTS, outcome.targetNpcId, session.currentAct),
         playerQuestion: intent.raw,
       };
     }

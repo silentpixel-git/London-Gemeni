@@ -27,6 +27,8 @@ import {
 } from '../engine/stories/whitechapel-1888/clues';
 import { ACT_PROGRESSION } from '../engine/stories/whitechapel-1888/acts';
 import { SUSPECT_PROFILES } from '../engine/stories/whitechapel-1888/suspects';
+import { FACTS } from '../engine/stories/whitechapel-1888/facts';
+import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
 import { DECISION_BY_FLAG } from '../engine/stories/whitechapel-1888/diaryDecisions';
 import { INITIAL_INVENTORY } from '../constants';
 
@@ -294,6 +296,36 @@ section('NPCs');
   if (scriptedOk) pass('all scriptedLines locations and trigger flags are valid');
 }
 
+// ── 4b. Fact graph ───────────────────────────────────────────────────────────
+
+section('Facts');
+{
+  let ok = true;
+  const factIds = new Set<string>();
+  for (const f of FACTS) {
+    if (factIds.has(f.id)) { fail(`fact "${f.id}": duplicate id`); ok = false; }
+    factIds.add(f.id);
+    for (const npcId of f.knownBy) {
+      if (!npcIds.has(npcId)) { fail(`fact "${f.id}": knownBy "${npcId}" does not resolve`); ok = false; }
+    }
+    if (f.knownBy.length === 0) { fail(`fact "${f.id}": knownBy is empty — no one can voice it`); ok = false; }
+    for (const clueId of f.relatedClues ?? []) {
+      if (!clueIds.has(clueId)) { fail(`fact "${f.id}": relatedClues "${clueId}" does not resolve`); ok = false; }
+    }
+    if (!Number.isInteger(f.visibleFromAct) || f.visibleFromAct < 0 || f.visibleFromAct > 6) {
+      fail(`fact "${f.id}": visibleFromAct ${f.visibleFromAct} out of range 0-6`); ok = false;
+    }
+  }
+  if (ok) pass(`all ${FACTS.length} facts: ids unique, knownBy/relatedClues resolve, act gates in range`);
+
+  // Every NPC the player can talk to should know something.
+  for (const npcId of npcIds) {
+    if (deriveKnowledgeEnvelope(FACTS, npcId, 6).length === 0) {
+      warn(`npc ${npcId}: empty knowledge envelope even at Act 6`, 'talking to them gives the AI nothing — confirm intentional');
+    }
+  }
+}
+
 // ── 5. Spoiler guard ─────────────────────────────────────────────────────────
 
 section('Spoiler guard');
@@ -304,7 +336,6 @@ section('Spoiler guard');
   for (const [npcId, npc] of Object.entries(NPCS)) {
     if (npcId === 'edmund') continue;
     const surfaces: Array<[string, string]> = [
-      ...npc.publicKnowledge.map((k, i) => [`publicKnowledge[${i}]`, k] as [string, string]),
       ...(npc.aliasDescription ? [[`aliasDescription`, npc.aliasDescription] as [string, string]] : []),
       ...(npc.idleBehaviors ?? []).map((k, i) => [`idleBehaviors[${i}]`, k] as [string, string]),
     ];
@@ -315,7 +346,21 @@ section('Spoiler guard');
       }
     }
   }
-  if (ok) pass("no NPC public knowledge names the killer");
+  if (ok) pass('no NPC alias description or idle behavior names the killer');
+
+  // The killer's name in a fact is only safe if the fact is Edmund's own
+  // (knownBy ⊆ {edmund}) or gated to the final act.
+  let factsOk = true;
+  for (const f of FACTS) {
+    if (!/halward/i.test(f.statement)) continue;
+    const edmundOnly = f.knownBy.every(id => id === 'edmund');
+    if (!edmundOnly && f.visibleFromAct < 6) {
+      fail(`fact "${f.id}" names Halward, is known by [${f.knownBy.join(', ')}], and is visible from act ${f.visibleFromAct}`,
+        'gate it to visibleFromAct 6 or restrict knownBy to edmund');
+      factsOk = false;
+    }
+  }
+  if (factsOk) pass("no fact leaks the killer's name before Act VI");
 
   // The "prasarved" misspelling is the smoking gun — a well-meaning typo fix
   // would break the mystery. Assert it survives in the story data.

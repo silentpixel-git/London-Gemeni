@@ -39,6 +39,8 @@
 
 import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
+import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
+import type { StoryFact } from '../engine/stories/types';
 import {
   INITIAL_LOCATION,
   INITIAL_INTRODUCED_NPCS,
@@ -1115,6 +1117,33 @@ function runUnresolvedTargetNarration() {
     : fail(`UnresolvedTarget: expected query fallback, got ${atmospheric.type}`);
 }
 
+// ── Fact graph: deriveKnowledgeEnvelope ──────────────────────────────────────
+
+function runFactGraphDerivation() {
+  console.log('\n=== SCENARIO: fact-graph-derivation ===');
+
+  const testFacts: StoryFact[] = [
+    { id: 'f_shared', statement: 'shared fact', knownBy: ['a', 'b'], visibleFromAct: 0 },
+    { id: 'f_a_only', statement: 'a-only fact', knownBy: ['a'],      visibleFromAct: 0 },
+    { id: 'f_late',   statement: 'late fact',   knownBy: ['a'],      visibleFromAct: 4 },
+  ];
+
+  const actual = deriveKnowledgeEnvelope(testFacts, 'a', 2);
+  JSON.stringify(actual) === JSON.stringify(['shared fact', 'a-only fact'])
+    ? pass('deriveKnowledgeEnvelope filters by knownBy and act gate, preserves order')
+    : fail('deriveKnowledgeEnvelope wrong result', JSON.stringify(actual));
+
+  const late = deriveKnowledgeEnvelope(testFacts, 'a', 4);
+  late.length === 3 && late[2] === 'late fact'
+    ? pass('deriveKnowledgeEnvelope admits act-gated facts once the act arrives')
+    : fail('act-gated fact not admitted at its act', JSON.stringify(late));
+
+  const other = deriveKnowledgeEnvelope(testFacts, 'c', 6);
+  other.length === 0
+    ? pass('deriveKnowledgeEnvelope returns empty for an NPC with no facts')
+    : fail('expected empty envelope for unknown npc', JSON.stringify(other));
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -1141,6 +1170,7 @@ try {
   runShowDative();
   runPartialObjectMatching();
   runUnresolvedTargetNarration();
+  runFactGraphDerivation();
 } catch (err) {
   console.error('\n[FATAL] Uncaught exception in test harness:', err);
   process.exit(1);
