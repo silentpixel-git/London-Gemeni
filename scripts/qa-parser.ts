@@ -262,7 +262,7 @@ async function main() {
   // ── Optional hybrid pass: resolve the misses through the AI fallback ─────────
   if (process.env.GEMINI_API_KEY) {
     console.log('\n=== HYBRID PASS (AI fallback on deterministic misses) ===\n');
-    const { aiService } = await import('../services/AIService');
+    const { aiService } = await import('../server/aiCore');
     let recovered = 0;
     for (const m of misses) {
       try {
@@ -306,7 +306,7 @@ async function main() {
 
   if (process.env.GEMINI_API_KEY) {
     console.log('\n  Tier-2 (AI fallback) on paraphrases:');
-    const { aiService } = await import('../services/AIService');
+    const { aiService } = await import('../server/aiCore');
     let npcRecovered = 0;
     for (const m of npcParaMisses) {
       try {
