@@ -1,4 +1,6 @@
-import type { SuspectProfile } from '../types';
+import type { SuspectProfile, PersonOfInterest } from '../types';
+
+export type { PersonOfInterest } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PERSONS OF INTEREST — the notebook's suspect ledger.
@@ -7,15 +9,6 @@ import type { SuspectProfile } from '../types';
 // DESIGN RULE (reweave): Edmund is NEVER listed here before the Act 5
 // convergence — absence, not dismissal, is his camouflage.
 // ─────────────────────────────────────────────────────────────────────────────
-
-export interface PersonOfInterest {
-  id: string;            // stable key
-  label: string;         // e.g. "The Mad Doctor (Francis Tumblety)"
-  detail: string;        // one-line motive/means note shown in the notebook
-  requiresFlag?: string; // only listed once this flag is set
-  clearedByFlag?: string;// annotated as cleared once this flag is set
-  clearedNote?: string;  // e.g. "alibied and released" — shown when cleared
-}
 
 export const PERSONS_OF_INTEREST: PersonOfInterest[] = [
   // The moving-spotlight roster. One loud theory per act, raised fairly and
