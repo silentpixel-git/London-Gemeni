@@ -18,6 +18,8 @@
  */
 
 import { NarrationContext, NarrationResponse, ActJournalSummary, HintTarget, HintVerb } from '../types';
+import type { ParseCandidates } from '../types';
+import type { ParsedIntent } from '../engine/intentParser';
 
 const GATEWAY_URL = '/api/ai';
 
@@ -163,6 +165,21 @@ export class AIService {
       });
     } catch {
       return { objectId: null };
+    }
+  }
+
+  /**
+   * Phase 3 tool-calling parse fallback (NOT narration) — maps a missed player
+   * input to one validated ParsedIntent, or null. Never throws into the turn loop.
+   */
+  async parseAction(
+    rawInput: string,
+    candidates: ParseCandidates,
+  ): Promise<{ intent: ParsedIntent | null }> {
+    try {
+      return await postJson<{ intent: ParsedIntent | null }>({ op: 'parseAction', rawInput, candidates });
+    } catch {
+      return { intent: null };
     }
   }
 }
