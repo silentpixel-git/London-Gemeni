@@ -1400,6 +1400,45 @@ function testWorldEvents() {
   const wrongAct = eng.resolve(parseIntent('look'), { ...base, currentAct: 3, flags: { act_3_started: true }, location: 'dutfields_yard', elapsedMinutes: 300 });
   if (!wrongAct.aiContext.worldEvents?.some(t => t.includes('noon gun'))) pass('world events: act-scoped');
   else fail('world events: act-scoped');
+
+  // Multi-event same-turn ordering: two act-2 events (600, 700) both crossed by
+  // a single turn must be delivered in ascending atClockMinutes order — this
+  // is what the `.sort((a, b) => a.fireAt - b.fireAt)` in buildContext exists
+  // to guarantee, but the shared `eng` fixture above never has two same-act
+  // events compete for one turn, so it goes untested there.
+  const orderEng = new GameEngine({
+    ...WHITECHAPEL_MANIFEST,
+    worldEvents: [
+      { id: 'test_early_bell', act: 2, atClockMinutes: 600, text: 'A church bell tolls the half-hour.' },
+      { id: 'test_late_whistle', act: 2, atClockMinutes: 700, text: 'A factory whistle sounds down the street.' },
+    ],
+  });
+  // 9:00 AM + 200 elapsed = 12:20 PM (740) — crosses both 600 and 700.
+  const bothFire = orderEng.resolve(parseIntent('look'), { ...base, elapsedMinutes: 200 });
+  const bellIdx = bothFire.aiContext.worldEvents?.indexOf('A church bell tolls the half-hour.') ?? -1;
+  const whistleIdx = bothFire.aiContext.worldEvents?.indexOf('A factory whistle sounds down the street.') ?? -1;
+  if (bellIdx !== -1 && whistleIdx !== -1 && bellIdx < whistleIdx) {
+    pass('world events: multiple events firing the same turn are delivered in atClockMinutes order');
+  } else {
+    fail('world events: multiple events firing the same turn are delivered in atClockMinutes order', JSON.stringify(bothFire.aiContext.worldEvents));
+  }
+
+  // Immediate-fire boundary: an event due AT the act's very first moment
+  // (atClockMinutes === canonicalMinutes) must fire on elapsedMinutes: 0 —
+  // proves the firing condition is `>=`, not `>`, at the exact boundary.
+  const boundaryEng = new GameEngine({
+    ...WHITECHAPEL_MANIFEST,
+    worldEvents: [
+      { id: 'test_act_start_event', act: 2, atClockMinutes: 540, text: 'A costermonger calls his wares from the corner.' },
+    ],
+  });
+  const atActStart = boundaryEng.resolve(parseIntent('look'), { ...base, elapsedMinutes: 0 });
+  if (atActStart.aiContext.worldEvents?.includes('A costermonger calls his wares from the corner.') &&
+      atActStart.flagsUpdate?.world_event_test_act_start_event === true) {
+    pass('world events: an event due at the act\'s canonical start fires on the very first turn (elapsedMinutes: 0)');
+  } else {
+    fail('world events: an event due at the act\'s canonical start fires on the very first turn (elapsedMinutes: 0)', JSON.stringify(atActStart.aiContext.worldEvents));
+  }
 }
 testWorldEvents();
 
