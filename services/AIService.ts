@@ -145,30 +145,6 @@ export class AIService {
   }
 
   /**
-   * Constrained target resolver (NOT narration) — maps a player's noun to one
-   * id from the supplied candidate list. Never throws into the turn loop.
-   */
-  async resolveTargetObject(
-    rawInput: string,
-    intentType: string,
-    candidates: Array<{ id: string; name: string }>,
-    entityNoun: 'object' | 'person' = 'object',
-  ): Promise<{ objectId: string | null }> {
-    if (candidates.length === 0) return { objectId: null };
-    try {
-      return await postJson<{ objectId: string | null }>({
-        op: 'resolveTarget',
-        rawInput,
-        intentType,
-        candidates,
-        entityNoun,
-      });
-    } catch {
-      return { objectId: null };
-    }
-  }
-
-  /**
    * Phase 3 tool-calling parse fallback (NOT narration) — maps a missed player
    * input to one validated ParsedIntent, or null. Never throws into the turn loop.
    */
