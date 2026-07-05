@@ -54,6 +54,27 @@ export function nextOpenPeriod(openPeriods: TimePeriod[], from: TimePeriod): Tim
   return null;
 }
 
+/**
+ * The next period (cycling the day from `from`, exclusive) in which this
+ * NPC's schedule puts them at `locationId` — null if the schedule never
+ * brings them back here this act.
+ */
+export function returnsPeriodFor(
+  npc: NPCDefinition,
+  act: number,
+  locationId: string,
+  from: TimePeriod,
+): TimePeriod | null {
+  const sched = npc.scheduleByAct[act];
+  if (!sched) return null;
+  const start = PERIOD_ORDER.indexOf(from);
+  for (let i = 1; i <= PERIOD_ORDER.length; i++) {
+    const p = PERIOD_ORDER[(start + i) % PERIOD_ORDER.length];
+    if ((sched.byPeriod?.[p] ?? sched.default) === locationId) return p;
+  }
+  return null;
+}
+
 /** The TimePeriod at a given act + minutes elapsed since its canonical start. */
 export function timePeriodFor(
   actTimeConfig: Record<number, ActTimeConfig>,
@@ -391,12 +412,7 @@ export class GameEngine {
         const npcName = this.story.npcDisplayNames[targetId] || targetId;
 
         if (npcLoc !== session.location) {
-          return this.blocked(
-            intent,
-            session,
-            `${npcName} is not here at the moment.`,
-            `Watson attempted to examine ${npcName} but they are not at ${currentLoc.name}.`
-          );
+          return this.absentNpcBlocked(intent, session, targetId, 'examine');
         }
 
         // NPC is present — physical/sensory examination (not dialogue)
@@ -520,13 +536,7 @@ export class GameEngine {
     const npcLoc = npcLocationAt(this.story.npcs, targetId, session.currentAct, this.periodOf(session), session.npcStates);
 
     if (npcLoc !== session.location) {
-      const npcName = this.story.npcDisplayNames[targetId] || targetId;
-      return this.blocked(
-        intent,
-        session,
-        `${npcName} is not here at the moment.`,
-        `Watson attempted to speak with ${npcName} but they are not at ${currentLoc.name}.`
-      );
+      return this.absentNpcBlocked(intent, session, targetId, 'speak with');
     }
 
     const npcName = this.story.npcDisplayNames[targetId] || targetId;
@@ -773,10 +783,7 @@ export class GameEngine {
       const npcName    = this.story.npcDisplayNames[npcId] ?? npcId;
 
       if (npcLoc !== session.location) {
-        return this.blocked(intent, session,
-          `${npcName} is not here.`,
-          `SHOW blocked: ${npcId} not at ${session.location}.`
-        );
+        return this.absentNpcBlocked(intent, session, npcId, 'show something to');
       }
 
       // Look up authored SHOW interaction
@@ -1597,6 +1604,40 @@ export class GameEngine {
         newClueDefs: [],
       }),
     };
+  }
+
+  /**
+   * Blocked result for addressing an NPC who is scheduled elsewhere right now.
+   * Diegetic redirect — never a dead end: the note carries where they are and
+   * when the schedule brings them back, alias-masked until introduced.
+   */
+  private absentNpcBlocked(
+    intent: ParsedIntent,
+    session: SessionSnapshot,
+    npcId: string,
+    attemptedVerb: string,
+  ): EngineResult {
+    const npc = this.story.npcs[npcId];
+    const period = this.periodOf(session);
+    const introduced = !npc.requiresIntroduction || session.introducedNpcs.includes(npcId);
+    const label = introduced
+      ? npc.displayName
+      : (npc.alias ?? this.story.npcAliases[npcId] ?? npc.displayName);
+    const whereId = npcLocationAt(this.story.npcs, npcId, session.currentAct, period, session.npcStates);
+    const where = this.story.locations[whereId];
+    const returns = returnsPeriodFor(npc, session.currentAct, session.location, period);
+    const currentLocName = this.story.locations[session.location].name;
+
+    return this.blocked(
+      intent,
+      session,
+      `${label} is not here at the moment.`,
+      `ABSENT PERSON — Watson tried to ${attemptedVerb} ${label}, but they are not at ${currentLocName} right now. ` +
+      (where ? `They are presently at ${where.name}. ` : `They are nowhere to be found in Whitechapel at present. `) +
+      (returns ? `They are expected back here come ${returns}. ` : '') +
+      `Convey this diegetically (an attendant's word, a note on a door, the empty room itself) in 1–2 sentences. ` +
+      `Watson is NOT stuck: he may follow them there, wait, or turn to something else. Do not invent dialogue with the absent person.`
+    );
   }
 
   /**

@@ -37,7 +37,7 @@
  * Exit code 1 if any FAIL.
  */
 
-import { gameEngine, GameEngine, SessionSnapshot, npcLocationAt, timePeriodFor, PERIOD_ORDER, minutesToNextPeriodBoundary, nextOpenPeriod } from '../engine/GameEngine';
+import { gameEngine, GameEngine, SessionSnapshot, npcLocationAt, timePeriodFor, PERIOD_ORDER, minutesToNextPeriodBoundary, nextOpenPeriod, returnsPeriodFor } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
 import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
 import type { StoryFact } from '../engine/stories/types';
@@ -1284,6 +1284,58 @@ function testOpeningHours() {
   }
 }
 testOpeningHours();
+
+// ── Phase 4a: absent-NPC diegetic redirect ───────────────────────────────────
+
+function testAbsentRedirect() {
+  const patchedNpcs = {
+    ...WHITECHAPEL_MANIFEST.npcs,
+    bond: {
+      ...WHITECHAPEL_MANIFEST.npcs.bond,
+      scheduleByAct: {
+        ...WHITECHAPEL_MANIFEST.npcs.bond.scheduleByAct,
+        2: { default: 'whitechapel_mortuary', byPeriod: { evening: 'whitechapel_pub' } },
+      },
+    },
+  };
+  const eng = new GameEngine({ ...WHITECHAPEL_MANIFEST, npcs: patchedNpcs as any });
+
+  // returnsPeriodFor: from evening at the mortuary, Bond is back come night —
+  // the first period after evening with no byPeriod override falls to default.
+  const rp = returnsPeriodFor(patchedNpcs.bond as any, 2, 'whitechapel_mortuary', 'evening');
+  if (rp === 'night') pass('returnsPeriodFor: first period the schedule puts the NPC back here');
+  else fail('returnsPeriodFor: first period the schedule puts the NPC back here', String(rp));
+
+  // Act 2 starts 9:00 AM (canonical 540); evening is [1020, 1200) same-day
+  // minutes, i.e. elapsed in [480, 660) — 600 elapsed → 1140 → 7:00 PM (evening).
+  // Watson at the mortuary: Bond's patched schedule puts him at the pub.
+  const s: SessionSnapshot = {
+    location: 'whitechapel_mortuary', inventory: [], flags: { act_2_started: true },
+    npcStates: {}, currentAct: 2, medicalPoints: 0, moralPoints: 0,
+    discoveredClueIds: [], turnsAtLocationWithoutProgress: 0, elapsedMinutes: 600,
+    introducedNpcs: ['bond'], locationVisitCounts: {}, turnCount: 10,
+  };
+  const r = eng.resolve(parseIntent('talk to bond'), s);
+  if (!r.actionSuccess && r.aiContext.actionResultNote.includes('ABSENT PERSON')) pass('absent talk: blocked with redirect note');
+  else fail('absent talk: blocked with redirect note', r.aiContext.actionResultNote);
+  if (r.aiContext.actionResultNote.includes('Ten Bells') || r.aiContext.actionResultNote.includes(WHITECHAPEL_MANIFEST.locations.whitechapel_pub.name)) {
+    pass('absent talk: names the whereabouts location');
+  } else {
+    fail('absent talk: names the whereabouts location', r.aiContext.actionResultNote);
+  }
+  if (r.aiContext.actionResultNote.includes('night')) pass('absent talk: names the return period');
+  else fail('absent talk: names the return period', r.aiContext.actionResultNote);
+
+  // Spoiler mask: an unintroduced NPC's redirect uses the alias, never the real name.
+  const s0: SessionSnapshot = { ...s, location: 'baker_street', currentAct: 0, elapsedMinutes: 0, flags: {}, introducedNpcs: [] };
+  const r0 = gameEngine.resolve(parseIntent('talk to abberline'), s0);
+  if (!r0.actionSuccess && !r0.aiContext.actionResultNote.includes('Abberline') && !(r0.blockedReason ?? '').includes('Abberline')) {
+    pass('absent talk: unintroduced NPC stays alias-masked');
+  } else {
+    fail('absent talk: unintroduced NPC stays alias-masked', r0.aiContext.actionResultNote);
+  }
+}
+testAbsentRedirect();
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
