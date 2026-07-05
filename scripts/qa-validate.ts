@@ -466,6 +466,16 @@ if (clueIds.has(WHITECHAPEL_MANIFEST.smokingGunClueId)) {
   fail(`manifest: smokingGunClueId '${WHITECHAPEL_MANIFEST.smokingGunClueId}' does not resolve`);
 }
 
+section('Location opening hours (Phase 4a)');
+for (const [locId, loc] of Object.entries(LOCATIONS)) {
+  if (!loc.openPeriods) continue;
+  if (loc.openPeriods.length === 0) fail(`location ${locId}: openPeriods is empty (always closed)`);
+  if (!loc.lockedNote?.text) fail(`location ${locId}: openPeriods set but no lockedNote`);
+  const kh = loc.lockedNote?.keyholderNpcId;
+  if (kh && !npcIds.has(kh)) fail(`location ${locId}: lockedNote.keyholderNpcId "${kh}" does not resolve`);
+}
+pass('opening-hours integrity checked');
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 
 console.log('\n' + '─'.repeat(60));

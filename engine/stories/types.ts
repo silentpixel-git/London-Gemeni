@@ -28,6 +28,14 @@ export interface LocationDefinition {
   // One-shot authored micro-scenes. Each fires at most once per playthrough
   // (flag vignette_<locId>_<idx>), replacing the random blockquote seed.
   vignettes?: Array<{ text: string; act?: number }>;
+  // Opening hours (Phase 4a). Absent = always open. When set, arriving in a
+  // period not listed is blocked with the authored lockedNote; qa:validate
+  // requires lockedNote whenever openPeriods is set.
+  openPeriods?: TimePeriod[];
+  lockedNote?: {
+    text: string;             // authored locked-door beat, diegetic
+    keyholderNpcId?: string;  // whereabouts derived from their schedule, never hand-written
+  };
 }
 
 export interface NPCDefinition {

@@ -37,7 +37,7 @@
  * Exit code 1 if any FAIL.
  */
 
-import { gameEngine, SessionSnapshot, npcLocationAt, timePeriodFor, PERIOD_ORDER, minutesToNextPeriodBoundary } from '../engine/GameEngine';
+import { gameEngine, GameEngine, SessionSnapshot, npcLocationAt, timePeriodFor, PERIOD_ORDER, minutesToNextPeriodBoundary, nextOpenPeriod } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
 import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
 import type { StoryFact } from '../engine/stories/types';
@@ -1241,6 +1241,49 @@ function testWait() {
   if (r.newAct === undefined && r.newLocation === undefined) pass('resolveWait: never moves or advances the act');
   else fail('resolveWait: never moves or advances the act');
 }
+
+// ── Phase 4a: location opening hours ─────────────────────────────────────────
+function testOpeningHours() {
+  if (nextOpenPeriod(['morning', 'afternoon'], 'night') === 'morning') pass('nextOpenPeriod cycles past midnight');
+  else fail('nextOpenPeriod cycles past midnight');
+  if (nextOpenPeriod(['evening'], 'evening') === 'evening') pass('nextOpenPeriod: currently-open period returns itself when cycling');
+  else fail('nextOpenPeriod: currently-open period returns itself when cycling');
+
+  const testEngine = new GameEngine({
+    ...WHITECHAPEL_MANIFEST,
+    locations: {
+      ...WHITECHAPEL_MANIFEST.locations,
+      whitechapel_mortuary: {
+        ...WHITECHAPEL_MANIFEST.locations.whitechapel_mortuary,
+        openPeriods: ['morning', 'afternoon'] as const,
+        lockedNote: { text: 'The mortuary door is bolted; a card gives the visiting hours.', keyholderNpcId: 'phillips' },
+      } as any,
+    },
+  });
+
+  // Act 2 starts 9:00 AM (morning) — open: the move succeeds as today.
+  // (bucks_row is the location with a direct exit to whitechapel_mortuary.)
+  const base: SessionSnapshot = {
+    location: 'bucks_row', inventory: [], flags: { act_2_started: true },
+    npcStates: {}, currentAct: 2, medicalPoints: 0, moralPoints: 0,
+    discoveredClueIds: [], turnsAtLocationWithoutProgress: 0, elapsedMinutes: 0,
+    introducedNpcs: [], locationVisitCounts: {}, turnCount: 10,
+  };
+  const open = testEngine.resolve(parseIntent('go to the mortuary'), base);
+  if (open.actionSuccess && open.newLocation === 'whitechapel_mortuary') pass('open hours: morning visit proceeds');
+  else fail('open hours: morning visit proceeds', JSON.stringify({ ok: open.actionSuccess, loc: open.newLocation }));
+
+  // 9:00 AM + 660 min = 8:00 PM (evening) — closed: blocked, no location change.
+  const night = testEngine.resolve(parseIntent('go to the mortuary'), { ...base, elapsedMinutes: 660 });
+  if (!night.actionSuccess && night.newLocation === undefined) pass('locked hours: evening visit blocked without moving');
+  else fail('locked hours: evening visit blocked without moving');
+  if (night.aiContext.actionResultNote.includes('bolted') && night.aiContext.actionResultNote.includes('morning')) {
+    pass('locked hours: note carries authored text + reopening period');
+  } else {
+    fail('locked hours: note carries authored text + reopening period', night.aiContext.actionResultNote);
+  }
+}
+testOpeningHours();
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 

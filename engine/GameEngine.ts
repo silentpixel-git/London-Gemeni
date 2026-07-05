@@ -44,6 +44,16 @@ export function minutesToNextPeriodBoundary(totalMinutes: number): number {
   return (1440 - m) + 300; // past 23:00 → dawn next day
 }
 
+/** First open period at or after `from` (exclusive of `from`, wrapping the day). */
+export function nextOpenPeriod(openPeriods: TimePeriod[], from: TimePeriod): TimePeriod | null {
+  const start = PERIOD_ORDER.indexOf(from);
+  for (let i = 1; i <= PERIOD_ORDER.length; i++) {
+    const p = PERIOD_ORDER[(start + i) % PERIOD_ORDER.length];
+    if (openPeriods.includes(p)) return p;
+  }
+  return null;
+}
+
 /** The TimePeriod at a given act + minutes elapsed since its canonical start. */
 export function timePeriodFor(
   actTimeConfig: Record<number, ActTimeConfig>,
@@ -290,6 +300,33 @@ export class GameEngine {
         session,
         `Holmes shakes his head. "We cannot present ourselves there without a name, Watson. We must be certain first."`,
         `Watson attempted to travel to ${targetLoc.name} but it requires a correct deduction first (flag '${targetLoc.requiresFlag}' not set).`
+      );
+    }
+
+    // Opening hours (Phase 4a) — arriving outside openPeriods is a locked
+    // door, never a dead end: the note says when it opens and where the
+    // keyholder is, and WAIT gets Watson in.
+    const period = this.periodOf(session);
+    if (targetLoc.openPeriods && !targetLoc.openPeriods.includes(period)) {
+      const reopens = nextOpenPeriod(targetLoc.openPeriods, period);
+      const keyholderId = targetLoc.lockedNote?.keyholderNpcId;
+      let keyholderNote = '';
+      if (keyholderId) {
+        const kh = this.story.npcs[keyholderId];
+        const introduced = !kh?.requiresIntroduction || session.introducedNpcs.includes(keyholderId);
+        const label = introduced ? (this.story.npcDisplayNames[keyholderId] ?? keyholderId) : (kh?.alias ?? 'the keeper');
+        const whereId = npcLocationAt(this.story.npcs, keyholderId, session.currentAct, period, session.npcStates);
+        const where = this.story.locations[whereId];
+        if (where) keyholderNote = ` ${label} is presently at ${where.name}.`;
+      }
+      return this.blocked(
+        intent,
+        session,
+        targetLoc.lockedNote?.text ?? `${targetLoc.name} is closed at this hour.`,
+        `BLOCKED — ${targetLoc.name} is closed (it is ${period}). ${targetLoc.lockedNote?.text ?? ''}` +
+        (reopens ? ` It opens come ${reopens}.` : '') + keyholderNote +
+        ` Convey this diegetically (a bolted door, a card of visiting hours, a caretaker's word). ` +
+        `Watson is NOT stuck: make clear he may wait for it to open or turn his attention elsewhere. He does not enter.`
       );
     }
 
