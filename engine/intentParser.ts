@@ -69,6 +69,11 @@ const DROP_VERBS = [
   'drop', 'leave', 'put down', 'discard', 'place',
 ];
 
+// Wait / pass time (Phase 4a — advances the clock to the next time period)
+const WAIT_VERBS = [
+  'wait', 'pass the time', 'linger', 'rest a while', 'bide',
+];
+
 // Inventory trigger words
 const INVENTORY_VERBS = [
   'inventory', 'what am i carrying', "what's in my bag", 'my items',
@@ -518,6 +523,14 @@ export function parseIntent(rawInput: string): ParsedIntent {
   for (const verb of NOTEBOOK_VERBS) {
     if (norm === verb || norm.startsWith(verb + ' ') || norm.includes(verb)) {
       return { type: 'notebook', raw: rawInput };
+    }
+  }
+
+  // 3b. Wait — whole-verb match ("wait", "wait here", "wait for the doctor"
+  // all advance to the next period; wait-for-target is out of scope).
+  for (const verb of WAIT_VERBS.sort((a, b) => b.length - a.length)) {
+    if (norm === verb || norm.startsWith(verb + ' ')) {
+      return { type: 'wait', raw: rawInput };
     }
   }
 

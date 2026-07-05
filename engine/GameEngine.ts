@@ -32,6 +32,18 @@ export function computeTimePeriod(totalMinutes: number): TimePeriod {
 // "next open period" computations, and schedule iteration.
 export const PERIOD_ORDER: TimePeriod[] = ['dawn', 'morning', 'afternoon', 'evening', 'night', 'lateNight'];
 
+/**
+ * Minutes from a clock value to the NEXT TimePeriod boundary. A turn starting
+ * exactly on a boundary advances to the one after — never 0. lateNight wraps
+ * past midnight to dawn (05:00).
+ */
+export function minutesToNextPeriodBoundary(totalMinutes: number): number {
+  const BOUNDARIES = [300, 420, 720, 1020, 1200, 1380]; // computeTimePeriod's edges
+  const m = totalMinutes % 1440;
+  for (const b of BOUNDARIES) if (b > m) return b - m;
+  return (1440 - m) + 300; // past 23:00 → dawn next day
+}
+
 /** The TimePeriod at a given act + minutes elapsed since its canonical start. */
 export function timePeriodFor(
   actTimeConfig: Record<number, ActTimeConfig>,
@@ -150,6 +162,7 @@ export class GameEngine {
       case 'inventory': result = this.resolveInventory(intent, session); break;
       case 'notebook':  result = this.resolveNotebook(intent, session); break;
       case 'deduce':    result = this.resolveDeduce(intent, session); break;
+      case 'wait':      result = this.resolveWait(intent, session); break;
       case 'help':      result = this.resolveHelp(intent, session); break;
       case 'query':              result = this.resolveQuery(intent, session); break;
       case 'unresolved_target':  result = this.resolveUnresolvedTarget(intent, session); break;
@@ -1072,6 +1085,36 @@ export class GameEngine {
   }
 
   // --------------------------------------------------------
+  // WAIT (Phase 4a: advances the clock to the next time period)
+  // --------------------------------------------------------
+
+  private resolveWait(intent: ParsedIntent, session: SessionSnapshot): EngineResult {
+    const cfg = this.story.actTimeConfig[session.currentAct] ?? this.story.actTimeConfig[1];
+    const total = cfg.canonicalMinutes + session.elapsedMinutes;
+    const from = computeTimePeriod(total);
+    const minutesAdvanced = minutesToNextPeriodBoundary(total);
+    const to = computeTimePeriod(total + minutesAdvanced);
+    const hours = Math.round((minutesAdvanced / 60) * 10) / 10;
+
+    return {
+      actionSuccess: true,
+      actionType: 'wait',
+      minutesAdvanced,
+      discoveredClueIds: [],
+      aiContext: this.buildContext(intent, session, {
+        success: true,
+        actionDescription: `Watson deliberately waited at ${this.story.locations[session.location].name} as ${from} gave way to ${to}.`,
+        actionResultNote:
+          `SUCCESS — TIME PASSES. Watson chose to wait; roughly ${hours} hour(s) pass and ${from} becomes ${to}. ` +
+          `Narrate the passage of time as ONE compressed beat (light changing, street sounds shifting, Watson's thoughts turning over the case) — ` +
+          `not a minute-by-minute account. Do not invent events, arrivals, or discoveries beyond any listed above.`,
+        newClueDefs: [],
+        extraMinutes: minutesAdvanced,
+      }),
+    };
+  }
+
+  // --------------------------------------------------------
   // HELP
   // --------------------------------------------------------
 
@@ -1222,6 +1265,7 @@ export class GameEngine {
       newNpcUpdates?: Record<string, Partial<NPCState>>;
       isDeduction?: boolean;
       deductionCorrect?: boolean;
+      extraMinutes?: number;
     }
   ): NarrationContext {
     // Use destination location for move actions, otherwise current
@@ -1236,7 +1280,7 @@ export class GameEngine {
       }
     }
 
-    const presentNPCEntries = getPresentNpcIds(this.story.npcs, locationId, resolvedNpcStates, session.currentAct, this.periodOf(session))
+    const presentNPCEntries = getPresentNpcIds(this.story.npcs, locationId, resolvedNpcStates, session.currentAct, this.periodOf(session, outcome.extraMinutes ?? 0))
       .map(npcId => [npcId, this.story.npcs[npcId]] as const);
 
     // Build alias-aware NPC list for NarrationContext
@@ -1408,7 +1452,7 @@ export class GameEngine {
     // Compute current in-game time — anchored to the act's canonical start,
     // advanced by the minutes elapsed this act (tracked in the hook).
     const actTimeCfg   = this.story.actTimeConfig[act] ?? this.story.actTimeConfig[1];
-    const totalMinutes = actTimeCfg.canonicalMinutes + session.elapsedMinutes;
+    const totalMinutes = actTimeCfg.canonicalMinutes + session.elapsedMinutes + (outcome.extraMinutes ?? 0);
     const timePeriod   = computeTimePeriod(totalMinutes);
     const timeLabel    = formatTimeLabel(totalMinutes, actTimeCfg.dayOfWeek, actTimeCfg.displayDate);
 
@@ -1416,7 +1460,7 @@ export class GameEngine {
 
     // Intra-act weather drift — the act's weather may shift late in the act
     const baseWeather = this.story.actWeather[act] ?? this.story.actWeather[1];
-    const weather = baseWeather.lateShift && session.elapsedMinutes >= baseWeather.lateShift.afterMinutes
+    const weather = baseWeather.lateShift && session.elapsedMinutes + (outcome.extraMinutes ?? 0) >= baseWeather.lateShift.afterMinutes
       ? { condition: baseWeather.lateShift.condition, label: baseWeather.lateShift.label }
       : { condition: baseWeather.condition, label: baseWeather.label };
 

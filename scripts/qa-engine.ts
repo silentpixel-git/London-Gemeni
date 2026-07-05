@@ -37,7 +37,7 @@
  * Exit code 1 if any FAIL.
  */
 
-import { gameEngine, SessionSnapshot, npcLocationAt, timePeriodFor, PERIOD_ORDER } from '../engine/GameEngine';
+import { gameEngine, SessionSnapshot, npcLocationAt, timePeriodFor, PERIOD_ORDER, minutesToNextPeriodBoundary } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
 import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
 import type { StoryFact } from '../engine/stories/types';
@@ -1203,6 +1203,45 @@ function testScheduleParity() {
   }
 }
 
+// ── Phase 4a: WAIT ───────────────────────────────────────────────────────────
+
+function testWait() {
+  // Parser: bare and phrasal forms.
+  for (const input of ['wait', 'wait here', 'pass the time', 'linger a while']) {
+    const it = parseIntent(input);
+    if (it.type === 'wait') pass(`parse "${input}" → wait`);
+    else fail(`parse "${input}" → wait`, `got ${it.type}`);
+  }
+
+  // Boundary math. Act 2 starts 540 (morning); next boundary 720.
+  if (minutesToNextPeriodBoundary(540) === 180) pass('wait math: 9:00 AM → noon = 180');
+  else fail('wait math: 9:00 AM → noon = 180', String(minutesToNextPeriodBoundary(540)));
+  // Exactly on a boundary advances to the NEXT one — never 0.
+  if (minutesToNextPeriodBoundary(720) === 300) pass('wait math: boundary minute advances to next boundary');
+  else fail('wait math: boundary minute advances to next boundary', String(minutesToNextPeriodBoundary(720)));
+  // lateNight wraps past midnight to dawn (05:00 next day).
+  if (minutesToNextPeriodBoundary(1390) === 350) pass('wait math: lateNight wraps to dawn');
+  else fail('wait math: lateNight wraps to dawn', String(minutesToNextPeriodBoundary(1390)));
+
+  // Engine: resolveWait in act 2 (9:00 AM) advances 180 min into the afternoon.
+  const session: SessionSnapshot = {
+    location: 'whitechapel_mortuary', inventory: [], flags: { act_2_started: true },
+    npcStates: {}, currentAct: 2, medicalPoints: 0, moralPoints: 0,
+    discoveredClueIds: [], turnsAtLocationWithoutProgress: 0, elapsedMinutes: 0,
+    introducedNpcs: [], locationVisitCounts: {}, turnCount: 10,
+  };
+  const r = gameEngine.resolve(parseIntent('wait'), session);
+  if (r.actionType === 'wait' && r.actionSuccess && r.minutesAdvanced === 180) {
+    pass('resolveWait: act 2 morning → 180 minutes to afternoon');
+  } else {
+    fail('resolveWait: act 2 morning → 180 minutes to afternoon', JSON.stringify({ type: r.actionType, min: r.minutesAdvanced }));
+  }
+  if (r.aiContext.timePeriod === 'afternoon') pass('resolveWait: narration context shows the post-wait period');
+  else fail('resolveWait: narration context shows the post-wait period', r.aiContext.timePeriod);
+  if (r.newAct === undefined && r.newLocation === undefined) pass('resolveWait: never moves or advances the act');
+  else fail('resolveWait: never moves or advances the act');
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -1231,6 +1270,7 @@ try {
   runUnresolvedTargetNarration();
   runFactGraphDerivation();
   testScheduleParity();
+  testWait();
 } catch (err) {
   console.error('\n[FATAL] Uncaught exception in test harness:', err);
   process.exit(1);

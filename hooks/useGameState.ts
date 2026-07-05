@@ -1265,7 +1265,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       };
       // On an act-advance the clock persists at the new act's canonical start (0);
       // React's elapsedMinutes stays held until Begin (see the hold comment above).
-      const actionMinutes = ACTION_TIME_MINUTES[result.actionType] ?? 2;
+      const actionMinutes = result.minutesAdvanced ?? ACTION_TIME_MINUTES[result.actionType] ?? 2;
       const newElapsedMinutes = advancingAct ? 0 : elapsedMinutes + actionMinutes;
       if (!advancingAct) setElapsedMinutes(newElapsedMinutes);
       // Clock label for any diary entries captured this turn. Use the held clock
