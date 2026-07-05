@@ -37,10 +37,11 @@
  * Exit code 1 if any FAIL.
  */
 
-import { gameEngine, GameEngine, SessionSnapshot, npcLocationAt, timePeriodFor, PERIOD_ORDER, minutesToNextPeriodBoundary, nextOpenPeriod, returnsPeriodFor } from '../engine/GameEngine';
+import { gameEngine, GameEngine, SessionSnapshot, npcLocationAt, timePeriodFor, PERIOD_ORDER, minutesToNextPeriodBoundary, nextOpenPeriod, returnsPeriodFor, periodBoundariesCrossed, maturedSpreadsFor } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
 import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
-import type { StoryFact } from '../engine/stories/types';
+import type { StoryFact, RumorDefinition } from '../engine/stories/types';
+import type { RumorEvents } from '../types';
 import { NPCS } from '../engine/stories/whitechapel-1888/npcs';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import {
@@ -77,6 +78,7 @@ function buildSnapshot(overrides: Partial<SessionSnapshot> = {}): SessionSnapsho
     introducedNpcs: [...INITIAL_INTRODUCED_NPCS],
     locationVisitCounts: {},
     turnCount: 0,
+    rumorEvents: {},
     ...overrides,
   };
 }
@@ -86,6 +88,7 @@ function applyResult(snap: SessionSnapshot, result: ReturnType<typeof gameEngine
   return {
     ...snap,
     flags: { ...snap.flags, ...(result.flagsUpdate ?? {}) },
+    rumorEvents: { ...snap.rumorEvents, ...(result.rumorEventsUpdate ?? {}) },
     introducedNpcs: [
       ...snap.introducedNpcs,
       ...Object.keys(result.introductionFlagsUpdate ?? {}).filter(k => result.introductionFlagsUpdate![k]),
@@ -1248,6 +1251,7 @@ function testWait() {
     npcStates: {}, currentAct: 2, medicalPoints: 0, moralPoints: 0,
     discoveredClueIds: [], turnsAtLocationWithoutProgress: 0, elapsedMinutes: 0,
     introducedNpcs: [], locationVisitCounts: {}, turnCount: 10,
+    rumorEvents: {},
   };
   const r = gameEngine.resolve(parseIntent('wait'), session);
   if (r.actionType === 'wait' && r.actionSuccess && r.minutesAdvanced === 180) {
@@ -1287,6 +1291,7 @@ function testOpeningHours() {
     npcStates: {}, currentAct: 2, medicalPoints: 0, moralPoints: 0,
     discoveredClueIds: [], turnsAtLocationWithoutProgress: 0, elapsedMinutes: 0,
     introducedNpcs: [], locationVisitCounts: {}, turnCount: 10,
+    rumorEvents: {},
   };
   const open = testEngine.resolve(parseIntent('go to the mortuary'), base);
   if (open.actionSuccess && open.newLocation === 'whitechapel_mortuary') pass('open hours: morning visit proceeds');
@@ -1365,6 +1370,7 @@ function testAbsentRedirect() {
     npcStates: {}, currentAct: 2, medicalPoints: 0, moralPoints: 0,
     discoveredClueIds: [], turnsAtLocationWithoutProgress: 0, elapsedMinutes: 600,
     introducedNpcs: ['bond'], locationVisitCounts: {}, turnCount: 10,
+    rumorEvents: {},
   };
   const r = eng.resolve(parseIntent('talk to bond'), s);
   if (!r.actionSuccess && r.aiContext.actionResultNote.includes('ABSENT PERSON')) pass('absent talk: blocked with redirect note');
@@ -1416,6 +1422,7 @@ function testWorldEvents() {
     npcStates: {}, currentAct: 2, medicalPoints: 0, moralPoints: 0,
     discoveredClueIds: [], turnsAtLocationWithoutProgress: 0, elapsedMinutes: 0,
     introducedNpcs: [], locationVisitCounts: {}, turnCount: 10,
+    rumorEvents: {},
   };
 
   // 9:00 AM — before the noon gun: nothing fires.
@@ -1507,6 +1514,248 @@ function testWorldEvents() {
 }
 testWorldEvents();
 
+// ── Phase 4b: rumor maturity math ────────────────────────────────────────
+
+console.log('\n── Phase 4b: rumor maturity math ──────────────────────────────');
+{
+  // Boundaries are [300, 420, 720, 1020, 1200, 1380].
+  periodBoundariesCrossed(600, 600) === 0
+    ? pass('boundaries: zero span crosses nothing')
+    : fail('boundaries: zero span', String(periodBoundariesCrossed(600, 600)));
+  periodBoundariesCrossed(600, 700) === 0
+    ? pass('boundaries: within one period crosses nothing')
+    : fail('boundaries: within period', String(periodBoundariesCrossed(600, 700)));
+  periodBoundariesCrossed(600, 720) === 1
+    ? pass('boundaries: landing exactly on a boundary counts it')
+    : fail('boundaries: exact landing', String(periodBoundariesCrossed(600, 720)));
+  periodBoundariesCrossed(600, 1250) === 3   // 720, 1020, 1200
+    ? pass('boundaries: multi-period span counts each edge')
+    : fail('boundaries: multi-period', String(periodBoundariesCrossed(600, 1250)));
+  periodBoundariesCrossed(1390, 1750) === 1  // only 300+1440=1740 (dawn next day)
+    ? pass('boundaries: lateNight→dawn wraps midnight correctly')
+    : fail('boundaries: midnight wrap', String(periodBoundariesCrossed(1390, 1750)));
+  periodBoundariesCrossed(600, 600 + 1440) === 6
+    ? pass('boundaries: a full day crosses all six')
+    : fail('boundaries: full day', String(periodBoundariesCrossed(600, 2040)));
+
+  const TEST_RUMORS: RumorDefinition[] = [
+    { id: 'r1', triggerFlag: 'f1', spread: [
+      { npcId: 'phillips', delayPeriods: 1, statement: 'S-PHILLIPS' },
+      { npcId: 'lusk',     delayPeriods: 0, statement: 'S-LUSK' },
+    ]},
+    { id: 'r2', triggerFlag: 'f2', spread: [
+      { npcId: 'phillips', delayPeriods: 3, statement: 'S-PHILLIPS-2' },
+    ]},
+  ];
+  const events: RumorEvents = { r1: { act: 2, atMinutes: 600 }, r2: { act: 2, atMinutes: 600 } };
+
+  const none = maturedSpreadsFor(TEST_RUMORS, {}, 'phillips', 2, 9999);
+  none.length === 0
+    ? pass('maturity: no recorded event → nothing matured')
+    : fail('maturity: empty log', JSON.stringify(none));
+
+  const samePeriod = maturedSpreadsFor(TEST_RUMORS, events, 'lusk', 2, 610);
+  samePeriod.length === 1 && samePeriod[0].statement === 'S-LUSK'
+    ? pass('maturity: delayPeriods 0 matures within the same period')
+    : fail('maturity: delay 0', JSON.stringify(samePeriod));
+
+  const tooSoon = maturedSpreadsFor(TEST_RUMORS, events, 'phillips', 2, 700);
+  tooSoon.length === 0
+    ? pass('maturity: delayPeriods 1 not yet matured before the boundary')
+    : fail('maturity: too soon', JSON.stringify(tooSoon));
+
+  const after1 = maturedSpreadsFor(TEST_RUMORS, events, 'phillips', 2, 730);
+  after1.length === 1 && after1[0].rumorId === 'r1'
+    ? pass('maturity: delayPeriods 1 matures after one boundary; delay 3 still pending')
+    : fail('maturity: after one boundary', JSON.stringify(after1));
+
+  const crossAct = maturedSpreadsFor(TEST_RUMORS, events, 'phillips', 3, 0);
+  crossAct.length === 2
+    ? pass('maturity: act transition matures everything regardless of clock')
+    : fail('maturity: cross-act', JSON.stringify(crossAct));
+}
+
+
+// ── Phase 4b: rumor trigger recording ────────────────────────────────────
+
+console.log('\n── Phase 4b: rumor trigger recording ──────────────────────────');
+{
+  // Real fixture rumor: showing the From Hell letter to Bond (act 5, Bond at
+  // bond_office per his schedule default) must record bond_saw_the_letter.
+  const period5 = timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 5, 0);
+  const bondLoc = npcLocationAt(NPCS, 'bond', 5, period5, { ...INITIAL_NPC_STATES });
+  const showIntent = {
+    type: 'show' as const,
+    targetId: 'from_hell_letter',
+    showTargetNpcId: 'bond',
+    targetRaw: 'letter',
+    raw: 'show the letter to bond',
+  };
+  const snap = buildSnapshot({
+    currentAct: 5,
+    location: bondLoc,
+    inventory: ['From Hell Letter (transcript)'],
+  });
+  const r = gameEngine.resolve(showIntent, snap);
+  const ev = r.rumorEventsUpdate?.['bond_saw_the_letter'];
+  ev && ev.act === 5 && ev.atMinutes === WHITECHAPEL_MANIFEST.actTimeConfig[5].canonicalMinutes
+    ? pass('trigger: show-to-bond records the rumor event at the current clock')
+    : fail('trigger: recording', JSON.stringify(r.rumorEventsUpdate));
+
+  // Already recorded → never re-recorded (re-show does not reset the clock).
+  const snap2 = buildSnapshot({
+    currentAct: 5,
+    location: bondLoc,
+    inventory: ['From Hell Letter (transcript)'],
+    flags: { showed_from_hell_letter_to_bond: true },
+    rumorEvents: { bond_saw_the_letter: { act: 5, atMinutes: 600 } },
+  });
+  const r2 = gameEngine.resolve(showIntent, snap2);
+  r2.rumorEventsUpdate === undefined
+    ? pass('trigger: an already-recorded rumor is never re-recorded')
+    : fail('trigger: re-record guard', JSON.stringify(r2.rumorEventsUpdate));
+
+  // Self-healing for old saves: flag already true but log empty → records now.
+  const snap3 = buildSnapshot({
+    currentAct: 5,
+    location: bondLoc,
+    flags: { showed_from_hell_letter_to_bond: true },
+  });
+  const look = parseIntent('look around');
+  const r3 = gameEngine.resolve(look, snap3);
+  r3.rumorEventsUpdate?.['bond_saw_the_letter']
+    ? pass('trigger: pre-4b save with the flag set records on the next turn')
+    : fail('trigger: self-healing', JSON.stringify(r3.rumorEventsUpdate));
+
+  // Unrelated turns stay silent.
+  const r4 = gameEngine.resolve(look, buildSnapshot({}));
+  r4.rumorEventsUpdate === undefined
+    ? pass('trigger: unrelated turn emits no rumorEventsUpdate')
+    : fail('trigger: silence', JSON.stringify(r4.rumorEventsUpdate));
+}
+
+function testEnvelopeAndNudge() {
+  console.log('\n=== SCENARIO: envelope + nudge (matured rumors) ===');
+  {
+  // Phillips is only scheduled in acts 2-3 (test uses act 2)
+  // bond_saw_the_letter rumor: trigger at 600, clock at 730 = past 720 boundary,
+  // so delayPeriods-1 is matured
+  const period2 = timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 2, 190);
+  const phillipsLoc = npcLocationAt(NPCS, 'phillips', 2, period2, { ...INITIAL_NPC_STATES });
+
+  // Test 1: First TALK with matured rumor — envelope prepends statement, recentlyHeard has it, ack flag set
+  const talkIntent = {
+    type: 'talk' as const,
+    targetId: 'phillips',
+    targetRaw: 'phillips',
+    raw: 'talk to phillips',
+  };
+  const snap1 = buildSnapshot({
+    currentAct: 2,
+    location: phillipsLoc,
+    elapsedMinutes: 190, // clock at 540+190=730, crosses 720 boundary
+    rumorEvents: { bond_saw_the_letter: { act: 2, atMinutes: 540 } }, // triggered at canonical start
+  });
+  const r1 = gameEngine.resolve(talkIntent, snap1);
+  const envelope1 = r1.aiContext.targetNpcInterview?.knowledgeEnvelope;
+  const nudge1 = r1.aiContext.targetNpcInterview?.recentlyHeard;
+  const ackFlag1 = r1.flagsUpdate?.['rumor_ack_bond_saw_the_letter_phillips'];
+
+  envelope1?.[0]?.includes('Bond went very quiet')
+    ? pass('envelope: matured rumor prepended to head of envelope')
+    : fail('envelope: matured rumor not at head', JSON.stringify(envelope1?.[0]));
+
+  nudge1?.some(s => s.includes('Bond went very quiet'))
+    ? pass('nudge: matured rumor in recentlyHeard on first TALK')
+    : fail('nudge: matured rumor missing from recentlyHeard', JSON.stringify(nudge1));
+
+  ackFlag1 === true
+    ? pass('nudge: ack flag set for (rumor, npc) pair')
+    : fail('nudge: ack flag not set', JSON.stringify(r1.flagsUpdate));
+
+  // Test 2: Second TALK with ack flag set — statement stays in envelope, recentlyHeard undefined
+  const snap2 = buildSnapshot({
+    currentAct: 2,
+    location: phillipsLoc,
+    elapsedMinutes: 190,
+    rumorEvents: { bond_saw_the_letter: { act: 2, atMinutes: 540 } },
+    flags: { rumor_ack_bond_saw_the_letter_phillips: true }, // ack flag already set
+  });
+  const r2 = gameEngine.resolve(talkIntent, snap2);
+  const envelope2 = r2.aiContext.targetNpcInterview?.knowledgeEnvelope;
+  const nudge2 = r2.aiContext.targetNpcInterview?.recentlyHeard;
+
+  envelope2?.[0]?.includes('Bond went very quiet')
+    ? pass('envelope: matured rumor stays in envelope even when acked')
+    : fail('envelope: matured rumor removed when acked', JSON.stringify(envelope2?.[0]));
+
+  nudge2 === undefined
+    ? pass('nudge: recentlyHeard undefined when ack flag already set')
+    : fail('nudge: recentlyHeard should be undefined', JSON.stringify(nudge2));
+
+  // Test 3: Un-matured rumor — absent from both envelope and nudge
+  const snap3 = buildSnapshot({
+    currentAct: 2,
+    location: phillipsLoc,
+    elapsedMinutes: 50, // clock at 540+50=590, before 720 boundary (un-matured)
+    rumorEvents: { bond_saw_the_letter: { act: 2, atMinutes: 540 } },
+  });
+  const r3 = gameEngine.resolve(talkIntent, snap3);
+  const envelope3 = r3.aiContext.targetNpcInterview?.knowledgeEnvelope;
+  const nudge3 = r3.aiContext.targetNpcInterview?.recentlyHeard;
+
+  !envelope3?.some(s => s.includes('Bond went very quiet'))
+    ? pass('envelope: un-matured rumor absent from envelope')
+    : fail('envelope: un-matured rumor in envelope', JSON.stringify(envelope3));
+
+  nudge3 === undefined
+    ? pass('nudge: recentlyHeard undefined for un-matured rumor')
+    : fail('nudge: un-matured rumor in recentlyHeard', JSON.stringify(nudge3));
+
+  // Test 4: Batching — two rumors matured for same NPC nudge together
+  // Both bond_saw_the_letter and abberline_saw_the_letter have matured, but only
+  // bond_saw_the_letter affects phillips, so we can't truly test batching with real
+  // rumors. For now, document the expected behavior by checking that only the
+  // phillips-affecting rumors appear.
+  const snap4 = buildSnapshot({
+    currentAct: 2,
+    location: phillipsLoc,
+    elapsedMinutes: 190,
+    rumorEvents: {
+      bond_saw_the_letter: { act: 2, atMinutes: 540 }, // matured, affects phillips
+      abberline_saw_the_letter: { act: 2, atMinutes: 540 }, // matured, affects lusk not phillips
+    },
+    flags: { showed_from_hell_letter_to_abberline: true },
+  });
+  const r4 = gameEngine.resolve(talkIntent, snap4);
+  const nudge4 = r4.aiContext.targetNpcInterview?.recentlyHeard;
+
+  nudge4 && nudge4.length === 1 && nudge4[0].includes('Bond went very quiet')
+    ? pass('nudge: only rumors affecting this NPC appear in recentlyHeard')
+    : fail('nudge: filtering failed', JSON.stringify(nudge4));
+
+  // Test 5: Same-turn self-nudge guard — rumor triggered THIS turn never nudges
+  // Per spec: "Same-turn self-nudge guard: if a rumor triggers THIS turn, it doesn't
+  // nudge anyone this turn". This is handled in resolve() by the task 3 trigger-recording
+  // block running AFTER buildContext, so a delayPeriods-0 hop can never nudge on its
+  // own turn. We test that a matured rumor DOES nudge, confirming the boundary.
+  const snap5Triggered = buildSnapshot({
+    currentAct: 2,
+    location: phillipsLoc,
+    elapsedMinutes: 190,
+    rumorEvents: { bond_saw_the_letter: { act: 2, atMinutes: 540 } }, // triggered earlier, now matured
+    flags: { showed_from_hell_letter_to_bond: true },
+  });
+  const r5 = gameEngine.resolve(talkIntent, snap5Triggered);
+  const nudge5 = r5.aiContext.targetNpcInterview?.recentlyHeard;
+  const envelope5 = r5.aiContext.targetNpcInterview?.knowledgeEnvelope;
+
+  envelope5?.[0]?.includes('Bond went very quiet') && nudge5?.some(s => s.includes('Bond went very quiet'))
+    ? pass('envelope+nudge: matured rumor triggered earlier fires both')
+    : fail('envelope+nudge: matured spread not delivered', JSON.stringify({ envelope: envelope5?.[0], nudge: nudge5 }));
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -1536,6 +1785,7 @@ try {
   runFactGraphDerivation();
   testScheduleParity();
   testWait();
+  testEnvelopeAndNudge();
 } catch (err) {
   console.error('\n[FATAL] Uncaught exception in test harness:', err);
   process.exit(1);

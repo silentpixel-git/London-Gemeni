@@ -1,6 +1,11 @@
 
 export type TimePeriod = 'dawn' | 'morning' | 'afternoon' | 'evening' | 'night' | 'lateNight';
 
+// Phase 4b — session rumor-event log: when each rumor's trigger flag first
+// fired. atMinutes is the act's canonical start + elapsed minutes (may exceed
+// 1440 on next-day clocks). Old saves lack this — default {} at every reader.
+export type RumorEvents = Record<string, { act: number; atMinutes: number }>;
+
 // Player's appearance choice. 'auto' hands the palette to the in-game clock
 // (evening/night), replacing the old separate dark-mode + time-of-day toggles —
 // so a manual dark choice can never be silently overridden by atmospheric colours.
@@ -54,6 +59,7 @@ export interface Investigation {
   stim?: Record<string, STIMEntry>;
   saveSlot?: number;
   elapsedMinutes?: number;
+  rumorEvents?: RumorEvents; // Phase 4b — rumor-event log (see RumorEvents)
   createdAt: string;
   updatedAt: string;
 }
@@ -112,6 +118,8 @@ export interface GameState {
   // Current act. Optional for back-compat with older local saves (which derived
   // the act from the location — ambiguous for shared anchors like bond_office).
   currentAct?: number;
+  // Phase 4b — rumor-event log. Optional for back-compat with older saves.
+  rumorEvents?: RumorEvents;
 }
 
 export interface WorldLocation {
@@ -136,6 +144,9 @@ export interface GameResponse {
     [key in keyof GameDispositions]?: Partial<DispositionStats>;
   };
   flagsUpdate?: Record<string, boolean>;
+  // Phase 4b — rumor-event log entries recorded this turn (merge into the
+  // session log; a rumor records at most once per playthrough).
+  rumorEventsUpdate?: RumorEvents;
   sanityUpdate?: number;
   medicalPointsUpdate?: number;
   moralPointsUpdate?: number;
@@ -189,6 +200,9 @@ export interface EngineResult {
   inventoryRemove?: string[];
   npcUpdates?: Record<string, Partial<NPCState>>;
   flagsUpdate?: Record<string, boolean>;
+  // Phase 4b — rumor-event log entries recorded this turn (merge into the
+  // session log; a rumor records at most once per playthrough).
+  rumorEventsUpdate?: RumorEvents;
   medicalPointsDelta?: number;
   moralPointsDelta?: number;
   discoveredClueIds?: string[];
@@ -302,6 +316,10 @@ export interface NarrationContext {
     speakingStyle: string;
     personality: string[];
     knowledgeEnvelope: string[]; // derived from the story fact graph — AI hard ceiling
+    // Phase 4b — hearsay that reached this NPC since Watson last spoke to
+    // them (one-shot: acked via rumor_ack_* flags). The AI has them raise it
+    // unprompted, in character.
+    recentlyHeard?: string[];
     playerQuestion: string;      // intent.raw
   };
   // Proactive hint woven into the turn when the player is stuck — chosen by the
