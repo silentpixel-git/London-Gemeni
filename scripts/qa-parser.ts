@@ -12,17 +12,15 @@
  *   be" number, and the regression guard for the matchObjectId() fuzzy tune.
  *
  *   Hybrid pass — only when GEMINI_API_KEY is set. Routes the deterministic MISSES
- *   through aiService.resolveTargetObject() (constrained to the object's location)
- *   and reports the combined lift.
+ *   through aiService.parseAction() (the production tool-calling fallback, with
+ *   candidates scoped to the object's location) and reports the combined lift.
  *
  * Run: npx tsx scripts/qa-parser.ts
  * Exit code 1 if deterministic accuracy regresses below the recorded baseline gate.
  */
 
 import { parseIntent } from '../engine/intentParser';
-import { LOCATIONS, OBJECT_DISPLAY_NAMES, NPCS } from '../engine/gameData';
-import { getPresentNpcIds, timePeriodFor } from '../engine/GameEngine';
-import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
+import { LOCATIONS, NPCS } from '../engine/gameData';
 import { CLUE_TRIGGERS } from '../engine/stories/whitechapel-1888/clues';
 import { toolCallToIntent } from '../server/parseAction.js';
 import { needsAiParse, buildParseCandidates } from '../engine/parseFallback';
@@ -208,26 +206,6 @@ const NPC_FIXTURES: NpcFixture[] = [
 // and every negative case) must already resolve offline.
 const npcIsTier1 = (fx: NpcFixture, category: Category) =>
   !(fx.npcId !== null && category === 'paraphrase');
-
-// Present people at a scene, as alias-aware AI candidates (mirrors the hook so an
-// unintroduced NPC's real name never enters the prompt). Nobody introduced yet.
-function npcCandidatesFor(scene: { location: string; act: number }): Array<{ id: string; name: string }> {
-  return getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, scene.location, {}, scene.act, timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, scene.act, 0)).map(id => {
-    const npc = NPCS[id];
-    const introduced = !npc.requiresIntroduction;
-    const name = introduced
-      ? `${npc.displayName} — ${npc.role}`
-      : `${npc.alias ?? 'a stranger'} — ${npc.aliasDescription ?? npc.role}`;
-    return { id, name };
-  });
-}
-
-// ── Build location candidate lists (id + display name) for the AI pass ─────────
-function candidatesFor(locId: string): Array<{ id: string; name: string }> {
-  const loc = (LOCATIONS as Record<string, { interactables?: string[] }>)[locId];
-  const ids = loc?.interactables ?? Object.keys(CLUE_TRIGGERS[locId] ?? {});
-  return ids.map(id => ({ id, name: OBJECT_DISPLAY_NAMES[id] ?? id }));
-}
 
 interface Miss { objectId: string; locId: string; text: string; category: Category; got?: string }
 
@@ -541,15 +519,20 @@ async function main() {
 
   // ── Optional hybrid pass: resolve the misses through the AI fallback ─────────
   if (process.env.GEMINI_API_KEY) {
-    console.log('\n=== HYBRID PASS (AI fallback on deterministic misses) ===\n');
+    console.log('\n=== HYBRID PASS (parseAction fallback on deterministic misses) ===\n');
     const { aiService } = await import('../server/aiCore');
     let recovered = 0;
     for (const m of misses) {
       try {
-        const { objectId } = await aiService.resolveTargetObject(m.text, 'examine', candidatesFor(m.locId));
-        const ok = objectId === m.objectId;
+        const act = (LOCATIONS as Record<string, { act?: number }>)[m.locId]?.act ?? 0;
+        const { intent } = await aiService.parseAction(
+          `examine ${m.text}`,
+          buildParseCandidates(m.locId, [], {}, act, [], 0),
+        );
+        const got = intent?.targetId ?? null;
+        const ok = got === m.objectId;
         if (ok) recovered++;
-        console.log(`  [${ok ? 'OK ' : '   '}] "examine ${m.text}" → ${objectId ?? 'null'} (want ${m.objectId})`);
+        console.log(`  [${ok ? 'OK ' : '   '}] "examine ${m.text}" → ${got ?? 'null'} (want ${m.objectId})`);
       } catch (e) {
         console.log(`  [ERR] "examine ${m.text}" → ${(e as Error).message}`);
       }
@@ -585,15 +568,19 @@ async function main() {
   if (npcTier1Misses.length > 0) { console.log('  Tier-1 misses:'); npcTier1Misses.forEach(d => console.log(d)); }
 
   if (process.env.GEMINI_API_KEY) {
-    console.log('\n  Tier-2 (AI fallback) on paraphrases:');
+    console.log('\n  Tier-2 (parseAction fallback) on paraphrases:');
     const { aiService } = await import('../server/aiCore');
     let npcRecovered = 0;
     for (const m of npcParaMisses) {
       try {
-        const { objectId } = await aiService.resolveTargetObject(m.text, 'talk', npcCandidatesFor(m.scene), 'person');
-        const ok = objectId === m.npcId;
+        const { intent } = await aiService.parseAction(
+          `talk to ${m.text}`,
+          buildParseCandidates(m.scene.location, [], {}, m.scene.act, [], 0),
+        );
+        const got = intent?.targetId ?? null;
+        const ok = got === m.npcId;
         if (ok) npcRecovered++;
-        console.log(`    [${ok ? 'OK ' : '   '}] "talk to ${m.text}" → ${objectId ?? 'none'} (want ${m.npcId})`);
+        console.log(`    [${ok ? 'OK ' : '   '}] "talk to ${m.text}" → ${got ?? 'none'} (want ${m.npcId})`);
       } catch (e) {
         console.log(`    [ERR] "talk to ${m.text}" → ${(e as Error).message}`);
       }

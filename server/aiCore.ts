@@ -16,11 +16,12 @@
  *
  * The AI cannot hallucinate exits, NPCs, or items because it is not asked to track them.
  *
- * One narrow exception to "narration-only": resolveTargetObject() is a CONSTRAINED
- * target resolver. It maps a player's noun to one object id chosen from a SUPPLIED
- * list (the objects in the current location). Because it can only return an id from
- * that list (or null), it can never invent an object or grant a clue — the engine
- * still owns every clue and state decision. It returns a selection, never a mutation.
+ * One narrow exception to "narration-only": parseAction() is a CONSTRAINED
+ * parser. It maps a missed player input to one tool call whose every argument
+ * is enum-locked to SUPPLIED candidate lists (this location's objects, people,
+ * exits). Because it can only select from those lists (or return null), it can
+ * never invent an entity or grant a clue — the engine still owns every clue
+ * and state decision. It returns a selection, never a mutation.
  */
 
 import { GoogleGenAI, Type, FunctionCallingConfigMode } from '@google/genai';
@@ -773,62 +774,10 @@ Write a short diary entry recording this. First-person past tense, Watson's voic
   }
 
   /**
-   * Constrained target resolver (NOT narration). Runs only when the deterministic
-   * parser fails to land a player's noun on an object that is actually present.
-   * Picks the intended object from the SUPPLIED candidate list (the current
-   * location's objects) by meaning — synonyms, paraphrase, description. The result
-   * is validated against the list, so it can never return an invented id; { objectId:
-   * null } means "no confident match" and the caller keeps the original behaviour.
-   * Never throws into the turn loop.
-   */
-  async resolveTargetObject(
-    rawInput: string,
-    intentType: string,
-    candidates: Array<{ id: string; name: string }>,
-    entityNoun: 'object' | 'person' = 'object',
-  ): Promise<{ objectId: string | null }> {
-    if (candidates.length === 0) return { objectId: null };
-
-    const plural = entityNoun === 'person' ? 'people' : 'objects';
-    const list = candidates.map(c => `- ${c.id} — "${c.name}"`).join('\n');
-    const prompt = `The player typed: "${rawInput}" (action: ${intentType}).
-Which of these ${plural} in the current scene did they most likely mean?
-${list}
-
-Reply with the matching id, or "none" if the phrase clearly refers to no ${entityNoun} in the list. Only match when the meaning genuinely corresponds — do not guess wildly.`;
-
-    try {
-      const response = await this.ai.models.generateContent({
-        model: MODEL_ID,
-        contents: [{ parts: [{ text: prompt }] }],
-        config: {
-          systemInstruction:
-            `You map a player's phrase to exactly one ${entityNoun} id from a fixed list, by meaning (synonyms, paraphrase, ${entityNoun === 'person' ? 'role or description' : 'physical description'}). Return one id verbatim from the list, or "none". Never invent an id.`,
-          thinkingConfig: { thinkingBudget: 0 },
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              objectId: { type: Type.STRING, description: 'A candidate id copied verbatim, or "none".' },
-            },
-            required: ['objectId'],
-          },
-        },
-      });
-      const picked = (JSON.parse(response.text || '{}').objectId ?? '').trim();
-      const match = candidates.find(c => c.id === picked);
-      return { objectId: match ? match.id : null };
-    } catch {
-      return { objectId: null };
-    }
-  }
-
-  /**
-   * Phase 3 tool-calling parse (NOT narration) — the same constrained contract
-   * as resolveTargetObject, generalised to every verb. Maps a missed player
-   * input to one validated ParsedIntent via forced function calling; every
-   * argument is enum-locked to the client-supplied candidate lists and
-   * re-validated in toolCallToIntent. Never throws into the turn loop.
+   * Tool-calling parse (NOT narration) — maps a missed player input to one
+   * validated ParsedIntent via forced function calling; every argument is
+   * enum-locked to the client-supplied candidate lists and re-validated in
+   * toolCallToIntent. Never throws into the turn loop.
    */
   async parseAction(rawInput: string, candidates: ParseCandidates): Promise<ToolCallOutcome> {
     try {

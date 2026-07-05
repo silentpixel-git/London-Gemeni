@@ -21,9 +21,9 @@ const VERBS_NEEDING_TARGET = new Set<ParsedIntent['type']>([
 
 /**
  * Should this regex-parse result be routed through the AI parse?
- * Mirrors (and supersets) the miss conditions of resolveTargetWithAI:
- * 'other', 'unresolved_target', verb-with-unresolved-target, and the
- * soft miss (resolved examine target that is neither here nor carried).
+ * Misses are: 'other', 'unresolved_target', verb-with-unresolved-target,
+ * and the soft miss (resolved examine target that is neither here nor
+ * carried).
  * Queries never route — world questions belong to narration.
  */
 export function needsAiParse(intent: ParsedIntent, location: string, inventory: string[]): boolean {
@@ -47,8 +47,7 @@ export function needsAiParse(intent: ParsedIntent, location: string, inventory: 
 
 /**
  * Candidate lists for the parseAction op. Spoiler-safe: an unintroduced NPC
- * appears under their alias, never their real name (same masking as
- * resolveTargetWithAI in useGameState).
+ * appears under their alias, never their real name.
  */
 export function buildParseCandidates(
   location: string,

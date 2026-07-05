@@ -11,7 +11,6 @@
  * - narrate       → NDJSON stream (one JSON line per narration update)
  * - ping | holmes | hint | journal  → { text }
  * - leadDiary     → { title, body }
- * - resolveTarget → { objectId }
  * - parseAction   → { intent, invalidArgs }
  *
  * In dev, the same handler is mounted on the Vite dev server by the
@@ -81,16 +80,6 @@ export async function POST(request: Request): Promise<Response> {
 
       case 'leadDiary':
         return Response.json(await aiService.generateLeadDiaryEntry(body.context as never));
-
-      case 'resolveTarget':
-        return Response.json(
-          await aiService.resolveTargetObject(
-            body.rawInput as never,
-            body.intentType as never,
-            body.candidates as never,
-            body.entityNoun as never,
-          ),
-        );
 
       case 'parseAction':
         return Response.json(
