@@ -344,7 +344,7 @@ export class GameEngine {
         const label = introduced ? (this.story.npcDisplayNames[keyholderId] ?? keyholderId) : (kh?.alias ?? 'the keeper');
         const whereId = npcLocationAt(this.story.npcs, keyholderId, session.currentAct, period, session.npcStates);
         const where = this.story.locations[whereId];
-        if (where) keyholderNote = ` ${label} is presently at ${where.name}.`;
+        if (where && whereId !== targetId) keyholderNote = ` ${label} is presently at ${where.name}.`;
       }
       return this.blocked(
         intent,

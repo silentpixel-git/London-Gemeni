@@ -1179,7 +1179,7 @@ function testScheduleParity() {
       3: { evening: 'bond_office', night: 'bond_office', lateNight: 'bond_office' },
     },
     phillips: {
-      2: { night: 'whitechapel_pub', lateNight: 'whitechapel_pub' },
+      2: { evening: 'whitechapel_pub', night: 'whitechapel_pub', lateNight: 'whitechapel_pub' },
     },
   };
 
@@ -1300,6 +1300,38 @@ function testOpeningHours() {
     pass('locked hours: note carries authored text + reopening period');
   } else {
     fail('locked hours: note carries authored text + reopening period', night.aiContext.actionResultNote);
+  }
+
+  // Self-referential keyholder note suppression (Finding 1b): if the
+  // keyholder's own schedule has no byPeriod override away from the gated
+  // location during a closed period, the "is presently at X" clause must be
+  // suppressed rather than naming the very location that's locked.
+  const selfRefEngine = new GameEngine({
+    ...WHITECHAPEL_MANIFEST,
+    locations: {
+      ...WHITECHAPEL_MANIFEST.locations,
+      whitechapel_mortuary: {
+        ...WHITECHAPEL_MANIFEST.locations.whitechapel_mortuary,
+        openPeriods: ['morning', 'afternoon'] as const,
+        lockedNote: { text: 'The mortuary door is bolted; a card gives the visiting hours.', keyholderNpcId: 'phillips' },
+      } as any,
+    },
+    npcs: {
+      ...WHITECHAPEL_MANIFEST.npcs,
+      phillips: {
+        ...WHITECHAPEL_MANIFEST.npcs.phillips,
+        scheduleByAct: {
+          ...WHITECHAPEL_MANIFEST.npcs.phillips.scheduleByAct,
+          2: { default: 'whitechapel_mortuary' },
+        },
+      },
+    } as any,
+  });
+  const selfRef = selfRefEngine.resolve(parseIntent('go to the mortuary'), { ...base, elapsedMinutes: 660 });
+  if (!selfRef.actionSuccess && !selfRef.aiContext.actionResultNote.includes('is presently at Whitechapel Mortuary')) {
+    pass('locked hours: self-referential keyholder note is suppressed when schedule has no away-override');
+  } else {
+    fail('locked hours: self-referential keyholder note is suppressed when schedule has no away-override', selfRef.aiContext.actionResultNote);
   }
 }
 testOpeningHours();

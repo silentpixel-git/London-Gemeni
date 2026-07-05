@@ -26,7 +26,7 @@ import {
   DOCUMENT_TEXT,
 } from '../engine/stories/whitechapel-1888/clues';
 import { ACT_PROGRESSION, ACT_TIME_CONFIG } from '../engine/stories/whitechapel-1888/acts';
-import { computeTimePeriod } from '../engine/GameEngine';
+import { computeTimePeriod, npcLocationAt, PERIOD_ORDER } from '../engine/GameEngine';
 import { WORLD_EVENTS } from '../engine/stories/whitechapel-1888/events';
 import { SUSPECT_PROFILES } from '../engine/stories/whitechapel-1888/suspects';
 import { FACTS } from '../engine/stories/whitechapel-1888/facts';
@@ -486,6 +486,17 @@ for (const [locId, loc] of Object.entries(LOCATIONS)) {
   if (!loc.lockedNote?.text) fail(`location ${locId}: openPeriods set but no lockedNote`);
   const kh = loc.lockedNote?.keyholderNpcId;
   if (kh && !npcIds.has(kh)) fail(`location ${locId}: lockedNote.keyholderNpcId "${kh}" does not resolve`);
+  if (kh && npcIds.has(kh)) {
+    for (const act of Object.keys(NPCS[kh].scheduleByAct).map(Number)) {
+      for (const period of PERIOD_ORDER) {
+        if (loc.openPeriods.includes(period)) continue;
+        const whereId = npcLocationAt(NPCS, kh, act, period, {});
+        if (whereId === locId) {
+          warn(`location ${locId}: keyholder "${kh}" is scheduled at their own gated location during ${period} (act ${act}), a period NOT in openPeriods — self-referential locked-door note (engine suppresses it, but schedule data may want a byPeriod override)`);
+        }
+      }
+    }
+  }
 }
 pass('opening-hours integrity checked');
 
@@ -519,9 +530,8 @@ section('Schedule guard rail: gate NPCs findable at act start (Phase 4a)');
       if (!npcId) continue; // unreachable-flag check already covers this
       const locId = flag.slice(`talked_to_${npcId}_at_`.length);
       const npc = NPCS[npcId];
-      if (npc.followsNpcId) continue;
-      const sched = npc.scheduleByAct[act];
-      const atStart = sched ? (sched.byPeriod?.[startPeriod] ?? sched.default) : undefined;
+      if (npc.followsNpcId && (npc.followsUntilAct === undefined || act <= npc.followsUntilAct)) continue;
+      const atStart = npcLocationAt(NPCS, npcId, act, startPeriod, {});
       checked++;
       if (atStart !== locId) {
         fail(`gate NPC ${npcId} (act ${act}): scheduled at "${atStart}" during the act's start period (${startPeriod}), but the gate needs them at "${locId}"`);

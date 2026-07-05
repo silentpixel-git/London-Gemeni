@@ -289,7 +289,7 @@ export const NPCS: Record<string, NPCDefinition> = {
     scheduleByAct: {
       // Day-shift police surgeon; evenings find him at the Ten Bells like
       // any other H Division man off duty.
-      2: { default: 'whitechapel_mortuary', byPeriod: { night: 'whitechapel_pub', lateNight: 'whitechapel_pub' } },
+      2: { default: 'whitechapel_mortuary', byPeriod: { evening: 'whitechapel_pub', night: 'whitechapel_pub', lateNight: 'whitechapel_pub' } },
       3: { default: 'whitechapel_mortuary' },
     },
   },
