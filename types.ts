@@ -282,6 +282,9 @@ export interface NarrationContext {
   ambientExtra?: string;
   // One-shot authored vignette — replaces the random blockquote seed this turn
   vignette?: string;
+  // World-event broadcasts fired this turn (verified, authored) — each rendered
+  // as its own blockquote wherever Watson stands
+  worldEvents?: string[];
   // Recent NPC memory for present NPCs (max 2 entries each)
   npcRecentMemory?: Record<string, string[]>;
   // Session observations (STIM) — injected by useGameState before AI call

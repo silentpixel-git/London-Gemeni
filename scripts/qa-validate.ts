@@ -25,7 +25,8 @@ import {
   USE_COMBINATIONS,
   DOCUMENT_TEXT,
 } from '../engine/stories/whitechapel-1888/clues';
-import { ACT_PROGRESSION } from '../engine/stories/whitechapel-1888/acts';
+import { ACT_PROGRESSION, ACT_TIME_CONFIG } from '../engine/stories/whitechapel-1888/acts';
+import { WORLD_EVENTS } from '../engine/stories/whitechapel-1888/events';
 import { SUSPECT_PROFILES } from '../engine/stories/whitechapel-1888/suspects';
 import { FACTS } from '../engine/stories/whitechapel-1888/facts';
 import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
@@ -369,6 +370,17 @@ section('Spoiler guard');
   }
   if (factsOk) pass("no fact leaks the killer's name before Act VI");
 
+  // World events are unconditional narration broadcasts (no knownBy/act gating
+  // like facts) — the killer's name must never appear in one, full stop.
+  let worldEventsOk = true;
+  for (const ev of WORLD_EVENTS) {
+    if (/halward/i.test(ev.text)) {
+      fail(`world event "${ev.id}" names Halward`, `"${ev.text.slice(0, 80)}…" — world events broadcast unconditionally, this cannot be gated`);
+      worldEventsOk = false;
+    }
+  }
+  if (worldEventsOk) pass('no world event names the killer');
+
   // The "prasarved" misspelling is the smoking gun — a well-meaning typo fix
   // would break the mystery. Assert it survives in the story data.
   const clueJson = JSON.stringify(CLUE_DEFINITIONS);
@@ -475,6 +487,19 @@ for (const [locId, loc] of Object.entries(LOCATIONS)) {
   if (kh && !npcIds.has(kh)) fail(`location ${locId}: lockedNote.keyholderNpcId "${kh}" does not resolve`);
 }
 pass('opening-hours integrity checked');
+
+section('World events (Phase 4a)');
+{
+  const seen = new Set<string>();
+  for (const ev of WORLD_EVENTS) {
+    if (seen.has(ev.id)) fail(`world event "${ev.id}": duplicate id`);
+    seen.add(ev.id);
+    if (!ACT_TIME_CONFIG[ev.act]) fail(`world event "${ev.id}": act ${ev.act} has no time config`);
+    if (ev.atClockMinutes < 0 || ev.atClockMinutes > 1439) fail(`world event "${ev.id}": atClockMinutes ${ev.atClockMinutes} out of range`);
+    if (!ev.text.trim()) fail(`world event "${ev.id}": empty text`);
+  }
+  pass(`${WORLD_EVENTS.length} world events structurally valid`);
+}
 
 // ── Summary ──────────────────────────────────────────────────────────────────
 

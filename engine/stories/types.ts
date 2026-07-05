@@ -110,6 +110,19 @@ export interface StoryFact {
   relatedClues?: string[]; // clue ids this fact supports (validator-checked)
 }
 
+// ── World events (Phase 4a) ──────────────────────────────────────────────────
+// Authored broadcasts that land in the narration as blockquotes wherever
+// Watson is, once the clock passes their fire time. Narration-only — no
+// world effects. Delivered-once via flag `world_event_<id>`.
+export interface WorldEventDefinition {
+  id: string;              // unique, snake_case
+  act: number;             // only fires during this act
+  atClockMinutes: number;  // clock-of-day (0-1439), e.g. 840 = 2:00 PM. A value
+                           // EARLIER than the act's canonical start means the
+                           // NEXT day (e.g. dawn during the act-0 night vigil).
+  text: string;            // the beat itself — spoiler-guarded by qa:validate
+}
+
 export interface SuspectProfile {
   npcId: string;
   aliases: string[];           // lowercase name variants the player might type
@@ -279,6 +292,9 @@ export interface StoryManifest {
 
   // Fact graph (Phase 2a)
   facts: StoryFact[];
+
+  // World events (Phase 4a)
+  worldEvents: WorldEventDefinition[];
 
   // Story constants previously inlined in GameEngine. smokingGunClueId is
   // consumed by GameEngine today; convergenceFlag and playerNpcId are unused

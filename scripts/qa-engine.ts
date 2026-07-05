@@ -1337,6 +1337,72 @@ function testAbsentRedirect() {
 }
 testAbsentRedirect();
 
+// ── Phase 4a: world events ───────────────────────────────────────────────────
+function testWorldEvents() {
+  const eng = new GameEngine({
+    ...WHITECHAPEL_MANIFEST,
+    worldEvents: [
+      { id: 'test_noon_gun', act: 2, atClockMinutes: 720, text: 'A noon gun sounds over the river.' },
+      { id: 'test_dawn_cry', act: 0, atClockMinutes: 300, text: 'The first newsboys cry the morning edition.' },
+    ],
+  });
+  const base: SessionSnapshot = {
+    location: 'whitechapel_mortuary', inventory: [], flags: { act_2_started: true },
+    npcStates: {}, currentAct: 2, medicalPoints: 0, moralPoints: 0,
+    discoveredClueIds: [], turnsAtLocationWithoutProgress: 0, elapsedMinutes: 0,
+    introducedNpcs: [], locationVisitCounts: {}, turnCount: 10,
+  };
+
+  // 9:00 AM — before the noon gun: nothing fires.
+  const before = eng.resolve(parseIntent('look'), base);
+  if (!before.aiContext.worldEvents?.length && !before.flagsUpdate?.world_event_test_noon_gun) {
+    pass('world events: nothing fires before its time');
+  } else {
+    fail('world events: nothing fires before its time');
+  }
+
+  // Past noon (elapsed 200 → 12:20): fires once, sets its flag.
+  const at = eng.resolve(parseIntent('look'), { ...base, elapsedMinutes: 200 });
+  if (at.aiContext.worldEvents?.includes('A noon gun sounds over the river.') &&
+      at.flagsUpdate?.world_event_test_noon_gun === true) {
+    pass('world events: fires with flag once the clock passes atClockMinutes');
+  } else {
+    fail('world events: fires with flag once the clock passes atClockMinutes', JSON.stringify(at.aiContext.worldEvents));
+  }
+
+  // Already delivered: never again.
+  const again = eng.resolve(parseIntent('look'), { ...base, elapsedMinutes: 220, flags: { ...base.flags, world_event_test_noon_gun: true } });
+  if (!again.aiContext.worldEvents?.length) pass('world events: delivered event never refires');
+  else fail('world events: delivered event never refires');
+
+  // WAIT delivers events its span crosses (11:00 AM + wait→noon boundary crosses 720).
+  const viaWait = eng.resolve(parseIntent('wait'), { ...base, elapsedMinutes: 120 });
+  if (viaWait.aiContext.worldEvents?.includes('A noon gun sounds over the river.')) {
+    pass('world events: a WAIT that crosses the fire time delivers the event');
+  } else {
+    fail('world events: a WAIT that crosses the fire time delivers the event', JSON.stringify(viaWait.aiContext.worldEvents));
+  }
+
+  // Cross-midnight: act 0 starts 8:00 PM; the dawn event (300 < 1200) means
+  // dawn NEXT DAY — it must not fire at act start, and must fire after midnight.
+  const act0: SessionSnapshot = { ...base, location: 'baker_street', currentAct: 0, flags: {}, elapsedMinutes: 0 };
+  const eveningTurn = eng.resolve(parseIntent('look'), act0);
+  if (!eveningTurn.aiContext.worldEvents?.length) pass('world events: earlier-clock event does not fire at act start (next-day rule)');
+  else fail('world events: earlier-clock event does not fire at act start (next-day rule)');
+  const pastDawn = eng.resolve(parseIntent('look'), { ...act0, elapsedMinutes: 560 }); // 8PM + 9h20 = 5:20 AM
+  if (pastDawn.aiContext.worldEvents?.includes('The first newsboys cry the morning edition.')) {
+    pass('world events: cross-midnight event fires the next day');
+  } else {
+    fail('world events: cross-midnight event fires the next day', JSON.stringify(pastDawn.aiContext.worldEvents));
+  }
+
+  // Wrong act: act-2 event never fires in act 3.
+  const wrongAct = eng.resolve(parseIntent('look'), { ...base, currentAct: 3, flags: { act_3_started: true }, location: 'dutfields_yard', elapsedMinutes: 300 });
+  if (!wrongAct.aiContext.worldEvents?.some(t => t.includes('noon gun'))) pass('world events: act-scoped');
+  else fail('world events: act-scoped');
+}
+testWorldEvents();
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {

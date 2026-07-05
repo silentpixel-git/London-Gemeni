@@ -212,6 +212,11 @@ function buildNarrationPrompt(ctx: NarrationContext): string {
   // Hour-bell clock event — one passing clause, never a scene
   const clockEventSection = ctx.clockEvent ? `\nCLOCK EVENT: ${ctx.clockEvent}\n` : '';
 
+  // World-event broadcasts — authored, verified; each is its own blockquote
+  const worldEventsSection = ctx.worldEvents && ctx.worldEvents.length > 0
+    ? `\nWORLD EVENTS (verified — happening in the city right now; render EACH as its own Markdown blockquote line formatted "> *…*", light polish only, keep content intact; they reach Watson as sound, news, or commotion wherever he stands):\n${ctx.worldEvents.map(t => `• ${t}`).join('\n')}\n`
+    : '';
+
   // Ambient extra — a background figure, strictly non-interactive
   const ambientExtraSection = ctx.ambientExtra
     ? `\nBACKGROUND FIGURE (non-interactive — they do not speak to Watson, he does not approach them; one observational clause only): ${ctx.ambientExtra}\n`
@@ -291,7 +296,7 @@ ${memorySection}
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
-${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${ambientExtraSection}${clueSection}${synthesisSection}
+${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${ambientExtraSection}${clueSection}${synthesisSection}
 Narrate Watson's arrival / survey of this location using exactly this structure:
 
 ${structure}`;
@@ -311,7 +316,7 @@ ${memorySection}${atmosphericNoteSection}
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
-${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${clueSection}${synthesisSection}`;
+${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${clueSection}${synthesisSection}`;
 
   if (ctx.targetNpcInterview) {
     const { label, isIntroduced, introducingThisTurn, realName, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion } = ctx.targetNpcInterview;

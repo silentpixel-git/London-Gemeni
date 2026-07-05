@@ -250,6 +250,7 @@ export class GameEngine {
     const ctxWithIntro = result.aiContext as NarrationContext & {
       _introductionFlagsUpdate?: Record<string, boolean>;
       _vignetteFlagsUpdate?: Record<string, boolean>;
+      _worldEventFlagsUpdate?: Record<string, boolean>;
     };
     if (ctxWithIntro._introductionFlagsUpdate) {
       result.introductionFlagsUpdate = ctxWithIntro._introductionFlagsUpdate;
@@ -259,6 +260,11 @@ export class GameEngine {
     if (ctxWithIntro._vignetteFlagsUpdate) {
       result.flagsUpdate = { ...result.flagsUpdate, ...ctxWithIntro._vignetteFlagsUpdate };
       delete ctxWithIntro._vignetteFlagsUpdate;
+    }
+    // World-event once-only flags ride the normal flags pipeline (persisted with the turn)
+    if (ctxWithIntro._worldEventFlagsUpdate) {
+      result.flagsUpdate = { ...result.flagsUpdate, ...ctxWithIntro._worldEventFlagsUpdate };
+      delete ctxWithIntro._worldEventFlagsUpdate;
     }
 
     return result;
@@ -1526,6 +1532,20 @@ export class GameEngine {
       ? loc.extras[(locationVisitCount - 1) % loc.extras.length]
       : undefined;
 
+    // World events (Phase 4a) — authored broadcasts whose fire time the clock
+    // has passed this act. atClockMinutes earlier than the act's start means
+    // the next day (the vigil's midnight, the following dawn). Delivered
+    // once via world_event_* flags, lifted onto flagsUpdate in resolve().
+    const worldEventFlagsUpdate: Record<string, boolean> = {};
+    const clockNow = totalMinutes; // already includes extraMinutes (WAIT spans deliver what they cross)
+    const firedEvents = this.story.worldEvents
+      .filter(e => e.act === act && !session.flags[`world_event_${e.id}`])
+      .map(e => ({ e, fireAt: e.atClockMinutes >= actTimeCfg.canonicalMinutes ? e.atClockMinutes : e.atClockMinutes + 1440 }))
+      .filter(({ fireAt }) => clockNow >= fireAt)
+      .sort((a, b) => a.fireAt - b.fireAt);
+    for (const { e } of firedEvents) worldEventFlagsUpdate[`world_event_${e.id}`] = true;
+    const worldEvents = firedEvents.length > 0 ? firedEvents.map(({ e }) => e.text) : undefined;
+
     return {
       locationName: loc.name,
       locationAtmosphere: loc.atmosphere,
@@ -1539,6 +1559,7 @@ export class GameEngine {
       timePeriod,
       weather,
       vignette,
+      worldEvents,
       ambientExtra,
       npcsPresent,
       availableObjects,
@@ -1572,9 +1593,14 @@ export class GameEngine {
       _vignetteFlagsUpdate: Object.keys(vignetteFlagsUpdate).length > 0
         ? vignetteFlagsUpdate
         : undefined,
+      // World-event once-only flags — lifted onto result.flagsUpdate in resolve()
+      _worldEventFlagsUpdate: Object.keys(worldEventFlagsUpdate).length > 0
+        ? worldEventFlagsUpdate
+        : undefined,
     } as NarrationContext & {
       _introductionFlagsUpdate?: Record<string, boolean>;
       _vignetteFlagsUpdate?: Record<string, boolean>;
+      _worldEventFlagsUpdate?: Record<string, boolean>;
     };
   }
 
