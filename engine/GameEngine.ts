@@ -10,9 +10,9 @@
  * The engine NEVER hallucinate — it only knows what's in gameData.ts.
  */
 
-import { NPCState, EngineResult, NarrationContext, IntentType, TimePeriod } from '../types';
+import { NPCState, EngineResult, NarrationContext, IntentType, TimePeriod, RumorEvents } from '../types';
 import { ParsedIntent } from './intentParser';
-import type { StoryManifest, NPCDefinition, ClueDefinition, ActTimeConfig } from './stories/types';
+import type { StoryManifest, NPCDefinition, ClueDefinition, ActTimeConfig, RumorDefinition } from './stories/types';
 import { WHITECHAPEL_MANIFEST } from './stories/whitechapel-1888/manifest';
 import { deriveKnowledgeEnvelope } from './stories/knowledge';
 
@@ -42,6 +42,54 @@ export function minutesToNextPeriodBoundary(totalMinutes: number): number {
   const m = totalMinutes % 1440;
   for (const b of BOUNDARIES) if (b > m) return b - m;
   return (1440 - m) + 300; // past 23:00 → dawn next day
+}
+
+/**
+ * How many TimePeriod boundaries lie strictly after `fromMinutes`, up to and
+ * including `toMinutes`. Day-wrap aware (minutes may exceed 1440). 0 when the
+ * span is empty or negative.
+ */
+export function periodBoundariesCrossed(fromMinutes: number, toMinutes: number): number {
+  const BOUNDARIES = [300, 420, 720, 1020, 1200, 1380];
+  if (toMinutes <= fromMinutes) return 0;
+  const span = toMinutes - fromMinutes;
+  let count = Math.floor(span / 1440) * BOUNDARIES.length;
+  const fromM = fromMinutes % 1440;
+  const toM = fromM + (span % 1440);
+  for (const b of BOUNDARIES) {
+    if (b > fromM && b <= toM) count++;
+    if (b + 1440 > fromM && b + 1440 <= toM) count++;
+  }
+  return count;
+}
+
+/**
+ * Matured rumor-spread entries for one NPC (Phase 4b): every authored spread
+ * hop whose rumor has fired and whose delay has elapsed. An act transition
+ * matures everything (act gaps span days); within the trigger's act, maturity
+ * is delayPeriods TimePeriod boundaries after the recorded trigger time.
+ * Rumor-file order — callers prepend these to the knowledge envelope.
+ */
+export function maturedSpreadsFor(
+  rumors: RumorDefinition[],
+  rumorEvents: RumorEvents,
+  npcId: string,
+  act: number,
+  totalMinutes: number,
+): Array<{ rumorId: string; statement: string }> {
+  const out: Array<{ rumorId: string; statement: string }> = [];
+  for (const r of rumors) {
+    const ev = rumorEvents[r.id];
+    if (!ev || act < ev.act) continue;
+    for (const s of r.spread) {
+      if (s.npcId !== npcId) continue;
+      const matured =
+        act > ev.act ||
+        periodBoundariesCrossed(ev.atMinutes, totalMinutes) >= s.delayPeriods;
+      if (matured) out.push({ rumorId: r.id, statement: s.statement });
+    }
+  }
+  return out;
 }
 
 /** First open period at or after `from` (exclusive of `from`, wrapping the day). */

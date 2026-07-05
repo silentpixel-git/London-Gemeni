@@ -37,10 +37,11 @@
  * Exit code 1 if any FAIL.
  */
 
-import { gameEngine, GameEngine, SessionSnapshot, npcLocationAt, timePeriodFor, PERIOD_ORDER, minutesToNextPeriodBoundary, nextOpenPeriod, returnsPeriodFor } from '../engine/GameEngine';
+import { gameEngine, GameEngine, SessionSnapshot, npcLocationAt, timePeriodFor, PERIOD_ORDER, minutesToNextPeriodBoundary, nextOpenPeriod, returnsPeriodFor, periodBoundariesCrossed, maturedSpreadsFor } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
 import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
-import type { StoryFact } from '../engine/stories/types';
+import type { StoryFact, RumorDefinition } from '../engine/stories/types';
+import type { RumorEvents } from '../types';
 import { NPCS } from '../engine/stories/whitechapel-1888/npcs';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import {
@@ -1506,6 +1507,67 @@ function testWorldEvents() {
   }
 }
 testWorldEvents();
+
+// ── Phase 4b: rumor maturity math ────────────────────────────────────────
+
+console.log('\n── Phase 4b: rumor maturity math ──────────────────────────────');
+{
+  // Boundaries are [300, 420, 720, 1020, 1200, 1380].
+  periodBoundariesCrossed(600, 600) === 0
+    ? pass('boundaries: zero span crosses nothing')
+    : fail('boundaries: zero span', String(periodBoundariesCrossed(600, 600)));
+  periodBoundariesCrossed(600, 700) === 0
+    ? pass('boundaries: within one period crosses nothing')
+    : fail('boundaries: within period', String(periodBoundariesCrossed(600, 700)));
+  periodBoundariesCrossed(600, 720) === 1
+    ? pass('boundaries: landing exactly on a boundary counts it')
+    : fail('boundaries: exact landing', String(periodBoundariesCrossed(600, 720)));
+  periodBoundariesCrossed(600, 1250) === 3   // 720, 1020, 1200
+    ? pass('boundaries: multi-period span counts each edge')
+    : fail('boundaries: multi-period', String(periodBoundariesCrossed(600, 1250)));
+  periodBoundariesCrossed(1390, 1750) === 1  // only 300+1440=1740 (dawn next day)
+    ? pass('boundaries: lateNight→dawn wraps midnight correctly')
+    : fail('boundaries: midnight wrap', String(periodBoundariesCrossed(1390, 1750)));
+  periodBoundariesCrossed(600, 600 + 1440) === 6
+    ? pass('boundaries: a full day crosses all six')
+    : fail('boundaries: full day', String(periodBoundariesCrossed(600, 2040)));
+
+  const TEST_RUMORS: RumorDefinition[] = [
+    { id: 'r1', triggerFlag: 'f1', spread: [
+      { npcId: 'phillips', delayPeriods: 1, statement: 'S-PHILLIPS' },
+      { npcId: 'lusk',     delayPeriods: 0, statement: 'S-LUSK' },
+    ]},
+    { id: 'r2', triggerFlag: 'f2', spread: [
+      { npcId: 'phillips', delayPeriods: 3, statement: 'S-PHILLIPS-2' },
+    ]},
+  ];
+  const events: RumorEvents = { r1: { act: 2, atMinutes: 600 }, r2: { act: 2, atMinutes: 600 } };
+
+  const none = maturedSpreadsFor(TEST_RUMORS, {}, 'phillips', 2, 9999);
+  none.length === 0
+    ? pass('maturity: no recorded event → nothing matured')
+    : fail('maturity: empty log', JSON.stringify(none));
+
+  const samePeriod = maturedSpreadsFor(TEST_RUMORS, events, 'lusk', 2, 610);
+  samePeriod.length === 1 && samePeriod[0].statement === 'S-LUSK'
+    ? pass('maturity: delayPeriods 0 matures within the same period')
+    : fail('maturity: delay 0', JSON.stringify(samePeriod));
+
+  const tooSoon = maturedSpreadsFor(TEST_RUMORS, events, 'phillips', 2, 700);
+  tooSoon.length === 0
+    ? pass('maturity: delayPeriods 1 not yet matured before the boundary')
+    : fail('maturity: too soon', JSON.stringify(tooSoon));
+
+  const after1 = maturedSpreadsFor(TEST_RUMORS, events, 'phillips', 2, 730);
+  after1.length === 1 && after1[0].rumorId === 'r1'
+    ? pass('maturity: delayPeriods 1 matures after one boundary; delay 3 still pending')
+    : fail('maturity: after one boundary', JSON.stringify(after1));
+
+  const crossAct = maturedSpreadsFor(TEST_RUMORS, events, 'phillips', 3, 0);
+  crossAct.length === 2
+    ? pass('maturity: act transition matures everything regardless of clock')
+    : fail('maturity: cross-act', JSON.stringify(crossAct));
+}
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 

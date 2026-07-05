@@ -1,6 +1,11 @@
 
 export type TimePeriod = 'dawn' | 'morning' | 'afternoon' | 'evening' | 'night' | 'lateNight';
 
+// Phase 4b — session rumor-event log: when each rumor's trigger flag first
+// fired. atMinutes is the act's canonical start + elapsed minutes (may exceed
+// 1440 on next-day clocks). Old saves lack this — default {} at every reader.
+export type RumorEvents = Record<string, { act: number; atMinutes: number }>;
+
 // Player's appearance choice. 'auto' hands the palette to the in-game clock
 // (evening/night), replacing the old separate dark-mode + time-of-day toggles —
 // so a manual dark choice can never be silently overridden by atmospheric colours.
