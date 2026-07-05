@@ -141,6 +141,9 @@ export interface GameResponse {
     [key in keyof GameDispositions]?: Partial<DispositionStats>;
   };
   flagsUpdate?: Record<string, boolean>;
+  // Phase 4b — rumor-event log entries recorded this turn (merge into the
+  // session log; a rumor records at most once per playthrough).
+  rumorEventsUpdate?: RumorEvents;
   sanityUpdate?: number;
   medicalPointsUpdate?: number;
   moralPointsUpdate?: number;
@@ -194,6 +197,9 @@ export interface EngineResult {
   inventoryRemove?: string[];
   npcUpdates?: Record<string, Partial<NPCState>>;
   flagsUpdate?: Record<string, boolean>;
+  // Phase 4b — rumor-event log entries recorded this turn (merge into the
+  // session log; a rumor records at most once per playthrough).
+  rumorEventsUpdate?: RumorEvents;
   medicalPointsDelta?: number;
   moralPointsDelta?: number;
   discoveredClueIds?: string[];

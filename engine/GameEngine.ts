@@ -189,6 +189,8 @@ export interface SessionSnapshot {
   locationVisitCounts: Record<string, number>;
   // Total turns this session — used to rotate idle behaviors / ambient extras
   turnCount: number;
+  // Phase 4b — when each rumor's trigger flag first fired (see RumorEvents)
+  rumorEvents: RumorEvents;
   // Note: sanity has been removed. Watson's prose register is now fixed
   // at the professional-composure baseline defined in the AI system prompt.
 }
@@ -314,6 +316,23 @@ export class GameEngine {
       result.flagsUpdate = { ...result.flagsUpdate, ...ctxWithIntro._worldEventFlagsUpdate };
       delete ctxWithIntro._worldEventFlagsUpdate;
     }
+
+    // Rumor trigger recording (Phase 4b): the first turn a rumor's trigger
+    // flag is true (whether set this turn or inherited from a pre-4b save)
+    // with no log entry starts that rumor's clock. Runs AFTER buildContext,
+    // so a delayPeriods-0 hop can never nudge on the very turn it fires.
+    const mergedForRumors = { ...session.flags, ...(result.flagsUpdate ?? {}) };
+    let rumorEventsUpdate: RumorEvents | undefined;
+    for (const rumor of this.story.rumors) {
+      if (mergedForRumors[rumor.triggerFlag] && !session.rumorEvents[rumor.id]) {
+        const cfg = this.story.actTimeConfig[session.currentAct] ?? this.story.actTimeConfig[1];
+        (rumorEventsUpdate ??= {})[rumor.id] = {
+          act: session.currentAct,
+          atMinutes: cfg.canonicalMinutes + session.elapsedMinutes,
+        };
+      }
+    }
+    if (rumorEventsUpdate) result.rumorEventsUpdate = rumorEventsUpdate;
 
     return result;
   }

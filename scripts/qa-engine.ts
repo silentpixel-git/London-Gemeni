@@ -78,6 +78,7 @@ function buildSnapshot(overrides: Partial<SessionSnapshot> = {}): SessionSnapsho
     introducedNpcs: [...INITIAL_INTRODUCED_NPCS],
     locationVisitCounts: {},
     turnCount: 0,
+    rumorEvents: {},
     ...overrides,
   };
 }
@@ -87,6 +88,7 @@ function applyResult(snap: SessionSnapshot, result: ReturnType<typeof gameEngine
   return {
     ...snap,
     flags: { ...snap.flags, ...(result.flagsUpdate ?? {}) },
+    rumorEvents: { ...snap.rumorEvents, ...(result.rumorEventsUpdate ?? {}) },
     introducedNpcs: [
       ...snap.introducedNpcs,
       ...Object.keys(result.introductionFlagsUpdate ?? {}).filter(k => result.introductionFlagsUpdate![k]),
@@ -1249,6 +1251,7 @@ function testWait() {
     npcStates: {}, currentAct: 2, medicalPoints: 0, moralPoints: 0,
     discoveredClueIds: [], turnsAtLocationWithoutProgress: 0, elapsedMinutes: 0,
     introducedNpcs: [], locationVisitCounts: {}, turnCount: 10,
+    rumorEvents: {},
   };
   const r = gameEngine.resolve(parseIntent('wait'), session);
   if (r.actionType === 'wait' && r.actionSuccess && r.minutesAdvanced === 180) {
@@ -1288,6 +1291,7 @@ function testOpeningHours() {
     npcStates: {}, currentAct: 2, medicalPoints: 0, moralPoints: 0,
     discoveredClueIds: [], turnsAtLocationWithoutProgress: 0, elapsedMinutes: 0,
     introducedNpcs: [], locationVisitCounts: {}, turnCount: 10,
+    rumorEvents: {},
   };
   const open = testEngine.resolve(parseIntent('go to the mortuary'), base);
   if (open.actionSuccess && open.newLocation === 'whitechapel_mortuary') pass('open hours: morning visit proceeds');
@@ -1366,6 +1370,7 @@ function testAbsentRedirect() {
     npcStates: {}, currentAct: 2, medicalPoints: 0, moralPoints: 0,
     discoveredClueIds: [], turnsAtLocationWithoutProgress: 0, elapsedMinutes: 600,
     introducedNpcs: ['bond'], locationVisitCounts: {}, turnCount: 10,
+    rumorEvents: {},
   };
   const r = eng.resolve(parseIntent('talk to bond'), s);
   if (!r.actionSuccess && r.aiContext.actionResultNote.includes('ABSENT PERSON')) pass('absent talk: blocked with redirect note');
@@ -1417,6 +1422,7 @@ function testWorldEvents() {
     npcStates: {}, currentAct: 2, medicalPoints: 0, moralPoints: 0,
     discoveredClueIds: [], turnsAtLocationWithoutProgress: 0, elapsedMinutes: 0,
     introducedNpcs: [], locationVisitCounts: {}, turnCount: 10,
+    rumorEvents: {},
   };
 
   // 9:00 AM — before the noon gun: nothing fires.
@@ -1567,6 +1573,65 @@ console.log('\n── Phase 4b: rumor maturity math ─────────�
   crossAct.length === 2
     ? pass('maturity: act transition matures everything regardless of clock')
     : fail('maturity: cross-act', JSON.stringify(crossAct));
+}
+
+
+// ── Phase 4b: rumor trigger recording ────────────────────────────────────
+
+console.log('\n── Phase 4b: rumor trigger recording ──────────────────────────');
+{
+  // Real fixture rumor: showing the From Hell letter to Bond (act 5, Bond at
+  // bond_office per his schedule default) must record bond_saw_the_letter.
+  const period5 = timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 5, 0);
+  const bondLoc = npcLocationAt(NPCS, 'bond', 5, period5, { ...INITIAL_NPC_STATES });
+  const showIntent = {
+    type: 'show' as const,
+    targetId: 'from_hell_letter',
+    showTargetNpcId: 'bond',
+    targetRaw: 'letter',
+    raw: 'show the letter to bond',
+  };
+  const snap = buildSnapshot({
+    currentAct: 5,
+    location: bondLoc,
+    inventory: ['From Hell Letter (transcript)'],
+  });
+  const r = gameEngine.resolve(showIntent, snap);
+  const ev = r.rumorEventsUpdate?.['bond_saw_the_letter'];
+  ev && ev.act === 5 && ev.atMinutes === WHITECHAPEL_MANIFEST.actTimeConfig[5].canonicalMinutes
+    ? pass('trigger: show-to-bond records the rumor event at the current clock')
+    : fail('trigger: recording', JSON.stringify(r.rumorEventsUpdate));
+
+  // Already recorded → never re-recorded (re-show does not reset the clock).
+  const snap2 = buildSnapshot({
+    currentAct: 5,
+    location: bondLoc,
+    inventory: ['From Hell Letter (transcript)'],
+    flags: { showed_from_hell_letter_to_bond: true },
+    rumorEvents: { bond_saw_the_letter: { act: 5, atMinutes: 600 } },
+  });
+  const r2 = gameEngine.resolve(showIntent, snap2);
+  r2.rumorEventsUpdate === undefined
+    ? pass('trigger: an already-recorded rumor is never re-recorded')
+    : fail('trigger: re-record guard', JSON.stringify(r2.rumorEventsUpdate));
+
+  // Self-healing for old saves: flag already true but log empty → records now.
+  const snap3 = buildSnapshot({
+    currentAct: 5,
+    location: bondLoc,
+    flags: { showed_from_hell_letter_to_bond: true },
+  });
+  const look = parseIntent('look around');
+  const r3 = gameEngine.resolve(look, snap3);
+  r3.rumorEventsUpdate?.['bond_saw_the_letter']
+    ? pass('trigger: pre-4b save with the flag set records on the next turn')
+    : fail('trigger: self-healing', JSON.stringify(r3.rumorEventsUpdate));
+
+  // Unrelated turns stay silent.
+  const r4 = gameEngine.resolve(look, buildSnapshot({}));
+  r4.rumorEventsUpdate === undefined
+    ? pass('trigger: unrelated turn emits no rumorEventsUpdate')
+    : fail('trigger: silence', JSON.stringify(r4.rumorEventsUpdate));
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

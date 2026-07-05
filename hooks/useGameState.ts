@@ -574,6 +574,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         introducedNpcs: INITIAL_INTRODUCED_NPCS,
         locationVisitCounts: {},
         turnCount: 0,
+        rumorEvents: {},
       };
       const result = gameEngine.resolve(intent, snapshot);
       commitVignetteFlags(result.flagsUpdate, {}, activeInvestigation?.id);
@@ -635,6 +636,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         introducedNpcs: resume.introducedNpcs,
         locationVisitCounts: {},
         turnCount: 0,
+        rumorEvents: {},
       };
       const result = gameEngine.resolve(intent, snapshot);
       commitVignetteFlags(result.flagsUpdate, resume.flags, resume.investigationId);
@@ -843,6 +845,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         introducedNpcs,
         locationVisitCounts,
         turnCount,
+        rumorEvents: {},
       };
       const result = gameEngine.resolve(intent, snapshot);
       commitVignetteFlags(result.flagsUpdate, flags, activeInvestigation?.id);
@@ -1175,6 +1178,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         introducedNpcs,
         locationVisitCounts,
         turnCount,
+        rumorEvents: {},
       };
 
       // STEP 3: Engine resolves — no AI yet
