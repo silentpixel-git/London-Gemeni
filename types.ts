@@ -59,6 +59,7 @@ export interface Investigation {
   stim?: Record<string, STIMEntry>;
   saveSlot?: number;
   elapsedMinutes?: number;
+  rumorEvents?: RumorEvents; // Phase 4b — rumor-event log (see RumorEvents)
   createdAt: string;
   updatedAt: string;
 }
@@ -117,6 +118,8 @@ export interface GameState {
   // Current act. Optional for back-compat with older local saves (which derived
   // the act from the location — ambiguous for shared anchors like bond_office).
   currentAct?: number;
+  // Phase 4b — rumor-event log. Optional for back-compat with older saves.
+  rumorEvents?: RumorEvents;
 }
 
 export interface WorldLocation {

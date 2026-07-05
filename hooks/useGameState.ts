@@ -32,7 +32,7 @@ import {
   INITIAL_INTRODUCED_NPCS,
   NPC_DISPLAY_NAMES,
 } from '../constants';
-import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod, ThemeMode } from '../types';
+import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod, ThemeMode, RumorEvents } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
 
 // ── Destructure hints and diary leads from the story manifest ────────────────
@@ -286,6 +286,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // In-game clock — minutes elapsed since act's canonical start time
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  // Phase 4b — rumor-event log: when each rumor's trigger flag first fired
+  const [rumorEvents, setRumorEvents] = useState<RumorEvents>({});
   // How many times Watson has visited each location
   const [locationVisitCounts, setLocationVisitCounts] = useState<Record<string, number>>({});
   // First sentences of the last few narrations — anti-repetition memory for the AI
@@ -687,6 +689,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setJournalNotes(investigation.journalNotes || INITIAL_JOURNAL);
     setIntroducedNpcs(loadedIntroduced);
     setElapsedMinutes(loadedElapsed);
+    setRumorEvents((investigation as Investigation).rumorEvents ?? {});
     setActiveInvestigation(investigation);
 
     // Load Watson's diary casebook for this investigation.
@@ -759,6 +762,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       diaryEntries,
       introducedNpcs,
       currentAct,
+      rumorEvents,
       timestamp: new Date().toLocaleString(),
     };
 
@@ -776,6 +780,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           journalNotes,
           stim,
           introducedNpcs,
+          rumorEvents,
         });
         if (updated) setActiveInvestigation(updated as Investigation);
         // Safety net: upsert the whole diary (idempotent by id) so any entry
@@ -894,6 +899,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setLocationVisitCounts(prev => ({ ...prev, [newLocation]: (prev[newLocation] ?? 0) + 1 }));
     captureLocationArrival(newLocation, toAct, formatGameClock(toAct, 0)); // diary: arriving in the new act's locale at its canonical start
     setElapsedMinutes(0);
+    setRumorEvents({});
     if (Object.keys(npcUpdates).length > 0) {
       setNpcStates(prev => {
         const next = { ...prev };
@@ -947,6 +953,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setMoralPoints(state.moralPoints || 0);
       setCurrentAct(guestAct);
       setElapsedMinutes(0);
+      setRumorEvents(state.rumorEvents ?? {});
       setFlags(state.flags || {});
       setJournalNotes(state.journalNotes || INITIAL_JOURNAL);
       setNpcStates(guestNpcStates);
@@ -1069,6 +1076,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setMoralPoints(data.moral_points);
         setCurrentAct(data.current_act ?? INITIAL_ACT);
         if (data.elapsed_minutes !== undefined) setElapsedMinutes(data.elapsed_minutes ?? 0);
+        if (data.rumor_events !== undefined) setRumorEvents(data.rumor_events ?? {});
         setFlags(data.global_flags || {});
         setJournalNotes(data.journal_notes || INITIAL_JOURNAL);
         setActiveInvestigation(prev =>
@@ -1178,7 +1186,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         introducedNpcs,
         locationVisitCounts,
         turnCount,
-        rumorEvents: {},
+        rumorEvents,
       };
 
       // STEP 3: Engine resolves — no AI yet
@@ -1213,6 +1221,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const newMedicalPoints = result.medicalPointsDelta ? medicalPoints + result.medicalPointsDelta : medicalPoints;
       const newMoralPoints   = result.moralPointsDelta   ? moralPoints  + result.moralPointsDelta   : moralPoints;
       const newFlags         = result.flagsUpdate        ? { ...flags, ...result.flagsUpdate }      : flags;
+      const newRumorEvents = result.rumorEventsUpdate
+        ? { ...rumorEvents, ...result.rumorEventsUpdate }
+        : rumorEvents;
 
       const advancingAct = !!result.newAct && !result.gameOver;
 
@@ -1234,6 +1245,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setMedicalPoints(newMedicalPoints);
       setMoralPoints(newMoralPoints);
       setFlags(newFlags);
+      if (result.rumorEventsUpdate) setRumorEvents(newRumorEvents);
       if (result.gameOver) {
         setIsGameOver(true);
         if (result.endingType) setEndingType(result.endingType);
@@ -1333,7 +1345,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // so a mid-curtain reload reads the committed new act and resume-looks there.
       if (user && activeInvestigation) {
         await GameRepository.applyEngineResult(activeInvestigation.id, result, {
-          location, inventory, medicalPoints, moralPoints, currentAct, flags,
+          location, inventory, medicalPoints, moralPoints, currentAct, flags, rumorEvents,
         }, newElapsedMinutes);
         if (result.npcUpdates) {
           GameRepository.applyNPCUpdates(activeInvestigation.id, result.npcUpdates);
@@ -1668,6 +1680,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setNpcStates(INITIAL_NPC_STATES as Record<string, NPCState>);
     setCurrentAct(INITIAL_ACT);
     setElapsedMinutes(0);
+    setRumorEvents({});
     setStim({});
     setTurnCount(0);
     setIntroducedNpcs(INITIAL_INTRODUCED_NPCS);
