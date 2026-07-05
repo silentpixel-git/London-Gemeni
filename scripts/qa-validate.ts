@@ -25,7 +25,9 @@ import {
   USE_COMBINATIONS,
   DOCUMENT_TEXT,
 } from '../engine/stories/whitechapel-1888/clues';
-import { ACT_PROGRESSION } from '../engine/stories/whitechapel-1888/acts';
+import { ACT_PROGRESSION, ACT_TIME_CONFIG } from '../engine/stories/whitechapel-1888/acts';
+import { computeTimePeriod, npcLocationAt, PERIOD_ORDER } from '../engine/GameEngine';
+import { WORLD_EVENTS } from '../engine/stories/whitechapel-1888/events';
 import { SUSPECT_PROFILES } from '../engine/stories/whitechapel-1888/suspects';
 import { FACTS } from '../engine/stories/whitechapel-1888/facts';
 import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
@@ -109,7 +111,7 @@ function flagUnreachableReason(flag: string): string | null {
         const locId = flag.slice(prefix.length);
         if (!locationIds.has(locId)) return `unknown location "${locId}"`;
         const npc = NPCS[npcId];
-        const canonicallyThere = Object.values(npc.canonicalLocationByAct).includes(locId);
+        const canonicallyThere = Object.values(npc.scheduleByAct).some(s => s.default === locId || Object.values(s.byPeriod ?? {}).includes(locId));
         const follows = npc.followingRule === 'follows_watson' || npc.followingRule === 'follows_bond';
         if (!canonicallyThere && !follows) {
           return `${npcId} is never canonically at ${locId} and does not follow anyone`;
@@ -263,15 +265,21 @@ section('NPCs');
   let placementOk = true;
   let scriptedOk = true;
   for (const [npcId, npc] of Object.entries(NPCS)) {
-    for (const [act, locId] of Object.entries(npc.canonicalLocationByAct)) {
-      if (!locationIds.has(locId)) {
-        fail(`npc ${npcId}: canonicalLocationByAct[${act}] "${locId}" does not resolve`);
+    for (const [act, sched] of Object.entries(npc.scheduleByAct)) {
+      if (!locationIds.has(sched.default)) {
+        fail(`npc ${npcId}: scheduleByAct[${act}].default "${sched.default}" does not resolve`);
         placementOk = false;
       }
+      for (const [period, locId] of Object.entries(sched.byPeriod ?? {})) {
+        if (!locationIds.has(locId as string)) {
+          fail(`npc ${npcId}: scheduleByAct[${act}].byPeriod.${period} "${locId}" does not resolve`);
+          placementOk = false;
+        }
+      }
     }
-    const coveredActs = Object.keys(npc.canonicalLocationByAct).map(Number);
+    const coveredActs = Object.keys(npc.scheduleByAct).map(Number);
     if (coveredActs.length === 0) {
-      warn(`npc ${npcId}: no canonicalLocationByAct entries at all`);
+      warn(`npc ${npcId}: no scheduleByAct entries at all`);
     } else {
       const missing = [1, 2, 3, 4, 5, 6].filter(a => !coveredActs.includes(a));
       if (missing.length > 0) {
@@ -362,6 +370,17 @@ section('Spoiler guard');
     }
   }
   if (factsOk) pass("no fact leaks the killer's name before Act VI");
+
+  // World events are unconditional narration broadcasts (no knownBy/act gating
+  // like facts) — the killer's name must never appear in one, full stop.
+  let worldEventsOk = true;
+  for (const ev of WORLD_EVENTS) {
+    if (/halward/i.test(ev.text)) {
+      fail(`world event "${ev.id}" names Halward`, `"${ev.text.slice(0, 80)}…" — world events broadcast unconditionally, this cannot be gated`);
+      worldEventsOk = false;
+    }
+  }
+  if (worldEventsOk) pass('no world event names the killer');
 
   // The "prasarved" misspelling is the smoking gun — a well-meaning typo fix
   // would break the mystery. Assert it survives in the story data.
@@ -458,6 +477,68 @@ if (clueIds.has(WHITECHAPEL_MANIFEST.smokingGunClueId)) {
   pass(`manifest: smokingGunClueId '${WHITECHAPEL_MANIFEST.smokingGunClueId}' is a real clue`);
 } else {
   fail(`manifest: smokingGunClueId '${WHITECHAPEL_MANIFEST.smokingGunClueId}' does not resolve`);
+}
+
+section('Location opening hours (Phase 4a)');
+for (const [locId, loc] of Object.entries(LOCATIONS)) {
+  if (!loc.openPeriods) continue;
+  if (loc.openPeriods.length === 0) fail(`location ${locId}: openPeriods is empty (always closed)`);
+  if (!loc.lockedNote?.text) fail(`location ${locId}: openPeriods set but no lockedNote`);
+  const kh = loc.lockedNote?.keyholderNpcId;
+  if (kh && !npcIds.has(kh)) fail(`location ${locId}: lockedNote.keyholderNpcId "${kh}" does not resolve`);
+  if (kh && npcIds.has(kh)) {
+    for (const act of Object.keys(NPCS[kh].scheduleByAct).map(Number)) {
+      for (const period of PERIOD_ORDER) {
+        if (loc.openPeriods.includes(period)) continue;
+        const whereId = npcLocationAt(NPCS, kh, act, period, {});
+        if (whereId === locId) {
+          warn(`location ${locId}: keyholder "${kh}" is scheduled at their own gated location during ${period} (act ${act}), a period NOT in openPeriods — self-referential locked-door note (engine suppresses it, but schedule data may want a byPeriod override)`);
+        }
+      }
+    }
+  }
+}
+pass('opening-hours integrity checked');
+
+section('World events (Phase 4a)');
+{
+  const seen = new Set<string>();
+  for (const ev of WORLD_EVENTS) {
+    if (seen.has(ev.id)) fail(`world event "${ev.id}": duplicate id`);
+    seen.add(ev.id);
+    if (!ACT_TIME_CONFIG[ev.act]) fail(`world event "${ev.id}": act ${ev.act} has no time config`);
+    if (ev.atClockMinutes < 0 || ev.atClockMinutes > 1439) fail(`world event "${ev.id}": atClockMinutes ${ev.atClockMinutes} out of range`);
+    if (!ev.text.trim()) fail(`world event "${ev.id}": empty text`);
+  }
+  pass(`${WORLD_EVENTS.length} world events structurally valid`);
+}
+
+section('Schedule guard rail: gate NPCs findable at act start (Phase 4a)');
+{
+  // Every NPC whose conversation gates an act must be at their schedule
+  // default during that act's canonical-start period — a player following a
+  // hint straight there always finds them. Followers are exempt (they are
+  // wherever Watson is).
+  let checked = 0;
+  for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
+    const act = Number(actStr);
+    const startPeriod = computeTimePeriod(ACT_TIME_CONFIG[act].canonicalMinutes);
+    for (const flag of cond.requireFlags) {
+      if (!flag.startsWith('talked_to_')) continue;
+      // Disambiguate npc id vs location id by prefix-matching known npc ids.
+      const npcId = [...npcIds].find(id => flag.startsWith(`talked_to_${id}_at_`));
+      if (!npcId) continue; // unreachable-flag check already covers this
+      const locId = flag.slice(`talked_to_${npcId}_at_`.length);
+      const npc = NPCS[npcId];
+      if (npc.followsNpcId && (npc.followsUntilAct === undefined || act <= npc.followsUntilAct)) continue;
+      const atStart = npcLocationAt(NPCS, npcId, act, startPeriod, {});
+      checked++;
+      if (atStart !== locId) {
+        fail(`gate NPC ${npcId} (act ${act}): scheduled at "${atStart}" during the act's start period (${startPeriod}), but the gate needs them at "${locId}"`);
+      }
+    }
+  }
+  pass(`${checked} act-gate NPC placements verified against schedules`);
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────

@@ -71,6 +71,11 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     interactables: ['autopsy_ledger', 'specimen_cabinet', 'bonds_desk', 'victim_folders'],
     locationExaminedFlag: 'examined_whitechapel_mortuary',
     timeOfDay: 'midday',
+    openPeriods: ['morning', 'afternoon'],
+    lockedNote: {
+      text: 'The mortuary door is bolted fast; a smudged card behind the glass gives the visiting hours as morning and afternoon.',
+      keyholderNpcId: 'phillips',
+    },
     extras: [
       'a mortuary porter scrubbing the stone floor by the door, methodical and unhurried',
       'a parish clerk waiting with papers to be signed, hat in his hands',
@@ -157,6 +162,11 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
     interactables: ['medical_reports', 'anatomical_texts', 'specimen_jars', 'edmund_forensic_note'],
     locationExaminedFlag: 'examined_bond_office',
     timeOfDay: 'midday',
+    openPeriods: ['morning', 'afternoon', 'evening'],
+    lockedNote: {
+      text: "The surgery is shut up for the night, curtains drawn behind the brass plate; whatever business remains will keep until morning.",
+      keyholderNpcId: 'bond',
+    },
     extras: [
       'a hospital messenger waiting for a signature, shifting from foot to foot',
       'a charwoman polishing the brass plate on the door, breathing on it between strokes',

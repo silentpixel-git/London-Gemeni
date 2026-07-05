@@ -1,7 +1,7 @@
 // Shared type definitions for all story manifests.
 // Each story's data files import from here.
 
-import type { HintTarget, HintVerb } from '../../types';
+import type { HintTarget, HintVerb, TimePeriod } from '../../types';
 
 export interface LocationDefinition {
   id: string;
@@ -28,6 +28,14 @@ export interface LocationDefinition {
   // One-shot authored micro-scenes. Each fires at most once per playthrough
   // (flag vignette_<locId>_<idx>), replacing the random blockquote seed.
   vignettes?: Array<{ text: string; act?: number }>;
+  // Opening hours (Phase 4a). Absent = always open. When set, arriving in a
+  // period not listed is blocked with the authored lockedNote; qa:validate
+  // requires lockedNote whenever openPeriods is set.
+  openPeriods?: TimePeriod[];
+  lockedNote?: {
+    text: string;             // authored locked-door beat, diegetic
+    keyholderNpcId?: string;  // whereabouts derived from their schedule, never hand-written
+  };
 }
 
 export interface NPCDefinition {
@@ -40,7 +48,14 @@ export interface NPCDefinition {
   followingRule: 'follows_watson' | 'follows_bond' | 'location_based' | 'fixed';
   followsNpcId?: string;       // For follows_watson/'follows_bond': the entity ID to shadow ('watson' = player)
   followsUntilAct?: number;    // After this act, the NPC stops following and reverts to its canonical location (e.g. Edmund committed in Act 6)
-  canonicalLocationByAct: Record<number, string>;  // Act number → location ID
+  // NPC placement — derived per turn from (act, timePeriod). `default` is the
+  // act's anchor spot (the old canonicalLocationByAct value); byPeriod entries
+  // move the NPC by time of day (e.g. evening at the pub). An act with NO
+  // entry means OFFSTAGE for that act (e.g. Tumblety after he flees).
+  scheduleByAct: Record<number, {
+    default: string;
+    byPeriod?: Partial<Record<TimePeriod, string>>;
+  }>;
   // NPC introduction system — hides identity until Watson learns their name
   alias?: string;                  // e.g. "Bond's assistant", "a police inspector"
   aliasDescription?: string;       // Brief sensory description shown before introduction
@@ -93,6 +108,19 @@ export interface StoryFact {
   knownBy: string[];      // NPC ids that can voice this fact
   visibleFromAct: number; // earliest act (0-6) this fact may surface; 0 = always
   relatedClues?: string[]; // clue ids this fact supports (validator-checked)
+}
+
+// ── World events (Phase 4a) ──────────────────────────────────────────────────
+// Authored broadcasts that land in the narration as blockquotes wherever
+// Watson is, once the clock passes their fire time. Narration-only — no
+// world effects. Delivered-once via flag `world_event_<id>`.
+export interface WorldEventDefinition {
+  id: string;              // unique, snake_case
+  act: number;             // only fires during this act
+  atClockMinutes: number;  // clock-of-day (0-1439), e.g. 840 = 2:00 PM. A value
+                           // EARLIER than the act's canonical start means the
+                           // NEXT day (e.g. dawn during the act-0 night vigil).
+  text: string;            // the beat itself — spoiler-guarded by qa:validate
 }
 
 export interface SuspectProfile {
@@ -264,6 +292,9 @@ export interface StoryManifest {
 
   // Fact graph (Phase 2a)
   facts: StoryFact[];
+
+  // World events (Phase 4a)
+  worldEvents: WorldEventDefinition[];
 
   // Story constants previously inlined in GameEngine. smokingGunClueId is
   // consumed by GameEngine today; convergenceFlag and playerNpcId are unused

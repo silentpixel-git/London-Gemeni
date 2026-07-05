@@ -12,7 +12,7 @@
 
 import { NPCState, EngineResult, NarrationContext, IntentType, TimePeriod } from '../types';
 import { ParsedIntent } from './intentParser';
-import type { StoryManifest, NPCDefinition, ClueDefinition } from './stories/types';
+import type { StoryManifest, NPCDefinition, ClueDefinition, ActTimeConfig } from './stories/types';
 import { WHITECHAPEL_MANIFEST } from './stories/whitechapel-1888/manifest';
 import { deriveKnowledgeEnvelope } from './stories/knowledge';
 
@@ -26,6 +26,88 @@ export function computeTimePeriod(totalMinutes: number): TimePeriod {
   if (m >= 1020 && m < 1200) return 'evening';
   if (m >= 1200 && m < 1380) return 'night';
   return 'lateNight'; // 1380–1439 and 0–299
+}
+
+// Chronological day order of the six periods — shared by WAIT boundary math,
+// "next open period" computations, and schedule iteration.
+export const PERIOD_ORDER: TimePeriod[] = ['dawn', 'morning', 'afternoon', 'evening', 'night', 'lateNight'];
+
+/**
+ * Minutes from a clock value to the NEXT TimePeriod boundary. A turn starting
+ * exactly on a boundary advances to the one after — never 0. lateNight wraps
+ * past midnight to dawn (05:00).
+ */
+export function minutesToNextPeriodBoundary(totalMinutes: number): number {
+  const BOUNDARIES = [300, 420, 720, 1020, 1200, 1380]; // computeTimePeriod's edges
+  const m = totalMinutes % 1440;
+  for (const b of BOUNDARIES) if (b > m) return b - m;
+  return (1440 - m) + 300; // past 23:00 → dawn next day
+}
+
+/** First open period at or after `from` (exclusive of `from`, wrapping the day). */
+export function nextOpenPeriod(openPeriods: TimePeriod[], from: TimePeriod): TimePeriod | null {
+  const start = PERIOD_ORDER.indexOf(from);
+  for (let i = 1; i <= PERIOD_ORDER.length; i++) {
+    const p = PERIOD_ORDER[(start + i) % PERIOD_ORDER.length];
+    if (openPeriods.includes(p)) return p;
+  }
+  return null;
+}
+
+/**
+ * The next period (cycling the day from `from`, exclusive) in which this
+ * NPC's schedule puts them at `locationId` — null if the schedule never
+ * brings them back here this act.
+ */
+export function returnsPeriodFor(
+  npc: NPCDefinition,
+  act: number,
+  locationId: string,
+  from: TimePeriod,
+): TimePeriod | null {
+  const sched = npc.scheduleByAct[act];
+  if (!sched) return null;
+  const start = PERIOD_ORDER.indexOf(from);
+  for (let i = 1; i <= PERIOD_ORDER.length; i++) {
+    const p = PERIOD_ORDER[(start + i) % PERIOD_ORDER.length];
+    if ((sched.byPeriod?.[p] ?? sched.default) === locationId) return p;
+  }
+  return null;
+}
+
+/** The TimePeriod at a given act + minutes elapsed since its canonical start. */
+export function timePeriodFor(
+  actTimeConfig: Record<number, ActTimeConfig>,
+  act: number,
+  elapsedMinutes: number,
+): TimePeriod {
+  const cfg = actTimeConfig[act] ?? actTimeConfig[1];
+  return computeTimePeriod(cfg.canonicalMinutes + elapsedMinutes);
+}
+
+/**
+ * Where an NPC is right now — the single source of truth for NPC placement.
+ * Active followers (follows_watson / follows_bond, until followsUntilAct)
+ * keep their stored currentLocation; everyone else derives from the schedule,
+ * so stored positions can never mask a time-of-day move. 'offstage' never
+ * matches a real location id.
+ */
+export function npcLocationAt(
+  npcs: Record<string, NPCDefinition>,
+  npcId: string,
+  act: number,
+  timePeriod: TimePeriod,
+  npcStates: Record<string, NPCState>,
+): string {
+  const npc = npcs[npcId];
+  if (!npc) return 'offstage';
+  const sched = npc.scheduleByAct[act];
+  const scheduled = sched ? (sched.byPeriod?.[timePeriod] ?? sched.default) : undefined;
+  const stored = npcStates[npcId]?.currentLocation;
+  const isActiveFollower =
+    !!npc.followsNpcId && (npc.followsUntilAct === undefined || act <= npc.followsUntilAct);
+  if (isActiveFollower) return stored ?? scheduled ?? 'offstage';
+  return scheduled ?? stored ?? 'offstage';
 }
 
 function formatTimeLabel(totalMinutes: number, dayOfWeek: string, displayDate: string): string {
@@ -74,12 +156,11 @@ export function getPresentNpcIds(
   locationId: string,
   npcStates: Record<string, NPCState>,
   currentAct: number,
+  timePeriod: TimePeriod,
 ): string[] {
-  return Object.keys(npcs).filter(npcId => {
-    const state = npcStates[npcId];
-    const npcLoc = state?.currentLocation ?? npcs[npcId]?.canonicalLocationByAct[currentAct];
-    return npcLoc === locationId && state?.status !== 'deceased';
-  });
+  return Object.keys(npcs).filter(npcId =>
+    npcLocationAt(npcs, npcId, currentAct, timePeriod, npcStates) === locationId &&
+    npcStates[npcId]?.status !== 'deceased');
 }
 
 // ============================================================
@@ -88,6 +169,11 @@ export function getPresentNpcIds(
 
 export class GameEngine {
   constructor(private readonly story: StoryManifest) {}
+
+  /** The current TimePeriod for this session's act + elapsed clock. */
+  private periodOf(session: SessionSnapshot, extraMinutes = 0): TimePeriod {
+    return timePeriodFor(this.story.actTimeConfig, session.currentAct, session.elapsedMinutes + extraMinutes);
+  }
 
   /**
    * Main entry point. Takes the player's parsed intent and current session
@@ -107,6 +193,7 @@ export class GameEngine {
       case 'inventory': result = this.resolveInventory(intent, session); break;
       case 'notebook':  result = this.resolveNotebook(intent, session); break;
       case 'deduce':    result = this.resolveDeduce(intent, session); break;
+      case 'wait':      result = this.resolveWait(intent, session); break;
       case 'help':      result = this.resolveHelp(intent, session); break;
       case 'query':              result = this.resolveQuery(intent, session); break;
       case 'unresolved_target':  result = this.resolveUnresolvedTarget(intent, session); break;
@@ -163,6 +250,7 @@ export class GameEngine {
     const ctxWithIntro = result.aiContext as NarrationContext & {
       _introductionFlagsUpdate?: Record<string, boolean>;
       _vignetteFlagsUpdate?: Record<string, boolean>;
+      _worldEventFlagsUpdate?: Record<string, boolean>;
     };
     if (ctxWithIntro._introductionFlagsUpdate) {
       result.introductionFlagsUpdate = ctxWithIntro._introductionFlagsUpdate;
@@ -172,6 +260,11 @@ export class GameEngine {
     if (ctxWithIntro._vignetteFlagsUpdate) {
       result.flagsUpdate = { ...result.flagsUpdate, ...ctxWithIntro._vignetteFlagsUpdate };
       delete ctxWithIntro._vignetteFlagsUpdate;
+    }
+    // World-event once-only flags ride the normal flags pipeline (persisted with the turn)
+    if (ctxWithIntro._worldEventFlagsUpdate) {
+      result.flagsUpdate = { ...result.flagsUpdate, ...ctxWithIntro._worldEventFlagsUpdate };
+      delete ctxWithIntro._worldEventFlagsUpdate;
     }
 
     return result;
@@ -237,6 +330,33 @@ export class GameEngine {
       );
     }
 
+    // Opening hours (Phase 4a) — arriving outside openPeriods is a locked
+    // door, never a dead end: the note says when it opens and where the
+    // keyholder is, and WAIT gets Watson in.
+    const period = this.periodOf(session);
+    if (targetLoc.openPeriods && !targetLoc.openPeriods.includes(period)) {
+      const reopens = nextOpenPeriod(targetLoc.openPeriods, period);
+      const keyholderId = targetLoc.lockedNote?.keyholderNpcId;
+      let keyholderNote = '';
+      if (keyholderId) {
+        const kh = this.story.npcs[keyholderId];
+        const introduced = !kh?.requiresIntroduction || session.introducedNpcs.includes(keyholderId);
+        const label = introduced ? (this.story.npcDisplayNames[keyholderId] ?? keyholderId) : (kh?.alias ?? 'the keeper');
+        const whereId = npcLocationAt(this.story.npcs, keyholderId, session.currentAct, period, session.npcStates);
+        const where = this.story.locations[whereId];
+        if (where && whereId !== targetId) keyholderNote = ` ${label} is presently at ${where.name}.`;
+      }
+      return this.blocked(
+        intent,
+        session,
+        targetLoc.lockedNote?.text ?? `${targetLoc.name} is closed at this hour.`,
+        `BLOCKED — ${targetLoc.name} is closed (it is ${period}). ${targetLoc.lockedNote?.text ?? ''}` +
+        (reopens ? ` It opens come ${reopens}.` : '') + keyholderNote +
+        ` Convey this diegetically (a bolted door, a card of visiting hours, a caretaker's word). ` +
+        `Watson is NOT stuck: make clear he may wait for it to open or turn his attention elsewhere. He does not enter.`
+      );
+    }
+
     // Success — move to new location
     const newNpcUpdates = this.computeNpcMovements(targetId, session);
     const actCheck = this.checkActProgression({ ...session, location: targetId }, session.flags);
@@ -294,17 +414,11 @@ export class GameEngine {
     if (!currentLoc.interactables.includes(targetId)) {
       // Check if it's an NPC — organic physical examination rather than talk redirect
       if (this.story.npcs[targetId]) {
-        const npcState = session.npcStates[targetId];
-        const npcLoc = npcState?.currentLocation ?? this.story.npcs[targetId]?.canonicalLocationByAct[session.currentAct];
+        const npcLoc = npcLocationAt(this.story.npcs, targetId, session.currentAct, this.periodOf(session), session.npcStates);
         const npcName = this.story.npcDisplayNames[targetId] || targetId;
 
         if (npcLoc !== session.location) {
-          return this.blocked(
-            intent,
-            session,
-            `${npcName} is not here at the moment.`,
-            `Watson attempted to examine ${npcName} but they are not at ${currentLoc.name}.`
-          );
+          return this.absentNpcBlocked(intent, session, targetId, 'examine');
         }
 
         // NPC is present — physical/sensory examination (not dialogue)
@@ -425,17 +539,10 @@ export class GameEngine {
     }
 
     // Check NPC is actually in this location
-    const npcState = session.npcStates[targetId];
-    const npcLoc = npcState?.currentLocation ?? this.story.npcs[targetId]?.canonicalLocationByAct[session.currentAct];
+    const npcLoc = npcLocationAt(this.story.npcs, targetId, session.currentAct, this.periodOf(session), session.npcStates);
 
     if (npcLoc !== session.location) {
-      const npcName = this.story.npcDisplayNames[targetId] || targetId;
-      return this.blocked(
-        intent,
-        session,
-        `${npcName} is not here at the moment.`,
-        `Watson attempted to speak with ${npcName} but they are not at ${currentLoc.name}.`
-      );
+      return this.absentNpcBlocked(intent, session, targetId, 'speak with');
     }
 
     const npcName = this.story.npcDisplayNames[targetId] || targetId;
@@ -678,15 +785,11 @@ export class GameEngine {
 
     // NPC must be present
     if (npcId) {
-      const npcState   = session.npcStates[npcId];
-      const npcLoc     = npcState?.currentLocation ?? this.story.npcs[npcId]?.canonicalLocationByAct[session.currentAct];
+      const npcLoc     = npcLocationAt(this.story.npcs, npcId, session.currentAct, this.periodOf(session), session.npcStates);
       const npcName    = this.story.npcDisplayNames[npcId] ?? npcId;
 
       if (npcLoc !== session.location) {
-        return this.blocked(intent, session,
-          `${npcName} is not here.`,
-          `SHOW blocked: ${npcId} not at ${session.location}.`
-        );
+        return this.absentNpcBlocked(intent, session, npcId, 'show something to');
       }
 
       // Look up authored SHOW interaction
@@ -730,11 +833,7 @@ export class GameEngine {
 
     // No NPC specified — if exactly one NPC is present, Watson naturally shows
     // it to them ("show the clipping" with only Holmes in the room).
-    const presentNpcIds = Object.keys(this.story.npcs).filter(id => {
-      const st = session.npcStates[id];
-      const loc = st?.currentLocation ?? this.story.npcs[id]?.canonicalLocationByAct[session.currentAct];
-      return loc === session.location && st?.status !== 'deceased';
-    });
+    const presentNpcIds = getPresentNpcIds(this.story.npcs, session.location, session.npcStates, session.currentAct, this.periodOf(session));
     if (presentNpcIds.length === 1) {
       return this.resolveShow({ ...intent, showTargetNpcId: presentNpcIds[0] }, session);
     }
@@ -1036,6 +1135,36 @@ export class GameEngine {
   }
 
   // --------------------------------------------------------
+  // WAIT (Phase 4a: advances the clock to the next time period)
+  // --------------------------------------------------------
+
+  private resolveWait(intent: ParsedIntent, session: SessionSnapshot): EngineResult {
+    const cfg = this.story.actTimeConfig[session.currentAct] ?? this.story.actTimeConfig[1];
+    const total = cfg.canonicalMinutes + session.elapsedMinutes;
+    const from = computeTimePeriod(total);
+    const minutesAdvanced = minutesToNextPeriodBoundary(total);
+    const to = computeTimePeriod(total + minutesAdvanced);
+    const hours = Math.round((minutesAdvanced / 60) * 10) / 10;
+
+    return {
+      actionSuccess: true,
+      actionType: 'wait',
+      minutesAdvanced,
+      discoveredClueIds: [],
+      aiContext: this.buildContext(intent, session, {
+        success: true,
+        actionDescription: `Watson deliberately waited at ${this.story.locations[session.location].name} as ${from} gave way to ${to}.`,
+        actionResultNote:
+          `SUCCESS — TIME PASSES. Watson chose to wait; roughly ${hours} hour(s) pass and ${from} becomes ${to}. ` +
+          `Narrate the passage of time as ONE compressed beat (light changing, street sounds shifting, Watson's thoughts turning over the case) — ` +
+          `not a minute-by-minute account. Do not invent events, arrivals, or discoveries beyond any listed above.`,
+        newClueDefs: [],
+        extraMinutes: minutesAdvanced,
+      }),
+    };
+  }
+
+  // --------------------------------------------------------
   // HELP
   // --------------------------------------------------------
 
@@ -1186,6 +1315,7 @@ export class GameEngine {
       newNpcUpdates?: Record<string, Partial<NPCState>>;
       isDeduction?: boolean;
       deductionCorrect?: boolean;
+      extraMinutes?: number;
     }
   ): NarrationContext {
     // Use destination location for move actions, otherwise current
@@ -1200,7 +1330,7 @@ export class GameEngine {
       }
     }
 
-    const presentNPCEntries = getPresentNpcIds(this.story.npcs, locationId, resolvedNpcStates, session.currentAct)
+    const presentNPCEntries = getPresentNpcIds(this.story.npcs, locationId, resolvedNpcStates, session.currentAct, this.periodOf(session, outcome.extraMinutes ?? 0))
       .map(npcId => [npcId, this.story.npcs[npcId]] as const);
 
     // Build alias-aware NPC list for NarrationContext
@@ -1372,7 +1502,7 @@ export class GameEngine {
     // Compute current in-game time — anchored to the act's canonical start,
     // advanced by the minutes elapsed this act (tracked in the hook).
     const actTimeCfg   = this.story.actTimeConfig[act] ?? this.story.actTimeConfig[1];
-    const totalMinutes = actTimeCfg.canonicalMinutes + session.elapsedMinutes;
+    const totalMinutes = actTimeCfg.canonicalMinutes + session.elapsedMinutes + (outcome.extraMinutes ?? 0);
     const timePeriod   = computeTimePeriod(totalMinutes);
     const timeLabel    = formatTimeLabel(totalMinutes, actTimeCfg.dayOfWeek, actTimeCfg.displayDate);
 
@@ -1380,7 +1510,7 @@ export class GameEngine {
 
     // Intra-act weather drift — the act's weather may shift late in the act
     const baseWeather = this.story.actWeather[act] ?? this.story.actWeather[1];
-    const weather = baseWeather.lateShift && session.elapsedMinutes >= baseWeather.lateShift.afterMinutes
+    const weather = baseWeather.lateShift && session.elapsedMinutes + (outcome.extraMinutes ?? 0) >= baseWeather.lateShift.afterMinutes
       ? { condition: baseWeather.lateShift.condition, label: baseWeather.lateShift.label }
       : { condition: baseWeather.condition, label: baseWeather.label };
 
@@ -1402,6 +1532,20 @@ export class GameEngine {
       ? loc.extras[(locationVisitCount - 1) % loc.extras.length]
       : undefined;
 
+    // World events (Phase 4a) — authored broadcasts whose fire time the clock
+    // has passed this act. atClockMinutes earlier than the act's start means
+    // the next day (the vigil's midnight, the following dawn). Delivered
+    // once via world_event_* flags, lifted onto flagsUpdate in resolve().
+    const worldEventFlagsUpdate: Record<string, boolean> = {};
+    const clockNow = totalMinutes; // already includes extraMinutes (WAIT spans deliver what they cross)
+    const firedEvents = this.story.worldEvents
+      .filter(e => e.act === act && !session.flags[`world_event_${e.id}`])
+      .map(e => ({ e, fireAt: e.atClockMinutes >= actTimeCfg.canonicalMinutes ? e.atClockMinutes : e.atClockMinutes + 1440 }))
+      .filter(({ fireAt }) => clockNow >= fireAt)
+      .sort((a, b) => a.fireAt - b.fireAt);
+    for (const { e } of firedEvents) worldEventFlagsUpdate[`world_event_${e.id}`] = true;
+    const worldEvents = firedEvents.length > 0 ? firedEvents.map(({ e }) => e.text) : undefined;
+
     return {
       locationName: loc.name,
       locationAtmosphere: loc.atmosphere,
@@ -1415,6 +1559,7 @@ export class GameEngine {
       timePeriod,
       weather,
       vignette,
+      worldEvents,
       ambientExtra,
       npcsPresent,
       availableObjects,
@@ -1448,9 +1593,14 @@ export class GameEngine {
       _vignetteFlagsUpdate: Object.keys(vignetteFlagsUpdate).length > 0
         ? vignetteFlagsUpdate
         : undefined,
+      // World-event once-only flags — lifted onto result.flagsUpdate in resolve()
+      _worldEventFlagsUpdate: Object.keys(worldEventFlagsUpdate).length > 0
+        ? worldEventFlagsUpdate
+        : undefined,
     } as NarrationContext & {
       _introductionFlagsUpdate?: Record<string, boolean>;
       _vignetteFlagsUpdate?: Record<string, boolean>;
+      _worldEventFlagsUpdate?: Record<string, boolean>;
     };
   }
 
@@ -1483,6 +1633,40 @@ export class GameEngine {
   }
 
   /**
+   * Blocked result for addressing an NPC who is scheduled elsewhere right now.
+   * Diegetic redirect — never a dead end: the note carries where they are and
+   * when the schedule brings them back, alias-masked until introduced.
+   */
+  private absentNpcBlocked(
+    intent: ParsedIntent,
+    session: SessionSnapshot,
+    npcId: string,
+    attemptedVerb: string,
+  ): EngineResult {
+    const npc = this.story.npcs[npcId];
+    const period = this.periodOf(session);
+    const introduced = !npc.requiresIntroduction || session.introducedNpcs.includes(npcId);
+    const label = introduced
+      ? npc.displayName
+      : (npc.alias ?? this.story.npcAliases[npcId] ?? npc.displayName);
+    const whereId = npcLocationAt(this.story.npcs, npcId, session.currentAct, period, session.npcStates);
+    const where = this.story.locations[whereId];
+    const returns = returnsPeriodFor(npc, session.currentAct, session.location, period);
+    const currentLocName = this.story.locations[session.location].name;
+
+    return this.blocked(
+      intent,
+      session,
+      `${label} is not here at the moment.`,
+      `ABSENT PERSON — Watson tried to ${attemptedVerb} ${label}, but they are not at ${currentLocName} right now. ` +
+      (where ? `They are presently at ${where.name}. ` : `They are nowhere to be found in Whitechapel at present. `) +
+      (returns ? `They are expected back here come ${returns}. ` : '') +
+      `Convey this diegetically (an attendant's word, a note on a door, the empty room itself) in 1–2 sentences. ` +
+      `Watson is NOT stuck: he may follow them there, wait, or turn to something else. Do not invent dialogue with the absent person.`
+    );
+  }
+
+  /**
    * Compute the state Watson enters a new act with: the anchor location and the
    * NPC movements for that act. Used both by resolve() on a live act-advance and
    * by the UI when committing a deferred act transition (e.g. after reload).
@@ -1501,13 +1685,14 @@ export class GameEngine {
    * Behaviour is driven entirely by NPCDefinition fields:
    *   followsNpcId === 'watson'  → shadow the player destination
    *   followsNpcId === <npcId>   → shadow that NPC's resolved location
-   *   location_based / fixed     → snap to canonicalLocationByAct
+   *   location_based / fixed     → snap to the schedule for the current act + period
    */
   private computeNpcMovements(
     newLocationId: string,
     session: SessionSnapshot
   ): Record<string, Partial<NPCState>> {
     const updates: Record<string, Partial<NPCState>> = {};
+    const period = this.periodOf(session);
 
     // First pass: location-based and fixed NPCs (establish canonical positions).
     // An NPC with NO canonical entry for the current act is OFFSTAGE — e.g.
@@ -1515,7 +1700,7 @@ export class GameEngine {
     // a real location id, so the NPC simply does not appear anywhere.
     for (const [npcId, npc] of Object.entries(this.story.npcs)) {
       if (npc.followingRule === 'location_based' || npc.followingRule === 'fixed') {
-        const canonical = npc.canonicalLocationByAct[session.currentAct] ?? 'offstage';
+        const canonical = npc.scheduleByAct[session.currentAct] ? (npc.scheduleByAct[session.currentAct].byPeriod?.[period] ?? npc.scheduleByAct[session.currentAct].default) : 'offstage';
         if (canonical !== session.npcStates[npcId]?.currentLocation) {
           updates[npcId] = { currentLocation: canonical };
         }
@@ -1529,7 +1714,7 @@ export class GameEngine {
       // Once an NPC stops following (e.g. Edmund committed in Act 6), it
       // reverts to its canonical location for the current act.
       if (npc.followsUntilAct !== undefined && session.currentAct > npc.followsUntilAct) {
-        const canonical = npc.canonicalLocationByAct[session.currentAct];
+        const canonical = npc.scheduleByAct[session.currentAct]?.byPeriod?.[period] ?? npc.scheduleByAct[session.currentAct]?.default;
         if (canonical && canonical !== session.npcStates[npcId]?.currentLocation) {
           updates[npcId] = { currentLocation: canonical };
         }
@@ -1544,7 +1729,7 @@ export class GameEngine {
         destination =
           (updates[npc.followsNpcId]?.currentLocation as string | undefined) ??
           session.npcStates[npc.followsNpcId]?.currentLocation ??
-          this.story.npcs[npc.followsNpcId]?.canonicalLocationByAct[session.currentAct];
+          this.story.npcs[npc.followsNpcId]?.scheduleByAct[session.currentAct]?.default;
       }
 
       if (destination && destination !== session.npcStates[npcId]?.currentLocation) {

@@ -157,7 +157,7 @@ export interface GameResponse {
 // ============================================================
 
 /** The type of action the player is attempting */
-export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'show' | 'read' | 'drop' | 'inventory' | 'deduce' | 'help' | 'query' | 'notebook' | 'other' | 'unresolved_target';
+export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'show' | 'read' | 'drop' | 'inventory' | 'deduce' | 'wait' | 'help' | 'query' | 'notebook' | 'other' | 'unresolved_target';
 
 // Phase 3 — candidate lists for the constrained tool-calling parse fallback.
 // Built client-side (spoiler-safe: unintroduced NPCs are alias-masked) and
@@ -192,6 +192,10 @@ export interface EngineResult {
   medicalPointsDelta?: number;
   moralPointsDelta?: number;
   discoveredClueIds?: string[];
+  // Minutes this action consumed when it isn't the fixed per-verb cost —
+  // set by WAIT (time to the next period boundary). The hook prefers this
+  // over its ACTION_TIME_MINUTES table.
+  minutesAdvanced?: number;
   newAct?: number;
   gameOver?: boolean;
   // Which ending fired (set by the engine whenever gameOver is true):
@@ -278,6 +282,9 @@ export interface NarrationContext {
   ambientExtra?: string;
   // One-shot authored vignette — replaces the random blockquote seed this turn
   vignette?: string;
+  // World-event broadcasts fired this turn (verified, authored) — each rendered
+  // as its own blockquote wherever Watson stands
+  worldEvents?: string[];
   // Recent NPC memory for present NPCs (max 2 entries each)
   npcRecentMemory?: Record<string, string[]>;
   // Session observations (STIM) — injected by useGameState before AI call

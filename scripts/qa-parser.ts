@@ -21,7 +21,7 @@
 
 import { parseIntent } from '../engine/intentParser';
 import { LOCATIONS, OBJECT_DISPLAY_NAMES, NPCS } from '../engine/gameData';
-import { getPresentNpcIds } from '../engine/GameEngine';
+import { getPresentNpcIds, timePeriodFor } from '../engine/GameEngine';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { CLUE_TRIGGERS } from '../engine/stories/whitechapel-1888/clues';
 import { toolCallToIntent } from '../server/parseAction.js';
@@ -212,7 +212,7 @@ const npcIsTier1 = (fx: NpcFixture, category: Category) =>
 // Present people at a scene, as alias-aware AI candidates (mirrors the hook so an
 // unintroduced NPC's real name never enters the prompt). Nobody introduced yet.
 function npcCandidatesFor(scene: { location: string; act: number }): Array<{ id: string; name: string }> {
-  return getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, scene.location, {}, scene.act).map(id => {
+  return getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, scene.location, {}, scene.act, timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, scene.act, 0)).map(id => {
     const npc = NPCS[id];
     const introduced = !npc.requiresIntroduction;
     const name = introduced
@@ -265,11 +265,19 @@ function runFastPathGuard(): void {
     failures++;
   }
 
+  // 3b. WAIT is a free offline verb — it must parse deterministically and
+  //     never route to the AI parse.
+  const w = parseIntent('wait');
+  if (w.type !== 'wait' || needsAiParse(w, 'baker_street', [])) {
+    console.error('  [FAIL] wait did not stay on the offline fast path');
+    failures++;
+  }
+
   // 4. Spoiler mask: across every location and act, an unintroduced NPC's real
   //    name must never appear in the people candidates.
   for (const locId of Object.keys(LOCATIONS)) {
     for (let act = 0; act <= 6; act++) {
-      const c = buildParseCandidates(locId, [], {}, act, []);
+      const c = buildParseCandidates(locId, [], {}, act, [], 0);
       for (const person of c.people) {
         const npc = NPCS[person.id];
         if (npc?.requiresIntroduction && person.name.includes(npc.displayName)) {
@@ -333,6 +341,8 @@ function runToolCallValidationChecks(): void {
   check('no_action(question) → query intent', r.intent?.type === 'query' && !r.invalidArgs);
   r = toolCallToIntent('no_action', { reason: 'atmospheric' }, C, 'the fog is thick');
   check('no_action(atmospheric) → null, NOT invalid', r.intent === null && !r.invalidArgs);
+  r = toolCallToIntent('wait', {}, C, 'let us bide here until evening');
+  check('wait → wait intent', r.intent?.type === 'wait' && !r.invalidArgs);
   r = toolCallToIntent('deduce', {}, C, 'i believe it was the assistant');
   check('deduce → deduce intent carrying the raw text',
     r.intent?.type === 'deduce' && r.intent.deductionText === 'i believe it was the assistant');
@@ -356,6 +366,7 @@ interface IntentFixture {
     | { type: 'move' | 'examine' | 'talk' | 'take' | 'read' | 'drop'; targetId: string }
     | { type: 'show'; targetId: string; showTargetNpcId: string }
     | { type: 'deduce' }
+    | { type: 'wait' }
     | { type: 'query' }
     | { type: 'none' }; // AI must decline to act (no_action → null intent)
 }
@@ -386,7 +397,7 @@ const INTENT_FIXTURES: IntentFixture[] = [
   { scene: { location: 'baker_street', act: 1 }, input: 'read whatever the papers have printed about the murders',
     expect: { type: 'read', targetId: 'newspaper_pile' } },
   // show — offline ("present … to …" verb form) and via AI
-  // Holmes only canonically stands at Baker Street in Act 0 (canonicalLocationByAct);
+  // Holmes only canonically stands at Baker Street in Act 0 (scheduleByAct);
   // Act 3/5 place him elsewhere, which would drop him from the AI candidate list.
   // Reworded from the original "present my notes on the kidney to holmes" / "let
   // holmes see what lusk received in the post" — "notes" is a NOTEBOOK_VERBS
@@ -398,6 +409,11 @@ const INTENT_FIXTURES: IntentFixture[] = [
   { scene: { location: 'baker_street', act: 0, inventory: ['Kidney Examination Notes'] },
     input: 'give my grim little find to holmes',
     expect: { type: 'show', targetId: 'kidney_parcel', showTargetNpcId: 'holmes' } },
+  // wait — offline (bare verb) and via AI (paraphrase the regex can't catch)
+  { scene: { location: 'whitechapel_mortuary', act: 2 }, input: 'wait',
+    expect: { type: 'wait' } },
+  { scene: { location: 'whitechapel_mortuary', act: 2 }, input: 'i think we should tarry here a moment longer',
+    expect: { type: 'wait' } },
   // drop via AI
   { scene: { location: 'dorset_street', act: 1, inventory: ['Newspaper Clipping (the "Dear Boss" letter)'] },
     input: 'rid myself of that wretched cutting',
@@ -420,6 +436,7 @@ function intentMatches(got: ParsedIntentResult, exp: IntentFixture['expect']): b
   if (!got) return false;
   if (exp.type === 'query') return got.type === 'query';
   if (exp.type === 'deduce') return got.type === 'deduce';
+  if (exp.type === 'wait') return got.type === 'wait';
   if (got.type !== exp.type) return false;
   if (got.targetId !== exp.targetId) return false;
   if (exp.type === 'show' && got.showTargetNpcId !== exp.showTargetNpcId) return false;
@@ -453,7 +470,7 @@ async function runIntentFixtures(): Promise<void> {
     const { aiService } = await import('../server/aiCore');
     for (const fx of aiCases) {
       const inv = fx.scene.inventory ?? [];
-      const candidates = buildParseCandidates(fx.scene.location, inv, {}, fx.scene.act, []);
+      const candidates = buildParseCandidates(fx.scene.location, inv, {}, fx.scene.act, [], 0);
       const res = await aiService.parseAction(fx.input, candidates);
       if (res.invalidArgs) enumFailures++;
       tcTotal++;
