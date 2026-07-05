@@ -119,6 +119,11 @@ export function buildParseTools(c: ParseCandidates): FunctionDeclaration[] {
     });
   }
   decls.push({
+    name: 'wait',
+    description: 'Wait, linger, or pass the time until things change (the next part of the day).',
+    parameters: { type: Type.OBJECT, properties: {} },
+  });
+  decls.push({
     name: 'deduce',
     description: "State a theory or accusation about the killer's identity.",
     parameters: { type: Type.OBJECT, properties: {} },
@@ -219,6 +224,8 @@ export function toolCallToIntent(
       const i = pick(c.carried, args.item);
       return i ? ok({ type: 'drop', targetId: i, ...base }) : invalid;
     }
+    case 'wait':
+      return ok({ type: 'wait', raw: rawInput });
     case 'deduce':
       return ok({ type: 'deduce', deductionText: rawInput, raw: rawInput });
     case 'no_action':
