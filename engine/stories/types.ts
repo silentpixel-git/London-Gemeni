@@ -123,6 +123,23 @@ export interface WorldEventDefinition {
   text: string;            // the beat itself — spoiler-guarded by qa:validate
 }
 
+// ── Rumor propagation (Phase 4b) ─────────────────────────────────────────────
+// Fully-authored knowledge spread: when triggerFlag first fires, each spread
+// entry's statement enters that NPC's knowledge envelope after delayPeriods
+// TimePeriod boundaries (0 = same period; any act transition matures all).
+// Every hop is authored — recipient, delay, and hearsay wording — so the
+// spoiler surface stays a static list (see the 2a dedupe finding: shared
+// statement text across NPC voices does not work in this story).
+export interface RumorDefinition {
+  id: string;                 // unique, snake_case; key in the session rumor-event log
+  triggerFlag: string;        // engine-set flag, e.g. 'showed_from_hell_letter_to_bond'
+  spread: Array<{
+    npcId: string;            // recipient
+    delayPeriods: number;     // TimePeriod boundaries after the trigger (integer 0–8)
+    statement: string;        // hearsay-worded line, authored per recipient
+  }>;
+}
+
 export interface SuspectProfile {
   npcId: string;
   aliases: string[];           // lowercase name variants the player might type
@@ -295,6 +312,9 @@ export interface StoryManifest {
 
   // World events (Phase 4a)
   worldEvents: WorldEventDefinition[];
+
+  // Rumor propagation (Phase 4b)
+  rumors: RumorDefinition[];
 
   // Story constants previously inlined in GameEngine. smokingGunClueId is
   // consumed by GameEngine today; convergenceFlag and playerNpcId are unused

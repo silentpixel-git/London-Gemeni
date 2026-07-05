@@ -34,6 +34,7 @@ import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
 import { DECISION_BY_FLAG } from '../engine/stories/whitechapel-1888/diaryDecisions';
 import { INITIAL_INVENTORY } from '../constants';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
+import { RUMORS } from '../engine/stories/whitechapel-1888/rumors';
 
 // ── Logging helpers (same conventions as qa-engine.ts) ──────────────────────
 
@@ -539,6 +540,52 @@ section('Schedule guard rail: gate NPCs findable at act start (Phase 4a)');
     }
   }
   pass(`${checked} act-gate NPC placements verified against schedules`);
+}
+
+// ── Rumors (Phase 4b) ────────────────────────────────────────────────────────
+
+section('Rumors (Phase 4b)');
+{
+  // The corpus of trigger flags the engine can actually set. A typo'd trigger
+  // silently kills the rumor forever, so unknown patterns are a hard FAIL.
+  const settableFlags = new Set<string>();
+  for (const [objId, byNpc] of Object.entries(SHOW_INTERACTIONS)) {
+    for (const npcId of Object.keys(byNpc)) settableFlags.add(`showed_${objId}_to_${npcId}`);
+  }
+  for (const cond of Object.values(ACT_PROGRESSION)) {
+    for (const f of cond.requireFlags) settableFlags.add(f);
+  }
+  const talkFlagRe = /^talked_to_([a-z_]+?)_at_([a-z_]+)$/;
+
+  const failsBefore = fails;
+  const seenIds = new Set<string>();
+  for (const r of RUMORS) {
+    if (seenIds.has(r.id)) fail(`rumor id "${r.id}" is duplicated`);
+    seenIds.add(r.id);
+
+    // Trigger must be a flag the engine can set.
+    const talkMatch = r.triggerFlag.match(talkFlagRe);
+    const talkOk = talkMatch && npcIds.has(talkMatch[1]) && locationIds.has(talkMatch[2]);
+    if (!settableFlags.has(r.triggerFlag) && !talkOk) {
+      fail(`rumor "${r.id}" trigger "${r.triggerFlag}" matches no settable flag`,
+        'must be a showed_<objectId>_to_<npcId> pair from SHOW_INTERACTIONS, an ACT_PROGRESSION requireFlag, or talked_to_<npcId>_at_<locationId> with both ids resolving');
+    }
+
+    if (r.spread.length === 0) fail(`rumor "${r.id}" has an empty spread list`);
+    for (const s of r.spread) {
+      if (!npcIds.has(s.npcId)) fail(`rumor "${r.id}" spreads to unknown NPC "${s.npcId}"`);
+      if (!Number.isInteger(s.delayPeriods) || s.delayPeriods < 0 || s.delayPeriods > 8) {
+        fail(`rumor "${r.id}" → ${s.npcId} has delayPeriods ${s.delayPeriods}`, 'must be an integer 0–8');
+      }
+      if (/halward/i.test(s.statement)) {
+        fail(`rumor "${r.id}" → ${s.npcId} statement names Halward`, 'rumor statements enter envelopes unconditionally once matured — the killer\'s name can never ride one');
+      }
+      if (/prasarved/i.test(s.statement)) {
+        fail(`rumor "${r.id}" → ${s.npcId} statement contains "prasarved"`, 'the smoking-gun detail must never spread as hearsay');
+      }
+    }
+  }
+  if (fails === failsBefore) pass(`${RUMORS.length} rumors: ids unique, triggers settable, recipients resolve, statements spoiler-clean`);
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────
