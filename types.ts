@@ -313,6 +313,10 @@ export interface NarrationContext {
     speakingStyle: string;
     personality: string[];
     knowledgeEnvelope: string[]; // derived from the story fact graph — AI hard ceiling
+    // Phase 4b — hearsay that reached this NPC since Watson last spoke to
+    // them (one-shot: acked via rumor_ack_* flags). The AI has them raise it
+    // unprompted, in character.
+    recentlyHeard?: string[];
     playerQuestion: string;      // intent.raw
   };
   // Proactive hint woven into the turn when the player is stuck — chosen by the

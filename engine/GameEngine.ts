@@ -301,6 +301,7 @@ export class GameEngine {
       _introductionFlagsUpdate?: Record<string, boolean>;
       _vignetteFlagsUpdate?: Record<string, boolean>;
       _worldEventFlagsUpdate?: Record<string, boolean>;
+      _rumorAckFlagsUpdate?: Record<string, boolean>;
     };
     if (ctxWithIntro._introductionFlagsUpdate) {
       result.introductionFlagsUpdate = ctxWithIntro._introductionFlagsUpdate;
@@ -315,6 +316,11 @@ export class GameEngine {
     if (ctxWithIntro._worldEventFlagsUpdate) {
       result.flagsUpdate = { ...result.flagsUpdate, ...ctxWithIntro._worldEventFlagsUpdate };
       delete ctxWithIntro._worldEventFlagsUpdate;
+    }
+    // Rumor-ack once-only flags ride the normal flags pipeline (persisted with the turn)
+    if (ctxWithIntro._rumorAckFlagsUpdate) {
+      result.flagsUpdate = { ...result.flagsUpdate, ...ctxWithIntro._rumorAckFlagsUpdate };
+      delete ctxWithIntro._rumorAckFlagsUpdate;
     }
 
     // Rumor trigger recording (Phase 4b): the first turn a rumor's trigger
@@ -1502,8 +1508,15 @@ export class GameEngine {
         ? 'world_event'
         : Math.random() < 0.3 ? 'inner_thought' : 'none';
 
+    // Compute current in-game time — anchored to the act's canonical start,
+    // advanced by the minutes elapsed this act (tracked in the hook).
+    const act = session.currentAct;
+    const actTimeCfg   = this.story.actTimeConfig[act] ?? this.story.actTimeConfig[1];
+    const totalMinutes = actTimeCfg.canonicalMinutes + session.elapsedMinutes + (outcome.extraMinutes ?? 0);
+
     // Dynamic Witness Interrogation — include NPC knowledge envelope for talk actions
     let targetNpcInterview: NarrationContext['targetNpcInterview'] | undefined;
+    const rumorAckFlagsUpdate: Record<string, boolean> = {};
     if (outcome.targetNpcId && this.story.npcs[outcome.targetNpcId]) {
       const npc = this.story.npcs[outcome.targetNpcId];
       const isIntroduced = !npc.requiresIntroduction ||
@@ -1518,6 +1531,23 @@ export class GameEngine {
       const label = isIntroduced
         ? npc.displayName
         : (npc.alias ?? this.story.npcAliases[outcome.targetNpcId] ?? npc.displayName);
+
+      // Phase 4b — matured hearsay for this NPC, prepended to the envelope.
+      // The nudge (recentlyHeard + ack flag) fires only on a successful TALK.
+      const matured = maturedSpreadsFor(
+        this.story.rumors, session.rumorEvents, outcome.targetNpcId, act, totalMinutes);
+      let recentlyHeard: string[] | undefined;
+      if (intent.type === 'talk' && outcome.success) {
+        const unacked = matured.filter(
+          m => !session.flags[`rumor_ack_${m.rumorId}_${outcome.targetNpcId}`]);
+        if (unacked.length > 0) {
+          recentlyHeard = unacked.map(m => m.statement);
+          for (const m of unacked) {
+            rumorAckFlagsUpdate[`rumor_ack_${m.rumorId}_${outcome.targetNpcId}`] = true;
+          }
+        }
+      }
+
       targetNpcInterview = {
         npcId: outcome.targetNpcId,
         label,
@@ -1527,7 +1557,11 @@ export class GameEngine {
         role: npc.role,
         speakingStyle: npc.speakingStyle,
         personality: npc.personality,
-        knowledgeEnvelope: deriveKnowledgeEnvelope(this.story.facts, outcome.targetNpcId, session.currentAct),
+        knowledgeEnvelope: [
+          ...matured.map(m => m.statement),
+          ...deriveKnowledgeEnvelope(this.story.facts, outcome.targetNpcId, session.currentAct),
+        ],
+        recentlyHeard,
         playerQuestion: intent.raw,
       };
     }
@@ -1564,12 +1598,6 @@ export class GameEngine {
       }
     }
 
-    const act = session.currentAct;
-
-    // Compute current in-game time — anchored to the act's canonical start,
-    // advanced by the minutes elapsed this act (tracked in the hook).
-    const actTimeCfg   = this.story.actTimeConfig[act] ?? this.story.actTimeConfig[1];
-    const totalMinutes = actTimeCfg.canonicalMinutes + session.elapsedMinutes + (outcome.extraMinutes ?? 0);
     const timePeriod   = computeTimePeriod(totalMinutes);
     const timeLabel    = formatTimeLabel(totalMinutes, actTimeCfg.dayOfWeek, actTimeCfg.displayDate);
 
@@ -1664,10 +1692,15 @@ export class GameEngine {
       _worldEventFlagsUpdate: Object.keys(worldEventFlagsUpdate).length > 0
         ? worldEventFlagsUpdate
         : undefined,
+      // Rumor-ack once-only flags — lifted onto result.flagsUpdate in resolve()
+      _rumorAckFlagsUpdate: Object.keys(rumorAckFlagsUpdate).length > 0
+        ? rumorAckFlagsUpdate
+        : undefined,
     } as NarrationContext & {
       _introductionFlagsUpdate?: Record<string, boolean>;
       _vignetteFlagsUpdate?: Record<string, boolean>;
       _worldEventFlagsUpdate?: Record<string, boolean>;
+      _rumorAckFlagsUpdate?: Record<string, boolean>;
     };
   }
 

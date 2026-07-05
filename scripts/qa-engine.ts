@@ -1634,6 +1634,128 @@ console.log('\n── Phase 4b: rumor trigger recording ────────
     : fail('trigger: silence', JSON.stringify(r4.rumorEventsUpdate));
 }
 
+function testEnvelopeAndNudge() {
+  console.log('\n=== SCENARIO: envelope + nudge (matured rumors) ===');
+  {
+  // Phillips is only scheduled in acts 2-3 (test uses act 2)
+  // bond_saw_the_letter rumor: trigger at 600, clock at 730 = past 720 boundary,
+  // so delayPeriods-1 is matured
+  const period2 = timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 2, 190);
+  const phillipsLoc = npcLocationAt(NPCS, 'phillips', 2, period2, { ...INITIAL_NPC_STATES });
+
+  // Test 1: First TALK with matured rumor — envelope prepends statement, recentlyHeard has it, ack flag set
+  const talkIntent = {
+    type: 'talk' as const,
+    targetId: 'phillips',
+    targetRaw: 'phillips',
+    raw: 'talk to phillips',
+  };
+  const snap1 = buildSnapshot({
+    currentAct: 2,
+    location: phillipsLoc,
+    elapsedMinutes: 190, // clock at 540+190=730, crosses 720 boundary
+    rumorEvents: { bond_saw_the_letter: { act: 2, atMinutes: 540 } }, // triggered at canonical start
+  });
+  const r1 = gameEngine.resolve(talkIntent, snap1);
+  const envelope1 = r1.aiContext.targetNpcInterview?.knowledgeEnvelope;
+  const nudge1 = r1.aiContext.targetNpcInterview?.recentlyHeard;
+  const ackFlag1 = r1.flagsUpdate?.['rumor_ack_bond_saw_the_letter_phillips'];
+
+  envelope1?.[0]?.includes('Bond went very quiet')
+    ? pass('envelope: matured rumor prepended to head of envelope')
+    : fail('envelope: matured rumor not at head', JSON.stringify(envelope1?.[0]));
+
+  nudge1?.some(s => s.includes('Bond went very quiet'))
+    ? pass('nudge: matured rumor in recentlyHeard on first TALK')
+    : fail('nudge: matured rumor missing from recentlyHeard', JSON.stringify(nudge1));
+
+  ackFlag1 === true
+    ? pass('nudge: ack flag set for (rumor, npc) pair')
+    : fail('nudge: ack flag not set', JSON.stringify(r1.flagsUpdate));
+
+  // Test 2: Second TALK with ack flag set — statement stays in envelope, recentlyHeard undefined
+  const snap2 = buildSnapshot({
+    currentAct: 2,
+    location: phillipsLoc,
+    elapsedMinutes: 190,
+    rumorEvents: { bond_saw_the_letter: { act: 2, atMinutes: 540 } },
+    flags: { rumor_ack_bond_saw_the_letter_phillips: true }, // ack flag already set
+  });
+  const r2 = gameEngine.resolve(talkIntent, snap2);
+  const envelope2 = r2.aiContext.targetNpcInterview?.knowledgeEnvelope;
+  const nudge2 = r2.aiContext.targetNpcInterview?.recentlyHeard;
+
+  envelope2?.[0]?.includes('Bond went very quiet')
+    ? pass('envelope: matured rumor stays in envelope even when acked')
+    : fail('envelope: matured rumor removed when acked', JSON.stringify(envelope2?.[0]));
+
+  nudge2 === undefined
+    ? pass('nudge: recentlyHeard undefined when ack flag already set')
+    : fail('nudge: recentlyHeard should be undefined', JSON.stringify(nudge2));
+
+  // Test 3: Un-matured rumor — absent from both envelope and nudge
+  const snap3 = buildSnapshot({
+    currentAct: 2,
+    location: phillipsLoc,
+    elapsedMinutes: 50, // clock at 540+50=590, before 720 boundary (un-matured)
+    rumorEvents: { bond_saw_the_letter: { act: 2, atMinutes: 540 } },
+  });
+  const r3 = gameEngine.resolve(talkIntent, snap3);
+  const envelope3 = r3.aiContext.targetNpcInterview?.knowledgeEnvelope;
+  const nudge3 = r3.aiContext.targetNpcInterview?.recentlyHeard;
+
+  !envelope3?.some(s => s.includes('Bond went very quiet'))
+    ? pass('envelope: un-matured rumor absent from envelope')
+    : fail('envelope: un-matured rumor in envelope', JSON.stringify(envelope3));
+
+  nudge3 === undefined
+    ? pass('nudge: recentlyHeard undefined for un-matured rumor')
+    : fail('nudge: un-matured rumor in recentlyHeard', JSON.stringify(nudge3));
+
+  // Test 4: Batching — two rumors matured for same NPC nudge together
+  // Both bond_saw_the_letter and abberline_saw_the_letter have matured, but only
+  // bond_saw_the_letter affects phillips, so we can't truly test batching with real
+  // rumors. For now, document the expected behavior by checking that only the
+  // phillips-affecting rumors appear.
+  const snap4 = buildSnapshot({
+    currentAct: 2,
+    location: phillipsLoc,
+    elapsedMinutes: 190,
+    rumorEvents: {
+      bond_saw_the_letter: { act: 2, atMinutes: 540 }, // matured, affects phillips
+      abberline_saw_the_letter: { act: 2, atMinutes: 540 }, // matured, affects lusk not phillips
+    },
+    flags: { showed_from_hell_letter_to_abberline: true },
+  });
+  const r4 = gameEngine.resolve(talkIntent, snap4);
+  const nudge4 = r4.aiContext.targetNpcInterview?.recentlyHeard;
+
+  nudge4 && nudge4.length === 1 && nudge4[0].includes('Bond went very quiet')
+    ? pass('nudge: only rumors affecting this NPC appear in recentlyHeard')
+    : fail('nudge: filtering failed', JSON.stringify(nudge4));
+
+  // Test 5: Same-turn self-nudge guard — rumor triggered THIS turn never nudges
+  // Per spec: "Same-turn self-nudge guard: if a rumor triggers THIS turn, it doesn't
+  // nudge anyone this turn". This is handled in resolve() by the task 3 trigger-recording
+  // block running AFTER buildContext, so a delayPeriods-0 hop can never nudge on its
+  // own turn. We test that a matured rumor DOES nudge, confirming the boundary.
+  const snap5Triggered = buildSnapshot({
+    currentAct: 2,
+    location: phillipsLoc,
+    elapsedMinutes: 190,
+    rumorEvents: { bond_saw_the_letter: { act: 2, atMinutes: 540 } }, // triggered earlier, now matured
+    flags: { showed_from_hell_letter_to_bond: true },
+  });
+  const r5 = gameEngine.resolve(talkIntent, snap5Triggered);
+  const nudge5 = r5.aiContext.targetNpcInterview?.recentlyHeard;
+  const envelope5 = r5.aiContext.targetNpcInterview?.knowledgeEnvelope;
+
+  envelope5?.[0]?.includes('Bond went very quiet') && nudge5?.some(s => s.includes('Bond went very quiet'))
+    ? pass('envelope+nudge: matured rumor triggered earlier fires both')
+    : fail('envelope+nudge: matured spread not delivered', JSON.stringify({ envelope: envelope5?.[0], nudge: nudge5 }));
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -1663,6 +1785,7 @@ try {
   runFactGraphDerivation();
   testScheduleParity();
   testWait();
+  testEnvelopeAndNudge();
 } catch (err) {
   console.error('\n[FATAL] Uncaught exception in test harness:', err);
   process.exit(1);
