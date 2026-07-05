@@ -109,7 +109,7 @@ function flagUnreachableReason(flag: string): string | null {
         const locId = flag.slice(prefix.length);
         if (!locationIds.has(locId)) return `unknown location "${locId}"`;
         const npc = NPCS[npcId];
-        const canonicallyThere = Object.values(npc.canonicalLocationByAct).includes(locId);
+        const canonicallyThere = Object.values(npc.scheduleByAct).some(s => s.default === locId || Object.values(s.byPeriod ?? {}).includes(locId));
         const follows = npc.followingRule === 'follows_watson' || npc.followingRule === 'follows_bond';
         if (!canonicallyThere && !follows) {
           return `${npcId} is never canonically at ${locId} and does not follow anyone`;
@@ -263,15 +263,21 @@ section('NPCs');
   let placementOk = true;
   let scriptedOk = true;
   for (const [npcId, npc] of Object.entries(NPCS)) {
-    for (const [act, locId] of Object.entries(npc.canonicalLocationByAct)) {
-      if (!locationIds.has(locId)) {
-        fail(`npc ${npcId}: canonicalLocationByAct[${act}] "${locId}" does not resolve`);
+    for (const [act, sched] of Object.entries(npc.scheduleByAct)) {
+      if (!locationIds.has(sched.default)) {
+        fail(`npc ${npcId}: scheduleByAct[${act}].default "${sched.default}" does not resolve`);
         placementOk = false;
       }
+      for (const [period, locId] of Object.entries(sched.byPeriod ?? {})) {
+        if (!locationIds.has(locId as string)) {
+          fail(`npc ${npcId}: scheduleByAct[${act}].byPeriod.${period} "${locId}" does not resolve`);
+          placementOk = false;
+        }
+      }
     }
-    const coveredActs = Object.keys(npc.canonicalLocationByAct).map(Number);
+    const coveredActs = Object.keys(npc.scheduleByAct).map(Number);
     if (coveredActs.length === 0) {
-      warn(`npc ${npcId}: no canonicalLocationByAct entries at all`);
+      warn(`npc ${npcId}: no scheduleByAct entries at all`);
     } else {
       const missing = [1, 2, 3, 4, 5, 6].filter(a => !coveredActs.includes(a));
       if (missing.length > 0) {

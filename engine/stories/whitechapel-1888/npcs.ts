@@ -12,14 +12,14 @@ export const NPCS: Record<string, NPCDefinition> = {
     personality: ['Analytical', 'Calm under pressure', 'Intensely curious', 'Occasionally aloof', 'Privately disturbed by this case'],
     followingRule: 'follows_watson',
     followsNpcId: 'watson',
-    canonicalLocationByAct: {
-      0: 'baker_street',
-      1: 'dorset_street',
-      2: 'whitechapel_mortuary',
-      3: 'dutfields_yard',
-      4: 'lusk_office',
-      5: 'bond_office',
-      6: 'private_asylum',
+    scheduleByAct: {
+      0: { default: 'baker_street' },
+      1: { default: 'dorset_street' },
+      2: { default: 'whitechapel_mortuary' },
+      3: { default: 'dutfields_yard' },
+      4: { default: 'lusk_office' },
+      5: { default: 'bond_office' },
+      6: { default: 'private_asylum' },
     },
     // The moving-spotlight capstones — act- and flag-gated directorial beats.
     scriptedLines: [
@@ -75,14 +75,14 @@ export const NPCS: Record<string, NPCDefinition> = {
     speakingStyle: 'Direct and conversational. Practical rather than theoretical. Occasionally lets something personal slip through.',
     personality: ['Practical', 'Honest', 'Determined', 'Fatigued', 'Privately broken by this case'],
     followingRule: 'location_based',
-    canonicalLocationByAct: {
-      0: 'h_division_station',
-      1: 'dorset_street',
-      2: 'h_division_station',
-      3: 'working_mens_club',
-      4: 'lusk_office',
-      5: 'bond_office',
-      6: 'private_asylum',
+    scheduleByAct: {
+      0: { default: 'h_division_station' },
+      1: { default: 'dorset_street' },
+      2: { default: 'h_division_station' },
+      3: { default: 'working_mens_club' },
+      4: { default: 'lusk_office' },
+      5: { default: 'bond_office' },
+      6: { default: 'private_asylum' },
     },
     scriptedLines: [
       {
@@ -109,16 +109,16 @@ export const NPCS: Record<string, NPCDefinition> = {
     speakingStyle: 'Technical and precise. Medical terminology. Does not volunteer information beyond what the evidence substantiates.',
     personality: ['Clinical', 'Professional', 'Reserved', 'Thorough'],
     followingRule: 'location_based',
-    canonicalLocationByAct: {
+    scheduleByAct: {
       // Acts 0-3: Bond is at the mortuary — his proper domain
-      0: 'whitechapel_mortuary',
-      1: 'millers_court',
-      2: 'whitechapel_mortuary',
-      3: 'whitechapel_mortuary',
+      0: { default: 'whitechapel_mortuary' },
+      1: { default: 'millers_court' },
+      2: { default: 'whitechapel_mortuary' },
+      3: { default: 'whitechapel_mortuary' },
       // Acts 4-6: Bond is at his office or following the investigation
-      4: 'lusk_office',
-      5: 'bond_office',
-      6: 'bond_office',
+      4: { default: 'lusk_office' },
+      5: { default: 'bond_office' },
+      6: { default: 'bond_office' },
     },
     scriptedLines: [
       {
@@ -169,16 +169,16 @@ export const NPCS: Record<string, NPCDefinition> = {
     // Edmund is committed to the asylum in Act 6 — he stops following Bond and
     // remains at his canonical location (the asylum) from then on.
     followsUntilAct: 5,
-    canonicalLocationByAct: {
+    scheduleByAct: {
       // Edmund follows Bond. Where Bond is not present at reconstruction
       // locations (Acts 2-3), Edmund is also absent.
-      0: 'whitechapel_mortuary',
-      1: 'millers_court',
-      2: 'whitechapel_mortuary',
-      3: 'whitechapel_mortuary',
-      4: 'lusk_office',
-      5: 'bond_office',
-      6: 'private_asylum',
+      0: { default: 'whitechapel_mortuary' },
+      1: { default: 'millers_court' },
+      2: { default: 'whitechapel_mortuary' },
+      3: { default: 'whitechapel_mortuary' },
+      4: { default: 'lusk_office' },
+      5: { default: 'bond_office' },
+      6: { default: 'private_asylum' },
     },
     // Scripted presence moments — dramatic irony. Innocent on the surface, wrong in retrospect.
     // Edmund never explains himself. The AI works these in when contextually appropriate.
@@ -225,10 +225,10 @@ export const NPCS: Record<string, NPCDefinition> = {
     personality: ['Cautious', 'Uneasy about publicity', 'Skeptical', 'Genuinely angry at the police failure'],
     followingRule: 'fixed',
     // Lusk's office is not reachable until Act 4; he is offstage before then.
-    canonicalLocationByAct: {
-      4: 'lusk_office',
-      5: 'lusk_office',
-      6: 'lusk_office',
+    scheduleByAct: {
+      4: { default: 'lusk_office' },
+      5: { default: 'lusk_office' },
+      6: { default: 'lusk_office' },
     },
   },
 
@@ -243,14 +243,14 @@ export const NPCS: Record<string, NPCDefinition> = {
     speakingStyle: 'Shaken and direct. Practical details — what he saw, heard, smelled. Will not speculate.',
     personality: ['Distressed', 'Cooperative', 'Precise about what he knows and does not know'],
     followingRule: 'fixed',
-    canonicalLocationByAct: {
-      0: 'working_mens_club',
-      1: 'working_mens_club',
-      2: 'working_mens_club',
-      3: 'working_mens_club',
-      4: 'working_mens_club',
-      5: 'working_mens_club',
-      6: 'working_mens_club',
+    scheduleByAct: {
+      0: { default: 'working_mens_club' },
+      1: { default: 'working_mens_club' },
+      2: { default: 'working_mens_club' },
+      3: { default: 'working_mens_club' },
+      4: { default: 'working_mens_club' },
+      5: { default: 'working_mens_club' },
+      6: { default: 'working_mens_club' },
     },
   },
 
@@ -267,10 +267,10 @@ export const NPCS: Record<string, NPCDefinition> = {
     speakingStyle: 'Eager and over-precise. Volunteers detail nobody asked for. Defensive when his own movements come up.',
     personality: ['Eager to help', 'Over-detailed', 'Lonely', 'Defensive about his loitering', 'Genuinely grieved for Kelly'],
     followingRule: 'location_based',
-    canonicalLocationByAct: {
-      1: 'dorset_street',     // in the crowd outside the court, the morning after
-      2: 'whitechapel_pub',   // lingers at the Ten Bells thereafter
-      3: 'whitechapel_pub',
+    scheduleByAct: {
+      1: { default: 'dorset_street' },     // in the crowd outside the court, the morning after
+      2: { default: 'whitechapel_pub' },   // lingers at the Ten Bells thereafter
+      3: { default: 'whitechapel_pub' },
     },
   },
 
@@ -284,9 +284,9 @@ export const NPCS: Record<string, NPCDefinition> = {
     speakingStyle: 'Senior, deliberate, a little formal. Comfortable disagreeing with a colleague without rancour.',
     personality: ['Experienced', 'Deliberate', 'Professionally stubborn', 'Respects Bond while disputing him'],
     followingRule: 'location_based',
-    canonicalLocationByAct: {
-      2: 'whitechapel_mortuary',
-      3: 'whitechapel_mortuary',
+    scheduleByAct: {
+      2: { default: 'whitechapel_mortuary' },
+      3: { default: 'whitechapel_mortuary' },
     },
   },
 
@@ -300,10 +300,10 @@ export const NPCS: Record<string, NPCDefinition> = {
     speakingStyle: 'Flamboyant, self-aggrandising, contemptuous. Treats the interview as a stage. Boasts even when boasting incriminates him.',
     personality: ['Theatrical', 'Vain', 'Misogynist', 'Self-promoting', 'Enjoys the suspicion — it flatters him'],
     followingRule: 'location_based',
-    canonicalLocationByAct: {
+    scheduleByAct: {
       // In custody acts 2–3; FLED from act 4 on (absent — no entries).
-      2: 'h_division_station',
-      3: 'h_division_station',
+      2: { default: 'h_division_station' },
+      3: { default: 'h_division_station' },
     },
   },
 
@@ -317,8 +317,8 @@ export const NPCS: Record<string, NPCDefinition> = {
     speakingStyle: 'Quiet, wary, worn down. Answers carefully — he has learned what careless words cost. Flashes of bitterness at the newspapers.',
     personality: ['Frightened', 'Wronged', 'Careful', 'Bitter at the press', 'Grateful to anyone who treats him as a man'],
     followingRule: 'location_based',
-    canonicalLocationByAct: {
-      3: 'working_mens_club', // sheltering among the club's community during the reconstruction
+    scheduleByAct: {
+      3: { default: 'working_mens_club' }, // sheltering among the club's community during the reconstruction
     },
   },
 
@@ -333,14 +333,14 @@ export const NPCS: Record<string, NPCDefinition> = {
     speakingStyle: 'Measured and diplomatic. Answers the question asked. No more.',
     personality: ['Professional', 'Guarded', 'Believes in the privacy of suffering'],
     followingRule: 'fixed',
-    canonicalLocationByAct: {
-      0: 'private_asylum',
-      1: 'private_asylum',
-      2: 'private_asylum',
-      3: 'private_asylum',
-      4: 'private_asylum',
-      5: 'private_asylum',
-      6: 'private_asylum',
+    scheduleByAct: {
+      0: { default: 'private_asylum' },
+      1: { default: 'private_asylum' },
+      2: { default: 'private_asylum' },
+      3: { default: 'private_asylum' },
+      4: { default: 'private_asylum' },
+      5: { default: 'private_asylum' },
+      6: { default: 'private_asylum' },
     },
   },
 };

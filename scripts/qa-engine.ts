@@ -37,10 +37,12 @@
  * Exit code 1 if any FAIL.
  */
 
-import { gameEngine, SessionSnapshot } from '../engine/GameEngine';
+import { gameEngine, SessionSnapshot, npcLocationAt, timePeriodFor, PERIOD_ORDER } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
 import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
 import type { StoryFact } from '../engine/stories/types';
+import { NPCS } from '../engine/stories/whitechapel-1888/npcs';
+import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import {
   INITIAL_LOCATION,
   INITIAL_INTRODUCED_NPCS,
@@ -1144,6 +1146,63 @@ function runFactGraphDerivation() {
     : fail('expected empty envelope for unknown npc', JSON.stringify(other));
 }
 
+// ── Phase 4a: schedule parity ────────────────────────────────────────────────
+// The scheduleByAct migration is parity-first: with no byPeriod overrides
+// authored, npcLocationAt must equal the legacy canonicalLocationByAct for
+// every NPC × act × period. This table is the pre-migration data, verbatim.
+function testScheduleParity() {
+  const LEGACY_CANONICAL: Record<string, Record<number, string>> = {
+    holmes:         { 0: 'baker_street', 1: 'dorset_street', 2: 'whitechapel_mortuary', 3: 'dutfields_yard', 4: 'lusk_office', 5: 'bond_office', 6: 'private_asylum' },
+    abberline:      { 0: 'h_division_station', 1: 'dorset_street', 2: 'h_division_station', 3: 'working_mens_club', 4: 'lusk_office', 5: 'bond_office', 6: 'private_asylum' },
+    bond:           { 0: 'whitechapel_mortuary', 1: 'millers_court', 2: 'whitechapel_mortuary', 3: 'whitechapel_mortuary', 4: 'lusk_office', 5: 'bond_office', 6: 'bond_office' },
+    edmund:         { 0: 'whitechapel_mortuary', 1: 'millers_court', 2: 'whitechapel_mortuary', 3: 'whitechapel_mortuary', 4: 'lusk_office', 5: 'bond_office', 6: 'private_asylum' },
+    lusk:           { 4: 'lusk_office', 5: 'lusk_office', 6: 'lusk_office' },
+    diemschutz:     { 0: 'working_mens_club', 1: 'working_mens_club', 2: 'working_mens_club', 3: 'working_mens_club', 4: 'working_mens_club', 5: 'working_mens_club', 6: 'working_mens_club' },
+    hutchinson:     { 1: 'dorset_street', 2: 'whitechapel_pub', 3: 'whitechapel_pub' },
+    phillips:       { 2: 'whitechapel_mortuary', 3: 'whitechapel_mortuary' },
+    tumblety:       { 2: 'h_division_station', 3: 'h_division_station' },
+    pizer:          { 3: 'working_mens_club' },
+    superintendent: { 0: 'private_asylum', 1: 'private_asylum', 2: 'private_asylum', 3: 'private_asylum', 4: 'private_asylum', 5: 'private_asylum', 6: 'private_asylum' },
+  };
+
+  let mismatches = 0;
+  for (const npcId of Object.keys(NPCS)) {
+    for (let act = 0; act <= 6; act++) {
+      const expected = LEGACY_CANONICAL[npcId]?.[act] ?? 'offstage';
+      for (const period of PERIOD_ORDER) {
+        const got = npcLocationAt(NPCS, npcId, act, period, {});
+        if (got !== expected) {
+          fail(`schedule parity: ${npcId} act ${act} ${period}`, `expected ${expected}, got ${got}`);
+          mismatches++;
+        }
+      }
+    }
+  }
+  if (mismatches === 0) pass('schedule parity: npcLocationAt === legacy canonicalLocationByAct for all NPCs × acts × periods');
+
+  // Follower precedence: a stored currentLocation must still win for an
+  // active follower (Holmes), and the schedule must win for a
+  // location_based NPC even when a stale currentLocation is stored.
+  if (npcLocationAt(NPCS, 'holmes', 1, 'morning', { holmes: { npcId: 'holmes', disposition: 50, status: 'alive', currentLocation: 'millers_court' } as any }) === 'millers_court') {
+    pass('schedule precedence: follower stored currentLocation wins');
+  } else {
+    fail('schedule precedence: follower stored currentLocation wins');
+  }
+  if (npcLocationAt(NPCS, 'abberline', 2, 'morning', { abberline: { npcId: 'abberline', disposition: 50, status: 'alive', currentLocation: 'dorset_street' } as any }) === 'h_division_station') {
+    pass('schedule precedence: schedule beats stale stored location for location_based NPC');
+  } else {
+    fail('schedule precedence: schedule beats stale stored location for location_based NPC');
+  }
+
+  // timePeriodFor: act 2 starts 9:00 AM (540) — morning; +180 → afternoon.
+  if (timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 2, 0) === 'morning' &&
+      timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 2, 180) === 'afternoon') {
+    pass('timePeriodFor anchors to act canonical start');
+  } else {
+    fail('timePeriodFor anchors to act canonical start');
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -1171,6 +1230,7 @@ try {
   runPartialObjectMatching();
   runUnresolvedTargetNarration();
   runFactGraphDerivation();
+  testScheduleParity();
 } catch (err) {
   console.error('\n[FATAL] Uncaught exception in test harness:', err);
   process.exit(1);

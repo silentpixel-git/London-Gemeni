@@ -16,7 +16,7 @@ import { User } from '@supabase/supabase-js';
 import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { injectAfterHeading } from '../services/narrationFormat';
-import { gameEngine, SessionSnapshot, computeTimePeriod, getPresentNpcIds } from '../engine/GameEngine';
+import { gameEngine, SessionSnapshot, computeTimePeriod, timePeriodFor, getPresentNpcIds } from '../engine/GameEngine';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { audioManager } from '../services/AudioManager';
 import { parseIntent, type ParsedIntent } from '../engine/intentParser';
@@ -58,6 +58,7 @@ async function resolveTargetWithAI(
   npcStates: Record<string, NPCState>,
   currentAct: number,
   introducedNpcs: string[],
+  elapsedMinutes: number,
 ): Promise<ParsedIntent> {
   // ── NPC branch: a TALK whose person the parser could not resolve. Map the
   // phrase against the people actually present (alias-aware, so an unintroduced
@@ -65,7 +66,8 @@ async function resolveTargetWithAI(
   // fuzzy matching cannot — "the witness who saw Mary", "that eager fellow".
   if (intent.type === 'talk' && !intent.targetId) {
     const raw = (intent.targetRaw || '').trim();
-    const presentNpcIds = getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, location, npcStates, currentAct);
+    const period = timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, currentAct, elapsedMinutes);
+    const presentNpcIds = getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, location, npcStates, currentAct, period);
     if (!raw || presentNpcIds.length === 0) return intent;
 
     const key = `npc::${location}::${raw.toLowerCase()}`;
@@ -142,6 +144,7 @@ async function resolveIntentWithAI(
   npcStates: Record<string, NPCState>,
   currentAct: number,
   introducedNpcs: string[],
+  elapsedMinutes: number,
 ): Promise<ParsedIntent> {
   if (!needsAiParse(intent, location, inventory)) return intent;
   const raw = intent.raw.trim();
@@ -152,7 +155,7 @@ async function resolveIntentWithAI(
   if (parseActionCache.has(key)) {
     resolved = parseActionCache.get(key)!;
   } else {
-    const candidates = buildParseCandidates(location, inventory, npcStates, currentAct, introducedNpcs);
+    const candidates = buildParseCandidates(location, inventory, npcStates, currentAct, introducedNpcs, elapsedMinutes);
     ({ intent: resolved } = await aiService.parseAction(raw, candidates));
     parseActionCache.set(key, resolved);
   }
@@ -1149,8 +1152,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // latency) on hits. With VITE_AI_PARSER='on', the Phase 3 tool-calling parse
       // handles ALL miss types instead.
       intent = AI_PARSER_ENABLED
-        ? await resolveIntentWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs)
-        : await resolveTargetWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs);
+        ? await resolveIntentWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs, elapsedMinutes)
+        : await resolveTargetWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs, elapsedMinutes);
 
       // STEP 2: Build session snapshot from current React state
       const discoveredClueIds = user && activeInvestigation

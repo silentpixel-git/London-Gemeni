@@ -10,7 +10,7 @@
 import type { ParsedIntent } from './intentParser';
 import type { ParseCandidates, NPCState } from '../types';
 import { LOCATIONS, NPCS, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS } from './gameData';
-import { getPresentNpcIds } from './GameEngine';
+import { getPresentNpcIds, timePeriodFor } from './GameEngine';
 import { WHITECHAPEL_MANIFEST } from './stories/whitechapel-1888/manifest';
 
 // Verb intents that carry a target phrase; a non-empty phrase with no resolved
@@ -56,6 +56,7 @@ export function buildParseCandidates(
   npcStates: Record<string, NPCState>,
   currentAct: number,
   introducedNpcs: string[],
+  elapsedMinutes: number,
 ): ParseCandidates {
   const present = LOCATIONS[location]?.interactables ?? [];
   const carriedIds = Object.entries(TAKEABLE_OBJECTS)
@@ -64,7 +65,8 @@ export function buildParseCandidates(
   const objectIds = [...new Set([...present, ...carriedIds])];
   const asEntry = (id: string) => ({ id, name: OBJECT_DISPLAY_NAMES[id] ?? id.replace(/_/g, ' ') });
 
-  const people = getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, location, npcStates, currentAct)
+  const period = timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, currentAct, elapsedMinutes);
+  const people = getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, location, npcStates, currentAct, period)
     .map(id => {
       const npc = NPCS[id];
       const introduced = !npc.requiresIntroduction || introducedNpcs.includes(id);

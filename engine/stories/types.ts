@@ -1,7 +1,7 @@
 // Shared type definitions for all story manifests.
 // Each story's data files import from here.
 
-import type { HintTarget, HintVerb } from '../../types';
+import type { HintTarget, HintVerb, TimePeriod } from '../../types';
 
 export interface LocationDefinition {
   id: string;
@@ -40,7 +40,14 @@ export interface NPCDefinition {
   followingRule: 'follows_watson' | 'follows_bond' | 'location_based' | 'fixed';
   followsNpcId?: string;       // For follows_watson/'follows_bond': the entity ID to shadow ('watson' = player)
   followsUntilAct?: number;    // After this act, the NPC stops following and reverts to its canonical location (e.g. Edmund committed in Act 6)
-  canonicalLocationByAct: Record<number, string>;  // Act number → location ID
+  // NPC placement — derived per turn from (act, timePeriod). `default` is the
+  // act's anchor spot (the old canonicalLocationByAct value); byPeriod entries
+  // move the NPC by time of day (e.g. evening at the pub). An act with NO
+  // entry means OFFSTAGE for that act (e.g. Tumblety after he flees).
+  scheduleByAct: Record<number, {
+    default: string;
+    byPeriod?: Partial<Record<TimePeriod, string>>;
+  }>;
   // NPC introduction system — hides identity until Watson learns their name
   alias?: string;                  // e.g. "Bond's assistant", "a police inspector"
   aliasDescription?: string;       // Brief sensory description shown before introduction

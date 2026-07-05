@@ -21,7 +21,7 @@
 
 import { parseIntent } from '../engine/intentParser';
 import { LOCATIONS, OBJECT_DISPLAY_NAMES, NPCS } from '../engine/gameData';
-import { getPresentNpcIds } from '../engine/GameEngine';
+import { getPresentNpcIds, timePeriodFor } from '../engine/GameEngine';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { CLUE_TRIGGERS } from '../engine/stories/whitechapel-1888/clues';
 import { toolCallToIntent } from '../server/parseAction.js';
@@ -212,7 +212,7 @@ const npcIsTier1 = (fx: NpcFixture, category: Category) =>
 // Present people at a scene, as alias-aware AI candidates (mirrors the hook so an
 // unintroduced NPC's real name never enters the prompt). Nobody introduced yet.
 function npcCandidatesFor(scene: { location: string; act: number }): Array<{ id: string; name: string }> {
-  return getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, scene.location, {}, scene.act).map(id => {
+  return getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, scene.location, {}, scene.act, timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, scene.act, 0)).map(id => {
     const npc = NPCS[id];
     const introduced = !npc.requiresIntroduction;
     const name = introduced
@@ -269,7 +269,7 @@ function runFastPathGuard(): void {
   //    name must never appear in the people candidates.
   for (const locId of Object.keys(LOCATIONS)) {
     for (let act = 0; act <= 6; act++) {
-      const c = buildParseCandidates(locId, [], {}, act, []);
+      const c = buildParseCandidates(locId, [], {}, act, [], 0);
       for (const person of c.people) {
         const npc = NPCS[person.id];
         if (npc?.requiresIntroduction && person.name.includes(npc.displayName)) {
@@ -386,7 +386,7 @@ const INTENT_FIXTURES: IntentFixture[] = [
   { scene: { location: 'baker_street', act: 1 }, input: 'read whatever the papers have printed about the murders',
     expect: { type: 'read', targetId: 'newspaper_pile' } },
   // show — offline ("present … to …" verb form) and via AI
-  // Holmes only canonically stands at Baker Street in Act 0 (canonicalLocationByAct);
+  // Holmes only canonically stands at Baker Street in Act 0 (scheduleByAct);
   // Act 3/5 place him elsewhere, which would drop him from the AI candidate list.
   // Reworded from the original "present my notes on the kidney to holmes" / "let
   // holmes see what lusk received in the post" — "notes" is a NOTEBOOK_VERBS
@@ -453,7 +453,7 @@ async function runIntentFixtures(): Promise<void> {
     const { aiService } = await import('../server/aiCore');
     for (const fx of aiCases) {
       const inv = fx.scene.inventory ?? [];
-      const candidates = buildParseCandidates(fx.scene.location, inv, {}, fx.scene.act, []);
+      const candidates = buildParseCandidates(fx.scene.location, inv, {}, fx.scene.act, [], 0);
       const res = await aiService.parseAction(fx.input, candidates);
       if (res.invalidArgs) enumFailures++;
       tcTotal++;
