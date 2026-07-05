@@ -257,7 +257,7 @@ Also update the doc comment at line 1504 (`location_based / fixed → snap to th
 (g) Callers outside the engine:
 
 - `engine/parseFallback.ts`: `buildParseCandidates` gains a 6th param `elapsedMinutes: number`; compute `const period = timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, currentAct, elapsedMinutes);` and pass to `getPresentNpcIds`. Import `timePeriodFor` from `./GameEngine`.
-- `hooks/useGameState.ts`: `resolveTargetWithAI` (line 54) gains a trailing `elapsedMinutes: number` param used the same way (import `timePeriodFor`; it already imports `computeTimePeriod` — keep both). Update the calls at line ~1151–1153 to pass `elapsedMinutes` to both `resolveIntentWithAI`/`resolveTargetWithAI`, and update `resolveIntentWithAI`'s own signature/`buildParseCandidates` call (it lives in `useGameState.ts` near `resolveTargetWithAI`) to thread it through.
+- `hooks/useGameState.ts`: both `resolveTargetWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs)` (line 54) and `resolveIntentWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs)` (line 138) gain a trailing `elapsedMinutes: number` parameter, used to compute the period wherever each calls `getPresentNpcIds`/`buildParseCandidates` (import `timePeriodFor`; the file already imports `computeTimePeriod` — keep both). Update the two call sites at lines 1151-1153 to pass `elapsedMinutes` (already in scope there as hook state) as the 7th argument to whichever function `AI_PARSER_ENABLED` selects.
 - `scripts/qa-parser.ts:215`: `getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, scene.location, {}, scene.act, timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, scene.act, 0))` — canonical-start period; import `timePeriodFor`. Also update the `buildParseCandidates(locId, [], {}, act, [])` call in `runFastPathGuard` (line ~272) to pass the new final arg `0`.
 - `engine/stories/whitechapel-1888/hints.ts:29`: replace `(NPCS[npcId] as any)?.canonicalLocationByAct?.[s.currentAct]` with `(NPCS[npcId] as any)?.scheduleByAct?.[s.currentAct]?.default` (hints have no clock — the act anchor is the correct, behavior-preserving read).
 
@@ -968,7 +968,21 @@ export const WORLD_EVENTS: WorldEventDefinition[] = [
     const worldEvents = firedEvents.length > 0 ? firedEvents.map(({ e }) => e.text) : undefined;
 ```
 
-Add `worldEvents,` to the returned context object, and stow the flags exactly like vignettes: after building the return object's base, mirror the `_vignetteFlagsUpdate` mechanism — i.e. attach `_worldEventFlagsUpdate: worldEventFlagsUpdate` (when non-empty) alongside `_vignetteFlagsUpdate`, and in `resolve()` (lines 171–175) add:
+Add `worldEvents,` to the returned context object. Stow the flags exactly like vignettes do today (GameEngine.ts:1444-1454): the return object is cast `as NarrationContext & { _introductionFlagsUpdate?: ...; _vignetteFlagsUpdate?: ...; }`. Add a third field to both the object literal and that cast type:
+
+```ts
+      // World-event once-only flags — lifted onto result.flagsUpdate in resolve()
+      _worldEventFlagsUpdate: Object.keys(worldEventFlagsUpdate).length > 0
+        ? worldEventFlagsUpdate
+        : undefined,
+    } as NarrationContext & {
+      _introductionFlagsUpdate?: Record<string, boolean>;
+      _vignetteFlagsUpdate?: Record<string, boolean>;
+      _worldEventFlagsUpdate?: Record<string, boolean>;
+    };
+```
+
+Then in `resolve()`, right after the existing `_vignetteFlagsUpdate` block (GameEngine.ts:172-175), add the matching lift — and add `_worldEventFlagsUpdate?: Record<string, boolean>;` to that block's own local cast type (line 165, alongside `_introductionFlagsUpdate`/`_vignetteFlagsUpdate`):
 
 ```ts
     if (ctxWithIntro._worldEventFlagsUpdate) {
@@ -976,8 +990,6 @@ Add `worldEvents,` to the returned context object, and stow the flags exactly li
       delete ctxWithIntro._worldEventFlagsUpdate;
     }
 ```
-
-(check how `_vignetteFlagsUpdate` is attached in `buildContext`'s return and copy that exact mechanism — it is typed via the `ctxWithIntro` cast, not on NarrationContext).
 
 (f) `server/aiCore.ts` — next to `clockEventSection` (line 213):
 
