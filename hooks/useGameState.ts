@@ -814,7 +814,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setLocationVisitCounts(prev => ({ ...prev, [newLocation]: (prev[newLocation] ?? 0) + 1 }));
     captureLocationArrival(newLocation, toAct, formatGameClock(toAct, 0)); // diary: arriving in the new act's locale at its canonical start
     setElapsedMinutes(0);
-    setRumorEvents({});
     if (Object.keys(npcUpdates).length > 0) {
       setNpcStates(prev => {
         const next = { ...prev };
