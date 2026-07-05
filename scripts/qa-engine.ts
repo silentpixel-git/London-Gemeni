@@ -1147,11 +1147,13 @@ function runFactGraphDerivation() {
 }
 
 // ── Phase 4a: schedule parity ────────────────────────────────────────────────
-// The scheduleByAct migration is parity-first: with no byPeriod overrides
-// authored, npcLocationAt must equal the legacy canonicalLocationByAct for
-// every NPC × act × period. This table is the pre-migration data, verbatim.
+// npcLocationAt must equal each NPC's authored default for every act × period,
+// EXCEPT the periods Task 7 deliberately overrides via byPeriod (the
+// living-world authoring pass — abberline/bond/phillips now move for parts
+// of the day). BY_PERIOD_OVERRIDES mirrors those authored exceptions so this
+// test still pins every other NPC × act × period to the plain default.
 function testScheduleParity() {
-  const LEGACY_CANONICAL: Record<string, Record<number, string>> = {
+  const DEFAULT_CANONICAL: Record<string, Record<number, string>> = {
     holmes:         { 0: 'baker_street', 1: 'dorset_street', 2: 'whitechapel_mortuary', 3: 'dutfields_yard', 4: 'lusk_office', 5: 'bond_office', 6: 'private_asylum' },
     abberline:      { 0: 'h_division_station', 1: 'dorset_street', 2: 'h_division_station', 3: 'working_mens_club', 4: 'lusk_office', 5: 'bond_office', 6: 'private_asylum' },
     bond:           { 0: 'whitechapel_mortuary', 1: 'millers_court', 2: 'whitechapel_mortuary', 3: 'whitechapel_mortuary', 4: 'lusk_office', 5: 'bond_office', 6: 'bond_office' },
@@ -1165,11 +1167,28 @@ function testScheduleParity() {
     superintendent: { 0: 'private_asylum', 1: 'private_asylum', 2: 'private_asylum', 3: 'private_asylum', 4: 'private_asylum', 5: 'private_asylum', 6: 'private_asylum' },
   };
 
+  // Authored living-world overrides (Task 7) — the periods where the NPC
+  // moves away from their act default. Keep in sync with npcs.ts.
+  const BY_PERIOD_OVERRIDES: Record<string, Record<number, Partial<Record<typeof PERIOD_ORDER[number], string>>>> = {
+    abberline: {
+      0: { night: 'whitechapel_pub', lateNight: 'whitechapel_pub' },
+      2: { evening: 'whitechapel_pub' },
+    },
+    bond: {
+      2: { evening: 'bond_office', night: 'bond_office', lateNight: 'bond_office' },
+      3: { evening: 'bond_office', night: 'bond_office', lateNight: 'bond_office' },
+    },
+    phillips: {
+      2: { night: 'whitechapel_pub', lateNight: 'whitechapel_pub' },
+    },
+  };
+
   let mismatches = 0;
   for (const npcId of Object.keys(NPCS)) {
     for (let act = 0; act <= 6; act++) {
-      const expected = LEGACY_CANONICAL[npcId]?.[act] ?? 'offstage';
+      const npcDefault = DEFAULT_CANONICAL[npcId]?.[act] ?? 'offstage';
       for (const period of PERIOD_ORDER) {
+        const expected = BY_PERIOD_OVERRIDES[npcId]?.[act]?.[period] ?? npcDefault;
         const got = npcLocationAt(NPCS, npcId, act, period, {});
         if (got !== expected) {
           fail(`schedule parity: ${npcId} act ${act} ${period}`, `expected ${expected}, got ${got}`);
@@ -1178,7 +1197,7 @@ function testScheduleParity() {
       }
     }
   }
-  if (mismatches === 0) pass('schedule parity: npcLocationAt === legacy canonicalLocationByAct for all NPCs × acts × periods');
+  if (mismatches === 0) pass('schedule parity: npcLocationAt === authored default/byPeriod schedule for all NPCs × acts × periods');
 
   // Follower precedence: a stored currentLocation must still win for an
   // active follower (Holmes), and the schedule must win for a
@@ -1336,6 +1355,20 @@ function testAbsentRedirect() {
   }
 }
 testAbsentRedirect();
+
+// ── Phase 4a: authored schedule smoke ─────────────────────────────────────────
+// In act 2, Bond keeps mortuary hours — present during the day, retreating to
+// his office once the mortuary would plausibly be shut for the evening.
+function testAuthoredSchedules() {
+  const morning = npcLocationAt(NPCS, 'bond', 2, 'morning', {});
+  const evening = npcLocationAt(NPCS, 'bond', 2, 'evening', {});
+  if (morning === 'whitechapel_mortuary' && evening === 'bond_office') {
+    pass('authored schedule: Bond keeps mortuary hours in act 2');
+  } else {
+    fail('authored schedule: Bond keeps mortuary hours in act 2', `${morning} / ${evening}`);
+  }
+}
+testAuthoredSchedules();
 
 // ── Phase 4a: world events ───────────────────────────────────────────────────
 function testWorldEvents() {

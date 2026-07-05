@@ -26,6 +26,7 @@ import {
   DOCUMENT_TEXT,
 } from '../engine/stories/whitechapel-1888/clues';
 import { ACT_PROGRESSION, ACT_TIME_CONFIG } from '../engine/stories/whitechapel-1888/acts';
+import { computeTimePeriod } from '../engine/GameEngine';
 import { WORLD_EVENTS } from '../engine/stories/whitechapel-1888/events';
 import { SUSPECT_PROFILES } from '../engine/stories/whitechapel-1888/suspects';
 import { FACTS } from '../engine/stories/whitechapel-1888/facts';
@@ -499,6 +500,35 @@ section('World events (Phase 4a)');
     if (!ev.text.trim()) fail(`world event "${ev.id}": empty text`);
   }
   pass(`${WORLD_EVENTS.length} world events structurally valid`);
+}
+
+section('Schedule guard rail: gate NPCs findable at act start (Phase 4a)');
+{
+  // Every NPC whose conversation gates an act must be at their schedule
+  // default during that act's canonical-start period — a player following a
+  // hint straight there always finds them. Followers are exempt (they are
+  // wherever Watson is).
+  let checked = 0;
+  for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
+    const act = Number(actStr);
+    const startPeriod = computeTimePeriod(ACT_TIME_CONFIG[act].canonicalMinutes);
+    for (const flag of cond.requireFlags) {
+      if (!flag.startsWith('talked_to_')) continue;
+      // Disambiguate npc id vs location id by prefix-matching known npc ids.
+      const npcId = [...npcIds].find(id => flag.startsWith(`talked_to_${id}_at_`));
+      if (!npcId) continue; // unreachable-flag check already covers this
+      const locId = flag.slice(`talked_to_${npcId}_at_`.length);
+      const npc = NPCS[npcId];
+      if (npc.followsNpcId) continue;
+      const sched = npc.scheduleByAct[act];
+      const atStart = sched ? (sched.byPeriod?.[startPeriod] ?? sched.default) : undefined;
+      checked++;
+      if (atStart !== locId) {
+        fail(`gate NPC ${npcId} (act ${act}): scheduled at "${atStart}" during the act's start period (${startPeriod}), but the gate needs them at "${locId}"`);
+      }
+    }
+  }
+  pass(`${checked} act-gate NPC placements verified against schedules`);
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────

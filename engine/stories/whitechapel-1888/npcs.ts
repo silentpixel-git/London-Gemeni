@@ -76,9 +76,10 @@ export const NPCS: Record<string, NPCDefinition> = {
     personality: ['Practical', 'Honest', 'Determined', 'Fatigued', 'Privately broken by this case'],
     followingRule: 'location_based',
     scheduleByAct: {
-      0: { default: 'h_division_station' },
+      // A policeman's day ends at the pub across from the station.
+      0: { default: 'h_division_station', byPeriod: { night: 'whitechapel_pub', lateNight: 'whitechapel_pub' } },
       1: { default: 'dorset_street' },
-      2: { default: 'h_division_station' },
+      2: { default: 'h_division_station', byPeriod: { evening: 'whitechapel_pub' } },
       3: { default: 'working_mens_club' },
       4: { default: 'lusk_office' },
       5: { default: 'bond_office' },
@@ -113,8 +114,9 @@ export const NPCS: Record<string, NPCDefinition> = {
       // Acts 0-3: Bond is at the mortuary — his proper domain
       0: { default: 'whitechapel_mortuary' },
       1: { default: 'millers_court' },
-      2: { default: 'whitechapel_mortuary' },
-      3: { default: 'whitechapel_mortuary' },
+      // The mortuary keeps visiting hours; evenings he retreats to his office.
+      2: { default: 'whitechapel_mortuary', byPeriod: { evening: 'bond_office', night: 'bond_office', lateNight: 'bond_office' } },
+      3: { default: 'whitechapel_mortuary', byPeriod: { evening: 'bond_office', night: 'bond_office', lateNight: 'bond_office' } },
       // Acts 4-6: Bond is at his office or following the investigation
       4: { default: 'lusk_office' },
       5: { default: 'bond_office' },
@@ -285,7 +287,9 @@ export const NPCS: Record<string, NPCDefinition> = {
     personality: ['Experienced', 'Deliberate', 'Professionally stubborn', 'Respects Bond while disputing him'],
     followingRule: 'location_based',
     scheduleByAct: {
-      2: { default: 'whitechapel_mortuary' },
+      // Day-shift police surgeon; evenings find him at the Ten Bells like
+      // any other H Division man off duty.
+      2: { default: 'whitechapel_mortuary', byPeriod: { night: 'whitechapel_pub', lateNight: 'whitechapel_pub' } },
       3: { default: 'whitechapel_mortuary' },
     },
   },
