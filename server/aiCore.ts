@@ -152,7 +152,7 @@ function pickAtmosphericSeed(period: TimePeriod, weatherCondition: string, act: 
   return pool[Math.floor(Math.random() * pool.length)].text;
 }
 
-function buildNarrationPrompt(ctx: NarrationContext): string {
+export function buildNarrationPrompt(ctx: NarrationContext): string {
   const isOpening = ctx.narrationMode === 'opening';
   const isFull = ctx.narrationMode === 'full';
 
@@ -319,7 +319,7 @@ Result: ${ctx.actionResultNote}
 ${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${clueSection}${synthesisSection}`;
 
   if (ctx.targetNpcInterview) {
-    const { label, isIntroduced, introducingThisTurn, realName, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion } = ctx.targetNpcInterview;
+    const { label, isIntroduced, introducingThisTurn, realName, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion, recentlyHeard } = ctx.targetNpcInterview;
     const nameInstruction = isIntroduced
       ? `Watson is speaking with: ${label} (${role})`
       : introducingThisTurn
@@ -343,6 +343,9 @@ ${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSe
         .sort((a, b) => a.idx - b.idx) // restore author order for coherence
         .map(e => e.fact);
     }
+    const recentlyHeardSection = recentlyHeard && recentlyHeard.length > 0
+      ? `\nRECENTLY HEARD (hearsay that reached ${label} since Watson last spoke with them — have ${label} raise it UNPROMPTED near the start of the reply, in character, as gossip or news reaching them secondhand; hearsay register, hedged sourcing ("word is…", "they say…"), never as if witnessed firsthand):\n${recentlyHeard.map(s => `• ${s}`).join('\n')}\n`
+      : '';
     compactPrompt += `
 === NPC INTERVIEW ===
 ${nameInstruction}
@@ -352,7 +355,7 @@ Watson's question / statement: "${playerQuestion}"
 
 WHAT THIS CHARACTER KNOWS (hard ceiling — do not invent facts beyond this list):
 ${envelopeItems.map((f, i) => `${i + 1}. ${f}`).join('\n')}
-
+${recentlyHeardSection}
 Structure the reply as 2–3 short paragraphs separated by blank lines, for legibility:
 - Paragraph 1: a brief framing clause and the character's spoken response in dialogue. Break a long speech into two paragraphs at a natural pause rather than one dense block.
 - Final paragraph: Watson's brief reaction, on its own line.

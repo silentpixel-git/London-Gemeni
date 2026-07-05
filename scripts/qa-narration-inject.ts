@@ -21,6 +21,8 @@
 import { injectAfterHeading } from '../services/narrationFormat';
 import { ACT_BRIDGES, ACT_NAMES } from '../engine/gameData';
 import { ACT_ROMAN } from '../constants';
+import { buildNarrationPrompt } from '../server/aiCore';
+import type { NarrationContext } from '../types';
 
 let passed = 0;
 const failures: string[] = [];
@@ -93,6 +95,42 @@ for (let act = 1; act <= 6; act++) {
   check(`act ${act}: bridge follows the heading immediately`,
     out === heading + bridge + '\n\n' + scene);
   check(`act ${act}: bridge text appears exactly once`, out.split(bridge).length === 2);
+}
+
+// ── Phase 4b: recentlyHeard prompt section ───────────────────────────────
+
+const baseInterviewCtx: NarrationContext = {
+  locationName: 'Test Room', locationAtmosphere: 'quiet', locationDescription: 'a room',
+  locationVisitCount: 2, locationTimeframe: 'present',
+  act: 5, actName: 'The Convergence', timeLabel: '10:00 AM — Tuesday, 20 November 1888',
+  timePeriod: 'morning', weather: { condition: 'foggy', label: 'Foggy' },
+  npcsPresent: [{ label: 'Dr. Phillips', npcId: 'phillips', isIntroduced: true }],
+  availableObjects: [], availableExits: [], inventory: [],
+  watsonStats: { medicalPoints: 0, moralPoints: 0 },
+  actionType: 'talk', actionSuccess: true,
+  actionDescription: 'Watson addressed Dr. Phillips.', actionResultNote: 'SUCCESS',
+  newCluesDiscovered: [], narrationMode: 'compact', blockquoteHint: 'none',
+  targetNpcInterview: {
+    npcId: 'phillips', label: 'Dr. Phillips', isIntroduced: true,
+    role: 'Divisional Surgeon', speakingStyle: 'measured', personality: ['precise'],
+    knowledgeEnvelope: ['HEARSAY-LINE-XYZ', 'background fact'],
+    playerQuestion: 'ask phillips about the letter',
+    recentlyHeard: ['HEARSAY-LINE-XYZ'],
+  },
+} as NarrationContext;
+
+{
+  const prompt = buildNarrationPrompt(baseInterviewCtx);
+  check('recentlyHeard: section renders when present',
+    prompt.includes('RECENTLY HEARD') && prompt.includes('HEARSAY-LINE-XYZ'));
+  check('recentlyHeard: instructs unprompted raising',
+    /UNPROMPTED/i.test(prompt));
+
+  const without = buildNarrationPrompt({
+    ...baseInterviewCtx,
+    targetNpcInterview: { ...baseInterviewCtx.targetNpcInterview!, recentlyHeard: undefined },
+  } as NarrationContext);
+  check('recentlyHeard: section absent when not set', !without.includes('RECENTLY HEARD'));
 }
 
 // ── Report ────────────────────────────────────────────────────────────────────
