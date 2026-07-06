@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diary Modal — 3 Variations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  :root {
+    --lb-bg:       253 249 245;
+    --lb-paper:    255 255 255;
+    --lb-primary:   41  51  81;
+    --lb-accent:   205 123   0;
+    --lb-muted:    146 157 191;
+    --lb-border:   197 203 221;
+  }
+  .dark {
+    --lb-bg:        21  24  31;
+    --lb-paper:     30  35  48;
+    --lb-primary:  228 221 212;
+    --lb-accent:   212 146  10;
+    --lb-muted:     94 106 136;
+    --lb-border:    42  48  64;
+  }
+  body { font-family: 'Open Sans', sans-serif; }
+  .font-serif { font-family: 'Playfair Display', serif; }
+</style>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: { extend: { colors: {
+      'lb-bg':      'rgb(var(--lb-bg) / <alpha-value>)',
+      'lb-paper':   'rgb(var(--lb-paper) / <alpha-value>)',
+      'lb-primary': 'rgb(var(--lb-primary) / <alpha-value>)',
+      'lb-accent':  'rgb(var(--lb-accent) / <alpha-value>)',
+      'lb-muted':   'rgb(var(--lb-muted) / <alpha-value>)',
+      'lb-border':  'rgb(var(--lb-border) / <alpha-value>)',
+    }, fontFamily: { serif: ['Playfair Display', 'serif'], sans: ['Open Sans', 'sans-serif'] } } }
+  };
+</script>
+</head>
+<body class="bg-lb-bg text-lb-primary min-h-screen">
+
+<!-- ═══════════════ Control bar ═══════════════ -->
+<div class="sticky top-0 z-[100] bg-lb-paper border-b border-lb-border px-6 py-3 flex flex-wrap items-center gap-3 shadow-sm">
+  <span class="font-serif font-bold text-lg mr-2">Diary Modal — Variations</span>
+  <div class="flex rounded-lg border border-lb-border overflow-hidden text-sm font-semibold">
+    <button onclick="showVariant(1)" id="tab1" class="px-4 py-1.5 bg-lb-accent text-white">A · Grand Ledger</button>
+    <button onclick="showVariant(2)" id="tab2" class="px-4 py-1.5 hover:bg-lb-bg">B · Casebook Rail</button>
+    <button onclick="showVariant(3)" id="tab3" class="px-4 py-1.5 hover:bg-lb-bg">C · Study Drawer</button>
+  </div>
+  <div class="flex rounded-lg border border-lb-border overflow-hidden text-sm font-semibold ml-auto">
+    <button onclick="setViewport('desktop')" id="vpDesktop" class="px-4 py-1.5 bg-lb-primary text-white">Desktop</button>
+    <button onclick="setViewport('mobile')" id="vpMobile" class="px-4 py-1.5 hover:bg-lb-bg">Mobile</button>
+  </div>
+  <button onclick="document.documentElement.classList.toggle('dark')" class="px-3 py-1.5 rounded-lg border border-lb-border text-sm font-semibold hover:bg-lb-bg">🌙</button>
+</div>
+
+<div id="descBar" class="px-6 py-3 text-sm text-lb-primary/80 max-w-4xl"></div>
+
+<!-- ═══════════════ Stage ═══════════════ -->
+<div id="stage" class="relative mx-auto my-4 bg-lb-bg border border-lb-border rounded-2xl overflow-hidden transition-all duration-300" style="width: 1200px; height: 780px;">
+  <!-- fake game behind -->
+  <div class="absolute inset-0 p-10 opacity-40 select-none pointer-events-none">
+    <h1 class="font-serif text-4xl font-bold">London Bleeds</h1>
+    <p class="font-serif text-xl mt-1">The Whitechapel Diaries</p>
+    <p class="mt-8 max-w-lg text-sm leading-relaxed">Holmes paces before the fire, his pipe cold in his hand. The case files are everywhere — pinned, spread, stacked. Five murders. Eleven weeks. Scotland Yard is floundering…</p>
+  </div>
+  <div class="absolute inset-0 bg-lb-primary/60 backdrop-blur-sm"></div>
+
+  <!-- ════════ VARIANT A — Grand Ledger (bigger centered modal / mobile bottom sheet) ════════ -->
+  <div id="v1" class="variant absolute inset-0 flex items-center justify-center p-6 data-[vp=mobile]:items-end data-[vp=mobile]:p-0">
+    <div class="relative w-full max-w-3xl h-[92%] flex flex-col bg-lb-paper border border-lb-border rounded-xl shadow-2xl overflow-hidden
+                group-data-[vp=mobile]:max-w-none group-data-[vp=mobile]:h-[94%] group-data-[vp=mobile]:rounded-b-none group-data-[vp=mobile]:rounded-t-2xl">
+      <!-- drag handle (mobile) -->
+      <div class="hidden group-data-[vp=mobile]:flex justify-center pt-2.5"><div class="w-10 h-1 rounded-full bg-lb-border"></div></div>
+      <!-- Header -->
+      <div class="flex items-center justify-between px-7 py-5 border-b border-lb-border">
+        <div class="flex items-center gap-2.5 text-lb-accent">
+          <i data-lucide="book-open" class="w-6 h-6"></i>
+          <span class="font-serif text-2xl font-bold text-lb-primary">Watson's Diary</span>
+        </div>
+        <button class="p-2 text-lb-muted hover:text-lb-primary hover:bg-lb-bg rounded-md"><i data-lucide="x" class="w-6 h-6"></i></button>
+      </div>
+      <!-- Filter toolbar -->
+      <div class="px-7 py-3.5 border-b border-lb-border flex flex-wrap items-center gap-3 bg-lb-bg/60">
+        <div class="relative flex-1 min-w-[220px]">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-lb-muted"></i>
+          <input placeholder="Search the diary…" class="w-full pl-10 pr-4 py-2.5 rounded-lg border border-lb-border bg-lb-paper text-[15px] placeholder:text-lb-muted focus:outline-none focus:border-lb-accent">
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button class="kind-chip px-3 py-1.5 rounded-full border border-lb-accent bg-lb-accent/10 text-lb-accent text-xs font-semibold flex items-center gap-1.5"><i data-lucide="search" class="w-3.5 h-3.5"></i>Clues</button>
+          <button class="kind-chip px-3 py-1.5 rounded-full border border-lb-border text-lb-muted text-xs font-semibold flex items-center gap-1.5 hover:border-lb-accent/50"><i data-lucide="gavel" class="w-3.5 h-3.5"></i>Decisions</button>
+          <button class="kind-chip px-3 py-1.5 rounded-full border border-lb-border text-lb-muted text-xs font-semibold flex items-center gap-1.5 hover:border-lb-accent/50"><i data-lucide="feather" class="w-3.5 h-3.5"></i>Reflections</button>
+        </div>
+      </div>
+      <!-- Entries -->
+      <div class="flex-1 overflow-y-auto px-7 pb-6">
+        <div class="sticky top-0 z-10 flex items-center justify-between gap-3 py-4 bg-lb-paper">
+          <span class="uppercase tracking-widest text-[13px] font-bold text-lb-accent">Act 2 — The Double Event <span class="ml-2 normal-case tracking-normal text-[11px] opacity-70">· current</span></span>
+          <span class="flex items-center gap-3">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-lb-accent/40 bg-lb-accent/10 text-lb-accent text-xs font-semibold">
+              <span class="flex gap-1"><span class="w-2 h-2 rounded-full border border-current bg-current"></span><span class="w-2 h-2 rounded-full border border-current bg-current"></span><span class="w-2 h-2 rounded-full border border-current"></span><span class="w-2 h-2 rounded-full border border-current"></span></span>
+              leads
+            </span>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-lb-muted"></i>
+          </span>
+        </div>
+        <div class="space-y-5 pt-1 pb-6" id="entriesA"></div>
+        <div class="flex items-center justify-between gap-3 py-4 border-t border-lb-border/60">
+          <span class="uppercase tracking-widest text-[13px] font-bold text-lb-muted">Act 1 — A Study in Terror</span>
+          <span class="flex items-center gap-3">
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-lb-accent/50 bg-lb-accent/10 text-lb-accent text-xs font-semibold"><i data-lucide="check" class="w-3.5 h-3.5"></i>Complete</span>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-lb-muted -rotate-90"></i>
+          </span>
+        </div>
+        <div class="flex items-center justify-between gap-3 py-4 border-t border-lb-border/60">
+          <span class="uppercase tracking-widest text-[13px] font-bold text-lb-muted">Prologue</span>
+          <span class="flex items-center gap-3">
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-lb-accent/50 bg-lb-accent/10 text-lb-accent text-xs font-semibold"><i data-lucide="check" class="w-3.5 h-3.5"></i>Complete</span>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-lb-muted -rotate-90"></i>
+          </span>
+        </div>
+      </div>
+      <div class="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-lb-paper to-transparent"></div>
+    </div>
+  </div>
+
+  <!-- ════════ VARIANT B — Casebook Rail (wide modal, act nav in left rail) ════════ -->
+  <div id="v2" class="variant absolute inset-0 hidden items-center justify-center p-6 data-[vp=mobile]:items-end data-[vp=mobile]:p-0">
+    <div class="relative w-full max-w-4xl h-[92%] flex flex-col bg-lb-paper border border-lb-border rounded-xl shadow-2xl overflow-hidden
+                group-data-[vp=mobile]:max-w-none group-data-[vp=mobile]:h-[94%] group-data-[vp=mobile]:rounded-b-none group-data-[vp=mobile]:rounded-t-2xl">
+      <div class="hidden group-data-[vp=mobile]:flex justify-center pt-2.5"><div class="w-10 h-1 rounded-full bg-lb-border"></div></div>
+      <!-- Header with inline search -->
+      <div class="flex items-center gap-4 px-7 py-4 border-b border-lb-border">
+        <div class="flex items-center gap-2.5 text-lb-accent shrink-0">
+          <i data-lucide="book-open" class="w-6 h-6"></i>
+          <span class="font-serif text-2xl font-bold text-lb-primary">Watson's Diary</span>
+        </div>
+        <div class="relative flex-1 max-w-sm ml-auto group-data-[vp=mobile]:hidden">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-lb-muted"></i>
+          <input placeholder="Search entries…" class="w-full pl-10 pr-4 py-2 rounded-lg border border-lb-border bg-lb-bg/60 text-sm placeholder:text-lb-muted focus:outline-none focus:border-lb-accent">
+        </div>
+        <button class="p-2 text-lb-muted hover:text-lb-primary hover:bg-lb-bg rounded-md shrink-0"><i data-lucide="x" class="w-6 h-6"></i></button>
+      </div>
+      <!-- mobile: search + act chips replace the rail -->
+      <div class="hidden group-data-[vp=mobile]:block px-5 pt-3 pb-2 border-b border-lb-border space-y-2.5">
+        <div class="relative">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-lb-muted"></i>
+          <input placeholder="Search entries…" class="w-full pl-10 pr-4 py-2.5 rounded-lg border border-lb-border bg-lb-bg/60 text-[15px] placeholder:text-lb-muted focus:outline-none focus:border-lb-accent">
+        </div>
+        <div class="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          <button class="shrink-0 px-3.5 py-1.5 rounded-full bg-lb-accent text-white text-xs font-bold">Act 2 · current</button>
+          <button class="shrink-0 px-3.5 py-1.5 rounded-full border border-lb-border text-lb-muted text-xs font-semibold">Act 1 ✓</button>
+          <button class="shrink-0 px-3.5 py-1.5 rounded-full border border-lb-border text-lb-muted text-xs font-semibold">Prologue ✓</button>
+          <button class="shrink-0 px-3.5 py-1.5 rounded-full border border-lb-border text-lb-muted text-xs font-semibold">All acts</button>
+        </div>
+      </div>
+      <div class="flex-1 min-h-0 flex">
+        <!-- Left rail (desktop) -->
+        <div class="w-60 shrink-0 border-r border-lb-border bg-lb-bg/50 py-4 px-3 space-y-1 group-data-[vp=mobile]:hidden">
+          <button class="w-full text-left px-3.5 py-3 rounded-lg bg-lb-accent/10 border border-lb-accent/40">
+            <span class="block text-xs font-bold uppercase tracking-widest text-lb-accent">Act 2</span>
+            <span class="block font-serif font-bold text-[15px] mt-0.5">The Double Event</span>
+            <span class="mt-1.5 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-lb-accent"></span><span class="w-1.5 h-1.5 rounded-full bg-lb-accent"></span><span class="w-1.5 h-1.5 rounded-full border border-lb-accent"></span><span class="w-1.5 h-1.5 rounded-full border border-lb-accent"></span><span class="text-[10px] text-lb-accent font-semibold ml-1">leads</span></span>
+          </button>
+          <button class="w-full text-left px-3.5 py-3 rounded-lg hover:bg-lb-bg">
+            <span class="block text-xs font-bold uppercase tracking-widest text-lb-muted">Act 1 <i data-lucide="check" class="w-3 h-3 inline text-lb-accent"></i></span>
+            <span class="block font-serif text-[15px] mt-0.5 text-lb-primary/80">A Study in Terror</span>
+          </button>
+          <button class="w-full text-left px-3.5 py-3 rounded-lg hover:bg-lb-bg">
+            <span class="block text-xs font-bold uppercase tracking-widest text-lb-muted">Prologue <i data-lucide="check" class="w-3 h-3 inline text-lb-accent"></i></span>
+            <span class="block font-serif text-[15px] mt-0.5 text-lb-primary/80">Baker Street</span>
+          </button>
+          <div class="pt-3 mt-3 border-t border-lb-border/70 px-1">
+            <span class="text-[10px] uppercase tracking-widest font-bold text-lb-muted">Filter by kind</span>
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <button class="px-2.5 py-1 rounded-full border border-lb-accent bg-lb-accent/10 text-lb-accent text-[11px] font-semibold flex items-center gap-1"><i data-lucide="search" class="w-3 h-3"></i>Clues</button>
+              <button class="px-2.5 py-1 rounded-full border border-lb-border text-lb-muted text-[11px] font-semibold flex items-center gap-1"><i data-lucide="gavel" class="w-3 h-3"></i>Decisions</button>
+              <button class="px-2.5 py-1 rounded-full border border-lb-border text-lb-muted text-[11px] font-semibold flex items-center gap-1"><i data-lucide="feather" class="w-3 h-3"></i>Reflections</button>
+            </div>
+          </div>
+        </div>
+        <!-- Entries pane -->
+        <div class="relative flex-1 min-w-0 overflow-y-auto px-7 py-5 group-data-[vp=mobile]:px-5">
+          <p class="uppercase tracking-widest text-[13px] font-bold text-lb-accent mb-4 group-data-[vp=mobile]:hidden">Act 2 — The Double Event <span class="normal-case tracking-normal text-[11px] opacity-70">· current</span></p>
+          <div class="space-y-5" id="entriesB"></div>
+        </div>
+      </div>
+      <div class="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-lb-paper to-transparent"></div>
+    </div>
+  </div>
+
+  <!-- ════════ VARIANT C — Study Drawer (full-height panel from the right / mobile bottom sheet) ════════ -->
+  <div id="v3" class="variant absolute inset-0 hidden justify-end data-[vp=mobile]:items-end data-[vp=mobile]:justify-center">
+    <div class="relative w-[560px] h-full flex flex-col bg-lb-paper border-l border-lb-border shadow-2xl
+                group-data-[vp=mobile]:w-full group-data-[vp=mobile]:h-[94%] group-data-[vp=mobile]:border-l-0 group-data-[vp=mobile]:rounded-t-2xl group-data-[vp=mobile]:overflow-hidden">
+      <div class="hidden group-data-[vp=mobile]:flex justify-center pt-2.5"><div class="w-10 h-1 rounded-full bg-lb-border"></div></div>
+      <!-- Header -->
+      <div class="px-6 pt-5 pb-0 border-b border-lb-border">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2.5 text-lb-accent">
+            <i data-lucide="book-open" class="w-6 h-6"></i>
+            <span class="font-serif text-2xl font-bold text-lb-primary">Watson's Diary</span>
+          </div>
+          <button class="p-2 text-lb-muted hover:text-lb-primary hover:bg-lb-bg rounded-md"><i data-lucide="x" class="w-6 h-6"></i></button>
+        </div>
+        <div class="relative mt-4">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-lb-muted"></i>
+          <input placeholder="Search the diary…" class="w-full pl-10 pr-4 py-2.5 rounded-lg border border-lb-border bg-lb-bg/60 text-[15px] placeholder:text-lb-muted focus:outline-none focus:border-lb-accent">
+        </div>
+        <!-- segmented kind filter -->
+        <div class="flex gap-6 mt-4 text-xs font-bold uppercase tracking-widest">
+          <button class="pb-3 border-b-2 border-lb-accent text-lb-accent">All</button>
+          <button class="pb-3 border-b-2 border-transparent text-lb-muted hover:text-lb-primary">Clues</button>
+          <button class="pb-3 border-b-2 border-transparent text-lb-muted hover:text-lb-primary">Decisions</button>
+          <button class="pb-3 border-b-2 border-transparent text-lb-muted hover:text-lb-primary">Reflections</button>
+        </div>
+      </div>
+      <!-- Entries -->
+      <div class="relative flex-1 min-h-0 overflow-y-auto px-6 pb-6">
+        <div class="sticky top-0 z-10 flex items-center justify-between gap-3 py-4 bg-lb-paper">
+          <span class="uppercase tracking-widest text-[13px] font-bold text-lb-accent">Act 2 — The Double Event <span class="ml-1 normal-case tracking-normal text-[11px] opacity-70">· current</span></span>
+          <i data-lucide="chevron-down" class="w-5 h-5 text-lb-muted"></i>
+        </div>
+        <div class="space-y-5 pt-1 pb-6" id="entriesC"></div>
+        <div class="flex items-center justify-between gap-3 py-4 border-t border-lb-border/60">
+          <span class="uppercase tracking-widest text-[13px] font-bold text-lb-muted">Act 1 — A Study in Terror</span>
+          <span class="flex items-center gap-3">
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-lb-accent/50 bg-lb-accent/10 text-lb-accent text-xs font-semibold"><i data-lucide="check" class="w-3.5 h-3.5"></i>Complete</span>
+            <i data-lucide="chevron-down" class="w-5 h-5 text-lb-muted -rotate-90"></i>
+          </span>
+        </div>
+      </div>
+      <div class="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-lb-paper to-transparent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Sample entries (shared, rendered into each variant) — bigger typography: base 15px, titles 16px ──
+const ENTRIES = [
+  { icon: 'feather', reflection: true, title: "Watson's reflection", time: '1:05 AM',
+    body: 'Two women dead in a single night, streets apart. Holmes calls it audacity; I call it appetite. The killer is escalating, and the Yard chases shadows while the East End holds its breath.' },
+  { icon: 'search', lead: true, isNew: true, title: 'The Goulston Street graffito', time: '12:40 AM',
+    body: 'Chalked above a torn scrap of apron: a message about "the Juwes." Warren wants it scrubbed before dawn. Holmes copied every letter first, twice.' },
+  { icon: 'search', lead: true, title: "Catherine Eddowes' effects", time: '11:55 PM',
+    body: 'A mustard tin, pawn tickets, and half an apron — the other half missing. Holmes turned the tin over in his hands for a long moment before pocketing his notes.' },
+  { icon: 'gavel', title: 'Pressed Inspector Halloran', time: '10:30 PM',
+    body: 'I chose to press the inspector on the missing constable rather than show him the letter. He bristled, but let slip that the beat log for Mitre Square was altered.' },
+  { icon: 'search', title: 'Dutfield\'s Yard witness', time: '9:15 PM',
+    body: 'A grape stalk, wet cobbles, and a Hungarian labourer who swears he saw a man shout "Lipski!" — the first murder interrupted, Holmes believes.' },
+];
+function entryHTML(e) {
+  return `<div class="flex gap-3.5">
+    <i data-lucide="${e.icon}" class="w-5 h-5 text-lb-accent mt-0.5 shrink-0"></i>
+    <div class="min-w-0 flex-1">
+      <div class="flex items-baseline justify-between gap-3">
+        <p class="text-[16px] text-lb-primary flex items-center flex-wrap gap-x-2 ${e.reflection ? 'font-sans italic font-semibold' : 'font-semibold'}">
+          <span>${e.title}</span>
+          ${e.lead ? '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-lb-accent/50 bg-lb-accent/10 text-lb-accent text-[10px] font-bold tracking-wider uppercase"><span class="w-1.5 h-1.5 rounded-full bg-current"></span>Lead</span>' : ''}
+          ${e.isNew ? '<span class="text-lb-accent text-xs font-bold italic">New</span>' : ''}
+        </p>
+        <span class="shrink-0 text-xs text-lb-muted tabular-nums">${e.time}</span>
+      </div>
+      ${e.reflection
+        ? `<p class="mt-2 border-l-2 border-lb-accent/45 pl-4 font-sans italic text-[15px] text-lb-primary/90 leading-relaxed">${e.body}</p>`
+        : `<p class="mt-1.5 text-[15px] font-sans text-lb-primary/90 leading-relaxed">${e.body}</p>`}
+    </div>
+  </div>`;
+}
+const html = ENTRIES.map(entryHTML).join('');
+document.getElementById('entriesA').innerHTML = html;
+document.getElementById('entriesB').innerHTML = html;
+document.getElementById('entriesC').innerHTML = html;
+
+const DESCRIPTIONS = {
+  1: '<b>A · Grand Ledger</b> — the current modal, grown up: max-width goes xl→3xl, height to 92%, typography from 14→15/16px. A dedicated filter toolbar sits under the header with search + kind chips. Acts keep the exact accordion behavior. On mobile it becomes a full bottom sheet with a drag handle. <i>Smallest change from today; accordion still does act filtering.</i>',
+  2: '<b>B · Casebook Rail</b> — a wide (4xl) two-pane casebook. Acts move from an accordion into a left rail with act name + leads pips, so switching acts is one click and the entries pane is dedicated to reading. Kind filters live under the rail; search sits in the header. On mobile the rail collapses into horizontally scrolling act chips over a bottom sheet. <i>Most “bigger” feel, best for long diaries; largest change.</i>',
+  3: '<b>C · Study Drawer</b> — a full-height panel that slides from the right (like a bookmark in the margin of the game), 560px wide, so the game stays partially visible. Search and a segmented All/Clues/Decisions/Reflections tab bar are pinned in the header; acts keep the accordion. On mobile it is the same bottom sheet as the others. <i>Feels least like an interruption; width is capped so very long entries stay readable.</i>',
+};
+
+function showVariant(n) {
+  for (const i of [1,2,3]) {
+    document.getElementById('v'+i).classList.toggle('hidden', i!==n);
+    document.getElementById('v'+i).classList.toggle('flex', i===n);
+    const t = document.getElementById('tab'+i);
+    t.classList.toggle('bg-lb-accent', i===n); t.classList.toggle('text-white', i===n);
+  }
+  document.getElementById('descBar').innerHTML = DESCRIPTIONS[n];
+  lucide.createIcons();
+}
+function setViewport(vp) {
+  const stage = document.getElementById('stage');
+  if (vp === 'mobile') { stage.style.width='400px'; stage.style.height='820px'; }
+  else { stage.style.width='1200px'; stage.style.height='780px'; }
+  stage.classList.add('group'); stage.dataset.vp = vp;
+  document.querySelectorAll('.variant').forEach(v => v.dataset.vp = vp);
+  document.getElementById('vpDesktop').classList.toggle('bg-lb-primary', vp==='desktop');
+  document.getElementById('vpDesktop').classList.toggle('text-white', vp==='desktop');
+  document.getElementById('vpMobile').classList.toggle('bg-lb-primary', vp==='mobile');
+  document.getElementById('vpMobile').classList.toggle('text-white', vp==='mobile');
+}
+setViewport('desktop');
+showVariant(1);
+</script>
+</body>
+</html>
