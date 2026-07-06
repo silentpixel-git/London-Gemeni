@@ -1,4 +1,5 @@
 import type { RumorDefinition } from '../types';
+import type { StoryFlag } from './flags';
 
 // Authored rumor spread — Phase 4b. Every hop is hand-written hearsay in the
 // recipient's register; nothing auto-propagates. Trigger flags must be
@@ -11,7 +12,7 @@ import type { RumorDefinition } from '../types';
 // - No "Halward", no "prasarved" (spoilers)
 // - delayPeriods: 0-1 same-circle, 2-4 cross-circle gossip, wrapped at act transition
 // - Spread to NPCs only during acts when they are in the world (qa:validate warns if absent)
-export const RUMORS: RumorDefinition[] = [
+export const RUMORS: RumorDefinition<StoryFlag>[] = [
   // Fixture pair for the engine test suite — real triggers, exact statements preserved.
   // The fixture assertions in qa-engine.ts depend on these IDs and trigger flags;
   // statements may be reworded as long as intent matches.

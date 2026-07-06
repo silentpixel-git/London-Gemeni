@@ -1,4 +1,5 @@
 import type { ActCondition, ActTimeConfig, WeatherCondition, ActWeather } from '../types';
+import type { StoryFlag } from './flags';
 
 export type { ActTimeConfig, WeatherCondition, ActWeather } from '../types';
 
@@ -106,7 +107,7 @@ export const ACT_BRIDGES: Record<number, string> = {
 // The engine checks these after every action (including talk/show).
 // REWEAVE: each act's gate now includes its suspect-theory beats —
 // the moving spotlight is mandatory, not optional.
-export const ACT_PROGRESSION: Record<number, ActCondition> = {
+export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
   // Prologue — the vigil. Four murders so far; Kelly is still alive tonight.
   // Tutorialises EXAMINE, TALK, TAKE, and SHOW in the safety of 221B.
   0: {

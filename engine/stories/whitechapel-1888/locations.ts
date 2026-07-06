@@ -1,6 +1,6 @@
 import type { LocationDefinition } from '../types';
 
-export const LOCATIONS: Record<string, LocationDefinition> = {
+const LOCATIONS_DATA = {
 
   // ── PRESENT-DAY LOCATIONS ─────────────────────────────────────────────────
 
@@ -316,9 +316,19 @@ export const LOCATIONS: Record<string, LocationDefinition> = {
       { text: 'Someone has chalked a fresh price-list on the wall a few feet from where the inscription was wiped. Ordinary words in an ordinary hand. Watson looks at it longer than it deserves.', act: 3 },
     ],
   },
-};
+} satisfies Record<string, LocationDefinition>;
 
-export const OBJECT_DISPLAY_NAMES: Record<string, string> = {
+/** Every authored location id — the keys of the data table, kept alive by `satisfies`. */
+export type LocationId = keyof typeof LOCATIONS_DATA;
+
+// Re-exported under the original wide type so consumers keep string-keyed access.
+// NOTE: this table's own flag values (locationExaminedFlag, requiresFlag) are
+// not compile-checked against StoryFlag — the union derives from these keys,
+// which makes a `satisfies` check circular, and `satisfies` widens the literals
+// anyway. qa:validate covers them at the QA layer (flag-grammar reachability).
+export const LOCATIONS: Record<string, LocationDefinition> = LOCATIONS_DATA;
+
+const OBJECT_DISPLAY_NAMES_DATA = {
   // Baker Street
   case_files_wall: 'Case Files Wall',
   whitechapel_map: 'Whitechapel Map',
@@ -388,4 +398,9 @@ export const OBJECT_DISPLAY_NAMES: Record<string, string> = {
   superintendent: 'Asylum Superintendent',
   // Legacy / shared
   city_police: 'City Police Officers',
-};
+} satisfies Record<string, string>;
+
+/** Every displayable object id — the keys of the data table. */
+export type ObjectId = keyof typeof OBJECT_DISPLAY_NAMES_DATA;
+
+export const OBJECT_DISPLAY_NAMES: Record<string, string> = OBJECT_DISPLAY_NAMES_DATA;

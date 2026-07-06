@@ -1,0 +1,60 @@
+/**
+ * flags.ts — compile-time vocabulary for authored story flags.
+ *
+ * Flags follow naming conventions (`examined_<loc>`, `talked_to_<npc>_at_<loc>`,
+ * …) that were previously enforced by nothing: a typo in acts.ts or hints.ts
+ * produced a gate that silently never opened. StoryFlag encodes each convention
+ * as a template-literal type over the ID unions derived from the story tables,
+ * so a misspelled flag is now a compile error at the authoring site.
+ *
+ * Scope: AUTHORED flags only — the ones written by hand in story data files.
+ * The runtime flag store (GameSession.flags) stays Record<string, boolean>
+ * because the engine also sets dynamic families (`rumor_ack_*`,
+ * `vignette_<loc>_<idx>`, `world_event_<id>`, `npc_introduced_<npc>`) that are
+ * constructed, not authored.
+ */
+
+import type { LocationId, ObjectId } from './locations';
+import type { NpcId } from './npcs';
+
+/** Examined a location as a whole, or a specific object at a location. */
+type ExaminedFlag =
+  | `examined_${LocationId}`
+  | `examined_${LocationId}_${ObjectId}`;
+
+/** Spoke to an NPC at a specific location. */
+type TalkedToFlag = `talked_to_${NpcId}_at_${LocationId}`;
+
+/** Showed an inventory item/object to an NPC. */
+type ShowedFlag = `showed_${ObjectId}_to_${NpcId}`;
+
+/** Used one item with another (USE combination). */
+type UsedFlag = `used_${ObjectId}_with_${ObjectId}`;
+
+/** First visit to a location. */
+type VisitedFlag = `visited_${LocationId}`;
+
+/**
+ * One-off story flags that don't follow a template convention.
+ * Add here deliberately — anything else is treated as a typo.
+ */
+type LiteralFlag =
+  | 'asylum_unlocked'    // set on correct deduction; gates travel to the asylum
+  | 'deduction_correct'  // set via Edmund's successFlags; read by the Act 6 hint objective
+  | 'true_ending'        // deduction outcome recorded by the endings flow
+  | '__advance_via_correct_deduction_only__'; // Act 5 sentinel (excluded from lead pips)
+
+/** Every flag name that may legally appear in authored story data. */
+export type StoryFlag =
+  | ExaminedFlag
+  | TalkedToFlag
+  | ShowedFlag
+  | UsedFlag
+  | VisitedFlag
+  | LiteralFlag;
+
+// NOTE: locations.ts and npcs.ts author a handful of flags of their own
+// (locationExaminedFlag, requiresFlag, scriptedLines triggerFlag). Those can't
+// be compile-checked here — StoryFlag derives from their keys, so a satisfies
+// check is circular, and satisfies widens value literals regardless. They are
+// covered by qa:validate's flag-grammar reachability pass instead.

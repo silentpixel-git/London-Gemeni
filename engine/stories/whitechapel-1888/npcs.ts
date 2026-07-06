@@ -1,6 +1,6 @@
 import type { NPCDefinition } from '../types';
 
-export const NPCS: Record<string, NPCDefinition> = {
+const NPCS_DATA = {
   holmes: {
     id: 'holmes',
     displayName: 'Sherlock Holmes',
@@ -347,7 +347,17 @@ export const NPCS: Record<string, NPCDefinition> = {
       6: { default: 'private_asylum' },
     },
   },
-};
+} satisfies Record<string, NPCDefinition>;
+
+/** Every authored NPC id — the keys of the data table, kept alive by `satisfies`. */
+export type NpcId = keyof typeof NPCS_DATA;
+
+// Re-exported under the original wide type so consumers keep string-keyed access.
+// NOTE: this table's own flag values (scriptedLines triggerFlag) are not
+// compile-checked against StoryFlag — the union derives from these keys, which
+// makes a `satisfies` check circular, and `satisfies` widens the literals
+// anyway. qa:validate covers them at the QA layer (flag-grammar reachability).
+export const NPCS: Record<string, NPCDefinition> = NPCS_DATA;
 
 export const NPC_DISPLAY_NAMES: Record<string, string> = {
   holmes: 'Sherlock Holmes',

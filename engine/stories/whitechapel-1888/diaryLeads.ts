@@ -14,7 +14,8 @@ import { OBJECTIVES } from './hints';
 export function isRequiredFlag(actNumber: number, flag: string): boolean {
   const gate = ACT_PROGRESSION[actNumber];
   if (!gate) return false;
-  return gate.requireFlags.includes(flag) && !flag.startsWith('__');
+  // Widened: this helper takes arbitrary runtime flags, gates hold StoryFlag.
+  return (gate.requireFlags as readonly string[]).includes(flag) && !flag.startsWith('__');
 }
 
 /** The gate flag a clue's triggering examine action sets, by naming convention. */
