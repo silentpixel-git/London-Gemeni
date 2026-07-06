@@ -4,9 +4,9 @@
  * lookups out of the React layer: the modal only renders what this returns.
  */
 
-import { CLUE_DEFINITIONS } from './clues';
-import { DECISION_DIARY } from './diaryDecisions';
-import { LOCATION_DIARY } from './diaryLocations';
+import { CLUE_DEFINITIONS } from './clues.js';
+import { DECISION_DIARY } from './diaryDecisions.js';
+import { LOCATION_DIARY } from './diaryLocations.js';
 
 export type DiaryKind = 'clue' | 'act' | 'decision' | 'revelation' | 'location';
 

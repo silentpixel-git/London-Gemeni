@@ -4,8 +4,7 @@
  * supplies the neutral hint-objective context used to ground their
  * AI-generated diary text. Pure, no I/O — testable without a running game.
  */
-import type { HintVerb } from '../../../types';
-import type { ClueDefinition } from '../types';
+import type { ClueDefinition, LeadContext } from '../types';
 import { ACT_PROGRESSION } from './acts';
 import { CLUE_DEFINITIONS } from './clues';
 import { DECISION_BY_FLAG } from './diaryDecisions';
@@ -23,10 +22,7 @@ export function clueGateFlag(def: ClueDefinition): string {
   return `examined_${def.locationFound}_${def.triggerObject}`;
 }
 
-export interface LeadContext {
-  verb: HintVerb;
-  subject: string;
-}
+export type { LeadContext } from '../types';
 
 /** Neutral, spoiler-safe verb+subject for a gate flag, reused from the hint objective table. */
 export function leadContextFor(actNumber: number, flag: string): LeadContext | null {

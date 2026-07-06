@@ -13,16 +13,15 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
-import { callGemini } from '../services/geminiService';
 import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { injectAfterHeading } from '../services/narrationFormat';
-import { gameEngine, SessionSnapshot, computeTimePeriod, getPresentNpcIds } from '../engine/GameEngine';
+import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
+import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { audioManager } from '../services/AudioManager';
 import { parseIntent, type ParsedIntent } from '../engine/intentParser';
-import { selectHint } from '../engine/stories/whitechapel-1888/hints';
-import { isRequiredFlag, clueGateFlag, leadContextFor, detectSilentLeadFlags } from '../engine/stories/whitechapel-1888/diaryLeads';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_BRIDGES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, NPCS, formatGameClock } from '../engine/gameData';
+import { needsAiParse, buildParseCandidates } from '../engine/parseFallback';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_BRIDGES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -33,91 +32,50 @@ import {
   INITIAL_INTRODUCED_NPCS,
   NPC_DISPLAY_NAMES,
 } from '../constants';
-import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod, ThemeMode } from '../types';
+import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod, ThemeMode, RumorEvents } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
 
-// ── AI fallback target resolution ─────────────────────────────────────────────
-// The deterministic parser is strict about NOUNS (exact name / alias / fuzzy
-// only — no semantic understanding). When a parse fails to land on a target
-// that is actually present here, we ask the AI to pick from THIS location's
-// entities — objects for EXAMINE, people for TALK. Constrained to that list →
-// it can never invent an entity or grant a clue; the engine still owns every
-// clue and introduction decision. Only fires on a genuine miss, so clean inputs
-// keep the instant offline fast-path.
+// ── Destructure hints and diary leads from the story manifest ────────────────
+const { selectHint } = WHITECHAPEL_MANIFEST;
+const { isRequiredFlag, clueGateFlag, leadContextFor, detectSilentLeadFlags } = WHITECHAPEL_MANIFEST.diaryLeads;
 
-// Per-session memo: `${kind}::${location}::${normalised raw}` → resolved id (or null).
-const targetResolveCache = new Map<string, string | null>();
+// ── AI parse fallback (Phase 3, default-on) ──────────────────────────────────
+// When the deterministic parse misses, route the WHOLE input through the
+// constrained parseAction op — every verb. Kill switch: VITE_AI_PARSER='off'
+// disables it (pure regex parsing; misses stay in-character engine misses —
+// same degraded mode as a Gemini outage, since parseAction returns null on
+// any failure and the turn keeps the regex intent).
+// Plain (non-optional-chained) access: Vite's define replaces the exact token
+// `import.meta.env.VITE_AI_PARSER`, same pattern as supabase.ts.
+const AI_PARSER_ENABLED = (import.meta.env.VITE_AI_PARSER ?? '') !== 'off';
 
-async function resolveTargetWithAI(
+// Per-session memo, same pattern as targetResolveCache above.
+const parseActionCache = new Map<string, ParsedIntent | null>();
+
+async function resolveIntentWithAI(
   intent: ParsedIntent,
   location: string,
   inventory: string[],
   npcStates: Record<string, NPCState>,
   currentAct: number,
   introducedNpcs: string[],
+  elapsedMinutes: number,
 ): Promise<ParsedIntent> {
-  // ── NPC branch: a TALK whose person the parser could not resolve. Map the
-  // phrase against the people actually present (alias-aware, so an unintroduced
-  // NPC's real name never enters the prompt). Catches semantic references that
-  // fuzzy matching cannot — "the witness who saw Mary", "that eager fellow".
-  if (intent.type === 'talk' && !intent.targetId) {
-    const raw = (intent.targetRaw || '').trim();
-    const presentNpcIds = getPresentNpcIds(location, npcStates, currentAct);
-    if (!raw || presentNpcIds.length === 0) return intent;
+  if (!needsAiParse(intent, location, inventory)) return intent;
+  const raw = intent.raw.trim();
+  if (!raw) return intent;
 
-    const key = `npc::${location}::${raw.toLowerCase()}`;
-    let npcId: string | null;
-    if (targetResolveCache.has(key)) {
-      npcId = targetResolveCache.get(key)!;
-    } else {
-      const candidates = presentNpcIds.map(id => {
-        const npc = NPCS[id];
-        const introduced = !npc.requiresIntroduction || introducedNpcs.includes(id);
-        const name = introduced
-          ? `${npc.displayName} — ${npc.role}`
-          : `${npc.alias ?? 'a stranger'} — ${npc.aliasDescription ?? npc.role}`;
-        return { id, name };
-      });
-      ({ objectId: npcId } = await aiService.resolveTargetObject(raw, 'talk', candidates, 'person'));
-      targetResolveCache.set(key, npcId);
-    }
-    return npcId ? { ...intent, targetId: npcId } : intent;
-  }
-
-  const present = LOCATIONS[location]?.interactables ?? [];
-
-  // A resolved object that is a real object id but not actionable here (not in
-  // this room and not a copy Watson carries) is treated as a soft miss —
-  // typically a fuzzy/alias slip onto an object that lives elsewhere.
-  const tid = intent.targetId;
-  const resolvedButAbsent =
-    !!tid &&
-    !!OBJECT_DISPLAY_NAMES[tid] &&
-    !present.includes(tid) &&
-    !(TAKEABLE_OBJECTS[tid] && inventory.includes(TAKEABLE_OBJECTS[tid]));
-
-  const isMiss =
-    intent.type === 'unresolved_target' ||
-    (intent.type === 'examine' && resolvedButAbsent);
-  if (!isMiss) return intent;
-
-  const raw = (intent.targetRaw || '').trim();
-  if (!raw || present.length === 0) return intent;
-
-  const key = `${location}::${raw.toLowerCase()}`;
-  let objectId: string | null;
-  if (targetResolveCache.has(key)) {
-    objectId = targetResolveCache.get(key)!;
+  const key = `parse::${location}::${currentAct}::${raw.toLowerCase()}`;
+  let resolved: ParsedIntent | null;
+  if (parseActionCache.has(key)) {
+    resolved = parseActionCache.get(key)!;
   } else {
-    const candidates = present.map(id => ({ id, name: OBJECT_DISPLAY_NAMES[id] ?? id }));
-    ({ objectId } = await aiService.resolveTargetObject(raw, 'examine', candidates));
-    targetResolveCache.set(key, objectId);
+    const candidates = buildParseCandidates(location, inventory, npcStates, currentAct, introducedNpcs, elapsedMinutes);
+    ({ intent: resolved } = await aiService.parseAction(raw, candidates));
+    parseActionCache.set(key, resolved);
   }
-  if (!objectId) return intent;
-
-  // Re-target as a normal examine so the engine runs its standard deterministic
-  // clue lookup against the resolved object. Keep the player's original raw text.
-  return { ...intent, type: 'examine', targetId: objectId };
+  // null = no confident match → keep the regex intent (engine misses in character).
+  return resolved ?? intent;
 }
 
 // ── Public interface ──────────────────────────────────────────────────────────
@@ -243,6 +201,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // In-game clock — minutes elapsed since act's canonical start time
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  // Phase 4b — rumor-event log: when each rumor's trigger flag first fired
+  const [rumorEvents, setRumorEvents] = useState<RumorEvents>({});
   // How many times Watson has visited each location
   const [locationVisitCounts, setLocationVisitCounts] = useState<Record<string, number>>({});
   // First sentences of the last few narrations — anti-repetition memory for the AI
@@ -375,7 +335,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     }
 
     try {
-      const test = await callGemini("Say 'ok'", false, 0);
+      const test = await aiService.ping();
       setConnectionStatus(prev => ({ ...prev, gemini: test.toLowerCase().includes('ok') }));
     } catch {
       setConnectionStatus(prev => ({ ...prev, gemini: false }));
@@ -531,6 +491,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         introducedNpcs: INITIAL_INTRODUCED_NPCS,
         locationVisitCounts: {},
         turnCount: 0,
+        rumorEvents: {},
       };
       const result = gameEngine.resolve(intent, snapshot);
       commitVignetteFlags(result.flagsUpdate, {}, activeInvestigation?.id);
@@ -592,6 +553,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         introducedNpcs: resume.introducedNpcs,
         locationVisitCounts: {},
         turnCount: 0,
+        rumorEvents: {},
       };
       const result = gameEngine.resolve(intent, snapshot);
       commitVignetteFlags(result.flagsUpdate, resume.flags, resume.investigationId);
@@ -642,6 +604,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setJournalNotes(investigation.journalNotes || INITIAL_JOURNAL);
     setIntroducedNpcs(loadedIntroduced);
     setElapsedMinutes(loadedElapsed);
+    setRumorEvents((investigation as Investigation).rumorEvents ?? {});
     setActiveInvestigation(investigation);
 
     // Load Watson's diary casebook for this investigation.
@@ -714,6 +677,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       diaryEntries,
       introducedNpcs,
       currentAct,
+      rumorEvents,
       timestamp: new Date().toLocaleString(),
     };
 
@@ -731,6 +695,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           journalNotes,
           stim,
           introducedNpcs,
+          rumorEvents,
         });
         if (updated) setActiveInvestigation(updated as Investigation);
         // Safety net: upsert the whole diary (idempotent by id) so any entry
@@ -800,6 +765,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         introducedNpcs,
         locationVisitCounts,
         turnCount,
+        rumorEvents: {},
       };
       const result = gameEngine.resolve(intent, snapshot);
       commitVignetteFlags(result.flagsUpdate, flags, activeInvestigation?.id);
@@ -901,6 +867,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setMoralPoints(state.moralPoints || 0);
       setCurrentAct(guestAct);
       setElapsedMinutes(0);
+      setRumorEvents(state.rumorEvents ?? {});
       setFlags(state.flags || {});
       setJournalNotes(state.journalNotes || INITIAL_JOURNAL);
       setNpcStates(guestNpcStates);
@@ -1023,6 +990,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setMoralPoints(data.moral_points);
         setCurrentAct(data.current_act ?? INITIAL_ACT);
         if (data.elapsed_minutes !== undefined) setElapsedMinutes(data.elapsed_minutes ?? 0);
+        if (data.rumor_events !== undefined) setRumorEvents(data.rumor_events ?? {});
         setFlags(data.global_flags || {});
         setJournalNotes(data.journal_notes || INITIAL_JOURNAL);
         setActiveInvestigation(prev =>
@@ -1103,11 +1071,13 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // STEP 1: Parse intent deterministically
       let intent = parseIntent(userAction);
 
-      // STEP 2.5: AI fallback — only when the deterministic parse missed a target.
-      // Resolves a natural-language/paraphrased object (examine) or person (talk)
-      // against THIS location's entities so the engine can fire. No-op (and no
-      // latency) on hits.
-      intent = await resolveTargetWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs);
+      // STEP 2.5: AI parse fallback — only when the deterministic parse missed.
+      // Resolves the whole input against THIS location's candidates so the
+      // engine can fire. No-op (and no latency) on hits. VITE_AI_PARSER='off'
+      // is the emergency kill switch (regex-only parsing).
+      if (AI_PARSER_ENABLED) {
+        intent = await resolveIntentWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs, elapsedMinutes);
+      }
 
       // STEP 2: Build session snapshot from current React state
       const discoveredClueIds = user && activeInvestigation
@@ -1129,6 +1099,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         introducedNpcs,
         locationVisitCounts,
         turnCount,
+        rumorEvents,
       };
 
       // STEP 3: Engine resolves — no AI yet
@@ -1163,6 +1134,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const newMedicalPoints = result.medicalPointsDelta ? medicalPoints + result.medicalPointsDelta : medicalPoints;
       const newMoralPoints   = result.moralPointsDelta   ? moralPoints  + result.moralPointsDelta   : moralPoints;
       const newFlags         = result.flagsUpdate        ? { ...flags, ...result.flagsUpdate }      : flags;
+      const newRumorEvents = result.rumorEventsUpdate
+        ? { ...rumorEvents, ...result.rumorEventsUpdate }
+        : rumorEvents;
 
       const advancingAct = !!result.newAct && !result.gameOver;
 
@@ -1184,6 +1158,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setMedicalPoints(newMedicalPoints);
       setMoralPoints(newMoralPoints);
       setFlags(newFlags);
+      if (result.rumorEventsUpdate) setRumorEvents(newRumorEvents);
       if (result.gameOver) {
         setIsGameOver(true);
         if (result.endingType) setEndingType(result.endingType);
@@ -1219,7 +1194,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       };
       // On an act-advance the clock persists at the new act's canonical start (0);
       // React's elapsedMinutes stays held until Begin (see the hold comment above).
-      const actionMinutes = ACTION_TIME_MINUTES[result.actionType] ?? 2;
+      const actionMinutes = result.minutesAdvanced ?? ACTION_TIME_MINUTES[result.actionType] ?? 2;
       const newElapsedMinutes = advancingAct ? 0 : elapsedMinutes + actionMinutes;
       if (!advancingAct) setElapsedMinutes(newElapsedMinutes);
       // Clock label for any diary entries captured this turn. Use the held clock
@@ -1283,7 +1258,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // so a mid-curtain reload reads the committed new act and resume-looks there.
       if (user && activeInvestigation) {
         await GameRepository.applyEngineResult(activeInvestigation.id, result, {
-          location, inventory, medicalPoints, moralPoints, currentAct, flags,
+          location, inventory, medicalPoints, moralPoints, currentAct, flags, rumorEvents,
         }, newElapsedMinutes);
         if (result.npcUpdates) {
           GameRepository.applyNPCUpdates(activeInvestigation.id, result.npcUpdates);
@@ -1618,6 +1593,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setNpcStates(INITIAL_NPC_STATES as Record<string, NPCState>);
     setCurrentAct(INITIAL_ACT);
     setElapsedMinutes(0);
+    setRumorEvents({});
     setStim({});
     setTurnCount(0);
     setIntroducedNpcs(INITIAL_INTRODUCED_NPCS);

@@ -20,7 +20,7 @@
  */
 
 import { supabase } from '../supabase';
-import { Investigation, NPCState, Clue, LogEntry, DiaryEntry } from '../types';
+import { Investigation, NPCState, Clue, LogEntry, DiaryEntry, RumorEvents } from '../types';
 import type { EngineResult } from '../types';
 import { CLUE_DEFINITIONS } from '../engine/gameData';
 
@@ -197,6 +197,7 @@ export class GameRepository {
       moralPoints: number;
       currentAct: number;
       flags: Record<string, boolean>;
+      rumorEvents: RumorEvents;
     },
     newElapsedMinutes?: number
   ): Promise<void> {
@@ -240,6 +241,10 @@ export class GameRepository {
         updates.global_flags = { ...currentState.flags, ...result.flagsUpdate };
       }
 
+      if (result.rumorEventsUpdate && Object.keys(result.rumorEventsUpdate).length > 0) {
+        updates.rumor_events = { ...currentState.rumorEvents, ...result.rumorEventsUpdate };
+      }
+
       if (result.gameOver) {
         updates.status = 'solved';
       }
@@ -266,6 +271,7 @@ export class GameRepository {
     status?: string;
     stim?: Record<string, unknown>;
     introducedNpcs?: string[];
+    rumorEvents?: RumorEvents;
   }): Promise<Investigation | null> {
     try {
       const snakeUpdates: Record<string, unknown> = {
@@ -281,6 +287,7 @@ export class GameRepository {
       if (updates.status !== undefined) snakeUpdates.status = updates.status;
       if (updates.stim !== undefined) snakeUpdates.stim = updates.stim;
       if (updates.introducedNpcs !== undefined) snakeUpdates.introduced_npcs = updates.introducedNpcs;
+      if (updates.rumorEvents !== undefined) snakeUpdates.rumor_events = updates.rumorEvents;
 
       const { data, error } = await supabase
         .from('investigations')
@@ -562,6 +569,7 @@ export class GameRepository {
       introducedNpcs: (data.introduced_npcs as string[]) || [],
       saveSlot: (data.save_slot as number | null) ?? undefined,
       elapsedMinutes: (data.elapsed_minutes as number) ?? 0,
+      rumorEvents: (data.rumor_events as RumorEvents) || {},
     } as Investigation & { currentAct: number; inventory: string[]; introducedNpcs: string[] };
   }
 }

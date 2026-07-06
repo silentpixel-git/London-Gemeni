@@ -1,34 +1,9 @@
-import type { HintTarget, HintVerb } from '../../../types';
+import type { HintTarget } from '../../../types';
+import type { HintState, HintObjective } from '../types';
 import { LOCATIONS } from './locations';
 import { NPCS } from './npcs';
 
-/** Narrow, read-only slice of session state the selector needs. */
-export interface HintState {
-  currentAct: number;
-  location: string;
-  flags: Record<string, boolean>;
-  inventory: string[];
-  npcStates: Record<string, { currentLocation?: string; status?: string }>;
-  /** Visit count per location id. Used to decide whether Watson may know a
-   *  location's contents (a hint must not name objects he has never seen). */
-  locationVisitCounts: Record<string, number>;
-}
-
-export interface HintObjective {
-  id: string;
-  act: number;
-  locationId: string;
-  verb: HintVerb;
-  /** Neutral, player-facing noun phrase. MUST NOT reveal clue content. */
-  subject: string;
-  /** The exact ACT_PROGRESSION gate flag this objective's `done` tracks, when
-   *  it maps 1:1 onto one (most do). Absent for prerequisite-only steps (e.g.
-   *  examining the newspaper pile before it can be shown) and for objectives
-   *  whose `done` isn't a single-flag check (Act 5's inventory-based steps). */
-  flag?: string;
-  done: (s: HintState) => boolean;
-  available: (s: HintState) => boolean;
-}
+export type { HintState, HintObjective } from '../types';
 
 // ── Inventory display names (must match TAKEABLE_OBJECTS values in clues.ts) ──
 const CLIPPING = 'Newspaper Clipping (the "Dear Boss" letter)';
@@ -51,7 +26,7 @@ function locationReachable(s: HintState, locId: string): boolean {
 }
 function npcAt(s: HintState, npcId: string, locId: string): boolean {
   const st = s.npcStates[npcId];
-  const loc = st?.currentLocation ?? (NPCS[npcId] as any)?.canonicalLocationByAct?.[s.currentAct];
+  const loc = st?.currentLocation ?? (NPCS[npcId] as any)?.scheduleByAct?.[s.currentAct]?.default;
   return loc === locId && st?.status !== 'deceased';
 }
 /** A talk/show step is available only if its location is reachable AND the NPC is there. */
@@ -116,6 +91,11 @@ export const OBJECTIVES: HintObjective[] = [
     flag: 'examined_whitechapel_mortuary',
     done: s => flag(s, 'examined_whitechapel_mortuary'),
     available: s => locationReachable(s, 'whitechapel_mortuary') },
+  { id: 'a2_phillips', act: 2, locationId: 'whitechapel_mortuary', verb: 'talk',
+    subject: 'Dr. Phillips, the divisional surgeon, who examined the earliest victims himself',
+    flag: 'talked_to_phillips_at_whitechapel_mortuary',
+    done: s => flag(s, 'talked_to_phillips_at_whitechapel_mortuary'),
+    available: s => npcStep(s, 'whitechapel_mortuary', 'phillips') },
   { id: 'a2_bucks', act: 2, locationId: 'bucks_row', verb: 'examine',
     subject: 'the spot on Buck’s Row where the earliest body lay',
     flag: 'examined_bucks_row',

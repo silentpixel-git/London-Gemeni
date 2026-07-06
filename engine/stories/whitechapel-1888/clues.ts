@@ -1,4 +1,6 @@
-import type { ClueDefinition } from '../types';
+import type { ClueDefinition, ShowInteraction, UseCombination } from '../types';
+
+export type { ShowInteraction, UseCombination } from '../types';
 
 export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
   // GROUP 0 — Prologue: Baker Street framework clue
@@ -519,11 +521,6 @@ export const USE_INTERACTIONS: Record<string, Record<string, string>> = {
 // Each entry contains the clue triggered (if any) and the AI result note.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface ShowInteraction {
-  clueId?: string;       // Clue unlocked by this show action (optional)
-  resultNote: string;    // Passed to AI as actionResultNote
-}
-
 export const SHOW_INTERACTIONS: Record<string, Record<string, ShowInteraction>> = {
   // Prologue tutorial beat: SHOW the newspaper clipping TO Holmes.
   // Sets showed_newspaper_pile_to_holmes (engine flag name keys on the object id)
@@ -578,17 +575,6 @@ export const SHOW_INTERACTIONS: Record<string, Record<string, ShowInteraction>> 
 // Watson uses one inventory item with another object/item.
 // Keyed by inventoryItemId → { withTargetId → interaction }
 // ─────────────────────────────────────────────────────────────────────────────
-
-export interface UseCombination {
-  clueId?: string;
-  resultNote: string;
-  // Optional: the combination only works at this location (e.g. the document
-  // comparison that must happen at Baker Street, against the casefiles).
-  requiresLocation?: string;
-  // Optional: the combination only works from this act onward (spoiler gate —
-  // e.g. the kidney cross-reference grants asylum-reveal content).
-  requiresAct?: number;
-}
 
 export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = {
   // USE forensic note WITH from hell letter

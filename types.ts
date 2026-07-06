@@ -1,6 +1,11 @@
 
 export type TimePeriod = 'dawn' | 'morning' | 'afternoon' | 'evening' | 'night' | 'lateNight';
 
+// Phase 4b — session rumor-event log: when each rumor's trigger flag first
+// fired. atMinutes is the act's canonical start + elapsed minutes (may exceed
+// 1440 on next-day clocks). Old saves lack this — default {} at every reader.
+export type RumorEvents = Record<string, { act: number; atMinutes: number }>;
+
 // Player's appearance choice. 'auto' hands the palette to the in-game clock
 // (evening/night), replacing the old separate dark-mode + time-of-day toggles —
 // so a manual dark choice can never be silently overridden by atmospheric colours.
@@ -54,6 +59,7 @@ export interface Investigation {
   stim?: Record<string, STIMEntry>;
   saveSlot?: number;
   elapsedMinutes?: number;
+  rumorEvents?: RumorEvents; // Phase 4b — rumor-event log (see RumorEvents)
   createdAt: string;
   updatedAt: string;
 }
@@ -112,6 +118,8 @@ export interface GameState {
   // Current act. Optional for back-compat with older local saves (which derived
   // the act from the location — ambiguous for shared anchors like bond_office).
   currentAct?: number;
+  // Phase 4b — rumor-event log. Optional for back-compat with older saves.
+  rumorEvents?: RumorEvents;
 }
 
 export interface WorldLocation {
@@ -136,6 +144,9 @@ export interface GameResponse {
     [key in keyof GameDispositions]?: Partial<DispositionStats>;
   };
   flagsUpdate?: Record<string, boolean>;
+  // Phase 4b — rumor-event log entries recorded this turn (merge into the
+  // session log; a rumor records at most once per playthrough).
+  rumorEventsUpdate?: RumorEvents;
   sanityUpdate?: number;
   medicalPointsUpdate?: number;
   moralPointsUpdate?: number;
@@ -157,7 +168,18 @@ export interface GameResponse {
 // ============================================================
 
 /** The type of action the player is attempting */
-export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'show' | 'read' | 'drop' | 'inventory' | 'deduce' | 'help' | 'query' | 'notebook' | 'other' | 'unresolved_target';
+export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'show' | 'read' | 'drop' | 'inventory' | 'deduce' | 'wait' | 'help' | 'query' | 'notebook' | 'other' | 'unresolved_target';
+
+// Phase 3 — candidate lists for the constrained tool-calling parse fallback.
+// Built client-side (spoiler-safe: unintroduced NPCs are alias-masked) and
+// enforced server-side: parseAction may only return ids from these lists.
+export interface ParseCandidateEntry { id: string; name: string }
+export interface ParseCandidates {
+  objects: ParseCandidateEntry[];    // present interactables + carried copies (object ids)
+  carried: ParseCandidateEntry[];    // subset of objects the player carries (show/drop enums)
+  people: ParseCandidateEntry[];     // NPCs present this act, alias-masked if unintroduced
+  locations: ParseCandidateEntry[];  // all locations (names are public)
+}
 
 /**
  * The result of the GameEngine resolving a player action.
@@ -178,9 +200,16 @@ export interface EngineResult {
   inventoryRemove?: string[];
   npcUpdates?: Record<string, Partial<NPCState>>;
   flagsUpdate?: Record<string, boolean>;
+  // Phase 4b — rumor-event log entries recorded this turn (merge into the
+  // session log; a rumor records at most once per playthrough).
+  rumorEventsUpdate?: RumorEvents;
   medicalPointsDelta?: number;
   moralPointsDelta?: number;
   discoveredClueIds?: string[];
+  // Minutes this action consumed when it isn't the fixed per-verb cost —
+  // set by WAIT (time to the next period boundary). The hook prefers this
+  // over its ACTION_TIME_MINUTES table.
+  minutesAdvanced?: number;
   newAct?: number;
   gameOver?: boolean;
   // Which ending fired (set by the engine whenever gameOver is true):
@@ -267,6 +296,9 @@ export interface NarrationContext {
   ambientExtra?: string;
   // One-shot authored vignette — replaces the random blockquote seed this turn
   vignette?: string;
+  // World-event broadcasts fired this turn (verified, authored) — each rendered
+  // as its own blockquote wherever Watson stands
+  worldEvents?: string[];
   // Recent NPC memory for present NPCs (max 2 entries each)
   npcRecentMemory?: Record<string, string[]>;
   // Session observations (STIM) — injected by useGameState before AI call
@@ -283,7 +315,11 @@ export interface NarrationContext {
     role: string;
     speakingStyle: string;
     personality: string[];
-    knowledgeEnvelope: string[]; // publicKnowledge — AI hard ceiling
+    knowledgeEnvelope: string[]; // derived from the story fact graph — AI hard ceiling
+    // Phase 4b — hearsay that reached this NPC since Watson last spoke to
+    // them (one-shot: acked via rumor_ack_* flags). The AI has them raise it
+    // unprompted, in character.
+    recentlyHeard?: string[];
     playerQuestion: string;      // intent.raw
   };
   // Proactive hint woven into the turn when the player is stuck — chosen by the
