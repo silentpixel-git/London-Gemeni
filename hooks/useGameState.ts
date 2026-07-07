@@ -21,7 +21,7 @@ import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifes
 import { audioManager } from '../services/AudioManager';
 import { parseIntent, type ParsedIntent } from '../engine/intentParser';
 import { needsAiParse, buildParseCandidates } from '../engine/parseFallback';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_BRIDGES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, formatGameClock } from '../engine/gameData';
+import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_BRIDGES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -38,6 +38,7 @@ import { AI_PARSER_ENABLED, resolveIntentWithAI } from './gameState/aiParse';
 import { OPENING_FALLBACK_NARRATIVE, extractOpeningSentence } from './gameState/narration';
 import { useConnections } from './gameState/useConnections';
 import { useAppearance } from './gameState/useAppearance';
+import { useDiary } from './gameState/useDiary';
 
 // ── Destructure hints and diary leads from the story manifest ────────────────
 const { selectHint } = WHITECHAPEL_MANIFEST;
@@ -141,6 +142,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     INITIAL_NPC_STATES as Record<string, NPCState>
   );
   const [activeInvestigation, setActiveInvestigation] = useState<Investigation | null>(null);
+  const { diaryEntries, setDiaryEntries, diarySeqRef, loggedLocationsRef, captureDiaryEntries, captureLocationArrival } =
+    useDiary({ user, activeInvestigation });
   const [slots, setSlots] = useState<Investigation[]>([]);
   const [currentAct, setCurrentAct] = useState(INITIAL_ACT);
   const [stim, setStim] = useState<Record<string, STIMEntry>>({});
@@ -178,40 +181,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // casebook below. Kept only to avoid a destructive DB migration.
   const [journalNotes, setJournalNotes] = useState(INITIAL_JOURNAL);
   const [isConsultingHolmes, setIsConsultingHolmes] = useState(false);
-
-  // ── Watson's diary (auto-captured casebook) ───────────────────────────────
-  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
-  const diarySeqRef = useRef(0); // next monotonic sequence number for new entries
-  // Locations already recorded — dedupes arrival entries across reloads/paths.
-  const loggedLocationsRef = useRef<Set<string>>(new Set());
-
-  // Append diary entries: stamp id + sequence, update state, persist if signed in.
-  const captureDiaryEntries = useCallback(
-    (items: Array<Omit<DiaryEntry, 'id' | 'sequence'>>) => {
-      if (items.length === 0) return;
-      const created: DiaryEntry[] = items.map(it => ({
-        ...it,
-        id: crypto.randomUUID(),
-        sequence: diarySeqRef.current++,
-      }));
-      setDiaryEntries(prev => [...prev, ...created]);
-      if (user && activeInvestigation) {
-        GameRepository.addDiaryEntries(activeInvestigation.id, created);
-      }
-    },
-    [user, activeInvestigation],
-  );
-
-  // Record the first arrival at a location (authored Watson line, once per place).
-  const captureLocationArrival = useCallback(
-    (locationId: string, actNumber: number, timeLabel: string) => {
-      if (!LOCATION_DIARY[locationId]) return;
-      if (loggedLocationsRef.current.has(locationId)) return;
-      loggedLocationsRef.current.add(locationId);
-      captureDiaryEntries([{ kind: 'location', refId: locationId, actNumber, timeLabel }]);
-    },
-    [captureDiaryEntries],
-  );
 
   // ── Persistence / UI ────────────────────────────────────────────────────
   const [isSaving, setIsSaving] = useState(false);
