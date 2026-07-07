@@ -59,7 +59,7 @@ hooks/
 
 # Phase A — GameEngine.ts
 
-### Task A1: Extract time helpers → `engine/time.ts`
+### Task 1: Extract time helpers → `engine/time.ts`
 
 **Files:**
 - Create: `engine/time.ts`
@@ -87,7 +87,7 @@ import { TimePeriod } from '../types';
 import type { ActTimeConfig } from './stories/types';
 ```
 
-Then MOVE (cut from GameEngine.ts, paste verbatim, comments included) these declarations, in this order: `computeTimePeriod` (currently GameEngine.ts:21–29 incl. its doc comment block starting line 19), `PERIOD_ORDER` (31–33), `minutesToNextPeriodBoundary` (35–45), `periodBoundariesCrossed` (47–64), `nextOpenPeriod` (95–103), `timePeriodFor` (126–134), `formatTimeLabel` (161–168). Locate by symbol name, not line number, if lines have shifted. One change: `formatTimeLabel` gains an `export` keyword (it was module-private; `narrationContext.ts` will need it in Task A3).
+Then MOVE (cut from GameEngine.ts, paste verbatim, comments included) these declarations, in this order: `computeTimePeriod` (currently GameEngine.ts:21–29 incl. its doc comment block starting line 19), `PERIOD_ORDER` (31–33), `minutesToNextPeriodBoundary` (35–45), `periodBoundariesCrossed` (47–64), `nextOpenPeriod` (95–103), `timePeriodFor` (126–134), `formatTimeLabel` (161–168). Locate by symbol name, not line number, if lines have shifted. One change: `formatTimeLabel` gains an `export` keyword (it was module-private; `narrationContext.ts` will need it in Task 3).
 
 - [ ] **Step 2: Update `engine/GameEngine.ts`**
 
@@ -113,7 +113,7 @@ git commit -m "refactor(engine): extract time helpers into engine/time.ts (god-f
 
 ---
 
-### Task A2: Extract NPC presence + rumor maturity → `engine/presence.ts`, SessionSnapshot → `engine/session.ts`
+### Task 2: Extract NPC presence + rumor maturity → `engine/presence.ts`, SessionSnapshot → `engine/session.ts`
 
 **Files:**
 - Create: `engine/presence.ts`
@@ -171,7 +171,7 @@ export { npcLocationAt, returnsPeriodFor, getPresentNpcIds, maturedSpreadsFor };
 export type { SessionSnapshot };
 ```
 
-Drop now-unused imports from GameEngine.ts if tsc flags them (`RumorDefinition` likely; `NPCDefinition` is still used by `introductionOf` until Task A3).
+Drop now-unused imports from GameEngine.ts if tsc flags them (`RumorDefinition` likely; `NPCDefinition` is still used by `introductionOf` until Task 3).
 
 - [ ] **Step 4: VERIFY** (tsc clean; qa:engine 256/0).
 
@@ -184,7 +184,7 @@ git commit -m "refactor(engine): extract presence + SessionSnapshot modules (god
 
 ---
 
-### Task A3: Extract shared resolver support → `engine/resolvers/support.ts` and `engine/narrationContext.ts`
+### Task 3: Extract shared resolver support → `engine/resolvers/support.ts` and `engine/narrationContext.ts`
 
 This is the pivotal task: it converts the class's private helper methods into free functions so resolvers can leave the class in A4/A5.
 
@@ -322,14 +322,14 @@ git commit -m "refactor(engine): extract narration-context + resolver support he
 
 ---
 
-### Task A4: Extract move/examine/npc resolvers → `engine/resolvers/{move,examine,npc}.ts`
+### Task 4: Extract move/examine/npc resolvers → `engine/resolvers/{move,examine,npc}.ts`
 
 **Files:**
 - Create: `engine/resolvers/move.ts`, `engine/resolvers/examine.ts`, `engine/resolvers/npc.ts`
 - Modify: `engine/GameEngine.ts`
 
 **Interfaces:**
-- Consumes: everything Task A3 produced, plus `nextOpenPeriod` from `../time`, `npcLocationAt` from `../presence`
+- Consumes: everything Task 3 produced, plus `nextOpenPeriod` from `../time`, `npcLocationAt` from `../presence`
 - Produces: `resolveMove(story, intent, session): EngineResult` from `./move`; `resolveExamine(story, intent, session): EngineResult` and `resolveRead(story, intent, session): EngineResult` from `./examine`; `resolveTalk(story, intent, session): EngineResult` and `resolveShow(story, intent, session): EngineResult` from `./npc` — all `(story: StoryManifest, intent: ParsedIntent, session: SessionSnapshot)`.
 
 - [ ] **Step 1: Create the three files**
@@ -347,7 +347,7 @@ import { npcLocationAt } from '../presence';
 import { nextOpenPeriod } from '../time';
 ```
 
-MOVE verbatim, converting `private resolveX(intent, session)` → `export function resolveX(story: StoryManifest, intent: ParsedIntent, session: SessionSnapshot): EngineResult` and applying inside each body: `this.story → story` plus the Task A3 rewrite table with `this.story` replaced by `story` (e.g. `blocked(this.story, ` → `blocked(story, `):
+MOVE verbatim, converting `private resolveX(intent, session)` → `export function resolveX(story: StoryManifest, intent: ParsedIntent, session: SessionSnapshot): EngineResult` and applying inside each body: `this.story → story` plus the Task 3 rewrite table with `this.story` replaced by `story` (e.g. `blocked(this.story, ` → `blocked(story, `):
 
 - `move.ts` ← `resolveMove` (GameEngine.ts:359–457, plus its `// MOVE` banner comment)
 - `examine.ts` ← `resolveExamine` (461–599) and `resolveRead` (923–968). In `resolveRead`, `this.resolveExamine(` → `resolveExamine(story, ` (same file, direct call).
@@ -374,7 +374,9 @@ git add engine/resolvers/ engine/GameEngine.ts
 git commit -m "refactor(engine): move move/examine/read/talk/show resolvers to modules (god-file split 4/6)"
 ```
 
----### Task A5: Extract remaining resolvers → `engine/resolvers/{items,deduce,meta}.ts`
+---
+
+### Task 5: Extract remaining resolvers → `engine/resolvers/{items,deduce,meta}.ts`
 
 **Files:**
 - Create: `engine/resolvers/items.ts`, `engine/resolvers/deduce.ts`, `engine/resolvers/meta.ts`
@@ -384,7 +386,7 @@ git commit -m "refactor(engine): move move/examine/read/talk/show resolvers to m
 - Consumes: same support/narrationContext/presence/time surface as A4, plus `resolveExamine` from `./examine`, `resolveShow` from `./npc`, and `minutesToNextPeriodBoundary`/`PERIOD_ORDER` from `../time` (used by `resolveWait`)
 - Produces: `resolveTake`, `resolveUse`, `resolveDrop`, `resolveInventory` from `./items`; `resolveDeduce`, `resolveNotebook` from `./deduce`; `resolveWait`, `resolveHelp`, `resolveQuery`, `resolveUnresolvedTarget`, `resolveOther` from `./meta` — all `(story: StoryManifest, intent: ParsedIntent, session: SessionSnapshot): EngineResult`.
 
-- [ ] **Step 1: Create the three files** (same import template + transformation rules as Task A4):
+- [ ] **Step 1: Create the three files** (same import template + transformation rules as Task 4):
 
 - `items.ts` ← `resolveTake` (646–707), `resolveUse` (709–835), `resolveDrop` (970–1004), `resolveInventory` (1006–1022). `resolveUse`'s delegations become `resolveExamine(story, …)` / `resolveShow(story, …)` via imports from `./examine` and `./npc`.
 - `deduce.ts` ← `resolveDeduce` (1079–1212), `resolveNotebook` (1024–1077).
@@ -405,7 +407,7 @@ git commit -m "refactor(engine): move remaining resolvers; GameEngine is now a f
 
 ---
 
-### Task A6: Engine review checkpoint
+### Task 6: Engine review checkpoint
 
 - [ ] **Step 1:** Dispatch the `engine-logic-reviewer` agent on the Phase A diff (`git diff main...HEAD -- engine/`). Instruction to the agent: "This is a pure move-refactor of GameEngine.ts into modules; flag ANY semantic difference from the pre-refactor code (changed conditions, reordered side effects, dropped comments), not style."
 - [ ] **Step 2:** Fix anything it confirms (moves/typos only — no logic changes), re-VERIFY, amend or add a fix commit.
@@ -414,7 +416,7 @@ git commit -m "refactor(engine): move remaining resolvers; GameEngine is now a f
 
 # Phase B — useGameState.ts
 
-Phase B has **no automated hook tests**; the safety net is `npx tsc --noEmit`, `npm run lint`, `npm run build`, plus a final manual smoke pass (Task B8). Keep tasks small and commit each.
+Phase B has **no automated hook tests**; the safety net is `npx tsc --noEmit`, `npm run lint`, `npm run build`, plus a final manual smoke pass (Task 14). Keep tasks small and commit each.
 
 **Sub-hook pattern (used by B2–B7):** each sub-hook takes a single `deps` object, destructures it at the top, and keeps every `useCallback`/`useEffect` body AND dependency array byte-identical to today (referencing the destructured names). Example shape:
 
@@ -428,7 +430,7 @@ export function useXxx(deps: XxxDeps) {
 }
 ```
 
-### Task B1: Extract module-level helpers → `hooks/gameState/{aiParse,narration}.ts`
+### Task 7: Extract module-level helpers → `hooks/gameState/{aiParse,narration}.ts`
 
 **Files:**
 - Create: `hooks/gameState/aiParse.ts` — MOVE verbatim from useGameState.ts: the `AI_PARSER_ENABLED` const + its comment block (42–50), `parseActionCache` (52–53), `resolveIntentWithAI` (55–79). Imports: `import { aiService } from '../../services/AIService'; import { needsAiParse, buildParseCandidates } from '../../engine/parseFallback'; import { type ParsedIntent } from '../../engine/intentParser'; import { NPCState } from '../../types';`. Export `AI_PARSER_ENABLED` and `resolveIntentWithAI`.
@@ -442,7 +444,7 @@ export function useXxx(deps: XxxDeps) {
 - [ ] Step 2: VERIFY-B: `npx tsc --noEmit` (clean), `npm run lint` (no new errors), `npm run build` (succeeds).
 - [ ] Step 3: Commit — `git add hooks/ && git commit -m "refactor(hooks): extract aiParse + narration helpers from useGameState (god-file split 6a)"`
 
-### Task B2: `hooks/gameState/useConnections.ts`
+### Task 8: `hooks/gameState/useConnections.ts`
 
 **Files:** Create `hooks/gameState/useConnections.ts`; modify `hooks/useGameState.ts`.
 
@@ -454,7 +456,7 @@ export function useXxx(deps: XxxDeps) {
 - [ ] Step 2: In `useGameState`, replace with `const { connectionStatus, checkConnections } = useConnections({ isAuthReady, setNotification });` placed AFTER the `notification` useState. Return object keeps `connectionStatus` and `retryConnections: checkConnections` unchanged.
 - [ ] Step 3: VERIFY-B. Commit: `refactor(hooks): extract useConnections (god-file split 6b)`
 
-### Task B3: `hooks/gameState/useAppearance.ts`
+### Task 9: `hooks/gameState/useAppearance.ts`
 
 **Files:** Create `hooks/gameState/useAppearance.ts`; modify `hooks/useGameState.ts`.
 
@@ -466,7 +468,7 @@ export function useXxx(deps: XxxDeps) {
 - [ ] Step 2: Call it after `currentTimePeriod` is computed in `useGameState`; spread its six fields into the return object unchanged.
 - [ ] Step 3: VERIFY-B. Commit: `refactor(hooks): extract useAppearance (god-file split 6c)`
 
-### Task B4: `hooks/gameState/useDiary.ts`
+### Task 10: `hooks/gameState/useDiary.ts`
 
 **Files:** Create `hooks/gameState/useDiary.ts`; modify `hooks/useGameState.ts`.
 
@@ -480,7 +482,7 @@ The setters/refs must be returned: `loadInvestigationIntoState`, `resumeFromLoca
 - [ ] Step 2: Call after the `activeInvestigation` useState in `useGameState`; destructure all six returns.
 - [ ] Step 3: VERIFY-B. Commit: `refactor(hooks): extract useDiary (god-file split 6d)`
 
-### Task B5: `hooks/gameState/useSceneStreams.ts`
+### Task 11: `hooks/gameState/useSceneStreams.ts`
 
 **Files:** Create `hooks/gameState/useSceneStreams.ts`; modify `hooks/useGameState.ts`.
 
@@ -516,7 +518,7 @@ export interface SceneStreamsDeps {
 - [ ] Step 2: Call in `useGameState` after `useDiary` (needs `captureLocationArrival`) and after the scroll refs; destructure all five returns.
 - [ ] Step 3: VERIFY-B. Commit: `refactor(hooks): extract useSceneStreams (god-file split 6e)`
 
-### Task B6: `hooks/gameState/usePersistence.ts`
+### Task 12: `hooks/gameState/usePersistence.ts`
 
 **Files:** Create `hooks/gameState/usePersistence.ts`; modify `hooks/useGameState.ts`.
 
@@ -582,7 +584,7 @@ export interface PersistenceDeps {
 - [ ] Step 2: In `useGameState`, call after `useSceneStreams`; delete moved code; destructure all returns; keep the return-object fields identical. The "fresh unauthenticated start" effect (967–971) STAYS in the orchestrator (it reads `history.length` and `generateOpeningScene`).
 - [ ] Step 3: VERIFY-B. Commit: `refactor(hooks): extract usePersistence (god-file split 6f)`
 
-### Task B7: `hooks/gameState/useActBreak.ts`
+### Task 13: `hooks/gameState/useActBreak.ts`
 
 **Files:** Create `hooks/gameState/useActBreak.ts`; modify `hooks/useGameState.ts`.
 
@@ -596,14 +598,14 @@ export interface PersistenceDeps {
 - [ ] Step 3: VERIFY-B. Check final sizes: `wc -l hooks/useGameState.ts` → expect ≈ 800 lines (down from 1709), `wc -l engine/GameEngine.ts` → expect ≈ 250–320.
 - [ ] Step 4: Commit: `refactor(hooks): extract useActBreak; useGameState is now the orchestrator (god-file split 6g)`
 
-### Task B8: Final verification + review checkpoint
+### Task 14: Final verification + review checkpoint
 
 - [ ] Step 1: Full suite: `npm run qa:all` → all green; `npx tsc --noEmit` → clean; `npm run build` → succeeds.
 - [ ] Step 2: Manual smoke via the dev preview (importmap+Vite hybrid — use the existing launch config): start a new game (opening scene streams), `look`, `examine case files wall`, move to Dorset Street (arrival narration), save, reload the page, Continue/resume (fresh look streams at the saved location), toggle theme + sound. Confirm no console errors.
 - [ ] Step 3: Dispatch the `engineering-reviewer` agent on the Phase B diff (`git diff main...HEAD -- hooks/`). Instruction: "Pure move-refactor of useGameState into sub-hooks. Verify (1) every useCallback/useEffect dependency array is byte-identical to the pre-refactor file, (2) no hook-order conditionality was introduced, (3) all eslint-disable comments survived, (4) the GameStateReturn surface is unchanged."
 - [ ] Step 4: Fix confirmed findings (moves only), re-run Step 1, commit.
 
-### Task B9 (OPTIONAL — only if the requester asks for it): extract `handleAction`
+### Task 15 (OPTIONAL — only if the requester asks for it): extract `handleAction`
 
 `handleAction` (~480 lines, the turn pipeline) is deliberately left in the orchestrator: it writes nearly every atom and is the game's core loop. If a further split is requested later, extract it as `hooks/gameState/useTurnHandler.ts` with the same deps-object pattern (it will need ~35 deps entries, incl. `resolveIntentWithAI`, `captureDiaryEntries`, `handleSaveGame`, and the STEP 5–9 collaborators). Do NOT do this as part of backlog #8 unless explicitly instructed.
 
