@@ -3,17 +3,21 @@
 
 import type { HintTarget, HintVerb, TimePeriod } from '../../types';
 
-export interface LocationDefinition {
+// Flag-bearing interfaces take an optional flag-name type parameter (default
+// string). The engine consumes them un-parameterized; story data files
+// instantiate F with their authored flag union (e.g. whitechapel's StoryFlag)
+// so flag typos become compile errors at the authoring site.
+export interface LocationDefinition<F extends string = string> {
   id: string;
   name: string;
   shortName: string;
   act: number;                     // Minimum act required to access this location
-  requiresFlag?: string;           // If set, this flag must be true to enter (e.g. asylum requires a correct deduction)
+  requiresFlag?: F;                // If set, this flag must be true to enter (e.g. asylum requires a correct deduction)
   atmosphere: string;
   description: string;
   exits: string[];                 // Location IDs. Engine validates these.
   interactables: string[];         // Object IDs present here
-  locationExaminedFlag: string;    // Flag set when player examines anything here
+  locationExaminedFlag: F;         // Flag set when player examines anything here
   // Temporal framing — drives AI narration register
   timeframe: 'present' | 'reconstruction';
   // Used by AI when timeframe === 'reconstruction'. Explains to the AI exactly
@@ -38,7 +42,7 @@ export interface LocationDefinition {
   };
 }
 
-export interface NPCDefinition {
+export interface NPCDefinition<F extends string = string> {
   id: string;
   displayName: string;
   role: string;
@@ -68,7 +72,7 @@ export interface NPCDefinition {
   // The AI works them in naturally; they are spirit-of-the-moment guidance, not fixed lines.
   scriptedLines?: Array<{
     locationId: string;    // Only fire at this location
-    triggerFlag?: string;  // Optional: only fire if session.flags[triggerFlag] is true
+    triggerFlag?: F;       // Optional: only fire if session.flags[triggerFlag] is true
     act?: number;          // Optional: only fire during this act (omit = any act)
     instruction: string;   // Directorial instruction for the AI
   }>;
@@ -92,9 +96,9 @@ export interface ClueDefinition {
   moralPoints: number;           // Points awarded (moral path)
 }
 
-export interface ActCondition {
+export interface ActCondition<F extends string = string> {
   name: string;
-  requireFlags: string[];        // All must be set to auto-advance
+  requireFlags: F[];             // All must be set to auto-advance
   advanceTo: number;
 }
 
@@ -130,9 +134,9 @@ export interface WorldEventDefinition {
 // Every hop is authored — recipient, delay, and hearsay wording — so the
 // spoiler surface stays a static list (see the 2a dedupe finding: shared
 // statement text across NPC voices does not work in this story).
-export interface RumorDefinition {
+export interface RumorDefinition<F extends string = string> {
   id: string;                 // unique, snake_case; key in the session rumor-event log
-  triggerFlag: string;        // engine-set flag, e.g. 'showed_from_hell_letter_to_bond'
+  triggerFlag: F;             // engine-set flag, e.g. 'showed_from_hell_letter_to_bond'
   spread: Array<{
     npcId: string;            // recipient
     delayPeriods: number;     // TimePeriod boundaries after the trigger (integer 0–8)
@@ -140,13 +144,13 @@ export interface RumorDefinition {
   }>;
 }
 
-export interface SuspectProfile {
+export interface SuspectProfile<F extends string = string> {
   npcId: string;
   aliases: string[];           // lowercase name variants the player might type
   isGuilty: boolean;
-  successFlags?: Record<string, boolean>;
+  successFlags?: Partial<Record<F, boolean>>;
   successAct?: number;
-  successVisitFlag?: string;   // if this flag is already set, the game ends on correct deduction
+  successVisitFlag?: F;        // if this flag is already set, the game ends on correct deduction
   wrongDeductionNote?: string; // for isGuilty:false red herrings — tailored cold-case narration instruction
 }
 
@@ -184,12 +188,12 @@ export interface UseCombination {
   requiresAct?: number;
 }
 
-export interface PersonOfInterest {
+export interface PersonOfInterest<F extends string = string> {
   id: string;            // stable key
   label: string;         // e.g. "The Mad Doctor (Francis Tumblety)"
   detail: string;        // one-line motive/means note shown in the notebook
-  requiresFlag?: string; // only listed once this flag is set
-  clearedByFlag?: string;// annotated as cleared once this flag is set
+  requiresFlag?: F;      // only listed once this flag is set
+  clearedByFlag?: F;     // annotated as cleared once this flag is set
   clearedNote?: string;  // e.g. "alibied and released" — shown when cleared
 }
 
@@ -205,7 +209,7 @@ export interface HintState {
   locationVisitCounts: Record<string, number>;
 }
 
-export interface HintObjective {
+export interface HintObjective<F extends string = string> {
   id: string;
   act: number;
   locationId: string;
@@ -216,7 +220,7 @@ export interface HintObjective {
    *  it maps 1:1 onto one (most do). Absent for prerequisite-only steps (e.g.
    *  examining the newspaper pile before it can be shown) and for objectives
    *  whose `done` isn't a single-flag check (Act 5's inventory-based steps). */
-  flag?: string;
+  flag?: F;
   done: (s: HintState) => boolean;
   available: (s: HintState) => boolean;
 }

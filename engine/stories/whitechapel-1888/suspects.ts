@@ -1,4 +1,5 @@
 import type { SuspectProfile, PersonOfInterest } from '../types';
+import type { StoryFlag } from './flags';
 
 export type { PersonOfInterest } from '../types';
 
@@ -10,7 +11,7 @@ export type { PersonOfInterest } from '../types';
 // convergence — absence, not dismissal, is his camouflage.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const PERSONS_OF_INTEREST: PersonOfInterest[] = [
+export const PERSONS_OF_INTEREST: PersonOfInterest<StoryFlag>[] = [
   // The moving-spotlight roster. One loud theory per act, raised fairly and
   // cleared fairly. Edmund appears ONLY after the convergence (asylum_unlocked).
   {
@@ -71,7 +72,7 @@ export const PERSONS_OF_INTEREST: PersonOfInterest[] = [
 // player's theory against each profile's aliases to determine
 // success or failure — no character names are hardcoded in
 // the engine itself.
-export const SUSPECT_PROFILES: SuspectProfile[] = [
+export const SUSPECT_PROFILES: SuspectProfile<StoryFlag>[] = [
   {
     npcId: 'edmund',
     aliases: ['edmund', 'halward', "bond's assistant", 'the assistant', 'the young man'],

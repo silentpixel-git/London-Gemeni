@@ -1,5 +1,6 @@
 import type { HintTarget } from '../../../types';
 import type { HintState, HintObjective } from '../types';
+import type { StoryFlag } from './flags';
 import { LOCATIONS } from './locations';
 import { NPCS } from './npcs';
 
@@ -36,7 +37,7 @@ function npcStep(s: HintState, locId: string, npcId: string): boolean {
 
 // ── The objective table — one entry per ACT_PROGRESSION gate flag, plus the
 //    prerequisite steps that unlock show/use gates. Subjects stay neutral. ──────
-export const OBJECTIVES: HintObjective[] = [
+export const OBJECTIVES: HintObjective<StoryFlag>[] = [
   // ----- Act 0: The Baker Street Vigil -----
   { id: 'a0_casewall', act: 0, locationId: 'baker_street', verb: 'examine',
     subject: "Holmes's case-files wall and the four victims pinned upon it",

@@ -2,7 +2,7 @@ import type { ClueDefinition, ShowInteraction, UseCombination } from '../types';
 
 export type { ShowInteraction, UseCombination } from '../types';
 
-export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
+const CLUE_DEFINITIONS_DATA = {
   // GROUP 0 — Prologue: Baker Street framework clue
   // REWEAVE: the prologue is the EVE of Kelly — four victims, then six weeks
   // of silence since the double event. The wall also carries the loud-suspect
@@ -254,7 +254,13 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = {
     medicalPoints: 5,
     moralPoints: 10,
   },
-};
+} satisfies Record<string, ClueDefinition>;
+
+/** Every authored clue id — the keys of the data table, kept alive by `satisfies`. */
+export type ClueId = keyof typeof CLUE_DEFINITIONS_DATA;
+
+// Re-exported under the original wide type so consumers keep string-keyed access.
+export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = CLUE_DEFINITIONS_DATA;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CLUE TRIGGERS

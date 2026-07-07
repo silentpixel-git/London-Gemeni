@@ -18,6 +18,7 @@
   --lb-accent:   205 123   0;   /* #CD7B00  aged brass / amber    */
   --lb-muted:    146 157 191;   /* #929DBF  slate blue-grey       */
   --lb-border:   197 203 221;   /* #C5CBDD  periwinkle separator  */
+  color-scheme: light;          /* native UI (scrollbars) follows theme */
 }
 
 [data-theme="dark"] {
@@ -28,6 +29,7 @@
   --lb-accent:   212 146  10;   /* #d4920a  brighter brass        */
   --lb-muted:     94 106 136;   /* #5e6a88  dimmed slate          */
   --lb-border:    42  48  64;   /* #2a3040  dark separator        */
+  color-scheme: dark;
 }
 
 [data-theme="evening"] {
@@ -38,6 +40,7 @@
   --lb-accent:  194  96  24;   /* #C26018  burnt-orange sunset    */
   --lb-muted:   150 120 110;   /* #96786E  warm taupe             */
   --lb-border:  214 190 168;   /* #D6BEA8  warm sand separator    */
+  color-scheme: light;
 }
 
 [data-theme="night"] {
@@ -48,6 +51,7 @@
   --lb-accent:  196 150  70;   /* #C49646  gaslamp brass          */
   --lb-muted:    96 108 138;   /* #606C8A  dimmed slate           */
   --lb-border:   38  46  66;   /* #262E42  dark separator         */
+  color-scheme: dark;
 }
 
 /* Smooth theme transition on all elements */

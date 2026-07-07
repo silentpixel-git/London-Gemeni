@@ -119,8 +119,34 @@ const AppContent: React.FC = () => {
     setIsFirstRunProfile(false);
   };
 
+  // Swipe to open/close the sidebar drawer on mobile (matches the Sidebar's
+  // lg:hidden overlay behavior — desktop keeps the sidebar docked, no swipe).
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY };
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start || window.innerWidth >= 1024) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx > 0 && start.x < 40 && !isSidebarOpen) {
+      setIsSidebarOpen(true);
+    } else if (dx < 0 && isSidebarOpen) {
+      setIsSidebarOpen(false);
+    }
+  };
+
   return (
-    <div className="flex h-screen h-dvh w-full overflow-hidden font-sans selection:bg-lb-accent selection:text-white bg-lb-bg text-lb-primary">
+    <div
+      className="flex h-screen h-dvh w-full overflow-hidden font-sans selection:bg-lb-accent selection:text-white bg-lb-bg text-lb-primary"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
 
       {/* Mobile overlay — closes sidebar on outside tap */}
       <div
