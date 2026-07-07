@@ -12,56 +12,13 @@
 
 import { NPCState, EngineResult, NarrationContext, IntentType, TimePeriod, RumorEvents } from '../types';
 import { ParsedIntent } from './intentParser';
-import type { StoryManifest, NPCDefinition, ClueDefinition, ActTimeConfig, RumorDefinition } from './stories/types';
+import type { StoryManifest, NPCDefinition, ClueDefinition, RumorDefinition } from './stories/types';
 import { WHITECHAPEL_MANIFEST } from './stories/whitechapel-1888/manifest';
 import { deriveKnowledgeEnvelope } from './stories/knowledge';
+import { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor, formatTimeLabel } from './time';
 
-// ── Time helpers ──────────────────────────────────────────────────────────────
-
-export function computeTimePeriod(totalMinutes: number): TimePeriod {
-  const m = totalMinutes % 1440;
-  if (m >= 300  && m < 420)  return 'dawn';
-  if (m >= 420  && m < 720)  return 'morning';
-  if (m >= 720  && m < 1020) return 'afternoon';
-  if (m >= 1020 && m < 1200) return 'evening';
-  if (m >= 1200 && m < 1380) return 'night';
-  return 'lateNight'; // 1380–1439 and 0–299
-}
-
-// Chronological day order of the six periods — shared by WAIT boundary math,
-// "next open period" computations, and schedule iteration.
-export const PERIOD_ORDER: TimePeriod[] = ['dawn', 'morning', 'afternoon', 'evening', 'night', 'lateNight'];
-
-/**
- * Minutes from a clock value to the NEXT TimePeriod boundary. A turn starting
- * exactly on a boundary advances to the one after — never 0. lateNight wraps
- * past midnight to dawn (05:00).
- */
-export function minutesToNextPeriodBoundary(totalMinutes: number): number {
-  const BOUNDARIES = [300, 420, 720, 1020, 1200, 1380]; // computeTimePeriod's edges
-  const m = totalMinutes % 1440;
-  for (const b of BOUNDARIES) if (b > m) return b - m;
-  return (1440 - m) + 300; // past 23:00 → dawn next day
-}
-
-/**
- * How many TimePeriod boundaries lie strictly after `fromMinutes`, up to and
- * including `toMinutes`. Day-wrap aware (minutes may exceed 1440). 0 when the
- * span is empty or negative.
- */
-export function periodBoundariesCrossed(fromMinutes: number, toMinutes: number): number {
-  const BOUNDARIES = [300, 420, 720, 1020, 1200, 1380];
-  if (toMinutes <= fromMinutes) return 0;
-  const span = toMinutes - fromMinutes;
-  let count = Math.floor(span / 1440) * BOUNDARIES.length;
-  const fromM = fromMinutes % 1440;
-  const toM = fromM + (span % 1440);
-  for (const b of BOUNDARIES) {
-    if (b > fromM && b <= toM) count++;
-    if (b + 1440 > fromM && b + 1440 <= toM) count++;
-  }
-  return count;
-}
+// Re-export for existing consumers (useGameState, parseFallback, qa scripts).
+export { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor };
 
 /**
  * Matured rumor-spread entries for one NPC (Phase 4b): every authored spread
@@ -92,16 +49,6 @@ export function maturedSpreadsFor(
   return out;
 }
 
-/** First open period at or after `from` (exclusive of `from`, wrapping the day). */
-export function nextOpenPeriod(openPeriods: TimePeriod[], from: TimePeriod): TimePeriod | null {
-  const start = PERIOD_ORDER.indexOf(from);
-  for (let i = 1; i <= PERIOD_ORDER.length; i++) {
-    const p = PERIOD_ORDER[(start + i) % PERIOD_ORDER.length];
-    if (openPeriods.includes(p)) return p;
-  }
-  return null;
-}
-
 /**
  * The next period (cycling the day from `from`, exclusive) in which this
  * NPC's schedule puts them at `locationId` — null if the schedule never
@@ -121,16 +68,6 @@ export function returnsPeriodFor(
     if ((sched.byPeriod?.[p] ?? sched.default) === locationId) return p;
   }
   return null;
-}
-
-/** The TimePeriod at a given act + minutes elapsed since its canonical start. */
-export function timePeriodFor(
-  actTimeConfig: Record<number, ActTimeConfig>,
-  act: number,
-  elapsedMinutes: number,
-): TimePeriod {
-  const cfg = actTimeConfig[act] ?? actTimeConfig[1];
-  return computeTimePeriod(cfg.canonicalMinutes + elapsedMinutes);
 }
 
 /**
@@ -156,15 +93,6 @@ export function npcLocationAt(
     !!npc.followsNpcId && (npc.followsUntilAct === undefined || act <= npc.followsUntilAct);
   if (isActiveFollower) return stored ?? scheduled ?? 'offstage';
   return scheduled ?? stored ?? 'offstage';
-}
-
-function formatTimeLabel(totalMinutes: number, dayOfWeek: string, displayDate: string): string {
-  const m    = totalMinutes % 1440;
-  const h24  = Math.floor(m / 60);
-  const mins = m % 60;
-  const ampm = h24 < 12 ? 'AM' : 'PM';
-  const h12  = h24 % 12 === 0 ? 12 : h24 % 12;
-  return `${h12}:${mins.toString().padStart(2, '0')} ${ampm} — ${dayOfWeek}, ${displayDate}`;
 }
 
 // ============================================================
