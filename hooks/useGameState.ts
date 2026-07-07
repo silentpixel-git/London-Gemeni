@@ -34,49 +34,12 @@ import {
 } from '../constants';
 import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod, ThemeMode, RumorEvents } from '../types';
 import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
+import { AI_PARSER_ENABLED, resolveIntentWithAI } from './gameState/aiParse';
+import { OPENING_FALLBACK_NARRATIVE, extractOpeningSentence } from './gameState/narration';
 
 // ── Destructure hints and diary leads from the story manifest ────────────────
 const { selectHint } = WHITECHAPEL_MANIFEST;
 const { isRequiredFlag, clueGateFlag, leadContextFor, detectSilentLeadFlags } = WHITECHAPEL_MANIFEST.diaryLeads;
-
-// ── AI parse fallback (Phase 3, default-on) ──────────────────────────────────
-// When the deterministic parse misses, route the WHOLE input through the
-// constrained parseAction op — every verb. Kill switch: VITE_AI_PARSER='off'
-// disables it (pure regex parsing; misses stay in-character engine misses —
-// same degraded mode as a Gemini outage, since parseAction returns null on
-// any failure and the turn keeps the regex intent).
-// Plain (non-optional-chained) access: Vite's define replaces the exact token
-// `import.meta.env.VITE_AI_PARSER`, same pattern as supabase.ts.
-const AI_PARSER_ENABLED = (import.meta.env.VITE_AI_PARSER ?? '') !== 'off';
-
-// Per-session memo, same pattern as targetResolveCache above.
-const parseActionCache = new Map<string, ParsedIntent | null>();
-
-async function resolveIntentWithAI(
-  intent: ParsedIntent,
-  location: string,
-  inventory: string[],
-  npcStates: Record<string, NPCState>,
-  currentAct: number,
-  introducedNpcs: string[],
-  elapsedMinutes: number,
-): Promise<ParsedIntent> {
-  if (!needsAiParse(intent, location, inventory)) return intent;
-  const raw = intent.raw.trim();
-  if (!raw) return intent;
-
-  const key = `parse::${location}::${currentAct}::${raw.toLowerCase()}`;
-  let resolved: ParsedIntent | null;
-  if (parseActionCache.has(key)) {
-    resolved = parseActionCache.get(key)!;
-  } else {
-    const candidates = buildParseCandidates(location, inventory, npcStates, currentAct, introducedNpcs, elapsedMinutes);
-    ({ intent: resolved } = await aiService.parseAction(raw, candidates));
-    parseActionCache.set(key, resolved);
-  }
-  // null = no confident match → keep the regex intent (engine misses in character).
-  return resolved ?? intent;
-}
 
 // ── Public interface ──────────────────────────────────────────────────────────
 
@@ -153,21 +116,6 @@ export interface GameStateReturn {
 }
 
 const CURTAIN_HOLD_MS = 4500; // enter animation eats ~1s; this leaves ~3.5s to read the act title
-
-const OPENING_FALLBACK_NARRATIVE =
-  "> *221B Baker Street. November 1888. The sitting room is no longer quite a sitting room.*\n\nHolmes paces before the fire, his pipe cold in his hand. The case files are everywhere — pinned, spread, stacked. Five murders. Eleven weeks. Scotland Yard is floundering.\n\n**Sherlock Holmes** is here.\n**Objects of interest:** Case Files Wall, Newspapers, Chemistry Table, Watson's Armchair.\n**Possible exits:** Dorset Street.";
-
-// Extract the first prose sentence of a narration (skipping act headers and
-// blockquotes) — used as anti-repetition memory for the AI.
-function extractOpeningSentence(markdown: string): string | null {
-  const line = markdown
-    .split('\n')
-    .map(l => l.trim())
-    .find(l => l.length > 0 && !l.startsWith('#') && !l.startsWith('>') && !l.startsWith('**'));
-  if (!line) return null;
-  const sentence = line.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? line;
-  return sentence.length > 90 ? sentence.slice(0, 90) + '…' : sentence;
-}
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
