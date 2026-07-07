@@ -37,6 +37,7 @@ import { supabase } from '../supabase';
 import { AI_PARSER_ENABLED, resolveIntentWithAI } from './gameState/aiParse';
 import { OPENING_FALLBACK_NARRATIVE, extractOpeningSentence } from './gameState/narration';
 import { useConnections } from './gameState/useConnections';
+import { useAppearance } from './gameState/useAppearance';
 
 // ── Destructure hints and diary leads from the story manifest ────────────────
 const { selectHint } = WHITECHAPEL_MANIFEST;
@@ -216,25 +217,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const [isSaving, setIsSaving] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const { connectionStatus, checkConnections } = useConnections({ isAuthReady, setNotification });
-  // Single appearance choice — defaults to light. Reads the new key first, then
-  // falls back to the legacy lb-theme / lb-atmospheric-theme pair so existing
-  // players keep their setting (atmospheric → 'auto', dark → 'dark').
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    try {
-      const stored = localStorage.getItem('lb-theme-mode');
-      if (stored === 'light' || stored === 'dark' || stored === 'auto') return stored;
-      if (localStorage.getItem('lb-atmospheric-theme') === 'on') return 'auto';
-      if (localStorage.getItem('lb-theme') === 'dark') return 'dark';
-    } catch {}
-    return 'light';
-  });
-  // Atmosphere audio — default off, persisted to localStorage (POC).
-  const [soundEffects, setSoundEffects] = useState<boolean>(() => {
-    try { return localStorage.getItem('lb-sound-effects') === 'on'; } catch { return false; }
-  });
-  const [ambientAudio, setAmbientAudio] = useState<boolean>(() => {
-    try { return localStorage.getItem('lb-ambient-audio') === 'on'; } catch { return false; }
-  });
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -250,49 +232,10 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     (ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1]).canonicalMinutes + elapsedMinutes,
   );
 
+  const { themeMode, setThemeMode, soundEffects, setSoundEffects, ambientAudio, setAmbientAudio } =
+    useAppearance({ user, userProfile, currentTimePeriod });
+
   // ── Effects ───────────────────────────────────────────────────────────────
-
-  // Apply the active data-theme. In 'auto' the palette follows the in-game clock
-  // (evening/night); 'light' and 'dark' apply that palette directly. Because it's
-  // one choice, a manual dark selection can never be silently overridden.
-  useEffect(() => {
-    let theme: string;
-    if (themeMode === 'auto') {
-      theme = (currentTimePeriod === 'night' || currentTimePeriod === 'lateNight') ? 'night'
-            : (currentTimePeriod === 'evening' || currentTimePeriod === 'dawn')   ? 'evening'
-            : 'light';
-    } else {
-      theme = themeMode; // 'light' | 'dark'
-    }
-    document.documentElement.dataset.theme = theme;
-  }, [themeMode, currentTimePeriod]);
-
-  // Persist the appearance choice — localStorage + Supabase cloud sync.
-  useEffect(() => {
-    try { localStorage.setItem('lb-theme-mode', themeMode); } catch {}
-    // Sync to cloud when logged in (user accessed via closure — intentionally omitted from deps)
-    if (user) {
-      GameRepository.upsertProfile(user.id, { themePreference: themeMode });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [themeMode]);
-
-  // Persist the atmosphere audio toggles — localStorage only for the POC.
-  useEffect(() => {
-    try { localStorage.setItem('lb-sound-effects', soundEffects ? 'on' : 'off'); } catch {}
-  }, [soundEffects]);
-  useEffect(() => {
-    try { localStorage.setItem('lb-ambient-audio', ambientAudio ? 'on' : 'off'); } catch {}
-  }, [ambientAudio]);
-
-  // Load appearance preference from cloud when user profile becomes available
-  useEffect(() => {
-    const pref = userProfile?.themePreference;
-    if (pref === 'light' || pref === 'dark' || pref === 'auto') {
-      setThemeMode(pref);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userProfile?.id]); // only fire when user identity changes, not on every profile update
 
   // Scroll to active turn when new assistant placeholder appears
   const scrollToActiveTurn = useCallback(() => {
