@@ -15,9 +15,11 @@ import { ParsedIntent } from './intentParser';
 import type { StoryManifest, NPCDefinition, ClueDefinition } from './stories/types';
 import { WHITECHAPEL_MANIFEST } from './stories/whitechapel-1888/manifest';
 import { deriveKnowledgeEnvelope } from './stories/knowledge';
-import { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor, formatTimeLabel } from './time';
+import { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor } from './time';
 import { npcLocationAt, returnsPeriodFor, getPresentNpcIds, maturedSpreadsFor } from './presence';
 import type { SessionSnapshot } from './session';
+import { periodOf, triggerClues, checkActProgression, computeNpcMovements, computeActEntry } from './resolvers/support';
+import { buildNarrationContext, blocked, absentNpcBlocked } from './narrationContext';
 
 // Re-export for existing consumers (useGameState, parseFallback, qa scripts).
 export { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor };
@@ -30,11 +32,6 @@ export type { SessionSnapshot };
 
 export class GameEngine {
   constructor(private readonly story: StoryManifest) {}
-
-  /** The current TimePeriod for this session's act + elapsed clock. */
-  private periodOf(session: SessionSnapshot, extraMinutes = 0): TimePeriod {
-    return timePeriodFor(this.story.actTimeConfig, session.currentAct, session.elapsedMinutes + extraMinutes);
-  }
 
   /**
    * Main entry point. Takes the player's parsed intent and current session
@@ -70,7 +67,7 @@ export class GameEngine {
       result.newAct === undefined
     ) {
       const mergedFlags = { ...session.flags, ...(result.flagsUpdate ?? {}) };
-      const actCheck = this.checkActProgression(session, mergedFlags);
+      const actCheck = checkActProgression(this.story, session, mergedFlags);
       if (actCheck.newAct !== undefined) {
         result.newAct = actCheck.newAct;
         result.flagsUpdate = { ...result.flagsUpdate, ...actCheck.flagsUpdate };
@@ -172,7 +169,7 @@ export class GameEngine {
     const targetId = intent.targetId;
 
     if (!targetId) {
-      return this.blocked(
+      return blocked(this.story,
         intent,
         session,
         `Watson cannot determine where to go. The fog of Whitechapel obscures that path.`,
@@ -184,7 +181,7 @@ export class GameEngine {
     if (!currentLoc.exits.includes(targetId)) {
       const targetLoc = this.story.locations[targetId];
       const targetName = targetLoc?.name || intent.targetRaw;
-      return this.blocked(
+      return blocked(this.story,
         intent,
         session,
         `There is no direct path from ${currentLoc.name} to ${targetName} from here.`,
@@ -195,7 +192,7 @@ export class GameEngine {
     // Check act gate — location requires a higher act
     const targetLoc = this.story.locations[targetId];
     if (targetLoc.act > session.currentAct) {
-      return this.blocked(
+      return blocked(this.story,
         intent,
         session,
         `Holmes places a hand on Watson's arm. "Not yet, Watson. There is more to understand before we pursue that thread."`,
@@ -206,7 +203,7 @@ export class GameEngine {
     // Check flag gate — some locations open only after a specific milestone
     // (e.g. the asylum requires a correct deduction first).
     if (targetLoc.requiresFlag && session.flags[targetLoc.requiresFlag] !== true) {
-      return this.blocked(
+      return blocked(this.story,
         intent,
         session,
         `Holmes shakes his head. "We cannot present ourselves there without a name, Watson. We must be certain first."`,
@@ -217,7 +214,7 @@ export class GameEngine {
     // Opening hours (Phase 4a) — arriving outside openPeriods is a locked
     // door, never a dead end: the note says when it opens and where the
     // keyholder is, and WAIT gets Watson in.
-    const period = this.periodOf(session);
+    const period = periodOf(this.story, session);
     if (targetLoc.openPeriods && !targetLoc.openPeriods.includes(period)) {
       const reopens = nextOpenPeriod(targetLoc.openPeriods, period);
       const keyholderId = targetLoc.lockedNote?.keyholderNpcId;
@@ -230,7 +227,7 @@ export class GameEngine {
         const where = this.story.locations[whereId];
         if (where && whereId !== targetId) keyholderNote = ` ${label} is presently at ${where.name}.`;
       }
-      return this.blocked(
+      return blocked(this.story,
         intent,
         session,
         targetLoc.lockedNote?.text ?? `${targetLoc.name} is closed at this hour.`,
@@ -242,8 +239,8 @@ export class GameEngine {
     }
 
     // Success — move to new location
-    const newNpcUpdates = this.computeNpcMovements(targetId, session);
-    const actCheck = this.checkActProgression({ ...session, location: targetId }, session.flags);
+    const newNpcUpdates = computeNpcMovements(this.story, targetId, session);
+    const actCheck = checkActProgression(this.story, { ...session, location: targetId }, session.flags);
 
     return {
       actionSuccess: true,
@@ -254,7 +251,7 @@ export class GameEngine {
       newAct: actCheck.newAct,
       gameOver: actCheck.gameOver,
       discoveredClueIds: [],
-      aiContext: this.buildContext(intent, session, {
+      aiContext: buildNarrationContext(this.story, intent, session, {
         success: true,
         actionDescription: `Watson travelled from ${currentLoc.name} to ${targetLoc.name}.`,
         actionResultNote: `SUCCESS — Watson has arrived at ${targetLoc.name}.`,
@@ -277,7 +274,7 @@ export class GameEngine {
       // General "look around" — always succeeds, no state changes
       const locationFlag = currentLoc.locationExaminedFlag;
       const flagsUpdate = locationFlag ? { [locationFlag]: true } : {};
-      const actCheck = this.checkActProgression(session, { ...session.flags, ...flagsUpdate });
+      const actCheck = checkActProgression(this.story, session, { ...session.flags, ...flagsUpdate });
       return {
         actionSuccess: true,
         actionType: 'examine',
@@ -285,7 +282,7 @@ export class GameEngine {
         newAct: actCheck.newAct,
         gameOver: actCheck.gameOver,
         discoveredClueIds: [],
-        aiContext: this.buildContext(intent, session, {
+        aiContext: buildNarrationContext(this.story, intent, session, {
           success: true,
           actionDescription: `Watson surveyed the surroundings of ${currentLoc.name}.`,
           actionResultNote: 'SUCCESS — Watson observes the environment.',
@@ -298,11 +295,11 @@ export class GameEngine {
     if (!currentLoc.interactables.includes(targetId)) {
       // Check if it's an NPC — organic physical examination rather than talk redirect
       if (this.story.npcs[targetId]) {
-        const npcLoc = npcLocationAt(this.story.npcs, targetId, session.currentAct, this.periodOf(session), session.npcStates);
+        const npcLoc = npcLocationAt(this.story.npcs, targetId, session.currentAct, periodOf(this.story, session), session.npcStates);
         const npcName = this.story.npcDisplayNames[targetId] || targetId;
 
         if (npcLoc !== session.location) {
-          return this.absentNpcBlocked(intent, session, targetId, 'examine');
+          return absentNpcBlocked(this.story, intent, session, targetId, 'examine');
         }
 
         // NPC is present — physical/sensory examination (not dialogue)
@@ -312,7 +309,7 @@ export class GameEngine {
           actionSuccess: true,
           actionType: 'examine',
           discoveredClueIds: [],
-          aiContext: this.buildContext(intent, session, {
+          aiContext: buildNarrationContext(this.story, intent, session, {
             success: true,
             actionDescription: `Watson examined ${what} at ${currentLoc.name}.`,
             actionResultNote:
@@ -334,7 +331,7 @@ export class GameEngine {
           actionSuccess: true,
           actionType: 'examine',
           discoveredClueIds: [],
-          aiContext: this.buildContext(intent, session, {
+          aiContext: buildNarrationContext(this.story, intent, session, {
             success: true,
             actionDescription: `Watson took ${carriedItem} from his bag and examined it again.`,
             actionResultNote: `SUCCESS — Watson re-reads the ${carriedItem} he carries. It is in his medical bag; narrate him producing and studying it. No new evidence emerges, but he may reflect on what it means.`,
@@ -344,7 +341,7 @@ export class GameEngine {
       }
 
       const objectName = this.story.objectDisplayNames[targetId] || intent.targetRaw;
-      return this.blocked(
+      return blocked(this.story,
         intent,
         session,
         `Watson does not see ${objectName} here.`,
@@ -357,7 +354,7 @@ export class GameEngine {
     const alreadyExamined = session.flags[alreadyExaminedFlag] === true;
 
     const { newClueIds, newClueDefs, medicalDelta, moralDelta } =
-      this.triggerClues(session.location, targetId, alreadyExamined, session.discoveredClueIds);
+      triggerClues(this.story, session.location, targetId, alreadyExamined, session.discoveredClueIds);
 
     // Set location-level "examined" flag for act progression
     const locationFlag = currentLoc.locationExaminedFlag;
@@ -367,7 +364,7 @@ export class GameEngine {
     };
 
     const allFlags = { ...session.flags, ...flagsUpdate };
-    const actCheck = this.checkActProgression(session, allFlags);
+    const actCheck = checkActProgression(this.story, session, allFlags);
 
     // Inventory: add evidence notes for takeable objects whenever Watson is at
     // the source and is not already carrying it. The inventory check is the only
@@ -391,7 +388,7 @@ export class GameEngine {
       medicalPointsDelta: medicalDelta || undefined,
       moralPointsDelta: moralDelta || undefined,
       inventoryAdd: inventoryAdd.length > 0 ? inventoryAdd : undefined,
-      aiContext: this.buildContext(intent, session, {
+      aiContext: buildNarrationContext(this.story, intent, session, {
         success: true,
         actionDescription: `Watson examined the ${objectName} at ${currentLoc.name}.`,
         actionResultNote: newClueIds.length > 0
@@ -414,7 +411,7 @@ export class GameEngine {
     const targetId = intent.targetId;
 
     if (!targetId || !this.story.npcs[targetId]) {
-      return this.blocked(
+      return blocked(this.story,
         intent,
         session,
         `Watson is uncertain whom to address.`,
@@ -423,10 +420,10 @@ export class GameEngine {
     }
 
     // Check NPC is actually in this location
-    const npcLoc = npcLocationAt(this.story.npcs, targetId, session.currentAct, this.periodOf(session), session.npcStates);
+    const npcLoc = npcLocationAt(this.story.npcs, targetId, session.currentAct, periodOf(this.story, session), session.npcStates);
 
     if (npcLoc !== session.location) {
-      return this.absentNpcBlocked(intent, session, targetId, 'speak with');
+      return absentNpcBlocked(this.story, intent, session, targetId, 'speak with');
     }
 
     const npcName = this.story.npcDisplayNames[targetId] || targetId;
@@ -440,7 +437,7 @@ export class GameEngine {
       actionType: 'talk',
       flagsUpdate,
       discoveredClueIds: [],
-      aiContext: this.buildContext(intent, session, {
+      aiContext: buildNarrationContext(this.story, intent, session, {
         success: true,
         actionDescription: `Watson addressed ${npcName} at ${currentLoc.name}. Watson said: "${intent.raw}"`,
         actionResultNote: `SUCCESS — Watson engaged ${npcName} in conversation.`,
@@ -460,7 +457,7 @@ export class GameEngine {
     const objectName = targetId ? (this.story.objectDisplayNames[targetId] || intent.targetRaw) : intent.targetRaw;
 
     if (!targetId || !currentLoc.interactables.includes(targetId)) {
-      return this.blocked(
+      return blocked(this.story,
         intent,
         session,
         `Watson cannot take ${objectName || 'that'} — it is not here, or cannot be removed.`,
@@ -471,7 +468,7 @@ export class GameEngine {
     // Check if it's a takeable object
     const inventoryItem = this.story.takeableObjects[targetId];
     if (!inventoryItem) {
-      return this.blocked(
+      return blocked(this.story,
         intent,
         session,
         `Watson notes the ${objectName} but cannot remove it from the scene. He makes a mental note instead.`,
@@ -484,7 +481,7 @@ export class GameEngine {
         actionSuccess: true,
         actionType: 'take',
         discoveredClueIds: [],
-        aiContext: this.buildContext(intent, session, {
+        aiContext: buildNarrationContext(this.story, intent, session, {
           success: true,
           actionDescription: `Watson checked his ${inventoryItem}.`,
           actionResultNote: `SUCCESS — Watson already has ${inventoryItem} in his possession.`,
@@ -494,7 +491,7 @@ export class GameEngine {
     }
 
     const { newClueIds, newClueDefs, medicalDelta, moralDelta } =
-      this.triggerClues(session.location, targetId, false, session.discoveredClueIds);
+      triggerClues(this.story, session.location, targetId, false, session.discoveredClueIds);
 
     return {
       actionSuccess: true,
@@ -503,7 +500,7 @@ export class GameEngine {
       discoveredClueIds: newClueIds,
       medicalPointsDelta: medicalDelta || undefined,
       moralPointsDelta: moralDelta || undefined,
-      aiContext: this.buildContext(intent, session, {
+      aiContext: buildNarrationContext(this.story, intent, session, {
         success: true,
         actionDescription: `Watson took (a copy of) the ${objectName} for his records.`,
         actionResultNote: `SUCCESS — ${inventoryItem} added to Watson's bag.`,
@@ -530,7 +527,7 @@ export class GameEngine {
         // Act-locked combinations (spoiler gate — e.g. the kidney cross-reference
         // grants asylum-reveal content and must not fire before Act 6).
         if (combination.requiresAct !== undefined && session.currentAct < combination.requiresAct) {
-          return this.blocked(intent, session,
+          return blocked(this.story, intent, session,
             `Watson sets the two side by side, but the connection between them refuses to form. Something is still missing — the comparison is premature.`,
             `USE combination blocked: ${targetId} + ${intent.useWithTargetId} requires act ${combination.requiresAct} (currently act ${session.currentAct}). Narrate Watson sensing the documents are related but lacking the context to see how. Do NOT reveal what the connection is.`
           );
@@ -540,7 +537,7 @@ export class GameEngine {
         // happen at Baker Street, against the casefiles).
         if (combination.requiresLocation && session.location !== combination.requiresLocation) {
           const placeName = this.story.locations[combination.requiresLocation]?.name ?? 'elsewhere';
-          return this.blocked(intent, session,
+          return blocked(this.story, intent, session,
             `Watson holds the two side by side, but this is not the place for careful comparison. Better done at ${placeName}, with room to think.`,
             `USE combination blocked: ${targetId} + ${intent.useWithTargetId} requires location '${combination.requiresLocation}' (currently '${session.location}'). Narrate Watson deciding to make the comparison properly at ${placeName}.`
           );
@@ -560,7 +557,7 @@ export class GameEngine {
 
           const flagKey = `used_${targetId}_with_${intent.useWithTargetId}`;
           const allFlags = { ...session.flags, [flagKey]: true };
-          const actCheck = this.checkActProgression(session, allFlags);
+          const actCheck = checkActProgression(this.story, session, allFlags);
 
           return {
             actionSuccess: true,
@@ -568,7 +565,7 @@ export class GameEngine {
             flagsUpdate: { [flagKey]: true, ...(actCheck.flagsUpdate || {}) },
             newAct: actCheck.newAct,
             discoveredClueIds: newClueIds,
-            aiContext: this.buildContext(intent, session, {
+            aiContext: buildNarrationContext(this.story, intent, session, {
               success: true,
               actionDescription: `Watson used ${this.story.objectDisplayNames[targetId] ?? targetId} with ${this.story.objectDisplayNames[intent.useWithTargetId] ?? intent.useWithTargetId}.`,
               actionResultNote: combination.resultNote,
@@ -578,14 +575,14 @@ export class GameEngine {
         }
 
         // Items not accessible
-        return this.blocked(intent, session,
+        return blocked(this.story, intent, session,
           `Watson cannot combine those items here — one or both are not at hand.`,
           `USE combination blocked: ${targetId} + ${intent.useWithTargetId} — item(s) not in inventory or location.`
         );
       }
 
       // No authored combination
-      return this.blocked(intent, session,
+      return blocked(this.story, intent, session,
         `Watson considers it, but there is nothing useful to be learned from combining those two things.`,
         `No USE combination defined for ${targetId} + ${intent.useWithTargetId}.`
       );
@@ -607,7 +604,7 @@ export class GameEngine {
         const alreadyExamined = session.flags[alreadyExaminedFlag] === true;
 
         const { newClueIds, newClueDefs, medicalDelta, moralDelta } =
-          this.triggerClues(session.location, targetId, alreadyExamined, session.discoveredClueIds);
+          triggerClues(this.story, session.location, targetId, alreadyExamined, session.discoveredClueIds);
 
         const locationFlag = currentLoc.locationExaminedFlag;
         const flagsUpdate: Record<string, boolean> = {
@@ -615,7 +612,7 @@ export class GameEngine {
           ...(locationFlag ? { [locationFlag]: true } : {}),
         };
         const allFlags = { ...session.flags, ...flagsUpdate };
-        const actCheck = this.checkActProgression(session, allFlags);
+        const actCheck = checkActProgression(this.story, session, allFlags);
 
         return {
           actionSuccess: true,
@@ -626,7 +623,7 @@ export class GameEngine {
           discoveredClueIds: newClueIds,
           medicalPointsDelta: medicalDelta || undefined,
           moralPointsDelta: moralDelta || undefined,
-          aiContext: this.buildContext(intent, session, {
+          aiContext: buildNarrationContext(this.story, intent, session, {
             success: true,
             actionDescription: `Watson used/interacted with the ${objectName} at ${currentLoc.name}.`,
             actionResultNote: `SUCCESS — ${useDesc}`,
@@ -650,7 +647,7 @@ export class GameEngine {
     const npcId    = intent.showTargetNpcId;   // The NPC receiving it
 
     if (!targetId) {
-      return this.blocked(intent, session,
+      return blocked(this.story, intent, session,
         `Watson is not sure what to show.`,
         `SHOW blocked: no item specified.`
       );
@@ -661,7 +658,7 @@ export class GameEngine {
     const hasItem = inventoryName && session.inventory.includes(inventoryName);
     if (!hasItem) {
       const objectName = this.story.objectDisplayNames[targetId] ?? intent.targetRaw ?? targetId;
-      return this.blocked(intent, session,
+      return blocked(this.story, intent, session,
         `Watson does not have the ${objectName} to show.`,
         `SHOW blocked: ${targetId} not in inventory.`
       );
@@ -669,11 +666,11 @@ export class GameEngine {
 
     // NPC must be present
     if (npcId) {
-      const npcLoc     = npcLocationAt(this.story.npcs, npcId, session.currentAct, this.periodOf(session), session.npcStates);
+      const npcLoc     = npcLocationAt(this.story.npcs, npcId, session.currentAct, periodOf(this.story, session), session.npcStates);
       const npcName    = this.story.npcDisplayNames[npcId] ?? npcId;
 
       if (npcLoc !== session.location) {
-        return this.absentNpcBlocked(intent, session, npcId, 'show something to');
+        return absentNpcBlocked(this.story, intent, session, npcId, 'show something to');
       }
 
       // Look up authored SHOW interaction
@@ -690,7 +687,7 @@ export class GameEngine {
           actionType: 'show',
           flagsUpdate: { [flagKey]: true },
           discoveredClueIds: newClueIds,
-          aiContext: this.buildContext(intent, session, {
+          aiContext: buildNarrationContext(this.story, intent, session, {
             success: true,
             actionDescription: `Watson showed ${inventoryName} to ${npcName}.`,
             actionResultNote: interaction.resultNote,
@@ -705,7 +702,7 @@ export class GameEngine {
         actionSuccess: true,
         actionType: 'show',
         discoveredClueIds: [],
-        aiContext: this.buildContext(intent, session, {
+        aiContext: buildNarrationContext(this.story, intent, session, {
           success: true,
           actionDescription: `Watson showed ${inventoryName} to ${npcName}.`,
           actionResultNote: `SUCCESS — ${npcName} examines what Watson has shown. They have no specific reaction beyond polite acknowledgement.`,
@@ -717,7 +714,7 @@ export class GameEngine {
 
     // No NPC specified — if exactly one NPC is present, Watson naturally shows
     // it to them ("show the clipping" with only Holmes in the room).
-    const presentNpcIds = getPresentNpcIds(this.story.npcs, session.location, session.npcStates, session.currentAct, this.periodOf(session));
+    const presentNpcIds = getPresentNpcIds(this.story.npcs, session.location, session.npcStates, session.currentAct, periodOf(this.story, session));
     if (presentNpcIds.length === 1) {
       return this.resolveShow({ ...intent, showTargetNpcId: presentNpcIds[0] }, session);
     }
@@ -735,7 +732,7 @@ export class GameEngine {
     const targetId = intent.targetId;
 
     if (!targetId) {
-      return this.blocked(intent, session,
+      return blocked(this.story, intent, session,
         `Watson is not sure what to read.`,
         `READ blocked: no target specified.`
       );
@@ -759,7 +756,7 @@ export class GameEngine {
           actionType: 'read',
           flagsUpdate: { [flagKey]: true },
           discoveredClueIds: [],
-          aiContext: this.buildContext(intent, session, {
+          aiContext: buildNarrationContext(this.story, intent, session, {
             success: true,
             actionDescription: `Watson reads the ${objectName}.`,
             actionResultNote: `SUCCESS — Watson reads the literal text of the document:\n\n${docText}\n\nNarrate Watson reading this, quoting or paraphrasing it in his voice. Note any details that stand out to a trained observer.`,
@@ -790,7 +787,7 @@ export class GameEngine {
       : undefined;
 
     if (!inventoryItem) {
-      return this.blocked(intent, session,
+      return blocked(this.story, intent, session,
         `Watson is not carrying ${objectName}.`,
         `DROP blocked: ${targetId ?? 'unknown'} not in inventory.`
       );
@@ -801,7 +798,7 @@ export class GameEngine {
       actionType: 'drop',
       inventoryRemove: [inventoryItem],
       discoveredClueIds: [],
-      aiContext: this.buildContext(intent, session, {
+      aiContext: buildNarrationContext(this.story, intent, session, {
         success: true,
         actionDescription: `Watson set down the ${inventoryItem}.`,
         actionResultNote: `SUCCESS — Watson places the ${inventoryItem} aside. He can retrieve it if he returns.`,
@@ -819,7 +816,7 @@ export class GameEngine {
       actionSuccess: true,
       actionType: 'inventory',
       discoveredClueIds: [],
-      aiContext: this.buildContext(intent, session, {
+      aiContext: buildNarrationContext(this.story, intent, session, {
         success: true,
         actionDescription: 'Watson checked the contents of his medical bag.',
         actionResultNote: `SUCCESS — Inventory: ${session.inventory.join(', ')}.`,
@@ -869,7 +866,7 @@ export class GameEngine {
       actionSuccess: true,
       actionType: 'notebook',
       discoveredClueIds: [],
-      aiContext: this.buildContext(intent, session, {
+      aiContext: buildNarrationContext(this.story, intent, session, {
         success: true,
         actionDescription: 'Watson consulted his investigative notebook.',
         actionResultNote:
@@ -912,7 +909,7 @@ export class GameEngine {
         actionType: 'deduce',
         blockedReason: `Insufficient evidence — only ${clueCount} of ${this.story.deductionThreshold} required clues discovered.`,
         discoveredClueIds: [],
-        aiContext: this.buildContext(intent, session, {
+        aiContext: buildNarrationContext(this.story, intent, session, {
           success: false,
           actionDescription: `Watson attempted to name the killer: "${intent.raw}"`,
           actionResultNote: `BLOCKED — Only ${clueCount} clues discovered. Holmes requires more evidence before committing to a theory.${groundNote}`,
@@ -936,7 +933,7 @@ export class GameEngine {
           actionType: 'deduce',
           blockedReason: `Holmes taps his fingers together. "The connexion exists, Watson — I have seen the shadow of it. But I will not name a man without the thread that ties him to the letters. There is something we have not yet found."`,
           discoveredClueIds: [],
-          aiContext: this.buildContext(intent, session, {
+          aiContext: buildNarrationContext(this.story, intent, session, {
             success: false,
             actionDescription: `Watson proposed a theory: "${intent.raw}"`,
             actionResultNote: `BLOCKED — Holmes senses Watson is close but lacks the specific written evidence that links the suspect to the From Hell letter. The forensic connexion has not yet been established. Redirect Watson: the answer lies in written records, not witness accounts.`,
@@ -959,7 +956,7 @@ export class GameEngine {
           : undefined,
         gameOver: isGameOver,
         discoveredClueIds: [],
-        aiContext: this.buildContext(intent, session, {
+        aiContext: buildNarrationContext(this.story, intent, session, {
           success: true,
           actionDescription: `Watson named ${npcName} as the suspect: "${intent.raw}"`,
           actionResultNote: isGameOver
@@ -983,7 +980,7 @@ export class GameEngine {
         actionType: 'deduce',
         blockedReason: `Holmes raises an eyebrow. "If you mean to accuse a man, Watson, then name him plainly — give me the person, not a feeling."`,
         discoveredClueIds: [],
-        aiContext: this.buildContext(intent, session, {
+        aiContext: buildNarrationContext(this.story, intent, session, {
           success: false,
           actionDescription: `Watson reached toward a conclusion without naming anyone: "${intent.raw}"`,
           actionResultNote: `BLOCKED — Watson did not name a specific suspect. The case is NOT closed and this is NOT a failed deduction. Holmes presses him to state plainly whom he accuses; invite Watson to name a person directly.`,
@@ -1007,7 +1004,7 @@ export class GameEngine {
       gameOver: true,
       flagsUpdate: { 'deduction_attempted': true, 'deduction_incorrect': true, 'cold_case': true },
       discoveredClueIds: [],
-      aiContext: this.buildContext(intent, session, {
+      aiContext: buildNarrationContext(this.story, intent, session, {
         success: false,
         actionDescription: `Watson named a wrong suspect: "${intent.raw}"`,
         actionResultNote: coldCaseNote,
@@ -1035,7 +1032,7 @@ export class GameEngine {
       actionType: 'wait',
       minutesAdvanced,
       discoveredClueIds: [],
-      aiContext: this.buildContext(intent, session, {
+      aiContext: buildNarrationContext(this.story, intent, session, {
         success: true,
         actionDescription: `Watson deliberately waited at ${this.story.locations[session.location].name} as ${from} gave way to ${to}.`,
         actionResultNote:
@@ -1059,7 +1056,7 @@ export class GameEngine {
       actionSuccess: true,
       actionType: 'help',
       discoveredClueIds: [],
-      aiContext: this.buildContext(intent, session, {
+      aiContext: buildNarrationContext(this.story, intent, session, {
         success: true,
         actionDescription: 'Watson consulted his mental notes on how to proceed.',
         actionResultNote:
@@ -1086,7 +1083,7 @@ export class GameEngine {
       actionSuccess: true,
       actionType: 'query',
       discoveredClueIds: [],
-      aiContext: this.buildContext(intent, session, {
+      aiContext: buildNarrationContext(this.story, intent, session, {
         success: true,
         actionDescription: `Watson observed: "${intent.raw}"`,
         actionResultNote:
@@ -1117,7 +1114,7 @@ export class GameEngine {
       actionType: 'unresolved_target',
       blockedReason: `Watson could not find "${intent.targetRaw}" to examine.`,
       discoveredClueIds: [],
-      aiContext: this.buildContext(intent, session, {
+      aiContext: buildNarrationContext(this.story, intent, session, {
         success: false,
         actionDescription: `Watson tried to examine "${intent.targetRaw}" but the target could not be identified.`,
         actionResultNote:
@@ -1140,7 +1137,7 @@ export class GameEngine {
       actionSuccess: true,
       actionType: 'other',
       discoveredClueIds: [],
-      aiContext: this.buildContext(intent, session, {
+      aiContext: buildNarrationContext(this.story, intent, session, {
         success: true,
         actionDescription: `Watson heard himself mutter something unclear: "${intent.raw}"`,
         actionResultNote:
@@ -1153,534 +1150,12 @@ export class GameEngine {
     };
   }
 
-  // ============================================================
-  // HELPERS
-  // ============================================================
-
-  /**
-   * Look up clues triggered by examining objectId at locationId.
-   * Filters out clues already discovered or suppressed by alreadyExamined.
-   * Returns the clue list plus pre-calculated point deltas.
-   */
-  private triggerClues(
-    locationId: string,
-    objectId: string,
-    alreadyExamined: boolean,
-    discoveredClueIds: string[]
-  ): { newClueIds: string[]; newClueDefs: ClueDefinition[]; medicalDelta: number; moralDelta: number } {
-    const candidates = this.story.clueTriggers[locationId]?.[objectId] ?? [];
-    const newClueIds = alreadyExamined
-      ? []
-      : candidates.filter(id => !discoveredClueIds.includes(id));
-    const newClueDefs = newClueIds.map(id => this.story.clueDefinitions[id]).filter(Boolean) as ClueDefinition[];
-    return {
-      newClueIds,
-      newClueDefs,
-      medicalDelta: newClueDefs.reduce((sum, c) => sum + c.medicalPoints, 0),
-      moralDelta: newClueDefs.reduce((sum, c) => sum + c.moralPoints, 0),
-    };
-  }
-
-  /**
-   * Build the NarrationContext that gets sent to the AI.
-   * All fields are derived from verified world data — never invented.
-   */
-  private buildContext(
-    intent: ParsedIntent,
-    session: SessionSnapshot,
-    outcome: {
-      success: boolean;
-      actionDescription: string;
-      actionResultNote: string;
-      newClueDefs: Array<{ name: string; description: string; holmesDeduction: string }>;
-      itemsGained?: string[];         // Inventory items gained this turn (verified)
-      targetLocationId?: string;      // For move actions, the destination
-      targetNpcId?: string;
-      newNpcUpdates?: Record<string, Partial<NPCState>>;
-      isDeduction?: boolean;
-      deductionCorrect?: boolean;
-      extraMinutes?: number;
-    }
-  ): NarrationContext {
-    // Use destination location for move actions, otherwise current
-    const locationId = outcome.targetLocationId || session.location;
-    const loc = this.story.locations[locationId] || this.story.locations[session.location];
-
-    // Determine which NPCs are in this location after any movements
-    const resolvedNpcStates = { ...session.npcStates };
-    if (outcome.newNpcUpdates) {
-      for (const [id, upd] of Object.entries(outcome.newNpcUpdates)) {
-        resolvedNpcStates[id] = { ...(resolvedNpcStates[id] || { npcId: id, disposition: 50, status: 'alive' }), ...upd };
-      }
-    }
-
-    const presentNPCEntries = getPresentNpcIds(this.story.npcs, locationId, resolvedNpcStates, session.currentAct, this.periodOf(session, outcome.extraMinutes ?? 0))
-      .map(npcId => [npcId, this.story.npcs[npcId]] as const);
-
-    // Build alias-aware NPC list for NarrationContext
-    const npcsPresent = presentNPCEntries.map(([npcId, npc]) => {
-      const isIntroduced = !npc.requiresIntroduction ||
-        session.introducedNpcs.includes(npcId);
-      const label = isIntroduced
-        ? npc.displayName
-        : (npc.alias ?? this.story.npcAliases[npcId] ?? npc.displayName);
-      return { label, npcId, isIntroduced };
-    });
-
-    // Legacy flat arrays kept for internal engine use (NPC memory lookup etc.)
-    const npcIds = presentNPCEntries.map(([id]) => id);
-
-    // Scripted NPC presence moments — fire when NPC present + location matches + flag satisfied.
-    // These are directorial instructions injected into the AI prompt; no state changes.
-    const npcScriptedLines: Array<{ npcId: string; label: string; instruction: string }> = [];
-    for (const { npcId, label } of npcsPresent) {
-      const npc = this.story.npcs[npcId];
-      if (!npc.scriptedLines) continue;
-      for (const line of npc.scriptedLines) {
-        if (line.locationId !== locationId) continue;
-        if (line.triggerFlag && !session.flags[line.triggerFlag]) continue;
-        if (line.act !== undefined && line.act !== session.currentAct) continue;
-        npcScriptedLines.push({ npcId, label, instruction: line.instruction });
-      }
-    }
-
-    // Act safety nets — story-authored failure-path nudges. Fire when the
-    // act matches, the named NPC is present, and the condition holds.
-    for (const net of this.story.actSafetyNets) {
-      if (net.act !== session.currentAct) continue;
-      if (!net.when(session)) continue;
-      const present = npcsPresent.find(n => n.npcId === net.requiresNpcPresent);
-      if (!present) continue;
-      npcScriptedLines.push({ npcId: present.npcId, label: present.label, instruction: net.instruction });
-    }
-
-    // Idle behaviors — one rotating flat beat per present NPC who is not being
-    // interviewed this turn, cycled by turn count so it never repeats twice running.
-    for (const { npcId, label } of npcsPresent) {
-      if (npcId === outcome.targetNpcId) continue;
-      const idle = this.story.npcs[npcId]?.idleBehaviors;
-      if (idle && idle.length > 0) {
-        npcScriptedLines.push({
-          npcId, label,
-          instruction: `Background only, no emphasis: ${idle[session.turnCount % idle.length]}`,
-        });
-      }
-    }
-
-    // Companion case-state demeanor — derived, no new state. First matching
-    // variant wins; injected only when the NPC is present and not interviewed.
-    for (const cd of this.story.companionDemeanors) {
-      if (outcome.targetNpcId === cd.npcId) continue;
-      const present = npcsPresent.find(n => n.npcId === cd.npcId);
-      if (!present) continue;
-      const variant = cd.variants.find(v => v.when(session));
-      if (variant) {
-        npcScriptedLines.push({ npcId: cd.npcId, label: present.label, instruction: `Demeanor note: ${variant.text}` });
-      }
-    }
-
-    // Available exits (filtered by act)
-    const availableExits = (loc.exits || [])
-      .filter(exitId => {
-        const exitLoc = this.story.locations[exitId];
-        return exitLoc && exitLoc.act <= session.currentAct;
-      })
-      .map(exitId => this.story.locations[exitId]?.shortName || exitId);
-
-    // Available objects
-    const availableObjects = (loc.interactables || [])
-      .map(id => this.story.objectDisplayNames[id] || id);
-
-    // Recent NPC memory for NPCs present (keyed by label — alias or displayName)
-    const npcRecentMemory: Record<string, string[]> = {};
-    for (const [npcId, state] of Object.entries(resolvedNpcStates)) {
-      const entry = npcsPresent.find(n => n.npcId === npcId);
-      if (entry && state.memory && state.memory.length > 0) {
-        npcRecentMemory[entry.label] = state.memory.slice(0, 2);
-      }
-    }
-
-    // 'full' narration: moving to a new location or looking around with no specific target.
-    // 'compact' narration: examining an object, talking, taking, using, etc. A
-    // blocked move (invalid/unavailable destination) must stay 'compact' too —
-    // the full template has no instruction to acknowledge a failed action, so a
-    // blocked move rendered in full mode silently reads as a normal look-around.
-    const narrationMode: 'full' | 'compact' =
-      (intent.type === 'move' && outcome.success) ||
-      (intent.type === 'examine' && !intent.targetId) ||
-      (intent.type === 'other' && !intent.targetId)
-        ? 'full'
-        : 'compact';
-
-    // Full mode always gets a world_event blockquote.
-    // Compact mode gets an inner_thought ~30% of the time — less frequent so each one lands harder.
-    const blockquoteHint: NarrationContext['blockquoteHint'] =
-      narrationMode === 'full'
-        ? 'world_event'
-        : Math.random() < 0.3 ? 'inner_thought' : 'none';
-
-    // Compute current in-game time — anchored to the act's canonical start,
-    // advanced by the minutes elapsed this act (tracked in the hook).
-    const act = session.currentAct;
-    const actTimeCfg   = this.story.actTimeConfig[act] ?? this.story.actTimeConfig[1];
-    const totalMinutes = actTimeCfg.canonicalMinutes + session.elapsedMinutes + (outcome.extraMinutes ?? 0);
-
-    // Dynamic Witness Interrogation — include NPC knowledge envelope for talk actions
-    let targetNpcInterview: NarrationContext['targetNpcInterview'] | undefined;
-    const rumorAckFlagsUpdate: Record<string, boolean> = {};
-    if (outcome.targetNpcId && this.story.npcs[outcome.targetNpcId]) {
-      const npc = this.story.npcs[outcome.targetNpcId];
-      const isIntroduced = !npc.requiresIntroduction ||
-        session.introducedNpcs.includes(outcome.targetNpcId);
-      // True only on the single turn the player first talks to a self-introducing
-      // NPC — mirrors the introductionFlagsUpdate condition below. On this turn the
-      // sidebar reveals the real name; the AI must narrate the name reveal in-fiction
-      // to match. Edmund never self-introduces (his name comes from the forensic note).
-      const introducingThisTurn = !!npc.requiresIntroduction &&
-        !session.introducedNpcs.includes(outcome.targetNpcId) &&
-        this.introductionOf(npc).type === 'self';
-      const label = isIntroduced
-        ? npc.displayName
-        : (npc.alias ?? this.story.npcAliases[outcome.targetNpcId] ?? npc.displayName);
-
-      // Phase 4b — matured hearsay for this NPC, prepended to the envelope.
-      // The nudge (recentlyHeard + ack flag) fires only on a successful TALK.
-      const matured = maturedSpreadsFor(
-        this.story.rumors, session.rumorEvents, outcome.targetNpcId, act, totalMinutes);
-      let recentlyHeard: string[] | undefined;
-      if (intent.type === 'talk' && outcome.success) {
-        const unacked = matured.filter(
-          m => !session.flags[`rumor_ack_${m.rumorId}_${outcome.targetNpcId}`]);
-        if (unacked.length > 0) {
-          recentlyHeard = unacked.map(m => m.statement);
-          for (const m of unacked) {
-            rumorAckFlagsUpdate[`rumor_ack_${m.rumorId}_${outcome.targetNpcId}`] = true;
-          }
-        }
-      }
-
-      targetNpcInterview = {
-        npcId: outcome.targetNpcId,
-        label,
-        isIntroduced,
-        introducingThisTurn,
-        realName: introducingThisTurn ? npc.displayName : undefined,
-        role: npc.role,
-        speakingStyle: npc.speakingStyle,
-        personality: npc.personality,
-        knowledgeEnvelope: [
-          ...matured.map(m => m.statement),
-          ...deriveKnowledgeEnvelope(this.story.facts, outcome.targetNpcId, session.currentAct),
-        ],
-        recentlyHeard,
-        playerQuestion: intent.raw,
-      };
-    }
-
-    // Atmospheric fallback note — used when examined object triggers no clue.
-    // Act-keyed override first ("<objectId>@<act>") for act-variant descriptions.
-    const atmosphericNote =
-      intent.targetId && outcome.newClueDefs.length === 0
-        ? (this.story.atmosphericNotes[locationId]?.[`${intent.targetId}@${session.currentAct}`]
-            ?? this.story.atmosphericNotes[locationId]?.[intent.targetId])
-        : undefined;
-
-    // Introduction flags: talking to an NPC introduces them (if they self-introduce)
-    // Document-based introductions are handled by the examine check below.
-    const introductionFlagsUpdate: Record<string, boolean> = {};
-    if (outcome.targetNpcId) {
-      const npc = this.story.npcs[outcome.targetNpcId];
-      if (npc?.requiresIntroduction &&
-          !session.introducedNpcs.includes(outcome.targetNpcId) &&
-          this.introductionOf(npc).type === 'self') {
-        // NPC self-introduces on first TALK
-        introductionFlagsUpdate[`npc_introduced_${outcome.targetNpcId}`] = true;
-      }
-    }
-    // Document-introduced NPCs: examining their introduction object reveals the name
-    if (intent.targetId) {
-      for (const [npcId, npcDef] of Object.entries(this.story.npcs)) {
-        const intro = this.introductionOf(npcDef);
-        if (intro.type === 'document' &&
-            intro.objectId === intent.targetId &&
-            !session.introducedNpcs.includes(npcId)) {
-          introductionFlagsUpdate[`npc_introduced_${npcId}`] = true;
-        }
-      }
-    }
-
-    const timePeriod   = computeTimePeriod(totalMinutes);
-    const timeLabel    = formatTimeLabel(totalMinutes, actTimeCfg.dayOfWeek, actTimeCfg.displayDate);
-
-    const locationVisitCount = (session.locationVisitCounts[locationId] ?? 0) + 1;
-
-    // Intra-act weather drift — the act's weather may shift late in the act
-    const baseWeather = this.story.actWeather[act] ?? this.story.actWeather[1];
-    const weather = baseWeather.lateShift && session.elapsedMinutes + (outcome.extraMinutes ?? 0) >= baseWeather.lateShift.afterMinutes
-      ? { condition: baseWeather.lateShift.condition, label: baseWeather.lateShift.label }
-      : { condition: baseWeather.condition, label: baseWeather.label };
-
-    // One-shot vignette — fires on full-mode narration only, at most once each
-    // per playthrough (flag vignette_<locId>_<idx>), replacing the random seed.
-    let vignette: string | undefined;
-    const vignetteFlagsUpdate: Record<string, boolean> = {};
-    if (narrationMode === 'full' && loc.vignettes) {
-      const idx = loc.vignettes.findIndex((v, i) =>
-        !session.flags[`vignette_${locationId}_${i}`] && (v.act === undefined || v.act === act));
-      if (idx !== -1) {
-        vignette = loc.vignettes[idx].text;
-        vignetteFlagsUpdate[`vignette_${locationId}_${idx}`] = true;
-      }
-    }
-
-    // Ambient extra — prose-only background figure, rotated by visit count
-    const ambientExtra = loc.extras && loc.extras.length > 0
-      ? loc.extras[(locationVisitCount - 1) % loc.extras.length]
-      : undefined;
-
-    // World events (Phase 4a) — authored broadcasts whose fire time the clock
-    // has passed this act. atClockMinutes earlier than the act's start means
-    // the next day (the vigil's midnight, the following dawn). Delivered
-    // once via world_event_* flags, lifted onto flagsUpdate in resolve().
-    const worldEventFlagsUpdate: Record<string, boolean> = {};
-    const clockNow = totalMinutes; // already includes extraMinutes (WAIT spans deliver what they cross)
-    const firedEvents = this.story.worldEvents
-      .filter(e => e.act === act && !session.flags[`world_event_${e.id}`])
-      .map(e => ({ e, fireAt: e.atClockMinutes >= actTimeCfg.canonicalMinutes ? e.atClockMinutes : e.atClockMinutes + 1440 }))
-      .filter(({ fireAt }) => clockNow >= fireAt)
-      .sort((a, b) => a.fireAt - b.fireAt);
-    for (const { e } of firedEvents) worldEventFlagsUpdate[`world_event_${e.id}`] = true;
-    const worldEvents = firedEvents.length > 0 ? firedEvents.map(({ e }) => e.text) : undefined;
-
-    return {
-      locationName: loc.name,
-      locationAtmosphere: loc.atmosphere,
-      locationDescription: loc.description,
-      locationVisitCount,
-      locationTimeframe: loc.timeframe ?? 'present',
-      locationReconstitutionNote: loc.reconstitutionNote,
-      act,
-      actName: this.story.actNames[act] || `Act ${act}`,
-      timeLabel,
-      timePeriod,
-      weather,
-      vignette,
-      worldEvents,
-      ambientExtra,
-      npcsPresent,
-      availableObjects,
-      availableExits,
-      inventory: session.inventory,
-      watsonStats: {
-        medicalPoints: session.medicalPoints,
-        moralPoints: session.moralPoints,
-      },
-      actionType: intent.type,
-      actionSuccess: outcome.success,
-      actionDescription: outcome.actionDescription,
-      actionResultNote: outcome.actionResultNote,
-      newCluesDiscovered: outcome.newClueDefs.map(c => ({
-        name: c.name,
-        description: c.description,
-        holmesDeduction: c.holmesDeduction,
-      })),
-      itemsGained: outcome.itemsGained?.length ? outcome.itemsGained : undefined,
-      atmosphericNote,
-      npcRecentMemory: Object.keys(npcRecentMemory).length > 0 ? npcRecentMemory : undefined,
-      targetNpcInterview,
-      narrationMode,
-      blockquoteHint,
-      npcScriptedLines: npcScriptedLines.length > 0 ? npcScriptedLines : undefined,
-      // Pass introduction flags so useGameState can update introducedNpcs
-      _introductionFlagsUpdate: Object.keys(introductionFlagsUpdate).length > 0
-        ? introductionFlagsUpdate
-        : undefined,
-      // Vignette once-only flags — lifted onto result.flagsUpdate in resolve()
-      _vignetteFlagsUpdate: Object.keys(vignetteFlagsUpdate).length > 0
-        ? vignetteFlagsUpdate
-        : undefined,
-      // World-event once-only flags — lifted onto result.flagsUpdate in resolve()
-      _worldEventFlagsUpdate: Object.keys(worldEventFlagsUpdate).length > 0
-        ? worldEventFlagsUpdate
-        : undefined,
-      // Rumor-ack once-only flags — lifted onto result.flagsUpdate in resolve()
-      _rumorAckFlagsUpdate: Object.keys(rumorAckFlagsUpdate).length > 0
-        ? rumorAckFlagsUpdate
-        : undefined,
-    } as NarrationContext & {
-      _introductionFlagsUpdate?: Record<string, boolean>;
-      _vignetteFlagsUpdate?: Record<string, boolean>;
-      _worldEventFlagsUpdate?: Record<string, boolean>;
-      _rumorAckFlagsUpdate?: Record<string, boolean>;
-    };
-  }
-
-  /** An NPC's introduction mode; absent = self-introduces on first TALK. */
-  private introductionOf(npc: NPCDefinition): { type: 'self' } | { type: 'document'; objectId: string } {
-    return npc.introduction ?? { type: 'self' };
-  }
-
-  /**
-   * Returns a blocked EngineResult with appropriate context.
-   */
-  private blocked(
-    intent: ParsedIntent,
-    session: SessionSnapshot,
-    blockedReason: string,
-    actionResultNote: string
-  ): EngineResult {
-    return {
-      actionSuccess: false,
-      actionType: intent.type,
-      blockedReason,
-      discoveredClueIds: [],
-      aiContext: this.buildContext(intent, session, {
-        success: false,
-        actionDescription: `Watson attempted: "${intent.raw}"`,
-        actionResultNote,
-        newClueDefs: [],
-      }),
-    };
-  }
-
-  /**
-   * Blocked result for addressing an NPC who is scheduled elsewhere right now.
-   * Diegetic redirect — never a dead end: the note carries where they are and
-   * when the schedule brings them back, alias-masked until introduced.
-   */
-  private absentNpcBlocked(
-    intent: ParsedIntent,
-    session: SessionSnapshot,
-    npcId: string,
-    attemptedVerb: string,
-  ): EngineResult {
-    const npc = this.story.npcs[npcId];
-    const period = this.periodOf(session);
-    const introduced = !npc.requiresIntroduction || session.introducedNpcs.includes(npcId);
-    const label = introduced
-      ? npc.displayName
-      : (npc.alias ?? this.story.npcAliases[npcId] ?? npc.displayName);
-    const whereId = npcLocationAt(this.story.npcs, npcId, session.currentAct, period, session.npcStates);
-    const where = this.story.locations[whereId];
-    const returns = returnsPeriodFor(npc, session.currentAct, session.location, period);
-    const currentLocName = this.story.locations[session.location].name;
-
-    return this.blocked(
-      intent,
-      session,
-      `${label} is not here at the moment.`,
-      `ABSENT PERSON — Watson tried to ${attemptedVerb} ${label}, but they are not at ${currentLocName} right now. ` +
-      (where ? `They are presently at ${where.name}. ` : `They are nowhere to be found in Whitechapel at present. `) +
-      (returns ? `They are expected back here come ${returns}. ` : '') +
-      `Convey this diegetically (an attendant's word, a note on a door, the empty room itself) in 1–2 sentences. ` +
-      `Watson is NOT stuck: he may follow them there, wait, or turn to something else. Do not invent dialogue with the absent person.`
-    );
-  }
-
-  /**
-   * Compute the state Watson enters a new act with: the anchor location and the
-   * NPC movements for that act. Used both by resolve() on a live act-advance and
-   * by the UI when committing a deferred act transition (e.g. after reload).
-   */
-  public computeActEntry(
-    toAct: number,
-    session: SessionSnapshot
-  ): { anchor: string; npcUpdates: Record<string, Partial<NPCState>> } {
-    const anchor = this.story.actAnchors[toAct];
-    const npcUpdates = this.computeNpcMovements(anchor, { ...session, currentAct: toAct });
-    return { anchor, npcUpdates };
-  }
-
-  /**
-   * When Watson moves, compute which NPCs follow.
-   * Behaviour is driven entirely by NPCDefinition fields:
-   *   followsNpcId === 'watson'  → shadow the player destination
-   *   followsNpcId === <npcId>   → shadow that NPC's resolved location
-   *   location_based / fixed     → snap to the schedule for the current act + period
-   */
-  private computeNpcMovements(
-    newLocationId: string,
-    session: SessionSnapshot
-  ): Record<string, Partial<NPCState>> {
-    const updates: Record<string, Partial<NPCState>> = {};
-    const period = this.periodOf(session);
-
-    // First pass: location-based and fixed NPCs (establish canonical positions).
-    // An NPC with NO canonical entry for the current act is OFFSTAGE — e.g.
-    // Tumblety after he flees in Act 4. The 'offstage' sentinel never matches
-    // a real location id, so the NPC simply does not appear anywhere.
-    for (const [npcId, npc] of Object.entries(this.story.npcs)) {
-      if (npc.followingRule === 'location_based' || npc.followingRule === 'fixed') {
-        const canonical = npc.scheduleByAct[session.currentAct] ? (npc.scheduleByAct[session.currentAct].byPeriod?.[period] ?? npc.scheduleByAct[session.currentAct].default) : 'offstage';
-        if (canonical !== session.npcStates[npcId]?.currentLocation) {
-          updates[npcId] = { currentLocation: canonical };
-        }
-      }
-    }
-
-    // Second pass: NPCs that shadow another entity
-    for (const [npcId, npc] of Object.entries(this.story.npcs)) {
-      if (!npc.followsNpcId) continue;
-
-      // Once an NPC stops following (e.g. Edmund committed in Act 6), it
-      // reverts to its canonical location for the current act.
-      if (npc.followsUntilAct !== undefined && session.currentAct > npc.followsUntilAct) {
-        const canonical = npc.scheduleByAct[session.currentAct]?.byPeriod?.[period] ?? npc.scheduleByAct[session.currentAct]?.default;
-        if (canonical && canonical !== session.npcStates[npcId]?.currentLocation) {
-          updates[npcId] = { currentLocation: canonical };
-        }
-        continue;
-      }
-
-      let destination: string | undefined;
-      if (npc.followsNpcId === 'watson') {
-        destination = newLocationId;
-      } else {
-        // Resolve the followed NPC's location from this turn's updates, then session, then canonical
-        destination =
-          (updates[npc.followsNpcId]?.currentLocation as string | undefined) ??
-          session.npcStates[npc.followsNpcId]?.currentLocation ??
-          this.story.npcs[npc.followsNpcId]?.scheduleByAct[session.currentAct]?.default;
-      }
-
-      if (destination && destination !== session.npcStates[npcId]?.currentLocation) {
-        updates[npcId] = { currentLocation: destination };
-      }
-    }
-
-    return updates;
-  }
-
-  /**
-   * Check if the current flags satisfy any act progression condition.
-   * Returns the new act number and any flags to set if advancing.
-   */
-  private checkActProgression(
-    session: SessionSnapshot,
-    currentFlags: Record<string, boolean>
-  ): { newAct?: number; flagsUpdate?: Record<string, boolean>; gameOver?: boolean } {
-    const condition = this.story.actProgression[session.currentAct];
-    if (!condition) return {};
-
-    const allMet = condition.requireFlags.every(flag => currentFlags[flag] === true);
-    if (!allMet) return {};
-
-    // All conditions met — advance act
-    const advanceTo = condition.advanceTo;
-    if (advanceTo <= session.currentAct) return {}; // Prevent regression
-
-    // Advancing past the final playable act (no further progression defined)
-    // concludes the game — e.g. visiting the Private Asylum in Act VI.
-    const isFinalAct = !this.story.actProgression[advanceTo];
-
-    // Sync NPC locations for new act
-    return {
-      newAct: advanceTo,
-      flagsUpdate: { [`act_${advanceTo}_started`]: true },
-      gameOver: isFinalAct || undefined,
-    };
+  /** See resolvers/support.computeActEntry — kept as a method for existing callers. */
+  public computeActEntry(toAct: number, session: SessionSnapshot) {
+    return computeActEntry(this.story, toAct, session);
   }
 }
+
 
 // Singleton export — the one place the active story is bound to the engine.
 export const gameEngine = new GameEngine(WHITECHAPEL_MANIFEST);
