@@ -20,7 +20,7 @@ import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifes
 import { audioManager } from '../services/AudioManager';
 import { parseIntent, type ParsedIntent } from '../engine/intentParser';
 import { needsAiParse, buildParseCandidates } from '../engine/parseFallback';
-import { CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, formatGameClock } from '../engine/gameData';
+import { CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, DECISION_BY_FLAG, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -39,6 +39,7 @@ import { useAppearance } from './gameState/useAppearance';
 import { useDiary } from './gameState/useDiary';
 import { useSceneStreams } from './gameState/useSceneStreams';
 import { usePersistence } from './gameState/usePersistence';
+import { useActBreak } from './gameState/useActBreak';
 
 // ── Destructure hints and diary leads from the story manifest ────────────────
 const { selectHint } = WHITECHAPEL_MANIFEST;
@@ -118,8 +119,6 @@ export interface GameStateReturn {
   handleDeleteSlot: (investigation: Investigation) => Promise<void>;
 }
 
-const CURTAIN_HOLD_MS = 4500; // enter animation eats ~1s; this leaves ~3.5s to read the act title
-
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useGameState({ user, isAuthReady, userProfile }: { user: User | null; isAuthReady: boolean; userProfile: UserProfile | null }): GameStateReturn {
@@ -169,10 +168,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const [pendingActTransition, setPendingActTransition] = useState<PendingActTransition | null>(null);
   const [isActBreakReady, setIsActBreakReady] = useState(false);   // diary finished typing → show Begin
   const [isCurtainPlaying, setIsCurtainPlaying] = useState(false); // cinematic overlay animating
-  // True only while the NEW act's opening scene is streaming, after the curtain
-  // has closed. Distinguishes this (much longer) generation from a normal turn
-  // so the command bar can show a dedicated message instead of a generic one.
-  const [isAdvancingAct, setIsAdvancingAct] = useState(false);
 
   // ── Journal / sidebar ───────────────────────────────────────────────────
   // journalNotes still persists to the legacy investigations.journal_notes column
@@ -317,62 +312,23 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     streamResumeScene,
   });
 
-  // Player clicked "Begin Act N": play the cinematic curtain, commit the held
-  // state behind it, then stream the arrival scene.
-  const beginNextAct = useCallback(async () => {
-    const pending = pendingActTransition;
-    if (!pending || isCurtainPlaying) return;
-
-    setIsCurtainPlaying(true);
-    setIsActBreakReady(false);
-
-    // Hold the curtain a beat (matches ActBreakCurtain's enter+hold animation).
-    await new Promise(res => setTimeout(res, CURTAIN_HOLD_MS));
-
-    const { toAct, newLocation, npcUpdates } = pending;
-
-    // Commit the four held pieces — sidebar flips to the new act now (behind the overlay).
-    setCurrentAct(toAct);
-    audioManager.playSfx('act-bell');
-    setLocation(newLocation);
-    setLocationVisitCounts(prev => ({ ...prev, [newLocation]: (prev[newLocation] ?? 0) + 1 }));
-    captureLocationArrival(newLocation, toAct, formatGameClock(toAct, 0)); // diary: arriving in the new act's locale at its canonical start
-    setElapsedMinutes(0);
-    if (Object.keys(npcUpdates).length > 0) {
-      setNpcStates(prev => {
-        const next = { ...prev };
-        Object.entries(npcUpdates).forEach(([id, upd]) => {
-          next[id] = { ...(next[id] || { npcId: id, disposition: 50, status: 'alive' }), ...upd } as NPCState;
-        });
-        return next;
-      });
-    }
-
-    // Bag hygiene — time has moved on, so drop any carried item whose authored
-    // "spent" act has now passed (keeps only what later beats still need).
-    setInventory(prev => prev.filter(item => {
-      const spentAfter = ITEM_SPENT_AFTER_ACT[item];
-      return spentAfter === undefined || toAct <= spentAfter;
-    }));
-
-    setPendingActTransition(null);
-    setIsCurtainPlaying(false);
-
-    // Clear the prior act and stream the new act's opening fresh (see
-    // streamArrivalScene). Lock input across the stream so a command can't race
-    // with / clobber it.
-    setIsLoading(true);
-    setIsAdvancingAct(true);
-    try {
-      await streamArrivalScene(toAct, newLocation, npcUpdates);
-    } finally {
-      setIsLoading(false);
-      setIsAdvancingAct(false);
-    }
-
-    // Persist the committed Act-N state via the fresh ref (flags now marker-free).
-    handleSaveGameRef.current(true);
-  }, [pendingActTransition, isCurtainPlaying, streamArrivalScene, captureLocationArrival]);
+  const { isAdvancingAct, beginNextAct, handleJournalTypewriterDone } = useActBreak({
+    pendingActTransition,
+    isCurtainPlaying,
+    setPendingActTransition,
+    setIsActBreakReady,
+    setIsCurtainPlaying,
+    setCurrentAct,
+    setLocation,
+    setLocationVisitCounts,
+    setElapsedMinutes,
+    setNpcStates,
+    setInventory,
+    setIsLoading,
+    captureLocationArrival,
+    streamArrivalScene,
+    handleSaveGameRef,
+  });
 
   // Generate opening scene for fresh unauthenticated starts
   useEffect(() => {
@@ -859,15 +815,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, handleSaveGame, captureDiaryEntries, captureLocationArrival]);
-
-  // Fired by NarrativeFeed when the act-closing diary finishes typing.
-  // NOTE: do NOT scroll here — NarrativeFeed anchors the diary to the top of the
-  // viewport on append, so the player reads it from line one. Jumping to the
-  // bottom to reveal the Begin button would clip the top of a long diary.
-  const handleJournalTypewriterDone = useCallback(() => {
-    if (!pendingActTransition) return;
-    setIsActBreakReady(true);
-  }, [pendingActTransition]);
 
   // ── Holmes hint ───────────────────────────────────────────────────────────
 
