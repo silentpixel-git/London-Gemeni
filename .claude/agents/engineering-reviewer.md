@@ -9,17 +9,17 @@ The project has one critical architectural invariant: **the game engine is deter
 
 ## Project architecture
 
-- `engine/GameEngine.ts` — resolves all game logic. Must never call AI. Must never access Supabase.
-- `services/AIService.ts` — receives a `NarrationContext` (verified facts), returns `markdownOutput` prose only. Must never return state mutations (`newLocationId`, `inventoryUpdate`, etc.). May optionally return `npcMemoryUpdate`.
-- `hooks/useGameState.ts` — owns React state. The only place that should call both engine and AI service, then merge results.
-- `services/investigationService.ts` — investigation-specific logic. Should be deterministic; no AI calls.
+- `engine/GameEngine.ts` — resolves all game logic (a thin facade dispatching to per-verb resolvers in `engine/resolvers/`). Must never call AI. Must never access Supabase.
+- `server/aiCore.ts` — the actual Gemini prompts, schemas, and calls. Server-only (Vercel function `api/ai.ts`, the Vite dev middleware, qa scripts). Must never be imported from client code.
+- `services/AIService.ts` — client-side fetch wrapper around `/api/ai`. Receives a `NarrationContext` (verified facts), returns `markdownOutput` prose only. Must never return state mutations (`newLocationId`, `inventoryUpdate`, etc.). May optionally return `npcMemoryUpdate` and `stimUpdate`. The one narrow exception is `parseAction()`, which selects from enum-locked candidate lists (validated in `server/parseAction.ts`) — a selection, never a mutation.
+- `hooks/useGameState.ts` — orchestrates React state (with focused sub-hooks in `hooks/gameState/`). The only place that should call both engine and AI service, then merge results.
 - `engine/intentParser.ts` — converts free text to typed intents. Pure function, no side effects.
 
 ## What to check
 
 **Engine/AI contract**
 - Does `GameEngine.ts` import or call anything from `services/AIService.ts`? This must never happen.
-- Does `AIService.ts` return any field that mutates game state (`newLocationId`, `flagsSet`, `inventoryUpdate`, `npcMutations`)? The only allowed mutation return is `npcMemoryUpdate`.
+- Does `AIService.ts` (or `server/aiCore.ts`) return any field that mutates game state (`newLocationId`, `flagsSet`, `inventoryUpdate`, `npcMutations`)? The only allowed AI returns beyond prose are `npcMemoryUpdate` and `stimUpdate`.
 - Does the `NarrationContext` passed to AI contain only *verified, already-resolved* facts — not raw player input or unresolved possibilities?
 
 **React state safety**

@@ -14,7 +14,6 @@
     "qa:hints": "npx tsx scripts/qa-hints.ts",
     "qa:diary-leads": "npx tsx scripts/qa-diary-leads.ts",
     "qa:narration-inject": "npx tsx scripts/qa-narration-inject.ts",
-    "qa:validate": "npx tsx scripts/qa-validate.ts",
     "qa:all": "npm run lint && npm run qa:engine && npm run qa:parser && npm run qa:hints && npm run qa:diary-leads && npm run qa:validate"
   },
   "dependencies": {

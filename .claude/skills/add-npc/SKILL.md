@@ -1,6 +1,6 @@
 ---
 name: add-npc
-description: Scaffolds a complete new NPC for London Bleeds, touching npcs.ts and gameData.ts. Prompts for all required fields and writes a valid NPCDefinition including canonicalLocationByAct for all 6 acts and a knowledgeEnvelope.
+description: Scaffolds a complete new NPC for London Bleeds, touching npcs.ts, facts.ts, and constants.ts. Prompts for all required fields and writes a valid NPCDefinition including a scheduleByAct placement and fact-graph knowledge entries.
 disable-model-invocation: false
 ---
 
@@ -15,59 +15,62 @@ Ask the user for the following if not already provided in their message:
 3. **Role** (e.g. "Chairman, Whitechapel Vigilance Committee")
 4. **Brief description** — one or two sentences on who they are and what they know about the case
 5. **Speaking style** — one sentence (e.g. "Blunt and civic-minded. Speaks with East End directness.")
-6. **Personality traits** — 3–4 words (e.g. `['Civic', 'Suspicious', 'Weary']`)
-7. **Public knowledge** — 3–6 bullet points: what this NPC will tell Watson if questioned
-8. **Following rule** — `'location_based'` (NPC stays at their canonical location) or `'follows_watson'` (NPC follows the player). Default: `'location_based'`
-9. **followsNpcId** — only if following rule is `'follows_watson'` or similar; usually omit
-10. **Canonical location per act** — where this NPC is found in each of the 6 acts. Valid location IDs are in `engine/stories/whitechapel-1888/locations.ts`. Ask the user to specify or suggest sensible defaults based on the story.
-11. **Knowledge envelope** (optional) — clue IDs this NPC privately holds. Leave empty `[]` if none.
+6. **Personality traits** — 3–5 words (e.g. `['Civic', 'Suspicious', 'Weary']`)
+7. **Knowledge** — 3–6 statements of what this NPC can tell Watson. These become `StoryFact` entries in `facts.ts` (`knownBy: ['<npc_id>']`), NOT a field on the NPC itself — NPC knowledge envelopes are derived from the fact graph (`engine/stories/knowledge.ts`). Ask which act each fact becomes visible from (`visibleFromAct`, 0 = always); spoilers must be act-gated.
+8. **Following rule** — `'location_based'` (moves by schedule), `'fixed'` (never moves), or `'follows_watson'` / `'follows_bond'` (companion; needs `followsNpcId`, optionally `followsUntilAct`). Default: `'location_based'`
+9. **Schedule** — `scheduleByAct`: for each act 0–6 where the NPC is onstage, a `{ default: '<location_id>' }` entry, optionally with `byPeriod` overrides for time-of-day movement (e.g. evenings at the pub). **An act with no entry means the NPC is offstage that act** — do not pad all seven acts. Valid location IDs are in `engine/stories/whitechapel-1888/locations.ts`.
+10. **Introduction** (optional) — does Watson know their name from the start? If not: an `alias` (e.g. "a police inspector"), `aliasDescription`, `requiresIntroduction: true`, and how the name is learned (`introduction` absent = self-introduces on first talk; `{ type: 'document', objectId }` = learned by examining a document).
 
 ## Step 2 — Read existing files
 
 Before writing, read:
-- `engine/stories/whitechapel-1888/npcs.ts` — to understand the existing pattern and avoid ID collisions
-- `engine/stories/whitechapel-1888/locations.ts` — to validate the location IDs the user provided
-- `engine/gameData.ts` — to find where NPC IDs are registered (look for NPC_IDS or similar registry)
+- `engine/stories/whitechapel-1888/npcs.ts` — the existing pattern; avoid ID collisions. Note the `satisfies Record<string, NPCDefinition>` table and the `NPC_DISPLAY_NAMES` / `NPC_ALIASES` exports at the bottom.
+- `engine/stories/types.ts` — the authoritative `NPCDefinition` shape.
+- `engine/stories/whitechapel-1888/locations.ts` — to validate the location IDs the user provided.
+- `engine/stories/whitechapel-1888/facts.ts` — the fact-graph pattern (order matters: per-NPC envelope order = file order).
+- `constants.ts` — `INITIAL_NPC_STATES` and the sidebar's `NPC_DISPLAY_NAMES` copy.
 
 ## Step 3 — Write the NPC
 
-Add the new NPC entry to `engine/stories/whitechapel-1888/npcs.ts` following the exact structure of existing NPCs:
+Add the new entry to `NPCS_DATA` in `engine/stories/whitechapel-1888/npcs.ts` following the exact structure of existing NPCs:
 
 ```typescript
 new_npc_id: {
   id: 'new_npc_id',
   displayName: 'Display Name',
+  alias: 'Display Name',          // or an alias like 'a police inspector' if requiresIntroduction
+  requiresIntroduction: false,
   role: 'Role',
   description: 'Description.',
   speakingStyle: 'Speaking style.',
   personality: ['Trait1', 'Trait2', 'Trait3'],
-  publicKnowledge: [
-    'Knowledge point 1',
-    'Knowledge point 2',
-  ],
   followingRule: 'location_based',
-  canonicalLocationByAct: {
-    1: 'location_id',
-    2: 'location_id',
-    3: 'location_id',
-    4: 'location_id',
-    5: 'location_id',
-    6: 'location_id',
+  scheduleByAct: {
+    2: { default: 'location_id' },
+    3: { default: 'location_id', byPeriod: { evening: 'other_location_id' } },
+    // acts with no entry = offstage
   },
-  knowledgeEnvelope: [],
 },
 ```
 
-## Step 4 — Register in gameData.ts
+Then add their knowledge as `StoryFact` entries in `facts.ts` under a new `── new_npc_id ──` section:
 
-Search `engine/gameData.ts` for where NPC IDs are referenced or registered. Add the new NPC ID in the same pattern.
+```typescript
+{ id: 'new_npc_id_fact_name', statement: 'What they can tell Watson', knownBy: ['new_npc_id'], visibleFromAct: 0 },
+```
+
+## Step 4 — Register everywhere the ID is needed
+
+- `npcs.ts`: add to `NPC_DISPLAY_NAMES`; add to `NPC_ALIASES` only if the NPC has a pre-introduction alias.
+- `constants.ts`: add an `INITIAL_NPC_STATES` entry (initial location = their first onstage act's default) and a `NPC_DISPLAY_NAMES` entry (the sidebar keeps its own copy).
+- If the AI should record memory of interactions with this NPC: add the id to the `npcMemoryUpdate` properties in `NARRATION_SCHEMA` and to the `NpcIds:` line of the narration system prompt, both in `server/aiCore.ts`.
 
 ## Step 5 — Confirm
 
-After writing both files, run `npm run lint` to verify no TypeScript errors were introduced. Report the result to the user.
+Run `npm run lint` **and** `npm run qa:validate` — the validator checks NPC placement gaps, dangling location IDs, and spoiler leaks in fact statements. Report the results to the user.
 
 Then summarise what was added:
 - NPC ID and display name
-- Which locations they appear in across acts
-- Any knowledge envelope entries
-- Whether any additional wiring is needed (e.g. atmosphere entries, dialogue triggers)
+- Which acts/locations they appear in (and when offstage)
+- Fact-graph entries and their `visibleFromAct` gates
+- Whether any additional wiring is needed (e.g. scriptedLines, idleBehaviors, rumor hops in `rumors.ts`, atmosphere entries)
