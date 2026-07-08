@@ -15,13 +15,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
 import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
-import { injectAfterHeading } from '../services/narrationFormat';
 import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { audioManager } from '../services/AudioManager';
-import { parseIntent, type ParsedIntent } from '../engine/intentParser';
-import { needsAiParse, buildParseCandidates } from '../engine/parseFallback';
-import { LOCATIONS, CLUE_DEFINITIONS, ACT_NAMES, ACT_BRIDGES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, ITEM_SPENT_AFTER_ACT, DECISION_BY_FLAG, LOCATION_DIARY, formatGameClock } from '../engine/gameData';
+import { parseIntent } from '../engine/intentParser';
+import { CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, DECISION_BY_FLAG, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -32,51 +30,19 @@ import {
   INITIAL_INTRODUCED_NPCS,
   NPC_DISPLAY_NAMES,
 } from '../constants';
-import { GameHistoryItem, GameState, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod, ThemeMode, RumorEvents } from '../types';
-import { supabase, supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../supabase';
+import { GameHistoryItem, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod, ThemeMode, RumorEvents } from '../types';
+import { AI_PARSER_ENABLED, resolveIntentWithAI } from './gameState/aiParse';
+import { extractOpeningSentence } from './gameState/narration';
+import { useConnections } from './gameState/useConnections';
+import { useAppearance } from './gameState/useAppearance';
+import { useDiary } from './gameState/useDiary';
+import { useSceneStreams } from './gameState/useSceneStreams';
+import { usePersistence } from './gameState/usePersistence';
+import { useActBreak } from './gameState/useActBreak';
 
 // ── Destructure hints and diary leads from the story manifest ────────────────
 const { selectHint } = WHITECHAPEL_MANIFEST;
 const { isRequiredFlag, clueGateFlag, leadContextFor, detectSilentLeadFlags } = WHITECHAPEL_MANIFEST.diaryLeads;
-
-// ── AI parse fallback (Phase 3, default-on) ──────────────────────────────────
-// When the deterministic parse misses, route the WHOLE input through the
-// constrained parseAction op — every verb. Kill switch: VITE_AI_PARSER='off'
-// disables it (pure regex parsing; misses stay in-character engine misses —
-// same degraded mode as a Gemini outage, since parseAction returns null on
-// any failure and the turn keeps the regex intent).
-// Plain (non-optional-chained) access: Vite's define replaces the exact token
-// `import.meta.env.VITE_AI_PARSER`, same pattern as supabase.ts.
-const AI_PARSER_ENABLED = (import.meta.env.VITE_AI_PARSER ?? '') !== 'off';
-
-// Per-session memo, same pattern as targetResolveCache above.
-const parseActionCache = new Map<string, ParsedIntent | null>();
-
-async function resolveIntentWithAI(
-  intent: ParsedIntent,
-  location: string,
-  inventory: string[],
-  npcStates: Record<string, NPCState>,
-  currentAct: number,
-  introducedNpcs: string[],
-  elapsedMinutes: number,
-): Promise<ParsedIntent> {
-  if (!needsAiParse(intent, location, inventory)) return intent;
-  const raw = intent.raw.trim();
-  if (!raw) return intent;
-
-  const key = `parse::${location}::${currentAct}::${raw.toLowerCase()}`;
-  let resolved: ParsedIntent | null;
-  if (parseActionCache.has(key)) {
-    resolved = parseActionCache.get(key)!;
-  } else {
-    const candidates = buildParseCandidates(location, inventory, npcStates, currentAct, introducedNpcs, elapsedMinutes);
-    ({ intent: resolved } = await aiService.parseAction(raw, candidates));
-    parseActionCache.set(key, resolved);
-  }
-  // null = no confident match → keep the regex intent (engine misses in character).
-  return resolved ?? intent;
-}
 
 // ── Public interface ──────────────────────────────────────────────────────────
 
@@ -152,23 +118,6 @@ export interface GameStateReturn {
   handleDeleteSlot: (investigation: Investigation) => Promise<void>;
 }
 
-const CURTAIN_HOLD_MS = 4500; // enter animation eats ~1s; this leaves ~3.5s to read the act title
-
-const OPENING_FALLBACK_NARRATIVE =
-  "> *221B Baker Street. November 1888. The sitting room is no longer quite a sitting room.*\n\nHolmes paces before the fire, his pipe cold in his hand. The case files are everywhere — pinned, spread, stacked. Five murders. Eleven weeks. Scotland Yard is floundering.\n\n**Sherlock Holmes** is here.\n**Objects of interest:** Case Files Wall, Newspapers, Chemistry Table, Watson's Armchair.\n**Possible exits:** Dorset Street.";
-
-// Extract the first prose sentence of a narration (skipping act headers and
-// blockquotes) — used as anti-repetition memory for the AI.
-function extractOpeningSentence(markdown: string): string | null {
-  const line = markdown
-    .split('\n')
-    .map(l => l.trim())
-    .find(l => l.length > 0 && !l.startsWith('#') && !l.startsWith('>') && !l.startsWith('**'));
-  if (!line) return null;
-  const sentence = line.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? line;
-  return sentence.length > 90 ? sentence.slice(0, 90) + '…' : sentence;
-}
-
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useGameState({ user, isAuthReady, userProfile }: { user: User | null; isAuthReady: boolean; userProfile: UserProfile | null }): GameStateReturn {
@@ -191,7 +140,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     INITIAL_NPC_STATES as Record<string, NPCState>
   );
   const [activeInvestigation, setActiveInvestigation] = useState<Investigation | null>(null);
-  const [slots, setSlots] = useState<Investigation[]>([]);
+  const { diaryEntries, setDiaryEntries, diarySeqRef, loggedLocationsRef, captureDiaryEntries, captureLocationArrival } =
+    useDiary({ user, activeInvestigation });
   const [currentAct, setCurrentAct] = useState(INITIAL_ACT);
   const [stim, setStim] = useState<Record<string, STIMEntry>>({});
   const [turnCount, setTurnCount] = useState(0);
@@ -217,10 +167,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const [pendingActTransition, setPendingActTransition] = useState<PendingActTransition | null>(null);
   const [isActBreakReady, setIsActBreakReady] = useState(false);   // diary finished typing → show Begin
   const [isCurtainPlaying, setIsCurtainPlaying] = useState(false); // cinematic overlay animating
-  // True only while the NEW act's opening scene is streaming, after the curtain
-  // has closed. Distinguishes this (much longer) generation from a normal turn
-  // so the command bar can show a dedicated message instead of a generic one.
-  const [isAdvancingAct, setIsAdvancingAct] = useState(false);
 
   // ── Journal / sidebar ───────────────────────────────────────────────────
   // journalNotes still persists to the legacy investigations.journal_notes column
@@ -229,71 +175,13 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const [journalNotes, setJournalNotes] = useState(INITIAL_JOURNAL);
   const [isConsultingHolmes, setIsConsultingHolmes] = useState(false);
 
-  // ── Watson's diary (auto-captured casebook) ───────────────────────────────
-  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
-  const diarySeqRef = useRef(0); // next monotonic sequence number for new entries
-  // Locations already recorded — dedupes arrival entries across reloads/paths.
-  const loggedLocationsRef = useRef<Set<string>>(new Set());
-
-  // Append diary entries: stamp id + sequence, update state, persist if signed in.
-  const captureDiaryEntries = useCallback(
-    (items: Array<Omit<DiaryEntry, 'id' | 'sequence'>>) => {
-      if (items.length === 0) return;
-      const created: DiaryEntry[] = items.map(it => ({
-        ...it,
-        id: crypto.randomUUID(),
-        sequence: diarySeqRef.current++,
-      }));
-      setDiaryEntries(prev => [...prev, ...created]);
-      if (user && activeInvestigation) {
-        GameRepository.addDiaryEntries(activeInvestigation.id, created);
-      }
-    },
-    [user, activeInvestigation],
-  );
-
-  // Record the first arrival at a location (authored Watson line, once per place).
-  const captureLocationArrival = useCallback(
-    (locationId: string, actNumber: number, timeLabel: string) => {
-      if (!LOCATION_DIARY[locationId]) return;
-      if (loggedLocationsRef.current.has(locationId)) return;
-      loggedLocationsRef.current.add(locationId);
-      captureDiaryEntries([{ kind: 'location', refId: locationId, actNumber, timeLabel }]);
-    },
-    [captureDiaryEntries],
-  );
-
   // ── Persistence / UI ────────────────────────────────────────────────────
-  const [isSaving, setIsSaving] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<{
-    gemini: boolean | null;
-    supabase: boolean | null;
-  }>({ gemini: null, supabase: null });
-  // Single appearance choice — defaults to light. Reads the new key first, then
-  // falls back to the legacy lb-theme / lb-atmospheric-theme pair so existing
-  // players keep their setting (atmospheric → 'auto', dark → 'dark').
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    try {
-      const stored = localStorage.getItem('lb-theme-mode');
-      if (stored === 'light' || stored === 'dark' || stored === 'auto') return stored;
-      if (localStorage.getItem('lb-atmospheric-theme') === 'on') return 'auto';
-      if (localStorage.getItem('lb-theme') === 'dark') return 'dark';
-    } catch {}
-    return 'light';
-  });
-  // Atmosphere audio — default off, persisted to localStorage (POC).
-  const [soundEffects, setSoundEffects] = useState<boolean>(() => {
-    try { return localStorage.getItem('lb-sound-effects') === 'on'; } catch { return false; }
-  });
-  const [ambientAudio, setAmbientAudio] = useState<boolean>(() => {
-    try { return localStorage.getItem('lb-ambient-audio') === 'on'; } catch { return false; }
-  });
+  const { connectionStatus, checkConnections } = useConnections({ isAuthReady, setNotification });
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
-  const hasGeneratedOpening = useRef(false);
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const lastUserMsgIdx = [...history].reverse().findIndex(m => m.role === 'user');
@@ -304,105 +192,30 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     (ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1]).canonicalMinutes + elapsedMinutes,
   );
 
+  const { themeMode, setThemeMode, soundEffects, setSoundEffects, ambientAudio, setAmbientAudio } =
+    useAppearance({ user, userProfile, currentTimePeriod });
+
+  const { hasGeneratedOpening, generateOpeningScene, streamResumeScene, streamArrivalScene } =
+    useSceneStreams({
+      user,
+      activeInvestigation,
+      inventory,
+      flags,
+      npcStates,
+      medicalPoints,
+      moralPoints,
+      introducedNpcs,
+      locationVisitCounts,
+      turnCount,
+      setHistory,
+      setIsLoading,
+      setIsAutoScrollLocked,
+      setFlags,
+      scrollRef,
+      captureLocationArrival,
+    });
+
   // ── Effects ───────────────────────────────────────────────────────────────
-
-  // ── Supabase connectivity ping ────────────────────────────────────────────
-  // Uses a direct fetch to GoTrue's public /health endpoint instead of the
-  // Supabase SDK. This avoids the SDK's internal storage-lock mechanism, which
-  // can block or error during automatic token-refresh cycles and cause false
-  // "cloud down" readings even when the project is perfectly healthy.
-  const pingSupabase = useCallback(async (): Promise<boolean> => {
-    if (!isSupabaseConfigured) return false;
-    try {
-      const res = await fetch(`${supabaseUrl}/auth/v1/health`, {
-        headers: { apikey: supabaseAnonKey },
-        signal: AbortSignal.timeout(5000),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
-  }, []);
-
-  // Full connection check (Supabase + Gemini) — used on mount and manual retry
-  const checkConnections = useCallback(async () => {
-    setConnectionStatus({ gemini: null, supabase: null });
-
-    const supabaseOk = await pingSupabase();
-    setConnectionStatus(prev => ({ ...prev, supabase: supabaseOk }));
-    if (!supabaseOk) {
-      setNotification({ message: 'Cloud unavailable — progress will save locally.', type: 'error' });
-    }
-
-    try {
-      const test = await aiService.ping();
-      setConnectionStatus(prev => ({ ...prev, gemini: test.toLowerCase().includes('ok') }));
-    } catch {
-      setConnectionStatus(prev => ({ ...prev, gemini: false }));
-    }
-  }, [pingSupabase]);
-
-  // Run once when auth state is first known
-  useEffect(() => {
-    if (isAuthReady) checkConnections();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthReady]);
-
-  // Silent background monitor — re-checks every 60 s so the dot stays accurate
-  // throughout the session without needing the user to click retry.
-  useEffect(() => {
-    if (!isAuthReady) return;
-    const monitor = setInterval(async () => {
-      const ok = await pingSupabase();
-      setConnectionStatus(prev =>
-        prev.supabase === ok ? prev : { ...prev, supabase: ok }
-      );
-    }, 60_000);
-    return () => clearInterval(monitor);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthReady, pingSupabase]);
-
-  // Apply the active data-theme. In 'auto' the palette follows the in-game clock
-  // (evening/night); 'light' and 'dark' apply that palette directly. Because it's
-  // one choice, a manual dark selection can never be silently overridden.
-  useEffect(() => {
-    let theme: string;
-    if (themeMode === 'auto') {
-      theme = (currentTimePeriod === 'night' || currentTimePeriod === 'lateNight') ? 'night'
-            : (currentTimePeriod === 'evening' || currentTimePeriod === 'dawn')   ? 'evening'
-            : 'light';
-    } else {
-      theme = themeMode; // 'light' | 'dark'
-    }
-    document.documentElement.dataset.theme = theme;
-  }, [themeMode, currentTimePeriod]);
-
-  // Persist the appearance choice — localStorage + Supabase cloud sync.
-  useEffect(() => {
-    try { localStorage.setItem('lb-theme-mode', themeMode); } catch {}
-    // Sync to cloud when logged in (user accessed via closure — intentionally omitted from deps)
-    if (user) {
-      GameRepository.upsertProfile(user.id, { themePreference: themeMode });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [themeMode]);
-
-  // Persist the atmosphere audio toggles — localStorage only for the POC.
-  useEffect(() => {
-    try { localStorage.setItem('lb-sound-effects', soundEffects ? 'on' : 'off'); } catch {}
-  }, [soundEffects]);
-  useEffect(() => {
-    try { localStorage.setItem('lb-ambient-audio', ambientAudio ? 'on' : 'off'); } catch {}
-  }, [ambientAudio]);
-
-  // Load appearance preference from cloud when user profile becomes available
-  useEffect(() => {
-    const pref = userProfile?.themePreference;
-    if (pref === 'light' || pref === 'dark' || pref === 'auto') {
-      setThemeMode(pref);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userProfile?.id]); // only fire when user identity changes, not on every profile update
 
   // Scroll to active turn when new assistant placeholder appears
   const scrollToActiveTurn = useCallback(() => {
@@ -441,527 +254,80 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     [isAutoScrollLocked]
   );
 
-  // The "look"-based scene generators (opening / act arrival / resume) render
-  // one-shot vignettes but, unlike a normal turn in handleAction, never commit
-  // the engine's flagsUpdate — so the vignette's `vignette_*` guard flag was
-  // never recorded and the vignette re-fired on every arrival/resume. Commit just
-  // those keys (NOT location/progression flags, which gate act advancement) so a
-  // vignette fires at most once. `baseFlags` is the freshest known flag set for
-  // the cloud write; persistence is skipped when no investigation id is available.
-  const commitVignetteFlags = useCallback((
-    flagsUpdate: Record<string, boolean> | undefined,
-    baseFlags: Record<string, boolean>,
-    investigationId?: string,
-  ) => {
-    if (!flagsUpdate) return;
-    const vig = Object.fromEntries(
-      Object.entries(flagsUpdate).filter(([k]) => k.startsWith('vignette_'))
-    );
-    if (Object.keys(vig).length === 0) return;
-    setFlags(prev => ({ ...prev, ...vig }));
-    if (user && investigationId) {
-      GameRepository.updateInvestigation(investigationId, { globalFlags: { ...baseFlags, ...vig } });
-    }
-  }, [user]);
+  // ── Persistence (save/load/slots/realtime sync) ─────────────────────────────
+  const {
+    isSaving,
+    slots,
+    handleSaveGame,
+    handleSaveGameRef,
+    handleLoadGame,
+    refreshSlots,
+    handleSelectSlot,
+    handleContinue,
+    handleStartInSlot,
+    handleDeleteSlot,
+  } = usePersistence({
+    user,
+    activeInvestigation,
+    setActiveInvestigation,
+    history,
+    location,
+    inventory,
+    medicalPoints,
+    moralPoints,
+    npcStates,
+    flags,
+    journalNotes,
+    stim,
+    introducedNpcs,
+    currentAct,
+    rumorEvents,
+    setLocation,
+    setInventory,
+    setMedicalPoints,
+    setMoralPoints,
+    setCurrentAct,
+    setElapsedMinutes,
+    setRumorEvents,
+    setIsGameOver,
+    setFlags,
+    setJournalNotes,
+    setIntroducedNpcs,
+    setNpcStates,
+    setStim,
+    setTurnCount,
+    setHistory,
+    setIsLoading,
+    setNotification,
+    setPendingActTransition,
+    setIsActBreakReady,
+    setIsCurtainPlaying,
+    diaryEntries,
+    setDiaryEntries,
+    diarySeqRef,
+    loggedLocationsRef,
+    hasGeneratedOpening,
+    generateOpeningScene,
+    streamResumeScene,
+  });
 
-  // ── Opening scene ─────────────────────────────────────────────────────────
-
-  const generateOpeningScene = useCallback(async () => {
-    if (hasGeneratedOpening.current) return;
-    hasGeneratedOpening.current = true;
-    // Seed the diary with the opening locale so it is never empty on a fresh start.
-    captureLocationArrival(INITIAL_LOCATION, INITIAL_ACT, formatGameClock(INITIAL_ACT, 0));
-    setIsLoading(true);
-    setHistory([{ role: 'assistant', text: '' }]);
-
-    try {
-      const intent = parseIntent('look');
-      const snapshot: SessionSnapshot = {
-        location: INITIAL_LOCATION,
-        inventory: INITIAL_INVENTORY,
-        flags: {},
-        npcStates: INITIAL_NPC_STATES as Record<string, NPCState>,
-        currentAct: INITIAL_ACT,
-        medicalPoints: 0,
-        moralPoints: 0,
-        discoveredClueIds: [],
-        investigationId: undefined,
-        turnsAtLocationWithoutProgress: 0,
-        elapsedMinutes: 0,
-        introducedNpcs: INITIAL_INTRODUCED_NPCS,
-        locationVisitCounts: {},
-        turnCount: 0,
-        rumorEvents: {},
-      };
-      const result = gameEngine.resolve(intent, snapshot);
-      commitVignetteFlags(result.flagsUpdate, {}, activeInvestigation?.id);
-
-      const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 - three months after the Jack the Ripper murders had begun, and the day before it concluded.\n\n";
-      let lastText = '';
-      for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening', blockquoteHint: 'none' })) {
-        if (update.narrative) {
-          lastText = update.narrative;
-          setHistory([{ role: 'assistant', text: injectAfterHeading(lastText, OPENING_FIXED_LINE) }]);
-        }
-      }
-      if (!lastText) setHistory([{ role: 'assistant', text: OPENING_FIXED_LINE + OPENING_FALLBACK_NARRATIVE }]);
-    } catch (error) {
-      console.error('Opening scene generation failed:', error);
-      setHistory([{ role: 'assistant', text: OPENING_FALLBACK_NARRATIVE }]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [captureLocationArrival, commitVignetteFlags]);
-
-  // ── Save / load ───────────────────────────────────────────────────────────
-
-  // Stream a single fresh "look" when RESUMING a saved game. The loaded
-  // authoritative snapshot is the source of truth — we do NOT replay the stored
-  // transcript; the diary carries the durable record. Takes the loaded values as
-  // explicit args (the loader's setX calls haven't flushed to closure state yet),
-  // builds a look at the SAVED location/act (not an act anchor), and starts the
-  // feed clean. Mirrors streamArrivalScene minus the act-entry concerns.
-  const streamResumeScene = useCallback(async (resume: {
-    location: string;
-    act: number;
-    inventory: string[];
-    flags: Record<string, boolean>;
-    npcStates: Record<string, NPCState>;
-    medicalPoints: number;
-    moralPoints: number;
-    introducedNpcs: string[];
-    elapsedMinutes: number;
-    investigationId?: string;
-  }) => {
-    setHistory([{ role: 'assistant', text: '' }]);
-    setIsAutoScrollLocked(false);
-    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
-    try {
-      const intent = parseIntent('look');
-      const snapshot: SessionSnapshot = {
-        location: resume.location,
-        inventory: resume.inventory,
-        flags: resume.flags,
-        npcStates: resume.npcStates,
-        currentAct: resume.act,
-        medicalPoints: resume.medicalPoints,
-        moralPoints: resume.moralPoints,
-        discoveredClueIds: [],
-        investigationId: resume.investigationId,
-        turnsAtLocationWithoutProgress: 0,
-        elapsedMinutes: resume.elapsedMinutes,
-        introducedNpcs: resume.introducedNpcs,
-        locationVisitCounts: {},
-        turnCount: 0,
-        rumorEvents: {},
-      };
-      const result = gameEngine.resolve(intent, snapshot);
-      commitVignetteFlags(result.flagsUpdate, resume.flags, resume.investigationId);
-      let last = '';
-      for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'full', blockquoteHint: 'world_event' })) {
-        if (update.narrative) {
-          last = update.narrative;
-          setHistory(prev => {
-            const next = [...prev];
-            next[next.length - 1] = { ...next[next.length - 1], text: last };
-            return next;
-          });
-        }
-      }
-    } catch (e) {
-      console.error('Resume scene failed', e);
-      setHistory(prev => {
-        const next = [...prev];
-        next[next.length - 1] = { ...next[next.length - 1], text: `### ${ACT_NAMES[resume.act] ?? `Act ${resume.act}`}` };
-        return next;
-      });
-    }
-  }, [commitVignetteFlags]);
-
-  // Hydrate all React state from a cloud investigation (a save slot).
-  // Shared by the slot menu (handleSelectSlot) and the anonymous-fallback loader.
-  const loadInvestigationIntoState = useCallback(async (investigation: Investigation) => {
-    const inv = (investigation as any).inventory || INITIAL_INVENTORY;
-    // Use ?? not || — Act 0 (the prologue) is a valid act and must not fall back to 1.
-    const act = (investigation as any).currentAct ?? INITIAL_ACT;
-    // Strip inert pre-refactor reload markers so old saves don't carry dead flags.
-    const loadedFlags = Object.fromEntries(
-      Object.entries(investigation.globalFlags as Record<string, boolean>)
-        .filter(([k]) => !k.startsWith('__pending_act_to_'))
-    );
-    const loadedIntroduced = (investigation as any).introducedNpcs?.length
-      ? ((investigation as any).introducedNpcs as string[])
-      : INITIAL_INTRODUCED_NPCS;
-    const loadedElapsed = (investigation as any).elapsedMinutes ?? 0;
-
-    setLocation(investigation.currentLocation);
-    setInventory(inv);
-    setMedicalPoints(investigation.medicalPoints || 0);
-    setMoralPoints(investigation.moralPoints || 0);
-    setCurrentAct(act);
-    setIsGameOver(investigation.status === 'solved');
-    setFlags(loadedFlags);
-    setJournalNotes(investigation.journalNotes || INITIAL_JOURNAL);
-    setIntroducedNpcs(loadedIntroduced);
-    setElapsedMinutes(loadedElapsed);
-    setRumorEvents((investigation as Investigation).rumorEvents ?? {});
-    setActiveInvestigation(investigation);
-
-    // Load Watson's diary casebook for this investigation.
-    const loadedDiary = await GameRepository.getDiaryEntries(investigation.id);
-    setDiaryEntries(loadedDiary);
-    diarySeqRef.current = loadedDiary.reduce((m, e) => Math.max(m, e.sequence), -1) + 1;
-    loggedLocationsRef.current = new Set(loadedDiary.filter(e => e.kind === 'location').map(e => e.refId));
-
-    const npcMap = await GameRepository.getAllNPCStates(investigation.id);
-    const loadedNpcStates: Record<string, NPCState> = Object.keys(npcMap).length > 0
-      ? { ...(INITIAL_NPC_STATES as Record<string, NPCState>), ...npcMap }
-      : (INITIAL_NPC_STATES as Record<string, NPCState>);
-    setNpcStates(loadedNpcStates);
-
-    setStim((investigation as any).stim || {});
-
-    // The resume look replaces the opening; clear any held transition.
-    setPendingActTransition(null);
-    setIsActBreakReady(false);
-    setIsCurtainPlaying(false);
-
-    // A brand-new slot (untouched prologue) keeps the authored dated intro.
-    const isFreshSlot = act === INITIAL_ACT
-      && investigation.currentLocation === INITIAL_LOCATION
-      && Object.keys(loadedFlags).length === 0
-      && loadedDiary.length === 0;
-
-    if (isFreshSlot) {
-      hasGeneratedOpening.current = false;
-      setHistory([]);
-      generateOpeningScene();
-      return;
-    }
-
-    // Resume: do NOT replay the stored transcript — open with one fresh look at
-    // the saved location/act. The diary holds the durable record of clues/objects.
-    hasGeneratedOpening.current = true;
-    setIsLoading(true);
-    try {
-      await streamResumeScene({
-        location: investigation.currentLocation,
-        act,
-        inventory: inv,
-        flags: loadedFlags,
-        npcStates: loadedNpcStates,
-        medicalPoints: investigation.medicalPoints || 0,
-        moralPoints: investigation.moralPoints || 0,
-        introducedNpcs: loadedIntroduced,
-        elapsedMinutes: loadedElapsed,
-        investigationId: investigation.id,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-    setNotification({ message: 'Investigation Resumed!', type: 'success' });
-  }, [generateOpeningScene, streamResumeScene]);
-
-  const handleSaveGame = useCallback(async (silent = false) => {
-    setIsSaving(true);
-
-    const gameState: GameState = {
-      history,
-      location,
-      inventory,
-      medicalPoints,
-      moralPoints,
-      npcStates,
-      flags,
-      journalNotes,
-      diaryEntries,
-      introducedNpcs,
-      currentAct,
-      rumorEvents,
-      timestamp: new Date().toLocaleString(),
-    };
-
-    try {
-      localStorage.setItem('londonBleedsSave', JSON.stringify(gameState));
-
-      if (user && activeInvestigation) {
-        const updated = await GameRepository.updateInvestigation(activeInvestigation.id, {
-          currentLocation: location,
-          medicalPoints,
-          moralPoints,
-          currentAct,
-          inventory,
-          globalFlags: flags,
-          journalNotes,
-          stim,
-          introducedNpcs,
-          rumorEvents,
-        });
-        if (updated) setActiveInvestigation(updated as Investigation);
-        // Safety net: upsert the whole diary (idempotent by id) so any entry
-        // captured before activeInvestigation was set still reaches the DB.
-        if (diaryEntries.length > 0) {
-          GameRepository.addDiaryEntries(activeInvestigation.id, diaryEntries);
-        }
-        if (!silent) setNotification({ message: 'Game Saved to Cloud!', type: 'success' });
-      } else {
-        if (!silent) setNotification({ message: 'Game Saved Locally!', type: 'success' });
-      }
-    } catch (e) {
-      console.error('Save failed', e);
-      if (!silent) setNotification({ message: 'Failed to save game.', type: 'error' });
-    } finally {
-      setIsSaving(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, activeInvestigation, history, location, inventory, medicalPoints, moralPoints, npcStates, flags, journalNotes, diaryEntries, currentAct, introducedNpcs]);
-
-  // Always-fresh handle to handleSaveGame so async flows (e.g. beginNextAct) can
-  // persist the LATEST committed state rather than a stale closure snapshot.
-  const handleSaveGameRef = useRef(handleSaveGame);
-  useEffect(() => { handleSaveGameRef.current = handleSaveGame; }, [handleSaveGame]);
-
-  // Stream Watson's arrival into a new act's anchor location. Mirrors
-  // generateOpeningScene but for a committed act transition. `npcUpdates` are the
-  // act-entry NPC movements — merged in so the arrival sees the NEW act's positions
-  // (the captured npcStates is still the pre-commit Act-N-1 snapshot).
-  const streamArrivalScene = useCallback(async (
-    toAct: number,
-    anchor: string,
-    npcUpdates: Record<string, Partial<NPCState>>,
-  ) => {
-    const arrivalNpcStates = { ...npcStates };
-    Object.entries(npcUpdates).forEach(([id, upd]) => {
-      arrivalNpcStates[id] = {
-        ...(arrivalNpcStates[id] || { npcId: id, disposition: 50, status: 'alive' }),
-        ...upd,
-      } as NPCState;
-    });
-    // Mirror the act-boundary bag prune so the arrival narration never references
-    // an item Watson just dropped (e.g. the spent "Dear Boss" clipping).
-    const arrivalInventory = inventory.filter(item => {
-      const spentAfter = ITEM_SPENT_AFTER_ACT[item];
-      return spentAfter === undefined || toAct <= spentAfter;
-    });
-    // Fresh feed for the new act — clear the prior act's transcript and pin to
-    // the top so it reads as a clean start (masthead + the act's opening scene).
-    setHistory([{ role: 'assistant', text: '' }]);
-    setIsAutoScrollLocked(false);
-    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
-    try {
-      const intent = parseIntent('look');
-      const snapshot: SessionSnapshot = {
-        location: anchor,
-        inventory: arrivalInventory,
-        flags,
-        npcStates: arrivalNpcStates,
-        currentAct: toAct,
-        medicalPoints,
-        moralPoints,
-        discoveredClueIds: [],
-        investigationId: activeInvestigation?.id,
-        turnsAtLocationWithoutProgress: 0,
-        elapsedMinutes: 0,
-        introducedNpcs,
-        locationVisitCounts,
-        turnCount,
-        rumorEvents: {},
-      };
-      const result = gameEngine.resolve(intent, snapshot);
-      commitVignetteFlags(result.flagsUpdate, flags, activeInvestigation?.id);
-      // Authored bridge ("why we are here") injected after the AI's act heading,
-      // mirroring the opening's fixed line. Empty for any act without one.
-      const bridge = ACT_BRIDGES[toAct] ? ACT_BRIDGES[toAct] + '\n\n' : '';
-      let last = '';
-      for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'full', blockquoteHint: 'world_event' })) {
-        if (update.narrative) {
-          last = update.narrative;
-          setHistory(prev => {
-            const next = [...prev];
-            next[next.length - 1] = { ...next[next.length - 1], text: injectAfterHeading(last, bridge) };
-            return next;
-          });
-        }
-      }
-    } catch (e) {
-      console.error('Arrival scene failed', e);
-      setHistory(prev => {
-        const next = [...prev];
-        next[next.length - 1] = { ...next[next.length - 1], text: `### Act ${toAct}` };
-        return next;
-      });
-    }
-  }, [inventory, flags, npcStates, medicalPoints, moralPoints, activeInvestigation, introducedNpcs, locationVisitCounts, turnCount, commitVignetteFlags]);
-
-  // Player clicked "Begin Act N": play the cinematic curtain, commit the held
-  // state behind it, then stream the arrival scene.
-  const beginNextAct = useCallback(async () => {
-    const pending = pendingActTransition;
-    if (!pending || isCurtainPlaying) return;
-
-    setIsCurtainPlaying(true);
-    setIsActBreakReady(false);
-
-    // Hold the curtain a beat (matches ActBreakCurtain's enter+hold animation).
-    await new Promise(res => setTimeout(res, CURTAIN_HOLD_MS));
-
-    const { toAct, newLocation, npcUpdates } = pending;
-
-    // Commit the four held pieces — sidebar flips to the new act now (behind the overlay).
-    setCurrentAct(toAct);
-    audioManager.playSfx('act-bell');
-    setLocation(newLocation);
-    setLocationVisitCounts(prev => ({ ...prev, [newLocation]: (prev[newLocation] ?? 0) + 1 }));
-    captureLocationArrival(newLocation, toAct, formatGameClock(toAct, 0)); // diary: arriving in the new act's locale at its canonical start
-    setElapsedMinutes(0);
-    if (Object.keys(npcUpdates).length > 0) {
-      setNpcStates(prev => {
-        const next = { ...prev };
-        Object.entries(npcUpdates).forEach(([id, upd]) => {
-          next[id] = { ...(next[id] || { npcId: id, disposition: 50, status: 'alive' }), ...upd } as NPCState;
-        });
-        return next;
-      });
-    }
-
-    // Bag hygiene — time has moved on, so drop any carried item whose authored
-    // "spent" act has now passed (keeps only what later beats still need).
-    setInventory(prev => prev.filter(item => {
-      const spentAfter = ITEM_SPENT_AFTER_ACT[item];
-      return spentAfter === undefined || toAct <= spentAfter;
-    }));
-
-    setPendingActTransition(null);
-    setIsCurtainPlaying(false);
-
-    // Clear the prior act and stream the new act's opening fresh (see
-    // streamArrivalScene). Lock input across the stream so a command can't race
-    // with / clobber it.
-    setIsLoading(true);
-    setIsAdvancingAct(true);
-    try {
-      await streamArrivalScene(toAct, newLocation, npcUpdates);
-    } finally {
-      setIsLoading(false);
-      setIsAdvancingAct(false);
-    }
-
-    // Persist the committed Act-N state via the fresh ref (flags now marker-free).
-    handleSaveGameRef.current(true);
-  }, [pendingActTransition, isCurtainPlaying, streamArrivalScene, captureLocationArrival]);
-
-  const handleLoadGame = useCallback(async () => {
-    // Hydrate authoritative state from a local (guest) save and open with one
-    // fresh look — the stored transcript is ignored (diary carries continuity).
-    // Local saves don't store currentAct/elapsedMinutes, so the act is derived
-    // from the saved location and the clock starts at the act's canonical time.
-    const resumeFromLocalSave = async (state: GameState) => {
-      // Prefer the saved act; fall back to location-derived for older local saves
-      // (ambiguous for shared anchors, e.g. bond_office serves Act 5 and Act 6).
-      const guestAct = state.currentAct ?? LOCATIONS[state.location]?.act ?? INITIAL_ACT;
-      const guestNpcStates = state.npcStates || (INITIAL_NPC_STATES as Record<string, NPCState>);
-      const guestIntroduced = state.introducedNpcs?.length ? state.introducedNpcs : INITIAL_INTRODUCED_NPCS;
-      setLocation(state.location);
-      setInventory(state.inventory);
-      setMedicalPoints(state.medicalPoints || 0);
-      setMoralPoints(state.moralPoints || 0);
-      setCurrentAct(guestAct);
-      setElapsedMinutes(0);
-      setRumorEvents(state.rumorEvents ?? {});
-      setFlags(state.flags || {});
-      setJournalNotes(state.journalNotes || INITIAL_JOURNAL);
-      setNpcStates(guestNpcStates);
-      setIntroducedNpcs(guestIntroduced);
-      if (state.diaryEntries) {
-        setDiaryEntries(state.diaryEntries);
-        diarySeqRef.current = state.diaryEntries.reduce((m, e) => Math.max(m, e.sequence), -1) + 1;
-        loggedLocationsRef.current = new Set(state.diaryEntries.filter(e => e.kind === 'location').map(e => e.refId));
-      }
-      setPendingActTransition(null);
-      setIsActBreakReady(false);
-      setIsCurtainPlaying(false);
-      hasGeneratedOpening.current = true;
-      setIsLoading(true);
-      try {
-        await streamResumeScene({
-          location: state.location,
-          act: guestAct,
-          inventory: state.inventory,
-          flags: state.flags || {},
-          npcStates: guestNpcStates,
-          medicalPoints: state.medicalPoints || 0,
-          moralPoints: state.moralPoints || 0,
-          introducedNpcs: guestIntroduced,
-          elapsedMinutes: 0,
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    try {
-      if (user) {
-        const investigation = await GameRepository.getActiveInvestigation(user.id);
-        if (investigation) {
-          await loadInvestigationIntoState(investigation);
-        }
-        return;
-      }
-
-      // Local fallback (not logged in)
-      const savedData = localStorage.getItem('londonBleedsSave');
-      if (savedData) {
-        const state = JSON.parse(savedData) as GameState;
-        setNotification({ message: `Local Save Loaded! (${state.timestamp})`, type: 'success' });
-        await resumeFromLocalSave(state);
-      }
-    } catch (e) {
-      console.error('Load failed', e);
-
-      // Cloud unreachable — attempt local save fallback so the game is never stuck
-      try {
-        const savedData = localStorage.getItem('londonBleedsSave');
-        if (savedData) {
-          const state = JSON.parse(savedData) as GameState;
-          if (state.location) {
-            setNotification({ message: 'Cloud unavailable — local save loaded.', type: 'error' });
-            await resumeFromLocalSave(state);
-            return;
-          }
-        }
-      } catch {}
-
-      // No local save either — generate a fresh opening scene so the screen is never blank
-      setNotification({ message: 'Cloud unavailable — starting fresh locally.', type: 'error' });
-      if (history.length === 0) {
-        hasGeneratedOpening.current = false;
-        generateOpeningScene();
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, generateOpeningScene, loadInvestigationIntoState, streamResumeScene]);
-
-  // ── Save slots ──────────────────────────────────────────────────────────────
-  // On login the app shows a slot-select menu (see App.tsx) instead of auto-loading,
-  // so the player is never dropped straight back into their last location.
-
-  const refreshSlots = useCallback(async () => {
-    if (!user) { setSlots([]); return; }
-    const list = await GameRepository.listActiveSlots(user.id);
-    setSlots(list);
-  }, [user]);
-
-  const handleSelectSlot = useCallback(async (investigation: Investigation) => {
-    await loadInvestigationIntoState(investigation);
-  }, [loadInvestigationIntoState]);
-
-  const handleContinue = useCallback(async () => {
-    if (slots.length === 0) return;
-    const mostRecent = [...slots].sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-    )[0];
-    await loadInvestigationIntoState(mostRecent);
-  }, [slots, loadInvestigationIntoState]);
+  const { isAdvancingAct, beginNextAct, handleJournalTypewriterDone } = useActBreak({
+    pendingActTransition,
+    isCurtainPlaying,
+    setPendingActTransition,
+    setIsActBreakReady,
+    setIsCurtainPlaying,
+    setCurrentAct,
+    setLocation,
+    setLocationVisitCounts,
+    setElapsedMinutes,
+    setNpcStates,
+    setInventory,
+    setIsLoading,
+    captureLocationArrival,
+    streamArrivalScene,
+    handleSaveGameRef,
+  });
 
   // Generate opening scene for fresh unauthenticated starts
   useEffect(() => {
@@ -969,83 +335,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       generateOpeningScene();
     }
   }, [isAuthReady, user, generateOpeningScene, history.length]);
-
-  // Real-time Supabase sync
-  useEffect(() => {
-    if (!user || !activeInvestigation) return;
-
-    const channel = supabase
-      .channel(`investigation-${activeInvestigation.id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'investigations',
-        filter: `id=eq.${activeInvestigation.id}`,
-      }, (payload) => {
-        const data = payload.new as any;
-        // Apply all incoming DB updates — subscription only fires on genuine changes.
-        setLocation(data.current_location);
-        setInventory(data.inventory || []);
-        setMedicalPoints(data.medical_points);
-        setMoralPoints(data.moral_points);
-        setCurrentAct(data.current_act ?? INITIAL_ACT);
-        if (data.elapsed_minutes !== undefined) setElapsedMinutes(data.elapsed_minutes ?? 0);
-        if (data.rumor_events !== undefined) setRumorEvents(data.rumor_events ?? {});
-        setFlags(data.global_flags || {});
-        setJournalNotes(data.journal_notes || INITIAL_JOURNAL);
-        setActiveInvestigation(prev =>
-          prev
-            ? {
-                ...prev,
-                currentLocation: data.current_location,
-                medicalPoints: data.medical_points,
-                moralPoints: data.moral_points,
-                globalFlags: data.global_flags,
-                journalNotes: data.journal_notes,
-                updatedAt: data.updated_at,
-              }
-            : null
-        );
-      })
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'npc_states',
-        filter: `investigation_id=eq.${activeInvestigation.id}`,
-      }, (payload) => {
-        const data = payload.new as any;
-        setNpcStates(prev => {
-          const existing = prev[data.npc_id];
-          if (
-            existing &&
-            existing.lastInteraction === data.last_interaction &&
-            existing.status === data.status
-          ) {
-            return prev;
-          }
-          return {
-            ...prev,
-            [data.npc_id]: {
-              npcId: data.npc_id,
-              disposition: data.disposition,
-              currentLocation: data.current_location,
-              status: data.status,
-              lastInteraction: data.last_interaction,
-              memory: data.memory,
-            },
-          };
-        });
-      })
-      // NOTE: no logs-INSERT handler. The feed is a clean per-session view (resume
-      // opens with a fresh look; the diary carries continuity), so injecting logged
-      // rows from another tab would reintroduce stale cross-session prose. Only the
-      // authoritative investigations/npc_states sync across tabs.
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  // Only recreate channel when investigation identity changes, not on every save.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, activeInvestigation?.id]);
 
   // ── Main action handler ────────────────────────────────────────────────────
 
@@ -1526,15 +815,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, handleSaveGame, captureDiaryEntries, captureLocationArrival]);
 
-  // Fired by NarrativeFeed when the act-closing diary finishes typing.
-  // NOTE: do NOT scroll here — NarrativeFeed anchors the diary to the top of the
-  // viewport on append, so the player reads it from line one. Jumping to the
-  // bottom to reveal the Begin button would clip the top of a long diary.
-  const handleJournalTypewriterDone = useCallback(() => {
-    if (!pendingActTransition) return;
-    setIsActBreakReady(true);
-  }, [pendingActTransition]);
-
   // ── Holmes hint ───────────────────────────────────────────────────────────
 
   const handleConsultHolmes = useCallback(async () => {
@@ -1561,86 +841,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsLoading(false);
     }
   }, [isConsultingHolmes, isLoading, currentAct, location, flags, inventory, npcStates, locationVisitCounts, scrollToBottom]);
-
-  // ── New Game (start a fresh investigation in a given save slot) ─────────────
-
-  const handleStartInSlot = useCallback(async (slotNumber: number) => {
-    // If the target slot is already occupied, archive that game first so the
-    // partial unique index (owner_id, save_slot) stays satisfied. Its data is
-    // preserved, just freed from the slot.
-    if (user) {
-      const occupant = slots.find(s => s.saveSlot === slotNumber);
-      if (occupant) {
-        try {
-          await GameRepository.archiveSlot(occupant.id);
-        } catch (e) {
-          console.error('Could not archive slot occupant:', e);
-        }
-      }
-    }
-
-    // Clear local save slot
-    try { localStorage.removeItem('londonBleedsSave'); } catch {}
-
-    // Reset all game state to initial values
-    setHistory([]);
-    setLocation(INITIAL_LOCATION);
-    setInventory(INITIAL_INVENTORY);
-    setMedicalPoints(0);
-    setMoralPoints(0);
-    setIsGameOver(false);
-    setFlags({});
-    setNpcStates(INITIAL_NPC_STATES as Record<string, NPCState>);
-    setCurrentAct(INITIAL_ACT);
-    setElapsedMinutes(0);
-    setRumorEvents({});
-    setStim({});
-    setTurnCount(0);
-    setIntroducedNpcs(INITIAL_INTRODUCED_NPCS);
-    setJournalNotes(INITIAL_JOURNAL);
-    setDiaryEntries([]);
-    diarySeqRef.current = 0;
-    loggedLocationsRef.current = new Set();
-    setActiveInvestigation(null);
-
-    // Create a fresh investigation for logged-in users
-    if (user) {
-      try {
-        const newInv = await GameRepository.createInvestigation(user.id, {
-          currentLocation: INITIAL_LOCATION,
-          inventory: INITIAL_INVENTORY,
-          currentAct: INITIAL_ACT,
-          globalFlags: {},
-          journalNotes: INITIAL_JOURNAL,
-          saveSlot: slotNumber,
-        });
-        setActiveInvestigation(newInv);
-      } catch (e) {
-        console.error('Could not create new investigation:', e);
-      }
-    }
-
-    // Trigger fresh opening scene (diary starts empty — player writes manually)
-    hasGeneratedOpening.current = false;
-    generateOpeningScene();
-
-    setNotification({ message: 'New Investigation Started!', type: 'success' });
-    refreshSlots();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, slots, generateOpeningScene, refreshSlots]);
-
-  // Delete (archive) a slot, freeing it. Returns the refreshed slot list.
-  const handleDeleteSlot = useCallback(async (investigation: Investigation) => {
-    try {
-      await GameRepository.archiveSlot(investigation.id);
-    } catch (e) {
-      console.error('Could not delete slot:', e);
-    }
-    if (activeInvestigation?.id === investigation.id) {
-      setActiveInvestigation(null);
-    }
-    await refreshSlots();
-  }, [activeInvestigation?.id, refreshSlots]);
 
   // ── Return ────────────────────────────────────────────────────────────────
 
