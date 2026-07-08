@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
 import { GameRepository } from '../../services/GameRepository';
 import { LOCATION_DIARY } from '../../engine/gameData';

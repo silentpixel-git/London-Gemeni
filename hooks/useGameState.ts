@@ -18,8 +18,7 @@ import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { audioManager } from '../services/AudioManager';
-import { parseIntent, type ParsedIntent } from '../engine/intentParser';
-import { needsAiParse, buildParseCandidates } from '../engine/parseFallback';
+import { parseIntent } from '../engine/intentParser';
 import { CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, DECISION_BY_FLAG, formatGameClock } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
@@ -196,7 +195,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const { themeMode, setThemeMode, soundEffects, setSoundEffects, ambientAudio, setAmbientAudio } =
     useAppearance({ user, userProfile, currentTimePeriod });
 
-  const { hasGeneratedOpening, commitVignetteFlags, generateOpeningScene, streamResumeScene, streamArrivalScene } =
+  const { hasGeneratedOpening, generateOpeningScene, streamResumeScene, streamArrivalScene } =
     useSceneStreams({
       user,
       activeInvestigation,

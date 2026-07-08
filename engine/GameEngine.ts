@@ -10,11 +10,10 @@
  * The engine NEVER hallucinate — it only knows what's in gameData.ts.
  */
 
-import { NPCState, EngineResult, NarrationContext, IntentType, TimePeriod, RumorEvents } from '../types';
+import { EngineResult, NarrationContext, RumorEvents } from '../types';
 import { ParsedIntent } from './intentParser';
-import type { StoryManifest, NPCDefinition, ClueDefinition } from './stories/types';
+import type { StoryManifest } from './stories/types';
 import { WHITECHAPEL_MANIFEST } from './stories/whitechapel-1888/manifest';
-import { deriveKnowledgeEnvelope } from './stories/knowledge';
 import { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor } from './time';
 import { npcLocationAt, returnsPeriodFor, getPresentNpcIds, maturedSpreadsFor } from './presence';
 import type { SessionSnapshot } from './session';
