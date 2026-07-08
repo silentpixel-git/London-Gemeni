@@ -35,6 +35,7 @@ Individual QA harnesses (all `npx tsx scripts/qa-*.ts`, exit 1 on FAIL, no brows
 | `npm run qa:hints` | The Watson hint selector (`hints.ts` / `selectHint`) | No |
 | `npm run qa:diary-leads` | The silent-diary-lead detection system | No |
 | `npm run qa:validate` | Story-data referential integrity: dangling clue connections, trigger objects missing from their location, progression flags nothing can set, NPC placement gaps, spoiler leaks into public knowledge | No |
+| `npm run qa:narration-inject` | The mechanical seam that splices authored opening/act-bridge lines into streamed narration (`narrationFormat.ts` / `injectAfterHeading`) — **not** part of `qa:all`, run it directly after touching that seam | No |
 | `npx tsx scripts/qa-narration.ts` | Generates `qa-narration-report.md` from crafted `NarrationContext` fixtures for manual/agent review of prose quality, historical accuracy, spoiler containment | **Yes** |
 
 There is no unit-test framework (no jest/vitest) — correctness is enforced by `tsc --noEmit` plus these scripted QA harnesses. When changing `engine/`, `intentParser.ts`, or any `engine/stories/whitechapel-1888/*` data file, run the relevant `qa:*` script(s) directly rather than asking the user to.
@@ -86,14 +87,14 @@ Key systems encoded in that manifest worth knowing before editing story data:
 - **NPC introduction/alias system**: NPCs with `requiresIntroduction` show only `alias` until an `introduction` condition (self-introduces on first talk, or a `document` examine) flips it — the narration system prompt hard-enforces never leaking the real name early.
 - **Rumor propagation** (`rumors.ts`): fully-authored hop lists — `triggerFlag` fires, then each `spread` entry lands in a recipient NPC's knowledge after `delayPeriods` time-period boundaries. Nothing is generated; every hop is hand-written.
 - **World events** (`events.ts`): authored broadcasts that surface as blockquotes once the in-game clock passes `atClockMinutes`, delivered once via a flag.
-- **Act progression**: gated by `ACT_PROGRESSION` flag requirements; entering a new act auto-teleports Watson to that act's anchor location (`computeActEntry` in `GameEngine.ts`) and carries following NPCs along.
+- **Act progression**: gated by `ACT_PROGRESSION` flag requirements; entering a new act auto-teleports Watson to that act's anchor location (`computeActEntry` in `engine/resolvers/support.ts`) and carries following NPCs along.
 - **Time/weather**: `engine/time.ts` computes `TimePeriod` from elapsed minutes; `engine/presence.ts` resolves NPC location and rumor maturation for a given moment. Locations can have `openPeriods` (closed otherwise, with an authored `lockedNote`).
 
 `npm run qa:validate` is the referential-integrity net over all of this — run it after any story-data edit, since these cross-references (clue triggers, flag gates, fact visibility, NPC schedules) are otherwise easy to break silently.
 
 ### Narration modes
 
-`server/aiCore.ts` builds one of three prompt shapes per turn (`opening` / `full` / `compact`) depending on `NarrationContext.narrationMode`, each with its own word budget and structure (see `buildNarrationPrompt`). Sanity level shifts Watson's prose register (fragmented/unreliable below 40). After clue discoveries, `consultHolmesMultiClue` makes a separate non-streaming call synthesizing all evidence, injected into the next narration prompt as `holmesSynthesis`.
+`server/aiCore.ts` builds one of three prompt shapes per turn (`opening` / `full` / `compact`) depending on `NarrationContext.narrationMode`, each with its own word budget and structure (see `buildNarrationPrompt`). After clue discoveries, `consultHolmesMultiClue` makes a separate non-streaming call synthesizing all evidence, injected into the next narration prompt as `holmesSynthesis`. Note: the sanity mechanic was **removed** from the live engine (see `engine/session.ts` and `docs/game-design.md`) — Watson's register is fixed at the professional-composure baseline; ignore residual sanity references in README.md and the `.claude/skills/` docs.
 
 ### Hooks decomposition
 
