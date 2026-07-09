@@ -74,8 +74,11 @@ export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
   const bySlot = (n: number) => slots.find(s => s.saveSlot === n);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-lb-primary/60 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-lb-paper border border-lb-border rounded-xl shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <div
+        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-lb-paper border border-lb-border rounded-xl shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-1.5 text-lb-muted hover:text-lb-primary hover:bg-lb-bg rounded-md transition-colors"

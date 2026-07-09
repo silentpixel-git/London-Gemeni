@@ -42,7 +42,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-lb-primary/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-lb-paper border-2 border-lb-accent rounded-2xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-300">
             <div className="flex items-center gap-4 mb-6 text-lb-accent">
               <div className="p-3 bg-lb-accent/10 rounded-full">
