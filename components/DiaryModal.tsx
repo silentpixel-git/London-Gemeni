@@ -13,7 +13,7 @@
  * from lb-* theme tokens so it adapts to light/dark mode.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, BookOpen, Search, Gavel, MessageSquare, Feather, MapPin, ChevronDown, Check, type LucideIcon } from 'lucide-react';
 import type { DiaryEntry } from '../types';
 import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION } from '../engine/gameData';
@@ -82,6 +82,36 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
     if (isOpen) setOpenAct(currentAct);
   }, [isOpen, currentAct]);
 
+  // Mobile bottom-sheet entrance: mount off-screen, slide up on the next frame
+  // rather than popping in instantly.
+  const [entered, setEntered] = useState(false);
+  useEffect(() => {
+    if (!isOpen) { setEntered(false); return; }
+    const raf = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(raf);
+  }, [isOpen]);
+
+  // Swipe-down-to-close on the mobile bottom sheet — drag from the handle or
+  // header follows the finger; releasing past the threshold closes, otherwise
+  // it snaps back.
+  const [dragY, setDragY] = useState(0);
+  const dragStartY = useRef<number | null>(null);
+  const handleDragStart = (e: React.TouchEvent) => {
+    if (window.innerWidth >= 640) return;
+    dragStartY.current = e.touches[0].clientY;
+  };
+  const handleDragMove = (e: React.TouchEvent) => {
+    if (dragStartY.current == null) return;
+    const dy = e.touches[0].clientY - dragStartY.current;
+    if (dy > 0) setDragY(dy);
+  };
+  const handleDragEnd = () => {
+    if (dragStartY.current == null) return;
+    dragStartY.current = null;
+    if (dragY > 120) onClose();
+    setDragY(0);
+  };
+
   if (!isOpen) return null;
 
   // Group by act, newest-first within each act, acts in descending order.
@@ -94,14 +124,31 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
   const actNumbers = Array.from(byAct.keys()).sort((a, b) => b - a);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-lb-primary/60 backdrop-blur-sm sm:p-4">
-      <div className="relative w-full max-w-3xl max-h-[94dvh] sm:max-h-[88vh] flex flex-col bg-lb-paper border border-lb-border rounded-t-2xl sm:rounded-xl shadow-2xl">
+    <div
+      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4 transition-opacity duration-200 ${entered ? 'opacity-100' : 'opacity-0'}`}
+      onClick={onClose}
+    >
+      <div
+        className={`relative w-full max-w-3xl max-h-[94dvh] sm:max-h-[88vh] flex flex-col bg-lb-paper border border-lb-border rounded-t-2xl sm:rounded-xl shadow-2xl transition-transform duration-300 ease-out ${entered ? 'translate-y-0' : 'translate-y-full sm:translate-y-0'}`}
+        style={dragY > 0 ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined}
+        onClick={e => e.stopPropagation()}
+      >
         {/* Drag handle (mobile bottom sheet) */}
-        <div className="flex sm:hidden justify-center pt-2.5">
+        <div
+          className="flex sm:hidden justify-center pt-2.5"
+          onTouchStart={handleDragStart}
+          onTouchMove={handleDragMove}
+          onTouchEnd={handleDragEnd}
+        >
           <div className="w-10 h-1 rounded-full bg-lb-border" />
         </div>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 sm:px-7 py-4 sm:py-5 border-b border-lb-border">
+        <div
+          className="flex items-center justify-between px-6 sm:px-7 py-4 sm:py-5 border-b border-lb-border"
+          onTouchStart={handleDragStart}
+          onTouchMove={handleDragMove}
+          onTouchEnd={handleDragEnd}
+        >
           <div className="flex items-center gap-2.5 text-lb-accent">
             <BookOpen size={22} />
             <span className="font-serif text-xl sm:text-2xl font-bold text-lb-primary">Watson's Diary</span>

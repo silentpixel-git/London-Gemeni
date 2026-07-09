@@ -82,7 +82,7 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ isOpen }
       className="fixed inset-0 z-[210] flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(41, 51, 81, 0.75)' }}
     >
-      <div className="absolute inset-0 backdrop-blur-sm" />
+      <div className="absolute inset-0 backdrop-blur-sm" onClick={handleSkip} />
 
       <div className="relative w-full max-w-md bg-lb-bg border border-lb-border rounded-xl shadow-2xl overflow-hidden">
         <div className="h-1 bg-lb-accent" />
