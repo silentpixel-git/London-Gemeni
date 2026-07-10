@@ -88,7 +88,7 @@ export const Header: React.FC<HeaderProps> = ({
   const diaryButton = (
     <button
       onClick={onOpenDiary}
-      className="relative w-10 h-10 rounded-full border-2 border-lb-primary/30 text-lb-primary flex items-center justify-center shrink-0 hover:border-lb-accent hover:text-lb-accent transition-colors"
+      className="relative w-10 h-10 rounded-full border border-lb-primary/30 text-lb-primary flex items-center justify-center shrink-0 hover:border-lb-accent hover:text-lb-accent transition-colors"
       title="Read Watson's Diary"
       aria-label={hasNewDiaryEntries ? `Read Watson's Diary — ${diaryUnreadCount} new ${diaryUnreadCount === 1 ? 'entry' : 'entries'}` : "Read Watson's Diary"}
     >
@@ -208,7 +208,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <button
               onClick={onOpenAuth}
-              className="flex items-center gap-2 px-4 py-2 bg-lb-primary text-lb-bg rounded-full text-xs font-bold tracking-widest uppercase hover:bg-lb-accent transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white rounded-full text-xs font-bold tracking-widest uppercase hover:bg-lb-accent dark:hover:bg-lb-accent/80 transition-colors"
             >
               <LogIn size={14} />
               <span className="hidden sm:inline">Sign In</span>
@@ -225,7 +225,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => { setIsProfileMenuOpen(o => !o); setIsConfirmingNewGame(false); setSettingsView(false); }}
                 className="flex items-center gap-2 text-lb-primary group"
               >
-                <div className="w-10 h-10 rounded-full bg-lb-primary text-lb-bg flex items-center justify-center overflow-hidden shrink-0">
+                <div className="w-10 h-10 rounded-full bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white flex items-center justify-center overflow-hidden shrink-0">
                   {user.user_metadata?.avatar_url ? (
                     <img
                       src={user.user_metadata.avatar_url}
