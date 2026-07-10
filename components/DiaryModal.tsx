@@ -14,7 +14,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { X, BookOpen, Search, Gavel, MessageSquare, Feather, MapPin, ChevronDown, Check, type LucideIcon } from 'lucide-react';
+import { X, BookOpenText, Search, Gavel, MessageSquare, Feather, MapPin, ChevronDown, Check, type LucideIcon } from 'lucide-react';
 import type { DiaryEntry } from '../types';
 import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION } from '../engine/gameData';
 
@@ -150,7 +150,7 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
           onTouchEnd={handleDragEnd}
         >
           <div className="flex items-center gap-2.5 text-lb-accent">
-            <BookOpen size={22} />
+            <BookOpenText size={22} />
             <span className="font-serif text-xl sm:text-2xl font-bold text-lb-primary">Watson's Diary</span>
           </div>
           <button
