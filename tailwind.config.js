@@ -8,6 +8,9 @@ export default {
     './services/**/*.{ts,tsx}',
     './*.{ts,tsx}',
   ],
+  // `dark:` targets the palettes where lb-primary is a light ink color
+  // (manual dark + auto's night), driven by the data-theme attribute.
+  darkMode: ['variant', ['[data-theme="dark"] &', '[data-theme="night"] &']],
   theme: {
     extend: {
       colors: {

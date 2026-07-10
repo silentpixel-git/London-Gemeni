@@ -1,0 +1,612 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guest Menu — Proposals</title>
+<style>
+  :root {
+    --lb-bg:       253 249 245;
+    --lb-paper:    255 255 255;
+    --lb-primary:   41  51  81;
+    --lb-accent:   205 123   0;
+    --lb-muted:    146 157 191;
+    --lb-border:   197 203 221;
+    --circle-bg:   var(--lb-primary);
+    --circle-fg:   var(--lb-bg);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --lb-bg:        21  24  31;
+      --lb-paper:     30  35  48;
+      --lb-primary:  228 221 212;
+      --lb-accent:   212 146  10;
+      --lb-muted:     94 106 136;
+      --lb-border:    42  48  64;
+      --circle-bg:   var(--lb-accent);
+      --circle-fg:   255 255 255;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="light"] {
+    --lb-bg:       253 249 245;
+    --lb-paper:    255 255 255;
+    --lb-primary:   41  51  81;
+    --lb-accent:   205 123   0;
+    --lb-muted:    146 157 191;
+    --lb-border:   197 203 221;
+    --circle-bg:   var(--lb-primary);
+    --circle-fg:   var(--lb-bg);
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --lb-bg:        21  24  31;
+    --lb-paper:     30  35  48;
+    --lb-primary:  228 221 212;
+    --lb-accent:   212 146  10;
+    --lb-muted:     94 106 136;
+    --lb-border:    42  48  64;
+    --circle-bg:   var(--lb-accent);
+    --circle-fg:   255 255 255;
+    color-scheme: dark;
+  }
+  :root[data-theme="night"] {
+    --lb-bg:        18  22  34;
+    --lb-paper:     26  32  48;
+    --lb-primary:  214 220 232;
+    --lb-accent:   196 150  70;
+    --lb-muted:     96 108 138;
+    --lb-border:    38  46  66;
+    --circle-bg:   var(--lb-accent);
+    --circle-fg:   255 255 255;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: rgb(var(--lb-bg));
+    color: rgb(var(--lb-primary));
+    font-family: -apple-system, "Segoe UI", Roboto, "Open Sans", sans-serif;
+    font-size: 14px;
+    transition: background .25s, color .25s;
+  }
+  svg.ic { width: 1em; height: 1em; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+  /* ── Page chrome ─────────────────────────────── */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+    padding: 12px 24px;
+    background: rgb(var(--lb-paper));
+    border-bottom: 1px solid rgb(var(--lb-border));
+  }
+  .topbar h1 { font: 700 18px/1 Georgia, "Times New Roman", serif; margin: 0 8px 0 0; }
+  .topbar .hint { color: rgb(var(--lb-muted)); font-size: 12px; }
+  .seg { display: flex; margin-left: auto; border: 1px solid rgb(var(--lb-border)); border-radius: 8px; overflow: hidden; font-size: 12px; font-weight: 600; }
+  .seg button { padding: 7px 14px; border: 0; background: transparent; color: rgb(var(--lb-primary)); cursor: pointer; }
+  .seg button:hover { background: rgb(var(--lb-bg)); }
+  .seg button.on { background: rgb(var(--lb-accent)); color: #fff; }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 24px; }
+  .intro { max-width: 68ch; color: rgb(var(--lb-primary) / .85); line-height: 1.55; margin-bottom: 24px; }
+  .intro strong { color: rgb(var(--lb-accent)); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; }
+  .card {
+    background: rgb(var(--lb-paper));
+    border: 1px solid rgb(var(--lb-border));
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .card-head { padding: 14px 16px 12px; border-bottom: 1px solid rgb(var(--lb-border)); }
+  .card-head .tag {
+    display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; color: rgb(var(--lb-accent)); margin-bottom: 4px;
+  }
+  .card-head h2 { margin: 0; font: 700 17px/1.2 Georgia, serif; }
+  .card-head p { margin: 6px 0 0; font-size: 12.5px; line-height: 1.5; color: rgb(var(--lb-muted)); }
+  .card-head p b { color: rgb(var(--lb-primary)); font-weight: 600; }
+
+  /* the stage simulates the app: a header strip + empty page below */
+  .stage { position: relative; min-height: 430px; background: rgb(var(--lb-bg)); flex: 1; }
+  .mini-header {
+    display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+    padding: 10px 14px;
+    background: rgb(var(--lb-bg) / .9);
+    border-bottom: 1px solid rgb(var(--lb-border));
+  }
+  .ghost-copy { padding: 18px 16px; color: rgb(var(--lb-muted) / .55); font-family: Georgia, serif; font-style: italic; font-size: 13px; line-height: 1.6; user-select: none; }
+
+  /* ── Header controls (replicas of the real ones) ── */
+  .diary-btn {
+    position: relative; width: 40px; height: 40px; border-radius: 50%;
+    border: 1px solid rgb(var(--lb-primary) / .3);
+    background: transparent; color: rgb(var(--lb-primary));
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    font-size: 20px; transition: border-color .15s, color .15s;
+  }
+  .diary-btn:hover { border-color: rgb(var(--lb-accent)); color: rgb(var(--lb-accent)); }
+
+  .gear-btn {
+    padding: 8px; border: 0; border-radius: 6px; background: transparent;
+    color: rgb(var(--lb-muted)); cursor: pointer; font-size: 18px;
+    display: flex; align-items: center;
+  }
+  .gear-btn:hover { color: rgb(var(--lb-accent)); background: rgb(var(--lb-primary) / .05); }
+
+  .signin-pill {
+    display: flex; align-items: center; gap: 8px; padding: 9px 16px;
+    background: rgb(var(--circle-bg)); color: rgb(var(--circle-fg));
+    border: 0; border-radius: 999px; cursor: pointer;
+    font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+    font-family: inherit; transition: background .15s;
+  }
+  .signin-pill:hover { background: rgb(var(--lb-accent) / .85); }
+
+  .menu-trigger { display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 0; cursor: pointer; color: rgb(var(--lb-primary)); }
+  .menu-trigger .circle {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: rgb(var(--circle-bg)); color: rgb(var(--circle-fg));
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .menu-trigger .chev { font-size: 14px; display: flex; transition: transform .2s; }
+  .menu-trigger[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+  /* ── Dropdown ─────────────────────────────────── */
+  .dd-anchor { position: relative; }
+  .dropdown {
+    position: absolute; right: 0; top: calc(100% + 8px); z-index: 20;
+    width: 224px;
+    background: rgb(var(--lb-paper));
+    border: 1px solid rgb(var(--lb-border));
+    border-radius: 10px;
+    box-shadow: 0 12px 32px rgb(0 0 0 / .18);
+    display: none;
+  }
+  .dropdown.open { display: block; }
+  .dropdown.wide { width: 240px; }
+
+  /* two-page slider (as in the signed-in menu today) + animated height */
+  .viewport { overflow: hidden; transition: height .3s ease-in-out; }
+  .viewport.no-anim { transition: none; }
+  .slider { display: flex; width: 200%; align-items: flex-start; transition: transform .3s ease-in-out; }
+  .slider.pg2 { transform: translateX(-50%); }
+  .page { width: 50%; }
+
+  .menu-pad { padding: 4px; }
+  .menu-item {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border: 0; border-radius: 6px; background: none;
+    color: rgb(var(--lb-primary)); font-size: 14px; font-family: inherit;
+    text-align: left; cursor: pointer;
+  }
+  .menu-item:hover { background: rgb(var(--lb-bg)); }
+  .menu-item .ic { font-size: 14px; color: inherit; }
+  .menu-item .end { margin-left: auto; opacity: .5; font-size: 14px; display: flex; transition: transform .25s; }
+  .menu-sep { height: 1px; background: rgb(var(--lb-border)); margin: 4px 0; }
+
+  .whoami { padding: 8px 12px; border-bottom: 1px solid rgb(var(--lb-border)); margin-bottom: 4px; }
+  .whoami .lbl { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgb(var(--lb-muted)); }
+  .whoami .who { font-size: 12px; font-weight: 500; margin-top: 2px; }
+  .whoami .mail { font-size: 10px; color: rgb(var(--lb-muted)); }
+
+  /* guest sign-in block at the top of the menu */
+  .guest-block { padding: 10px 12px 8px; border-bottom: 1px solid rgb(var(--lb-border)); margin-bottom: 4px; }
+  .guest-block .lbl { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgb(var(--lb-muted)); margin-bottom: 8px; }
+  .signin-cta {
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 9px 12px; border: 0; border-radius: 8px; cursor: pointer;
+    background: rgb(var(--circle-bg)); color: rgb(var(--circle-fg));
+    font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; font-family: inherit;
+    transition: background .15s;
+  }
+  .signin-cta:hover { background: rgb(var(--lb-accent) / .85); }
+  .guest-block .sub { font-size: 10.5px; color: rgb(var(--lb-muted)); margin-top: 7px; line-height: 1.45; text-align: center; }
+
+  /* settings sub-page header */
+  .sub-head {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; border: 0; border-bottom: 1px solid rgb(var(--lb-border));
+    background: none; color: rgb(var(--lb-primary));
+    font-size: 14px; font-weight: 700; font-family: inherit; text-align: left; cursor: pointer;
+  }
+  .sub-head:hover { background: rgb(var(--lb-bg)); }
+
+  /* ── Settings panel (replica of SettingsPanel.tsx) ── */
+  .settings { padding: 12px; }
+  .settings .sec { padding: 0 4px 8px; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgb(var(--lb-muted)); }
+  .settings .sec + .sec-gap { margin-top: 16px; }
+  .theme-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; padding: 4px; border-radius: 8px; background: rgb(var(--lb-bg)); border: 1px solid rgb(var(--lb-border)); }
+  .theme-opt {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 8px 0 7px; border-radius: 6px; border: 1px solid transparent;
+    background: none; color: rgb(var(--lb-muted)); cursor: pointer; font-family: inherit;
+  }
+  .theme-opt:hover { color: rgb(var(--lb-accent)); background: rgb(var(--lb-paper) / .5); }
+  .theme-opt.sel { border-color: rgb(var(--lb-accent)); background: rgb(var(--lb-paper)); color: rgb(var(--lb-primary)); }
+  .theme-opt .ic { font-size: 17px; }
+  .theme-opt.sel .ic { color: rgb(var(--lb-accent)); }
+  .theme-opt .l1 { font-size: 11px; font-weight: 700; line-height: 1; }
+  .theme-opt .l2 { font-size: 9px; color: rgb(var(--lb-muted)); line-height: 1; }
+  .snd-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 4px; }
+  .snd-row .name { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+  .snd-row .name .ic { font-size: 15px; color: rgb(var(--lb-muted)); }
+  .toggle { position: relative; width: 40px; height: 24px; border: 0; border-radius: 999px; background: rgb(var(--lb-border)); cursor: pointer; transition: background .15s; flex-shrink: 0; }
+  .toggle.on { background: rgb(var(--lb-accent)); }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .25); transition: transform .15s; }
+  .toggle.on::after { transform: translateX(16px); }
+
+  /* accordion body (variant C) */
+  .acc-body { height: 0; overflow: hidden; transition: height .3s ease-in-out; }
+  .menu-item[aria-expanded="true"] .end.rot { transform: rotate(90deg); }
+
+  /* footer note */
+  .note { margin-top: 28px; max-width: 74ch; font-size: 13px; line-height: 1.6; color: rgb(var(--lb-primary) / .85); }
+  .note h3 { font: 700 15px Georgia, serif; margin: 0 0 6px; }
+  .note code { background: rgb(var(--lb-paper)); border: 1px solid rgb(var(--lb-border)); border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+  .fix-toggle { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; font-weight: 600; cursor: pointer; user-select: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .viewport, .slider, .acc-body, .toggle::after, .menu-trigger .chev { transition: none; }
+  }
+</style>
+
+<!-- inline lucide icon sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-login" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+    <symbol id="i-chev-d" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 7v14"/><path d="M16 12h2"/><path d="M16 8h2"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/><path d="M6 12h2"/><path d="M6 8h2"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+    <symbol id="i-vol" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></symbol>
+    <symbol id="i-waves" viewBox="0 0 24 24"><path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/></symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.17 6.81a2.82 2.82 0 0 0-3.98-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.63l4.35-1.32a2 2 0 0 0 .83-.5z"/><path d="m15 5 4 4"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a1 1 0 0 1 .97 1.24l-1.5 6A2 2 0 0 1 17.53 19H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></symbol>
+  </defs>
+</svg>
+
+<div class="topbar">
+  <h1>Guest Menu — Proposals</h1>
+  <span class="hint">Every control is live: open the menus, flip the settings.</span>
+  <div class="seg" role="group" aria-label="Preview palette">
+    <button class="on" data-pal="light" onclick="setPalette('light', this)">Light</button>
+    <button data-pal="dark" onclick="setPalette('dark', this)">Dark</button>
+    <button data-pal="night" onclick="setPalette('night', this)">Night (auto)</button>
+  </div>
+</div>
+
+<main>
+  <p class="intro">
+    Three ways to fold Settings into a guest menu and retire the lone gear icon.
+    <strong>A</strong> is exactly what you described — a mirror of the signed-in dropdown.
+    <strong>B</strong> and <strong>C</strong> are alternatives that use the same trigger but avoid
+    the two-page slide. All three answer question 5: the dropdown now <strong>animates its height</strong>
+    to fit whichever content is showing — the signed-in reference card lets you toggle the fix off
+    to see today's empty-space problem.
+  </p>
+
+  <div class="grid">
+
+    <!-- ═══ Variant A — Mirror ═══ -->
+    <section class="card">
+      <div class="card-head">
+        <span class="tag">Variant A · Requested</span>
+        <h2>Mirror of the signed-in menu</h2>
+        <p>Circle with the <b>log-in icon</b> + chevron. Page 1 holds a <b>Sign In</b> button where
+           the player name sits today, plus the same Settings row that slides to the sub-page.
+           Height animates between pages.</p>
+      </div>
+      <div class="stage">
+        <div class="mini-header">
+          <button class="diary-btn" title="Read Watson's Diary"><svg class="ic"><use href="#i-book"/></svg></button>
+          <div class="dd-anchor">
+            <button class="menu-trigger" aria-expanded="false" onclick="toggleMenu('ddA', this)">
+              <span class="circle"><svg class="ic"><use href="#i-login"/></svg></span>
+              <span class="chev"><svg class="ic"><use href="#i-chev-d"/></svg></span>
+            </button>
+            <div class="dropdown" id="ddA">
+              <div class="viewport">
+                <div class="slider">
+                  <div class="page">
+                    <div class="menu-pad">
+                      <div class="guest-block">
+                        <div class="lbl">Playing as guest</div>
+                        <button class="signin-cta"><svg class="ic"><use href="#i-login"/></svg> Sign In</button>
+                        <div class="sub">Keep your investigation safe in the cloud.</div>
+                      </div>
+                      <button class="menu-item" onclick="slideTo('ddA', 2)">
+                        <svg class="ic"><use href="#i-gear"/></svg><span>Settings</span>
+                        <span class="end"><svg class="ic"><use href="#i-chev-r"/></svg></span>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="page">
+                    <button class="sub-head" onclick="slideTo('ddA', 1)">
+                      <svg class="ic"><use href="#i-chev-l"/></svg><span>Settings</span>
+                    </button>
+                    <div class="settings" data-settings></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="ghost-copy">The fog pressed against the windows of Baker Street, and Holmes had not spoken for an hour…</p>
+      </div>
+    </section>
+
+    <!-- ═══ Variant B — Flat ═══ -->
+    <section class="card">
+      <div class="card-head">
+        <span class="tag">Variant B · Suggestion</span>
+        <h2>One flat page, no slide</h2>
+        <p>A guest only has two concerns, so skip the sub-page: <b>Sign In on top, settings
+           directly below</b>. One click fewer to reach the theme switch; the menu is exactly
+           as tall as its content, so question 5 disappears by construction.</p>
+      </div>
+      <div class="stage">
+        <div class="mini-header">
+          <button class="diary-btn" title="Read Watson's Diary"><svg class="ic"><use href="#i-book"/></svg></button>
+          <div class="dd-anchor">
+            <button class="menu-trigger" aria-expanded="false" onclick="toggleMenu('ddB', this)">
+              <span class="circle"><svg class="ic"><use href="#i-login"/></svg></span>
+              <span class="chev"><svg class="ic"><use href="#i-chev-d"/></svg></span>
+            </button>
+            <div class="dropdown wide" id="ddB">
+              <div class="menu-pad">
+                <div class="guest-block">
+                  <div class="lbl">Playing as guest</div>
+                  <button class="signin-cta"><svg class="ic"><use href="#i-login"/></svg> Sign In</button>
+                  <div class="sub">Keep your investigation safe in the cloud.</div>
+                </div>
+              </div>
+              <div class="settings" data-settings style="padding-top:4px"></div>
+            </div>
+          </div>
+        </div>
+        <p class="ghost-copy">The fog pressed against the windows of Baker Street, and Holmes had not spoken for an hour…</p>
+      </div>
+    </section>
+
+    <!-- ═══ Variant C — Accordion ═══ -->
+    <section class="card">
+      <div class="card-head">
+        <span class="tag">Variant C · Suggestion</span>
+        <h2>Settings as an accordion</h2>
+        <p>Same menu as A, but the Settings row <b>expands in place</b> instead of sliding away.
+           The Sign In button stays visible while you adjust settings, and the menu grows and
+           shrinks smoothly. Could later replace the slide for signed-in players too.</p>
+      </div>
+      <div class="stage">
+        <div class="mini-header">
+          <button class="diary-btn" title="Read Watson's Diary"><svg class="ic"><use href="#i-book"/></svg></button>
+          <div class="dd-anchor">
+            <button class="menu-trigger" aria-expanded="false" onclick="toggleMenu('ddC', this)">
+              <span class="circle"><svg class="ic"><use href="#i-login"/></svg></span>
+              <span class="chev"><svg class="ic"><use href="#i-chev-d"/></svg></span>
+            </button>
+            <div class="dropdown wide" id="ddC">
+              <div class="menu-pad">
+                <div class="guest-block">
+                  <div class="lbl">Playing as guest</div>
+                  <button class="signin-cta"><svg class="ic"><use href="#i-login"/></svg> Sign In</button>
+                  <div class="sub">Keep your investigation safe in the cloud.</div>
+                </div>
+                <button class="menu-item" aria-expanded="false" onclick="toggleAccordion(this)">
+                  <svg class="ic"><use href="#i-gear"/></svg><span>Settings</span>
+                  <span class="end rot"><svg class="ic"><use href="#i-chev-r"/></svg></span>
+                </button>
+                <div class="acc-body">
+                  <div class="settings" data-settings style="padding-top:6px"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="ghost-copy">The fog pressed against the windows of Baker Street, and Holmes had not spoken for an hour…</p>
+      </div>
+    </section>
+
+    <!-- ═══ Reference — signed in ═══ -->
+    <section class="card">
+      <div class="card-head">
+        <span class="tag">Reference · Signed in</span>
+        <h2>Today's menu, with the height fix</h2>
+        <p>The current signed-in dropdown for comparison. <b>Toggle the fix off</b> to see the
+           problem you described: the menu is always as tall as the Settings page, leaving a
+           blank strip under the short page.</p>
+        <label class="fix-toggle">
+          <button class="toggle on" id="fixToggle" role="switch" aria-checked="true" onclick="toggleFix(this)"></button>
+          Auto-height fix
+        </label>
+      </div>
+      <div class="stage">
+        <div class="mini-header">
+          <button class="diary-btn" title="Read Watson's Diary"><svg class="ic"><use href="#i-book"/></svg></button>
+          <div class="dd-anchor">
+            <button class="menu-trigger" aria-expanded="false" onclick="toggleMenu('ddRef', this)">
+              <span class="circle"><svg class="ic"><use href="#i-user"/></svg></span>
+              <span class="chev"><svg class="ic"><use href="#i-chev-d"/></svg></span>
+            </button>
+            <div class="dropdown" id="ddRef">
+              <div class="viewport">
+                <div class="slider">
+                  <div class="page">
+                    <div class="menu-pad">
+                      <div class="whoami">
+                        <div class="lbl">Signed in as</div>
+                        <div class="who">Dr. John H. Watson</div>
+                        <div class="mail">watson@bakerstreet.co.uk</div>
+                      </div>
+                      <button class="menu-item"><svg class="ic"><use href="#i-pencil"/></svg><span>Edit Profile</span></button>
+                      <button class="menu-item" onclick="slideTo('ddRef', 2)">
+                        <svg class="ic"><use href="#i-gear"/></svg><span>Settings</span>
+                        <span class="end"><svg class="ic"><use href="#i-chev-r"/></svg></span>
+                      </button>
+                      <div class="menu-sep"></div>
+                      <button class="menu-item"><svg class="ic"><use href="#i-save"/></svg><span>Save to Cloud</span></button>
+                      <button class="menu-item"><svg class="ic"><use href="#i-folder"/></svg><span>Load from Cloud</span></button>
+                      <div class="menu-sep"></div>
+                      <button class="menu-item"><svg class="ic"><use href="#i-refresh"/></svg><span>New Game</span></button>
+                      <div class="menu-sep"></div>
+                      <button class="menu-item" style="color:#dc2626"><svg class="ic"><use href="#i-logout"/></svg><span>Sign Out</span></button>
+                    </div>
+                  </div>
+                  <div class="page">
+                    <button class="sub-head" onclick="slideTo('ddRef', 1)">
+                      <svg class="ic"><use href="#i-chev-l"/></svg><span>Settings</span>
+                    </button>
+                    <div class="settings" data-settings></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="ghost-copy">The fog pressed against the windows of Baker Street, and Holmes had not spoken for an hour…</p>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="note">
+    <h3>About question 5 — yes, the menu can resize</h3>
+    <p>
+      Today both pages sit side by side inside a <code>w-[200%]</code> flex row, so the dropdown is
+      always as tall as the taller page (Settings) — that's the blank strip you see under the short
+      menu. The fix used in this mock: wrap the slider in an <code>overflow-hidden</code> viewport and,
+      on open and on every page change, set the viewport's height to the active page's measured height
+      with a CSS <code>height</code> transition. In React that's a small ref-based effect in
+      <code>Header.tsx</code>; no restructuring needed. Variant B and C avoid the issue entirely since
+      they only ever show one column of content.
+    </p>
+  </div>
+</main>
+
+<script>
+  // ── shared settings panel, injected everywhere ──────────────
+  const settingsHTML = `
+    <p class="sec">Appearance</p>
+    <div class="theme-grid">
+      <button class="theme-opt" data-mode="light" onclick="pickTheme('light')">
+        <svg class="ic"><use href="#i-sun"/></svg><span class="l1">Light</span><span class="l2">parchment</span>
+      </button>
+      <button class="theme-opt" data-mode="dark" onclick="pickTheme('dark')">
+        <svg class="ic"><use href="#i-moon"/></svg><span class="l1">Dark</span><span class="l2">candlelit</span>
+      </button>
+      <button class="theme-opt" data-mode="auto" onclick="pickTheme('auto')">
+        <svg class="ic"><use href="#i-clock"/></svg><span class="l1">Auto</span><span class="l2">by the hour</span>
+      </button>
+    </div>
+    <p class="sec sec-gap" style="padding-top:12px">Sound</p>
+    <div class="snd-row">
+      <span class="name"><svg class="ic"><use href="#i-vol"/></svg>Sound effects</span>
+      <button class="toggle" data-snd="sfx" role="switch" aria-checked="false" onclick="flipSound('sfx')"></button>
+    </div>
+    <div class="snd-row">
+      <span class="name"><svg class="ic"><use href="#i-waves"/></svg>Ambient sound</span>
+      <button class="toggle" data-snd="amb" role="switch" aria-checked="false" onclick="flipSound('amb')"></button>
+    </div>`;
+  document.querySelectorAll('[data-settings]').forEach(el => el.innerHTML = settingsHTML);
+
+  // ── global mock state, mirrored across every panel ──────────
+  const state = { theme: 'light', sfx: false, amb: false };
+  let heightFix = true;
+
+  function syncPanels() {
+    document.querySelectorAll('.theme-opt').forEach(b =>
+      b.classList.toggle('sel', b.dataset.mode === state.theme));
+    document.querySelectorAll('[data-snd]').forEach(b => {
+      const on = state[b.dataset.snd === 'sfx' ? 'sfx' : 'amb'];
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', on);
+    });
+  }
+  function pickTheme(mode) {
+    state.theme = mode;
+    // in the real app Auto follows the in-game clock; here it previews the night palette
+    setPalette(mode === 'auto' ? 'night' : mode, document.querySelector(`.seg [data-pal="${mode === 'auto' ? 'night' : mode}"]`));
+    syncPanels();
+  }
+  function flipSound(which) { state[which] = !state[which]; syncPanels(); }
+  syncPanels();
+
+  function setPalette(pal, btn) {
+    document.documentElement.dataset.theme = pal;
+    document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b === btn));
+  }
+
+  // ── dropdown open/close ─────────────────────────────────────
+  function toggleMenu(id, trigger) {
+    const dd = document.getElementById(id);
+    const open = dd.classList.toggle('open');
+    trigger.setAttribute('aria-expanded', open);
+    if (open) {
+      // reset to page 1 and size the viewport without animating the first paint
+      const vp = dd.querySelector('.viewport');
+      if (vp) {
+        dd.querySelector('.slider').classList.remove('pg2');
+        vp.classList.add('no-anim');
+        applyHeight(dd, 1);
+        requestAnimationFrame(() => vp.classList.remove('no-anim'));
+      }
+      const acc = dd.querySelector('.acc-body');
+      if (acc) { acc.style.height = '0px'; dd.querySelector('[aria-expanded]').setAttribute('aria-expanded', 'false'); }
+      // close the others
+      document.querySelectorAll('.dropdown.open').forEach(o => {
+        if (o !== dd) { o.classList.remove('open'); o.parentElement.querySelector('.menu-trigger').setAttribute('aria-expanded', 'false'); }
+      });
+    }
+  }
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.dd-anchor')) {
+      document.querySelectorAll('.dropdown.open').forEach(o => {
+        o.classList.remove('open');
+        o.parentElement.querySelector('.menu-trigger').setAttribute('aria-expanded', 'false');
+      });
+    }
+  });
+
+  // ── two-page slide with animated height (the Q5 fix) ────────
+  function applyHeight(dd, pageNo) {
+    const vp = dd.querySelector('.viewport');
+    const pages = dd.querySelectorAll('.page');
+    if (heightFix) {
+      vp.style.height = pages[pageNo - 1].offsetHeight + 'px';
+    } else {
+      // today's behavior: as tall as the tallest page
+      vp.style.height = Math.max(pages[0].offsetHeight, pages[1].offsetHeight) + 'px';
+    }
+  }
+  function slideTo(id, pageNo) {
+    const dd = document.getElementById(id);
+    dd.querySelector('.slider').classList.toggle('pg2', pageNo === 2);
+    applyHeight(dd, pageNo);
+  }
+  function toggleFix(btn) {
+    heightFix = !heightFix;
+    btn.classList.toggle('on', heightFix);
+    btn.setAttribute('aria-checked', heightFix);
+    const dd = document.getElementById('ddRef');
+    if (dd.classList.contains('open')) {
+      applyHeight(dd, dd.querySelector('.slider').classList.contains('pg2') ? 2 : 1);
+    }
+  }
+
+  // ── accordion (variant C) ───────────────────────────────────
+  function toggleAccordion(btn) {
+    const body = btn.nextElementSibling;
+    const open = btn.getAttribute('aria-expanded') === 'true';
+    btn.setAttribute('aria-expanded', !open);
+    body.style.height = open ? '0px' : body.scrollHeight + 'px';
+  }
+</script>
