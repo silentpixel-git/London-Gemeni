@@ -13,6 +13,7 @@ export interface ActBreakDeps {
   setLocation: React.Dispatch<React.SetStateAction<string>>;
   setLocationVisitCounts: React.Dispatch<React.SetStateAction<Record<string, number>>>;
   setElapsedMinutes: React.Dispatch<React.SetStateAction<number>>;
+  setCabBoardedFrom: React.Dispatch<React.SetStateAction<string | undefined>>;
   setNpcStates: React.Dispatch<React.SetStateAction<Record<string, NPCState>>>;
   setInventory: React.Dispatch<React.SetStateAction<string[]>>;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
@@ -34,6 +35,7 @@ export function useActBreak(deps: ActBreakDeps) {
     setLocation,
     setLocationVisitCounts,
     setElapsedMinutes,
+    setCabBoardedFrom,
     setNpcStates,
     setInventory,
     setIsLoading,
@@ -68,6 +70,7 @@ export function useActBreak(deps: ActBreakDeps) {
     setLocationVisitCounts(prev => ({ ...prev, [newLocation]: (prev[newLocation] ?? 0) + 1 }));
     captureLocationArrival(newLocation, toAct, formatGameClock(toAct, 0)); // diary: arriving in the new act's locale at its canonical start
     setElapsedMinutes(0);
+    setCabBoardedFrom(undefined); // a fresh act never opens mid-ride
     if (Object.keys(npcUpdates).length > 0) {
       setNpcStates(prev => {
         const next = { ...prev };

@@ -151,6 +151,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // In-game clock — minutes elapsed since act's canonical start time
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  // Where Watson hailed the current hansom cab from — undefined when not
+  // aboard a cab. See engine/session.ts SessionSnapshot.cabBoardedFrom.
+  const [cabBoardedFrom, setCabBoardedFrom] = useState<string | undefined>(undefined);
   // Phase 4b — rumor-event log: when each rumor's trigger flag first fired
   const [rumorEvents, setRumorEvents] = useState<RumorEvents>({});
   // How many times Watson has visited each location
@@ -288,6 +291,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setMoralPoints,
     setCurrentAct,
     setElapsedMinutes,
+    setCabBoardedFrom,
     setRumorEvents,
     setIsGameOver,
     setFlags,
@@ -321,6 +325,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setLocation,
     setLocationVisitCounts,
     setElapsedMinutes,
+    setCabBoardedFrom,
     setNpcStates,
     setInventory,
     setIsLoading,
@@ -389,6 +394,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         locationVisitCounts,
         turnCount,
         rumorEvents,
+        cabBoardedFrom,
       };
 
       // STEP 3: Engine resolves — no AI yet
@@ -485,7 +491,18 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // React's elapsedMinutes stays held until Begin (see the hold comment above).
       const actionMinutes = result.minutesAdvanced ?? ACTION_TIME_MINUTES[result.actionType] ?? 2;
       const newElapsedMinutes = advancingAct ? 0 : elapsedMinutes + actionMinutes;
+      // Normalized DB value — mirrors newElapsedMinutes: a fresh act never opens
+      // mid-ride, so an advancing turn writes null regardless of the raw
+      // pre-anchor cabBoardedFromUpdate (see the React-side hold just below).
+      const newCabBoardedFrom = advancingAct ? null : result.cabBoardedFromUpdate;
       if (!advancingAct) setElapsedMinutes(newElapsedMinutes);
+      // Held like elapsedMinutes on an act-advance turn — GameEngine.ts overrides
+      // result.newLocation to the new act's anchor on this turn, so a
+      // cabBoardedFromUpdate computed by resolveMove before that override would
+      // otherwise fall out of sync with the still-held location/currentAct.
+      if (!advancingAct && result.cabBoardedFromUpdate !== undefined) {
+        setCabBoardedFrom(result.cabBoardedFromUpdate ?? undefined);
+      }
       // Clock label for any diary entries captured this turn. Use the held clock
       // (current act + this action's time), not the next act's reset — entries
       // captured this turn belong to the current act even on an advancing turn.
@@ -548,7 +565,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       if (user && activeInvestigation) {
         await GameRepository.applyEngineResult(activeInvestigation.id, result, {
           location, inventory, medicalPoints, moralPoints, currentAct, flags, rumorEvents,
-        }, newElapsedMinutes);
+        }, newElapsedMinutes, newCabBoardedFrom);
         if (result.npcUpdates) {
           GameRepository.applyNPCUpdates(activeInvestigation.id, result.npcUpdates);
         }
@@ -813,7 +830,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsAutoScrollLocked(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, handleSaveGame, captureDiaryEntries, captureLocationArrival]);
+  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, cabBoardedFrom, handleSaveGame, captureDiaryEntries, captureLocationArrival]);
 
   // ── Holmes hint ───────────────────────────────────────────────────────────
 

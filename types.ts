@@ -59,6 +59,9 @@ export interface Investigation {
   stim?: Record<string, STIMEntry>;
   saveSlot?: number;
   elapsedMinutes?: number;
+  // Where Watson hailed the current cab from — undefined when not aboard a
+  // cab. See engine/session.ts SessionSnapshot.cabBoardedFrom.
+  cabBoardedFrom?: string;
   rumorEvents?: RumorEvents; // Phase 4b — rumor-event log (see RumorEvents)
   createdAt: string;
   updatedAt: string;

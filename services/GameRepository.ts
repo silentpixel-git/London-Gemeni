@@ -199,7 +199,8 @@ export class GameRepository {
       flags: Record<string, boolean>;
       rumorEvents: RumorEvents;
     },
-    newElapsedMinutes?: number
+    newElapsedMinutes?: number,
+    newCabBoardedFrom?: string | null
   ): Promise<void> {
     try {
       const updates: Record<string, unknown> = {
@@ -208,6 +209,12 @@ export class GameRepository {
 
       if (newElapsedMinutes !== undefined) {
         updates.elapsed_minutes = newElapsedMinutes;
+      }
+
+      if (newCabBoardedFrom !== undefined) {
+        updates.cab_boarded_from = newCabBoardedFrom;
+      } else if (result.cabBoardedFromUpdate !== undefined) {
+        updates.cab_boarded_from = result.cabBoardedFromUpdate;
       }
 
       if (result.newLocation) {
@@ -569,6 +576,7 @@ export class GameRepository {
       introducedNpcs: (data.introduced_npcs as string[]) || [],
       saveSlot: (data.save_slot as number | null) ?? undefined,
       elapsedMinutes: (data.elapsed_minutes as number) ?? 0,
+      cabBoardedFrom: (data.cab_boarded_from as string | null) ?? undefined,
       rumorEvents: (data.rumor_events as RumorEvents) || {},
     } as Investigation & { currentAct: number; inventory: string[]; introducedNpcs: string[] };
   }

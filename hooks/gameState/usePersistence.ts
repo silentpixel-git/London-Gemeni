@@ -37,6 +37,7 @@ export interface PersistenceDeps {
   setMoralPoints: React.Dispatch<React.SetStateAction<number>>;
   setCurrentAct: React.Dispatch<React.SetStateAction<number>>;
   setElapsedMinutes: React.Dispatch<React.SetStateAction<number>>;
+  setCabBoardedFrom: React.Dispatch<React.SetStateAction<string | undefined>>;
   setRumorEvents: React.Dispatch<React.SetStateAction<RumorEvents>>;
   setIsGameOver: React.Dispatch<React.SetStateAction<boolean>>;
   setFlags: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
@@ -86,6 +87,7 @@ export function usePersistence(deps: PersistenceDeps) {
     setMoralPoints,
     setCurrentAct,
     setElapsedMinutes,
+    setCabBoardedFrom,
     setRumorEvents,
     setIsGameOver,
     setFlags,
@@ -130,6 +132,7 @@ export function usePersistence(deps: PersistenceDeps) {
       ? ((investigation as any).introducedNpcs as string[])
       : INITIAL_INTRODUCED_NPCS;
     const loadedElapsed = (investigation as any).elapsedMinutes ?? 0;
+    const loadedCabBoardedFrom = (investigation as any).cabBoardedFrom ?? undefined;
 
     setLocation(investigation.currentLocation);
     setInventory(inv);
@@ -141,6 +144,7 @@ export function usePersistence(deps: PersistenceDeps) {
     setJournalNotes(investigation.journalNotes || INITIAL_JOURNAL);
     setIntroducedNpcs(loadedIntroduced);
     setElapsedMinutes(loadedElapsed);
+    setCabBoardedFrom(loadedCabBoardedFrom);
     setRumorEvents((investigation as Investigation).rumorEvents ?? {});
     setActiveInvestigation(investigation);
 
@@ -261,8 +265,9 @@ export function usePersistence(deps: PersistenceDeps) {
   const handleLoadGame = useCallback(async () => {
     // Hydrate authoritative state from a local (guest) save and open with one
     // fresh look — the stored transcript is ignored (diary carries continuity).
-    // Local saves don't store currentAct/elapsedMinutes, so the act is derived
-    // from the saved location and the clock starts at the act's canonical time.
+    // Local saves don't store currentAct/elapsedMinutes/cabBoardedFrom, so the
+    // act is derived from the saved location, the clock starts at the act's
+    // canonical time, and Watson is never resumed mid-ride.
     const resumeFromLocalSave = async (state: GameState) => {
       // Prefer the saved act; fall back to location-derived for older local saves
       // (ambiguous for shared anchors, e.g. bond_office serves Act 5 and Act 6).
@@ -275,6 +280,7 @@ export function usePersistence(deps: PersistenceDeps) {
       setMoralPoints(state.moralPoints || 0);
       setCurrentAct(guestAct);
       setElapsedMinutes(0);
+      setCabBoardedFrom(undefined);
       setRumorEvents(state.rumorEvents ?? {});
       setFlags(state.flags || {});
       setJournalNotes(state.journalNotes || INITIAL_JOURNAL);
@@ -391,6 +397,7 @@ export function usePersistence(deps: PersistenceDeps) {
         setMoralPoints(data.moral_points);
         setCurrentAct(data.current_act ?? INITIAL_ACT);
         if (data.elapsed_minutes !== undefined) setElapsedMinutes(data.elapsed_minutes ?? 0);
+        if (data.cab_boarded_from !== undefined) setCabBoardedFrom(data.cab_boarded_from ?? undefined);
         if (data.rumor_events !== undefined) setRumorEvents(data.rumor_events ?? {});
         setFlags(data.global_flags || {});
         setJournalNotes(data.journal_notes || INITIAL_JOURNAL);
@@ -479,6 +486,7 @@ export function usePersistence(deps: PersistenceDeps) {
     setNpcStates(INITIAL_NPC_STATES as Record<string, NPCState>);
     setCurrentAct(INITIAL_ACT);
     setElapsedMinutes(0);
+    setCabBoardedFrom(undefined);
     setRumorEvents({});
     setStim({});
     setTurnCount(0);
