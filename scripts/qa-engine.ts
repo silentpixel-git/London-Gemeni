@@ -1183,6 +1183,10 @@ function testScheduleParity() {
     },
     phillips: {
       2: { evening: 'whitechapel_pub', night: 'whitechapel_pub', lateNight: 'whitechapel_pub' },
+      3: { evening: 'whitechapel_pub', night: 'whitechapel_pub', lateNight: 'whitechapel_pub' },
+    },
+    lusk: {
+      4: { evening: 'whitechapel_pub', night: 'whitechapel_pub', lateNight: 'whitechapel_pub' },
     },
   };
 

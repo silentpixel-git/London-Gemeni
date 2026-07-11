@@ -147,6 +147,10 @@ const LOCATIONS_DATA = {
     locationExaminedFlag: 'examined_whitechapel_pub',
     timeOfDay: 'night',
     district: 'east',
+    openPeriods: ['morning', 'afternoon', 'evening', 'night', 'lateNight'],
+    lockedNote: {
+      text: 'The Ten Bells is shuttered, chairs up on the tables; through the glass a potboy works a mop across the sawdust.',
+    },
     extras: [
       'the potboy collecting glasses, working around conversations without hearing them',
       'an old man at the end of the bar nursing the same half-pint for an hour',
@@ -170,6 +174,11 @@ const LOCATIONS_DATA = {
     locationExaminedFlag: 'examined_lusk_office',
     timeOfDay: 'afternoon',
     district: 'east',
+    openPeriods: ['morning', 'afternoon'],
+    lockedNote: {
+      text: "Lusk's office is dark, the Vigilance Committee's notice still pinned to the door.",
+      keyholderNpcId: 'lusk',
+    },
     extras: [
       'a committee volunteer sorting the morning post into "answer" and "burn" piles',
       'a tradesman waiting to report a suspicious lodger, rehearsing his account under his breath',

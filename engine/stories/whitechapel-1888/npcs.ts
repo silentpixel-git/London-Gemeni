@@ -228,7 +228,10 @@ const NPCS_DATA = {
     followingRule: 'fixed',
     // Lusk's office is not reachable until Act 4; he is offstage before then.
     scheduleByAct: {
-      4: { default: 'lusk_office' },
+      // A builder by trade, off the premises once the day's business is
+      // done — like any other East End tradesman he winds up at the Ten
+      // Bells of an evening (whitechapel_pub is act 2, safely unlocked by 4).
+      4: { default: 'lusk_office', byPeriod: { evening: 'whitechapel_pub', night: 'whitechapel_pub', lateNight: 'whitechapel_pub' } },
       5: { default: 'lusk_office' },
       6: { default: 'lusk_office' },
     },
@@ -290,7 +293,7 @@ const NPCS_DATA = {
       // Day-shift police surgeon; evenings find him at the Ten Bells like
       // any other H Division man off duty.
       2: { default: 'whitechapel_mortuary', byPeriod: { evening: 'whitechapel_pub', night: 'whitechapel_pub', lateNight: 'whitechapel_pub' } },
-      3: { default: 'whitechapel_mortuary' },
+      3: { default: 'whitechapel_mortuary', byPeriod: { evening: 'whitechapel_pub', night: 'whitechapel_pub', lateNight: 'whitechapel_pub' } },
     },
   },
 
