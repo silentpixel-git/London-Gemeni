@@ -12,14 +12,37 @@ const LOCATIONS_DATA = {
     timeframe: 'present',
     atmosphere: 'Warm lamplight, tobacco smoke, and the familiar disorder of a working mind. Holmes\' sitting room in the grip of an urgent case.',
     description: 'The sitting room is barely recognisable. Case files have colonised the mantelpiece, the armchairs, and most of the floor. A large map of Whitechapel is pinned to the wall with coloured threads running between locations. Holmes stands at the window, his back to the room.',
-    exits: ['dorset_street'],
+    exits: ['dorset_street', 'hansom_cab'],
     interactables: ['whitechapel_map', 'holmes_chemistry_table', 'telegrams_pile', 'newspaper_pile', 'case_files_wall'],
     locationExaminedFlag: 'examined_baker_street',
     timeOfDay: 'night',
+    district: 'west',
     vignettes: [
       { text: 'Mrs Hudson leaves a supper tray outside the door without knocking — she has learned the rhythm of a case. The tea goes cold where she left it.', act: 0 },
       { text: 'A telegraph boy hammers at the street door, hands up a wire, and is gone before it can be signed for. Holmes reads it once and feeds it to the fire.' },
     ],
+  },
+
+  hansom_cab: {
+    id: 'hansom_cab',
+    name: 'A Hansom Cab',
+    shortName: 'A Hansom Cab',
+    act: 1,
+    timeframe: 'present',
+    atmosphere: 'Creaking leather, the smell of horse and wet oilcloth, London sliding past the window at a trot.',
+    description: 'The hansom sways on its springs. Above and behind, the driver waits with the trap open, reins slack in his hand. "Where to, sir?"',
+    exits: [
+      'baker_street', 'dorset_street', 'millers_court', 'whitechapel_mortuary',
+      'h_division_station', 'whitechapel_pub', 'lusk_office', 'bond_office',
+      'private_asylum', 'bucks_row', 'hanbury_street', 'dutfields_yard',
+      'working_mens_club', 'mitre_square', 'goulston_street',
+    ],
+    interactables: [],
+    locationExaminedFlag: 'examined_hansom_cab',
+    timeOfDay: 'afternoon',
+    conveyance: true,
+    // Never used for pricing (rides price from the boarding point); present for validator uniformity.
+    district: 'east',
   },
 
   dorset_street: {
@@ -30,10 +53,11 @@ const LOCATIONS_DATA = {
     timeframe: 'present',
     atmosphere: 'Foggy mornings, muddy roads, constant noise from vendors and carts. A crowded and impoverished street in Whitechapel.',
     description: "The air is thick with the smell of coal smoke and the press of humanity. A crowd has gathered outside Miller's Court, their whispers a low hum against the city's noise.",
-    exits: ['millers_court', 'baker_street', 'h_division_station'],
+    exits: ['millers_court', 'baker_street', 'h_division_station', 'hansom_cab'],
     interactables: ['police_barricade', 'street_lamps', 'lodging_house_entrances', 'crowd'],
     locationExaminedFlag: 'examined_dorset_street',
     timeOfDay: 'morning',
+    district: 'east',
     extras: [
       'a coster pushing his barrow one street over rather than pass the court entrance',
       'two lodging-house women sharing a clay pipe in a doorway, watching everything and saying nothing',
@@ -57,6 +81,7 @@ const LOCATIONS_DATA = {
     interactables: ['the_bed', 'burned_clothing', 'examination_instruments', 'bloodstained_sheets'],
     locationExaminedFlag: 'examined_millers_court',
     timeOfDay: 'morning',
+    district: 'east',
   },
 
   whitechapel_mortuary: {
@@ -71,6 +96,7 @@ const LOCATIONS_DATA = {
     interactables: ['autopsy_ledger', 'specimen_cabinet', 'bonds_desk', 'victim_folders'],
     locationExaminedFlag: 'examined_whitechapel_mortuary',
     timeOfDay: 'midday',
+    district: 'east',
     openPeriods: ['morning', 'afternoon'],
     lockedNote: {
       text: 'The mortuary door is bolted fast; a smudged card behind the glass gives the visiting hours as morning and afternoon.',
@@ -97,6 +123,7 @@ const LOCATIONS_DATA = {
     interactables: ['witness_description_wall', 'abberline_desk', 'investigation_board', 'case_files_cabinet'],
     locationExaminedFlag: 'examined_h_division_station',
     timeOfDay: 'afternoon',
+    district: 'east',
     extras: [
       'a desk sergeant taking down a complaint from a woman who keeps starting the story over',
       'two beat constables comparing notebooks in a corner, voices low',
@@ -119,6 +146,7 @@ const LOCATIONS_DATA = {
     interactables: ['pub_regulars', 'the_barmaid', 'corner_table', 'notice_board'],
     locationExaminedFlag: 'examined_whitechapel_pub',
     timeOfDay: 'night',
+    district: 'east',
     extras: [
       'the potboy collecting glasses, working around conversations without hearing them',
       'an old man at the end of the bar nursing the same half-pint for an hour',
@@ -141,6 +169,7 @@ const LOCATIONS_DATA = {
     interactables: ['parcel_box', 'from_hell_letter', 'kidney_parcel'],
     locationExaminedFlag: 'examined_lusk_office',
     timeOfDay: 'afternoon',
+    district: 'east',
     extras: [
       'a committee volunteer sorting the morning post into "answer" and "burn" piles',
       'a tradesman waiting to report a suspicious lodger, rehearsing his account under his breath',
@@ -162,6 +191,7 @@ const LOCATIONS_DATA = {
     interactables: ['medical_reports', 'anatomical_texts', 'specimen_jars', 'edmund_forensic_note'],
     locationExaminedFlag: 'examined_bond_office',
     timeOfDay: 'midday',
+    district: 'west',
     openPeriods: ['morning', 'afternoon', 'evening'],
     lockedNote: {
       text: "The surgery is shut up for the night, curtains drawn behind the brass plate; whatever business remains will keep until morning.",
@@ -187,6 +217,7 @@ const LOCATIONS_DATA = {
     interactables: ['patient_records', 'edmund_room_furnishings'],
     locationExaminedFlag: 'visited_private_asylum',
     timeOfDay: 'afternoon',
+    district: 'west',
   },
 
   // ── RECONSTRUCTION LOCATIONS ──────────────────────────────────────────────
@@ -203,10 +234,11 @@ const LOCATIONS_DATA = {
     reconstitutionNote: "Watson visits in early November 1888 — some ten weeks after Mary Ann Nichols was murdered here on August 31st. The street has returned to its ordinary rhythm. There is no crime scene, no police presence. Watson works from Abberline's notes and Bond's written post-mortem report. Holmes reasons from the physical geography.",
     atmosphere: 'Quiet and industrial. A narrow street lined with warehouses. Ordinary now, but Watson knows what happened here.',
     description: 'The cobblestones are slick with November damp. The warehouses loom like silent sentinels. Nothing marks this spot as different from any other street in Whitechapel — which is, Watson realises, precisely the point.',
-    exits: ['whitechapel_mortuary', 'hanbury_street', 'whitechapel_pub'],
+    exits: ['whitechapel_mortuary', 'hanbury_street', 'whitechapel_pub', 'hansom_cab'],
     interactables: ['cobblestone_roadway', 'warehouse_doors', 'street_lamps'],
     locationExaminedFlag: 'examined_bucks_row',
     timeOfDay: 'night',
+    district: 'east',
     extras: [
       'a warehouse hand rolling barrels across the cobbles, life gone back to its work',
       'a knife-grinder setting up his wheel where the body lay, not knowing or not caring',
@@ -225,10 +257,11 @@ const LOCATIONS_DATA = {
     reconstitutionNote: "Watson visits weeks after Annie Chapman's murder on September 8th. The yard behind No. 29 is back in use. Watson has Bond's surgical report in his coat pocket. He reads from it as Holmes examines the fence and the steps.",
     atmosphere: 'Crowded working-class neighbourhood. The backyard behind 29 Hanbury Street — a place of ordinary horror.',
     description: 'The yard is small, enclosed by a wooden fence. People pass through it daily now, indifferent or unaware. Watson consults Bond\'s report: the organ removal was clean, deliberate, and practised. Not the act of a man who had never done this before.',
-    exits: ['bucks_row', 'dutfields_yard'],
+    exits: ['bucks_row', 'dutfields_yard', 'hansom_cab'],
     interactables: ['wooden_fence', 'yard_steps', 'ground_where_body_was_discovered'],
     locationExaminedFlag: 'examined_hanbury_street',
     timeOfDay: 'morning',
+    district: 'east',
     extras: [
       'a resident of No. 29 carrying washing through the yard, stepping where she has always stepped',
       'two children playing knucklebones on the steps, shooed off and back within the minute',
@@ -247,10 +280,11 @@ const LOCATIONS_DATA = {
     reconstitutionNote: "Watson reconstructs the night of September 30th from Diemschutz's testimony and the City Police report. It is now November; the yard is quiet. Holmes walks the cart path slowly, measuring distances and timing in his head.",
     atmosphere: 'Lively due to the nearby club, but quiet within the yard itself. Where Elizabeth Stride was found — and where she was left unfinished.',
     description: "A small yard beside the International Working Men's Club. The sounds of political discussion drift from the open windows above, as they did on the night of September 30th. Diemschutz's cart entered through the gate. The horse shied. That was all it took.",
-    exits: ['hanbury_street', 'working_mens_club', 'mitre_square'],
+    exits: ['hanbury_street', 'working_mens_club', 'mitre_square', 'hansom_cab'],
     interactables: ['yard_entrance_gate', 'cart_path', 'club_doorway'],
     locationExaminedFlag: 'examined_dutfields_yard',
     timeOfDay: 'night',
+    district: 'east',
     extras: [
       'a club member smoking in the doorway, the argument indoors continuing without him',
       'a carter backing his horse into the yard with practised curses',
@@ -273,6 +307,7 @@ const LOCATIONS_DATA = {
     interactables: ['tables', 'posters', 'newspapers', 'club_members'],
     locationExaminedFlag: 'examined_working_mens_club',
     timeOfDay: 'night',
+    district: 'east',
   },
 
   mitre_square: {
@@ -284,10 +319,11 @@ const LOCATIONS_DATA = {
     reconstitutionNote: "Watson visits Mitre Square to reconstruct the second murder of September 30th — Catherine Eddowes, killed 45 minutes after Elizabeth Stride, in a different police jurisdiction. The square is quiet and unremarkable by day. Holmes stands at the spot and times the escape routes.",
     atmosphere: 'Cold and isolated with echoing footsteps. A stone square within the City of London, bounded by dark alleyways.',
     description: 'The dark alleyways provide multiple escape routes across three jurisdictions. Within minutes of the murder here, the killer had left City Police territory entirely. Watson reads from Bond\'s report: kidney and uterus removed in under four minutes. Holmes says nothing for a long moment.',
-    exits: ['dutfields_yard', 'goulston_street'],
+    exits: ['dutfields_yard', 'goulston_street', 'hansom_cab'],
     interactables: ['alleyways', 'square_walls', 'police_lanterns'],
     locationExaminedFlag: 'examined_mitre_square',
     timeOfDay: 'night',
+    district: 'east',
     extras: [
       'a City constable on his beat, boots loud on the stone, timing his round to the minute',
       'a watchman in a warehouse doorway, lantern at his feet, awake in a way he was not in September',
@@ -304,10 +340,11 @@ const LOCATIONS_DATA = {
     timeframe: 'reconstruction',
     atmosphere: 'Busy street with lingering tension. The wall where the graffiti was discovered is just a wall now — Commissioner Warren had it erased before dawn.',
     description: "The street is bustling, but Watson stands at the precise spot where, on the night of September 30th, a Metropolitan constable found a piece of Eddowes' apron and a chalk inscription on the wall above it. The inscription was wiped away before it could be photographed. Watson finds this inexplicable and infuriating.",
-    exits: ['mitre_square', 'lusk_office'],
+    exits: ['mitre_square', 'lusk_office', 'hansom_cab'],
     interactables: ['graffiti_wall', 'apron_fragment_location'],
     locationExaminedFlag: 'examined_goulston_street',
     timeOfDay: 'night',
+    district: 'east',
     extras: [
       'market traders crying their stalls along the street, commerce louder than memory',
       'a boy in a doorway selling bootlaces from a tray, eyes following every passer-by',
