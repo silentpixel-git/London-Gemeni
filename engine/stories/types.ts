@@ -40,6 +40,13 @@ export interface LocationDefinition<F extends string = string> {
     text: string;             // authored locked-door beat, diegetic
     keyholderNpcId?: string;  // whereabouts derived from their schedule, never hand-written
   };
+  // Hansom-cab travel: which side of London this location sits on — drives
+  // the two-tier ride cost (same district 15 min, cross-district 40 min).
+  // qa:validate requires it on every location the cab serves.
+  district?: 'west' | 'east';
+  // Traversal-only location (the hansom cab): world events, vignettes, and
+  // Holmes nudges are suppressed here, and WAIT is refused in-voice.
+  conveyance?: boolean;
 }
 
 export interface NPCDefinition<F extends string = string> {
