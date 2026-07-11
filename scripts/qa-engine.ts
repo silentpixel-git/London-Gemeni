@@ -17,21 +17,27 @@
  * - Unknown object targets → parseIntent returns targetId=undefined → general look-around → always succeeds.
  *
  * Location graph (relevant exits):
- *   baker_street → dorset_street
- *   dorset_street → millers_court, baker_street, h_division_station
+ *   baker_street → dorset_street, hansom_cab
+ *   dorset_street → millers_court, baker_street, h_division_station, hansom_cab
  *   millers_court → dorset_street
  *   h_division_station → dorset_street, whitechapel_pub
  *   whitechapel_pub → h_division_station, bucks_row
- *   bucks_row → whitechapel_mortuary, hanbury_street, whitechapel_pub
+ *   bucks_row → whitechapel_mortuary, hanbury_street, whitechapel_pub, hansom_cab
  *   whitechapel_mortuary → dorset_street, bucks_row
- *   hanbury_street → bucks_row, dutfields_yard
- *   dutfields_yard → hanbury_street, working_mens_club, mitre_square
+ *   hanbury_street → bucks_row, dutfields_yard, hansom_cab
+ *   dutfields_yard → hanbury_street, working_mens_club, mitre_square, hansom_cab
  *   working_mens_club → dutfields_yard
- *   mitre_square → dutfields_yard, goulston_street
- *   goulston_street → mitre_square, lusk_office
+ *   mitre_square → dutfields_yard, goulston_street, hansom_cab
+ *   goulston_street → mitre_square, lusk_office, hansom_cab
  *   lusk_office → goulston_street, bond_office
  *   bond_office → lusk_office, private_asylum, baker_street
  *   private_asylum → bond_office, baker_street
+ *
+ *   hansom_cab (boardable from baker_street, dorset_street, bucks_row, hanbury_street,
+ *   dutfields_yard, mitre_square, goulston_street) → any of: baker_street, dorset_street,
+ *   millers_court, whitechapel_mortuary, h_division_station, whitechapel_pub, lusk_office,
+ *   bond_office, private_asylum, bucks_row, hanbury_street, dutfields_yard, working_mens_club,
+ *   mitre_square, goulston_street — a direct-travel fallback that skips the walking graph above.
  *
  * Run: npx tsx scripts/qa-engine.ts
  * Exit code 1 if any FAIL.
