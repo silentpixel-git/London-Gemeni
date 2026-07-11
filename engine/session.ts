@@ -33,6 +33,10 @@ export interface SessionSnapshot {
   turnCount: number;
   // Phase 4b — when each rumor's trigger flag first fired (see RumorEvents)
   rumorEvents: RumorEvents;
+  // Where Watson hailed the current cab from — set on boarding, cleared on
+  // alighting. Prices rides taken from inside the cab. Optional: absent on
+  // old saves, in which case rides price at the cross-district tier.
+  cabBoardedFrom?: string;
   // Note: sanity has been removed. Watson's prose register is now fixed
   // at the professional-composure baseline defined in the AI system prompt.
 }

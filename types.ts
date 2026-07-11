@@ -210,6 +210,9 @@ export interface EngineResult {
   // set by WAIT (time to the next period boundary). The hook prefers this
   // over its ACTION_TIME_MINUTES table.
   minutesAdvanced?: number;
+  // Hansom-cab boarding point: a string when Watson boards (the location he
+  // hailed from), null when he alights, undefined = unchanged.
+  cabBoardedFromUpdate?: string | null;
   newAct?: number;
   gameOver?: boolean;
   // Which ending fired (set by the engine whenever gameOver is true):
