@@ -1760,17 +1760,11 @@ function testEnvelopeAndNudge() {
 console.log('\n── Hansom cab travel ──');
 {
   // 1. Boarding: dorset_street → hansom_cab is a plain exit move that records the boarding point.
-  // EXPECTED TO FAIL until Task 6 adds cab-hailing phrases to the parser — not a bug.
-  // parseIntent('hail a cab') currently resolves to type 'other' (no verb/alias recognizes
-  // "hail a cab" yet), so it never reaches resolveMove. The resolver-side boarding logic
-  // itself is correct — verified by hand-constructing a {type:'move', targetId:'hansom_cab'}
-  // intent and confirming it records cabBoardedFrom as expected. This case goes green the
-  // moment Task 6 lands its parser pre-check.
   let snap = buildSnapshot({ currentAct: 2, location: 'dorset_street' });
   let r = gameEngine.resolve(parseIntent('hail a cab'), snap);
   if (r.actionSuccess && r.newLocation === 'hansom_cab' && r.cabBoardedFromUpdate === 'dorset_street') {
     pass('boarding the cab records cabBoardedFrom');
-  } else fail('boarding the cab (KNOWN GAP — see comment above; expected until Task 6)', JSON.stringify({ ok: r.actionSuccess, loc: r.newLocation, boarded: r.cabBoardedFromUpdate }));
+  } else fail('boarding the cab records cabBoardedFrom', JSON.stringify({ ok: r.actionSuccess, loc: r.newLocation, boarded: r.cabBoardedFromUpdate }));
 
   // 2. Riding from inside: cab → baker_street (east→west) costs 40 and clears the boarding point.
   snap = buildSnapshot({ currentAct: 2, location: 'hansom_cab', cabBoardedFrom: 'dorset_street' });

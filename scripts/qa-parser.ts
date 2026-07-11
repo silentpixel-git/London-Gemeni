@@ -407,6 +407,19 @@ const INTENT_FIXTURES: IntentFixture[] = [
     expect: { type: 'none' } },
   { scene: { location: 'mitre_square', act: 3 }, input: 'hum a quiet tune to steady my nerves',
     expect: { type: 'none' } },
+  // hansom cab phrasings — offline (Task 6 parser pre-check)
+  { scene: { location: 'dorset_street', act: 2 }, input: 'hail a cab',
+    expect: { type: 'move', targetId: 'hansom_cab' } },
+  { scene: { location: 'dorset_street', act: 2 }, input: 'take a cab to the mortuary',
+    expect: { type: 'move', targetId: 'whitechapel_mortuary' } },
+  { scene: { location: 'goulston_street', act: 4 }, input: 'take a hansom to baker street',
+    expect: { type: 'move', targetId: 'baker_street' } },
+  // A free address with no hail/take/catch verb never reaches the new cab regex —
+  // it falls through to the pre-existing implicit location matcher (step 10),
+  // which already resolves a bare location name substring. Documents the boundary:
+  // the cab phrasing pre-check only fires on an explicit hailing verb.
+  { scene: { location: 'hansom_cab', act: 2 }, input: 'the ten bells, driver',
+    expect: { type: 'move', targetId: 'whitechapel_pub' } },
 ];
 
 function intentMatches(got: ParsedIntentResult, exp: IntentFixture['expect']): boolean {

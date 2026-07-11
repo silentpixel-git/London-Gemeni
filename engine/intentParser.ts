@@ -534,6 +534,21 @@ export function parseIntent(rawInput: string): ParsedIntent {
     }
   }
 
+  // 3c. Hansom cab phrasings — must run before MOVE/TAKE ("take a cab to X"
+  // would otherwise parse as TAKE). With a destination it is a normal move
+  // to that destination (the resolver decides it is a ride); bare hailing
+  // moves into the cab itself.
+  const cabMatch = norm.match(
+    /^(?:take|hail|call|flag(?: down)?|catch|hire)\s+(?:a\s+|the\s+)?(?:hansom(?:\s+cab)?|cab|carriage)(?:\s+to\s+(.+))?$/
+  );
+  if (cabMatch) {
+    const dest = cabMatch[1]?.trim();
+    if (dest) {
+      return { type: 'move', targetId: matchLocationId(dest), targetRaw: dest, raw: rawInput };
+    }
+    return { type: 'move', targetId: 'hansom_cab', targetRaw: 'hansom cab', raw: rawInput };
+  }
+
   // 3. Movement
   for (const verb of MOVE_VERBS.sort((a, b) => b.length - a.length)) {
     if (norm.startsWith(verb + ' ') || norm === verb) {
