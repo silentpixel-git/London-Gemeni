@@ -2,7 +2,7 @@ import { EngineResult } from '../../types';
 import { ParsedIntent } from '../intentParser';
 import type { StoryManifest } from '../stories/types';
 import type { SessionSnapshot } from '../session';
-import { buildNarrationContext } from '../narrationContext';
+import { buildNarrationContext, blocked } from '../narrationContext';
 import { computeTimePeriod, minutesToNextPeriodBoundary } from '../time';
 
 // --------------------------------------------------------
@@ -10,6 +10,14 @@ import { computeTimePeriod, minutesToNextPeriodBoundary } from '../time';
 // --------------------------------------------------------
 
 export function resolveWait(story: StoryManifest, intent: ParsedIntent, session: SessionSnapshot): EngineResult {
+  if (story.locations[session.location]?.conveyance) {
+    return blocked(story, intent, session,
+      'The driver clears his throat pointedly from his perch.',
+      'BLOCKED — Watson tried to wait inside the hansom with the meter running. The driver makes it politely ' +
+      'clear, in a word or a look, that the cab is for riding. Watson should name a destination or step down. ' +
+      'No time passes.');
+  }
+
   const cfg = story.actTimeConfig[session.currentAct] ?? story.actTimeConfig[1];
   const total = cfg.canonicalMinutes + session.elapsedMinutes;
   const from = computeTimePeriod(total);

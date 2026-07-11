@@ -288,7 +288,7 @@ export function buildNarrationContext(
   // once via world_event_* flags, lifted onto flagsUpdate in resolve().
   const worldEventFlagsUpdate: Record<string, boolean> = {};
   const clockNow = totalMinutes; // already includes extraMinutes (WAIT spans deliver what they cross)
-  const firedEvents = story.worldEvents
+  const firedEvents = loc.conveyance ? [] : story.worldEvents // suppressed mid-ride; fires normally once Watson arrives
     .filter(e => e.act === act && !session.flags[`world_event_${e.id}`])
     .map(e => ({ e, fireAt: e.atClockMinutes >= actTimeCfg.canonicalMinutes ? e.atClockMinutes : e.atClockMinutes + 1440 }))
     .filter(({ fireAt }) => clockNow >= fireAt)

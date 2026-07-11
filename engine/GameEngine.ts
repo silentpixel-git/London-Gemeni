@@ -156,6 +156,7 @@ export class GameEngine {
   }
 
   private shouldFireHolmesNudge(session: SessionSnapshot, result: EngineResult): boolean {
+    if (this.story.locations[session.location]?.conveyance) return false; // never nudge mid-ride
     if (result.newLocation) return false;   // player is moving
     if (result.newAct) return false;         // act just advanced — progress made
     if (result.gameOver) return false;

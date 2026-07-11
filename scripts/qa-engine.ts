@@ -1756,6 +1756,97 @@ function testEnvelopeAndNudge() {
   }
 }
 
+// ── Hansom cab travel ────────────────────────────────────────────────────────
+console.log('\n── Hansom cab travel ──');
+{
+  // 1. Boarding: dorset_street → hansom_cab is a plain exit move that records the boarding point.
+  // EXPECTED TO FAIL until Task 6 adds cab-hailing phrases to the parser — not a bug.
+  // parseIntent('hail a cab') currently resolves to type 'other' (no verb/alias recognizes
+  // "hail a cab" yet), so it never reaches resolveMove. The resolver-side boarding logic
+  // itself is correct — verified by hand-constructing a {type:'move', targetId:'hansom_cab'}
+  // intent and confirming it records cabBoardedFrom as expected. This case goes green the
+  // moment Task 6 lands its parser pre-check.
+  let snap = buildSnapshot({ currentAct: 2, location: 'dorset_street' });
+  let r = gameEngine.resolve(parseIntent('hail a cab'), snap);
+  if (r.actionSuccess && r.newLocation === 'hansom_cab' && r.cabBoardedFromUpdate === 'dorset_street') {
+    pass('boarding the cab records cabBoardedFrom');
+  } else fail('boarding the cab (KNOWN GAP — see comment above; expected until Task 6)', JSON.stringify({ ok: r.actionSuccess, loc: r.newLocation, boarded: r.cabBoardedFromUpdate }));
+
+  // 2. Riding from inside: cab → baker_street (east→west) costs 40 and clears the boarding point.
+  snap = buildSnapshot({ currentAct: 2, location: 'hansom_cab', cabBoardedFrom: 'dorset_street' });
+  r = gameEngine.resolve(parseIntent('go to baker street'), snap);
+  if (r.actionSuccess && r.newLocation === 'baker_street' && r.minutesAdvanced === 40 && r.cabBoardedFromUpdate === null) {
+    pass('cross-district ride from inside the cab costs 40 and clears boarding point');
+  } else fail('ride from cab', JSON.stringify({ ok: r.actionSuccess, loc: r.newLocation, min: r.minutesAdvanced, boarded: r.cabBoardedFromUpdate }));
+
+  // 3. Direct travel fallback: dorset_street → whitechapel_pub is NOT adjacent but both are east → 15 min, one turn.
+  snap = buildSnapshot({ currentAct: 2, location: 'dorset_street' });
+  r = gameEngine.resolve(parseIntent('go to the ten bells'), snap);
+  if (r.actionSuccess && r.newLocation === 'whitechapel_pub' && r.minutesAdvanced === 15) {
+    pass('named non-adjacent destination resolves as a local cab ride (15 min)');
+  } else fail('direct cab fallback', JSON.stringify({ ok: r.actionSuccess, loc: r.newLocation, min: r.minutesAdvanced }));
+
+  // 4. Adjacent walking move is unchanged (no minutesAdvanced).
+  snap = buildSnapshot({ currentAct: 2, location: 'dorset_street' });
+  r = gameEngine.resolve(parseIntent('go to millers court'), snap);
+  if (r.actionSuccess && r.newLocation === 'millers_court' && r.minutesAdvanced === undefined) {
+    pass('adjacent move still walks (no ride cost)');
+  } else fail('adjacent move unchanged', JSON.stringify({ min: r.minutesAdvanced }));
+
+  // 5. Act gate holds on the fallback: act-locked destination is refused, not ridden to.
+  snap = buildSnapshot({ currentAct: 1, location: 'dorset_street' });
+  r = gameEngine.resolve(parseIntent('go to the mortuary'), snap);
+  if (!r.actionSuccess && !r.newLocation) pass('cab fallback respects the act gate');
+  else fail('cab fallback act gate', JSON.stringify({ ok: r.actionSuccess, loc: r.newLocation }));
+
+  // 6. No cab from an interior: mortuary → pub (non-adjacent, no hansom_cab exit) stays blocked.
+  snap = buildSnapshot({ currentAct: 2, location: 'whitechapel_mortuary' });
+  r = gameEngine.resolve(parseIntent('go to the ten bells'), snap);
+  if (!r.actionSuccess) pass('no cab fallback from interiors');
+  else fail('interior should not hail a cab', JSON.stringify({ loc: r.newLocation }));
+
+  // 7. OPEN at departure, CLOSED at projected ARRIVAL — proves the check uses arrival time,
+  //    not departure time. If periodOf(story, session, rideMinutes) ever regressed back to
+  //    periodOf(story, session) (checking departure instead), this ride would wrongly succeed.
+  //    Minute math (act 2 canonical start = 540 = 9:00 AM; mortuary openPeriods = [morning, afternoon]):
+  //      elapsedMinutes 470 → departure clock 540+470 = 1010 min = 4:50 PM → afternoon (OPEN).
+  //      dorset_street and whitechapel_mortuary are both district 'east' → local ride, 15 min.
+  //      arrival clock 1010+15 = 1025 min = 5:05 PM → evening (1020-1199) → CLOSED.
+  //    Expect: refused, no time cost, no location change.
+  snap = buildSnapshot({ currentAct: 2, location: 'dorset_street', elapsedMinutes: 470 });
+  r = gameEngine.resolve(parseIntent('go to the mortuary'), snap);
+  if (!r.actionSuccess && r.minutesAdvanced === undefined && !r.newLocation) {
+    pass('driver refuses a ride open at departure but closed at projected arrival, at no time cost');
+  } else fail('closed-at-arrival refusal (open at departure)', JSON.stringify({ ok: r.actionSuccess, min: r.minutesAdvanced, loc: r.newLocation }));
+
+  // 8. CLOSED at departure, OPEN at projected ARRIVAL — the mirror case, proving the check
+  //    doesn't wrongly use departure time either (a departure-time check would refuse this
+  //    ride even though the destination is open by the time the cab actually arrives).
+  //    Minute math (same constants as case 7, wrapping past midnight into the next day):
+  //      elapsedMinutes 1310 → departure clock 540+1310 = 1850 min; 1850 mod 1440 = 410 min
+  //      = 6:50 AM (next day) → dawn (300-419) → CLOSED.
+  //      Same-district (east→east) local ride, 15 min → arrival clock 1850+15 = 1865 min;
+  //      1865 mod 1440 = 425 min = 7:05 AM → morning (420-719) → OPEN.
+  //    Expect: succeeds, Watson arrives at the mortuary.
+  snap = buildSnapshot({ currentAct: 2, location: 'dorset_street', elapsedMinutes: 1310 });
+  r = gameEngine.resolve(parseIntent('go to the mortuary'), snap);
+  if (r.actionSuccess && r.newLocation === 'whitechapel_mortuary' && r.minutesAdvanced === 15) {
+    pass('driver accepts a ride closed at departure but open by projected arrival');
+  } else fail('arrival-time openness (closed at departure)', JSON.stringify({ ok: r.actionSuccess, loc: r.newLocation, min: r.minutesAdvanced }));
+
+  // 9. WAIT inside the cab is refused.
+  snap = buildSnapshot({ currentAct: 2, location: 'hansom_cab', cabBoardedFrom: 'dorset_street' });
+  r = gameEngine.resolve(parseIntent('wait'), snap);
+  if (!r.actionSuccess && r.minutesAdvanced === undefined) pass('WAIT is refused inside the cab');
+  else fail('WAIT in cab', JSON.stringify({ ok: r.actionSuccess, min: r.minutesAdvanced }));
+
+  // 10. Ride from cab with no recorded boarding point (old save) prices at the safe cross tier.
+  snap = buildSnapshot({ currentAct: 2, location: 'hansom_cab' });
+  r = gameEngine.resolve(parseIntent('go to the ten bells'), snap);
+  if (r.actionSuccess && r.minutesAdvanced === 40) pass('missing boarding point falls back to cross-district pricing');
+  else fail('fallback pricing', JSON.stringify({ min: r.minutesAdvanced }));
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {

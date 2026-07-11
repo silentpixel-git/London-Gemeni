@@ -11,6 +11,16 @@ import { nextOpenPeriod } from '../time';
 // MOVE
 // --------------------------------------------------------
 
+const CAB_ID = 'hansom_cab';
+const CAB_COST_LOCAL = 15;   // minutes, same district
+const CAB_COST_CROSS = 40;   // minutes, cross-district (also the no-boarding-point fallback)
+
+function cabCost(story: StoryManifest, fromId: string | undefined, toId: string): number {
+  const from = fromId ? story.locations[fromId]?.district : undefined;
+  const to = story.locations[toId]?.district;
+  return from && to && from === to ? CAB_COST_LOCAL : CAB_COST_CROSS;
+}
+
 export function resolveMove(story: StoryManifest, intent: ParsedIntent, session: SessionSnapshot): EngineResult {
   const currentLoc = story.locations[session.location];
   const targetId = intent.targetId;
@@ -24,20 +34,37 @@ export function resolveMove(story: StoryManifest, intent: ParsedIntent, session:
     );
   }
 
-  // Check exit is valid from current location
-  if (!currentLoc.exits.includes(targetId)) {
-    const targetLoc = story.locations[targetId];
+  const targetLoc = story.locations[targetId];
+  const isAdjacent = currentLoc.exits.includes(targetId);
+  const inCab = currentLoc.id === CAB_ID;
+  const canHailHere = currentLoc.exits.includes(CAB_ID);
+  const boardingCab = targetId === CAB_ID;
+  // A ride = leaving the cab for a destination, or a named non-adjacent,
+  // present-day destination from a street with a cab stand.
+  // NOTE — the two disjuncts are deliberately asymmetric: the from-street hailing
+  // branch requires !isAdjacent && canHailHere && present-day, but once Watson is
+  // already `inCab` any destination in hansom_cab.exits is ridable, with none of
+  // those guards (including the timeframe check). That's only safe today because
+  // hansom_cab.exits happens to list every present-day location and no
+  // 'reconstruction'-timeframe ones. If a future edit adds a reconstruction
+  // location to hansom_cab.exits (or removes one it currently relies on being
+  // absent), this branch will let Watson ride there without the present-day
+  // check the hailing branch enforces — curate hansom_cab.exits accordingly,
+  // or add an explicit timeframe guard here to match.
+  const isCabRide = !!targetLoc && !boardingCab && targetId !== session.location &&
+    (inCab || (!isAdjacent && canHailHere && (targetLoc.timeframe ?? 'present') === 'present'));
+
+  if (!targetLoc || (!isAdjacent && !isCabRide)) {
     const targetName = targetLoc?.name || intent.targetRaw;
-    return blocked(story,
-      intent,
-      session,
+    return blocked(story, intent, session,
       `There is no direct path from ${currentLoc.name} to ${targetName} from here.`,
-      `Watson attempted to go to "${targetName}" but that exit is not available from ${currentLoc.name}.`
-    );
+      `Watson attempted to go to "${targetName}" but that exit is not available from ${currentLoc.name}.`);
   }
 
+  const rideOrigin = inCab ? session.cabBoardedFrom : session.location;
+  const rideMinutes = isCabRide ? cabCost(story, rideOrigin, targetId) : 0;
+
   // Check act gate — location requires a higher act
-  const targetLoc = story.locations[targetId];
   if (targetLoc.act > session.currentAct) {
     return blocked(story,
       intent,
@@ -61,7 +88,7 @@ export function resolveMove(story: StoryManifest, intent: ParsedIntent, session:
   // Opening hours (Phase 4a) — arriving outside openPeriods is a locked
   // door, never a dead end: the note says when it opens and where the
   // keyholder is, and WAIT gets Watson in.
-  const period = periodOf(story, session);
+  const period = periodOf(story, session, rideMinutes);
   if (targetLoc.openPeriods && !targetLoc.openPeriods.includes(period)) {
     const reopens = nextOpenPeriod(targetLoc.openPeriods, period);
     const keyholderId = targetLoc.lockedNote?.keyholderNpcId;
@@ -73,6 +100,14 @@ export function resolveMove(story: StoryManifest, intent: ParsedIntent, session:
       const whereId = npcLocationAt(story.npcs, keyholderId, session.currentAct, period, session.npcStates);
       const where = story.locations[whereId];
       if (where && whereId !== targetId) keyholderNote = ` ${label} is presently at ${where.name}.`;
+    }
+    if (isCabRide) {
+      return blocked(story, intent, session,
+        `The driver shakes his head. "${targetLoc.name}'ll be shut by the time we're there, sir."`,
+        `BLOCKED — the cab driver refuses the fare: ${targetLoc.name} will be closed (${period}) on arrival. ` +
+        (reopens ? `It opens come ${reopens}.` : '') + keyholderNote +
+        ` Convey this as the driver's word from his perch — Watson has NOT travelled and no time has passed. ` +
+        `He may wait, or name another destination.`);
     }
     return blocked(story,
       intent,
@@ -93,6 +128,8 @@ export function resolveMove(story: StoryManifest, intent: ParsedIntent, session:
     actionSuccess: true,
     actionType: 'move',
     newLocation: targetId,
+    minutesAdvanced: isCabRide ? rideMinutes : undefined,
+    cabBoardedFromUpdate: boardingCab ? session.location : (inCab || isCabRide) ? null : undefined,
     npcUpdates: newNpcUpdates,
     flagsUpdate: actCheck.flagsUpdate,
     newAct: actCheck.newAct,
@@ -100,11 +137,16 @@ export function resolveMove(story: StoryManifest, intent: ParsedIntent, session:
     discoveredClueIds: [],
     aiContext: buildNarrationContext(story, intent, session, {
       success: true,
-      actionDescription: `Watson travelled from ${currentLoc.name} to ${targetLoc.name}.`,
-      actionResultNote: `SUCCESS — Watson has arrived at ${targetLoc.name}.`,
+      actionDescription: isCabRide
+        ? `Watson took a hansom cab from ${story.locations[rideOrigin ?? session.location]?.name ?? 'the street'} to ${targetLoc.name} (about ${rideMinutes} minutes through the London streets).`
+        : `Watson travelled from ${currentLoc.name} to ${targetLoc.name}.`,
+      actionResultNote: isCabRide
+        ? `SUCCESS — Watson has arrived at ${targetLoc.name} by hansom cab. Mention the ride briefly (a sentence — streets sliding past, the fare paid) before the arrival proper.`
+        : `SUCCESS — Watson has arrived at ${targetLoc.name}.`,
       newClueDefs: [],
       targetLocationId: targetId,
       newNpcUpdates,
+      extraMinutes: isCabRide ? rideMinutes : undefined,
     }),
   };
 }
