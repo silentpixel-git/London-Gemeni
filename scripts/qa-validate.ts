@@ -542,6 +542,34 @@ section('Schedule guard rail: gate NPCs findable at act start (Phase 4a)');
   pass(`${checked} act-gate NPC placements verified against schedules`);
 }
 
+section('Hansom cab graph');
+{
+  const cab = LOCATIONS['hansom_cab'];
+  if (!cab) fail('hansom_cab location is missing');
+  else {
+    let destinationsOk = true;
+    for (const dest of cab.exits) {
+      if (!locationIds.has(dest)) { fail(`cab destination "${dest}" does not resolve`); destinationsOk = false; }
+      else if (!LOCATIONS[dest].district) { fail(`cab destination "${dest}" is missing a district tag`); destinationsOk = false; }
+    }
+    if (destinationsOk) pass(`${cab.exits.length} cab destinations resolve and have district tags`);
+
+    if (cab.interactables.length > 0) warn('hansom_cab has interactables', 'conveyance locations should stay empty');
+    if (!cab.conveyance) fail('hansom_cab is not marked conveyance');
+    else pass('hansom_cab is marked conveyance');
+
+    // Every location that can board must itself be a valid destination-with-district
+    let boardingOk = true;
+    let boardingCount = 0;
+    for (const [id, loc] of Object.entries(LOCATIONS)) {
+      if (id === 'hansom_cab' || !loc.exits.includes('hansom_cab')) continue;
+      boardingCount++;
+      if (!loc.district) { fail(`cab-boarding location "${id}" is missing a district tag`); boardingOk = false; }
+    }
+    if (boardingOk) pass(`${boardingCount} cab-boarding locations have district tags`);
+  }
+}
+
 // ── Rumors (Phase 4b) ────────────────────────────────────────────────────────
 
 section('Rumors (Phase 4b)');
