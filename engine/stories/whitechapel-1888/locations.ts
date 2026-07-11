@@ -34,8 +34,7 @@ const LOCATIONS_DATA = {
     exits: [
       'baker_street', 'dorset_street', 'millers_court', 'whitechapel_mortuary',
       'h_division_station', 'whitechapel_pub', 'lusk_office', 'bond_office',
-      'private_asylum', 'bucks_row', 'hanbury_street', 'dutfields_yard',
-      'working_mens_club', 'mitre_square', 'goulston_street',
+      'private_asylum',
     ],
     interactables: [],
     locationExaminedFlag: 'examined_hansom_cab',

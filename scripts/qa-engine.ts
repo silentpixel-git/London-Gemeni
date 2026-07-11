@@ -36,8 +36,10 @@
  *   hansom_cab (boardable from baker_street, dorset_street, bucks_row, hanbury_street,
  *   dutfields_yard, mitre_square, goulston_street) → any of: baker_street, dorset_street,
  *   millers_court, whitechapel_mortuary, h_division_station, whitechapel_pub, lusk_office,
- *   bond_office, private_asylum, bucks_row, hanbury_street, dutfields_yard, working_mens_club,
- *   mitre_square, goulston_street — a direct-travel fallback that skips the walking graph above.
+ *   bond_office, private_asylum — a direct-travel fallback that skips the walking graph above.
+ *   The cab serves the present-day map only; reconstruction-timeframe locations (bucks_row,
+ *   hanbury_street, dutfields_yard, working_mens_club, mitre_square, goulston_street) are
+ *   boardable FROM but are never valid ride destinations.
  *
  * Run: npx tsx scripts/qa-engine.ts
  * Exit code 1 if any FAIL.
@@ -1849,6 +1851,24 @@ console.log('\n── Hansom cab travel ──');
   r = gameEngine.resolve(parseIntent('go to the ten bells'), snap);
   if (r.actionSuccess && r.minutesAdvanced === 40) pass('missing boarding point falls back to cross-district pricing');
   else fail('fallback pricing', JSON.stringify({ min: r.minutesAdvanced }));
+
+  // 11. Regression guard for the reconstruction-site cab bypass (full-branch review
+  //     finding): naming a reconstruction-timeframe location as a destination must be
+  //     refused whether hailed directly from a street OR named from inside the cab —
+  //     the two phrasings must agree. bucks_row is 'reconstruction' timeframe.
+  snap = buildSnapshot({ currentAct: 3, location: 'dorset_street' });
+  r = gameEngine.resolve(parseIntent('go to bucks row'), snap);
+  const hailBlocked = !r.actionSuccess && !r.newLocation;
+
+  snap = buildSnapshot({ currentAct: 3, location: 'hansom_cab', cabBoardedFrom: 'dorset_street' });
+  r = gameEngine.resolve(parseIntent('go to bucks row'), snap);
+  const rideBlocked = !r.actionSuccess && !r.newLocation;
+
+  if (hailBlocked && rideBlocked) {
+    pass('reconstruction-site destination refused both when hailed and when ridden from inside the cab');
+  } else {
+    fail('reconstruction-site cab bypass', JSON.stringify({ hailBlocked, rideBlocked, lastResult: { ok: r.actionSuccess, loc: r.newLocation } }));
+  }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

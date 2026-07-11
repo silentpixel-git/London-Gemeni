@@ -213,8 +213,6 @@ export class GameRepository {
 
       if (newCabBoardedFrom !== undefined) {
         updates.cab_boarded_from = newCabBoardedFrom;
-      } else if (result.cabBoardedFromUpdate !== undefined) {
-        updates.cab_boarded_from = result.cabBoardedFromUpdate;
       }
 
       if (result.newLocation) {

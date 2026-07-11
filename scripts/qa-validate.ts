@@ -550,9 +550,15 @@ section('Hansom cab graph');
     let destinationsOk = true;
     for (const dest of cab.exits) {
       if (!locationIds.has(dest)) { fail(`cab destination "${dest}" does not resolve`); destinationsOk = false; }
-      else if (!LOCATIONS[dest].district) { fail(`cab destination "${dest}" is missing a district tag`); destinationsOk = false; }
+      else {
+        if (!LOCATIONS[dest].district) { fail(`cab destination "${dest}" is missing a district tag`); destinationsOk = false; }
+        if ((LOCATIONS[dest].timeframe ?? 'present') !== 'present') {
+          fail(`cab destination "${dest}" is not present-day`, 'the cab serves the present-day map only — reconstruction/crime-scene sites must not be hansom_cab.exits destinations');
+          destinationsOk = false;
+        }
+      }
     }
-    if (destinationsOk) pass(`${cab.exits.length} cab destinations resolve and have district tags`);
+    if (destinationsOk) pass(`${cab.exits.length} cab destinations resolve, have district tags, and are present-day`);
 
     if (cab.interactables.length > 0) warn('hansom_cab has interactables', 'conveyance locations should stay empty');
     if (!cab.conveyance) fail('hansom_cab is not marked conveyance');

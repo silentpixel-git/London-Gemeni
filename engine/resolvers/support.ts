@@ -64,14 +64,21 @@ export function computeActEntry(
  *   followsNpcId === 'watson'  → shadow the player destination
  *   followsNpcId === <npcId>   → shadow that NPC's resolved location
  *   location_based / fixed     → snap to the schedule for the current act + period
+ *
+ * `extraMinutes` lets a caller price the resulting period as of arrival rather
+ * than departure — e.g. a hansom cab ride, where the trip itself can cross a
+ * time-period boundary. Pass the ride duration so followers (location_based /
+ * fixed NPCs, and any 'stored' follower snapshot taken in this same call) are
+ * placed consistently with buildNarrationContext's own post-ride period.
  */
 export function computeNpcMovements(
   story: StoryManifest,
   newLocationId: string,
-  session: SessionSnapshot
+  session: SessionSnapshot,
+  extraMinutes = 0
 ): Record<string, Partial<NPCState>> {
   const updates: Record<string, Partial<NPCState>> = {};
-  const period = periodOf(story, session);
+  const period = periodOf(story, session, extraMinutes);
 
   // First pass: location-based and fixed NPCs (establish canonical positions).
   // An NPC with NO canonical entry for the current act is OFFSTAGE — e.g.

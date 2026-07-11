@@ -100,26 +100,34 @@ export function buildNarrationContext(
 
   // Idle behaviors — one rotating flat beat per present NPC who is not being
   // interviewed this turn, cycled by turn count so it never repeats twice running.
-  for (const { npcId, label } of npcsPresent) {
-    if (npcId === outcome.targetNpcId) continue;
-    const idle = story.npcs[npcId]?.idleBehaviors;
-    if (idle && idle.length > 0) {
-      npcScriptedLines.push({
-        npcId, label,
-        instruction: `Background only, no emphasis: ${idle[session.turnCount % idle.length]}`,
-      });
+  // Suppressed in a conveyance (e.g. mid-cab-ride): these beats are authored as
+  // room-bound business (violin, case-map pins, standing at the window) that
+  // contradicts riding in a moving hansom.
+  if (!loc.conveyance) {
+    for (const { npcId, label } of npcsPresent) {
+      if (npcId === outcome.targetNpcId) continue;
+      const idle = story.npcs[npcId]?.idleBehaviors;
+      if (idle && idle.length > 0) {
+        npcScriptedLines.push({
+          npcId, label,
+          instruction: `Background only, no emphasis: ${idle[session.turnCount % idle.length]}`,
+        });
+      }
     }
   }
 
   // Companion case-state demeanor — derived, no new state. First matching
   // variant wins; injected only when the NPC is present and not interviewed.
-  for (const cd of story.companionDemeanors) {
-    if (outcome.targetNpcId === cd.npcId) continue;
-    const present = npcsPresent.find(n => n.npcId === cd.npcId);
-    if (!present) continue;
-    const variant = cd.variants.find(v => v.when(session));
-    if (variant) {
-      npcScriptedLines.push({ npcId: cd.npcId, label: present.label, instruction: `Demeanor note: ${variant.text}` });
+  // Also suppressed in a conveyance, for consistency with idle behaviors above.
+  if (!loc.conveyance) {
+    for (const cd of story.companionDemeanors) {
+      if (outcome.targetNpcId === cd.npcId) continue;
+      const present = npcsPresent.find(n => n.npcId === cd.npcId);
+      if (!present) continue;
+      const variant = cd.variants.find(v => v.when(session));
+      if (variant) {
+        npcScriptedLines.push({ npcId: cd.npcId, label: present.label, instruction: `Demeanor note: ${variant.text}` });
+      }
     }
   }
 

@@ -39,20 +39,21 @@ export function resolveMove(story: StoryManifest, intent: ParsedIntent, session:
   const inCab = currentLoc.id === CAB_ID;
   const canHailHere = currentLoc.exits.includes(CAB_ID);
   const boardingCab = targetId === CAB_ID;
-  // A ride = leaving the cab for a destination, or a named non-adjacent,
-  // present-day destination from a street with a cab stand.
-  // NOTE — the two disjuncts are deliberately asymmetric: the from-street hailing
-  // branch requires !isAdjacent && canHailHere && present-day, but once Watson is
-  // already `inCab` any destination in hansom_cab.exits is ridable, with none of
-  // those guards (including the timeframe check). That's only safe today because
-  // hansom_cab.exits happens to list every present-day location and no
-  // 'reconstruction'-timeframe ones. If a future edit adds a reconstruction
-  // location to hansom_cab.exits (or removes one it currently relies on being
-  // absent), this branch will let Watson ride there without the present-day
-  // check the hailing branch enforces — curate hansom_cab.exits accordingly,
-  // or add an explicit timeframe guard here to match.
+  // A ride = leaving the cab for a destination in hansom_cab.exits, or a named
+  // non-adjacent, present-day destination from a street with a cab stand.
+  // NOTE — the two disjuncts both require `isAdjacent`, but for different
+  // reasons: from inside the cab, `isAdjacent` IS `hansom_cab.exits.includes(targetId)`
+  // (currentLoc is the cab), so it's the only thing gating which destinations are
+  // ridable — hansom_cab.exits is curated to list present-day destinations
+  // exclusively (enforced by qa:validate — see the "Hansom cab graph" checks in
+  // scripts/qa-validate.ts), so this transitively enforces present-day-only rides
+  // without needing its own timeframe check. From a street, `isAdjacent` must be
+  // FALSE (that's a plain walk, not a ride) and the timeframe check applies
+  // directly since the destination isn't necessarily in any curated list. Keep
+  // hansom_cab.exits present-day-only, or add an explicit timeframe guard to the
+  // inCab case, if this coupling ever needs to be loosened.
   const isCabRide = !!targetLoc && !boardingCab && targetId !== session.location &&
-    (inCab || (!isAdjacent && canHailHere && (targetLoc.timeframe ?? 'present') === 'present'));
+    ((inCab && isAdjacent) || (!isAdjacent && canHailHere && (targetLoc.timeframe ?? 'present') === 'present'));
 
   if (!targetLoc || (!isAdjacent && !isCabRide)) {
     const targetName = targetLoc?.name || intent.targetRaw;
@@ -120,8 +121,10 @@ export function resolveMove(story: StoryManifest, intent: ParsedIntent, session:
     );
   }
 
-  // Success — move to new location
-  const newNpcUpdates = computeNpcMovements(story, targetId, session);
+  // Success — move to new location. Pass the ride minutes (0 for a plain walk)
+  // so followers' schedules resolve against the arrival period, consistent
+  // with buildNarrationContext's own periodOf(..., extraMinutes) below.
+  const newNpcUpdates = computeNpcMovements(story, targetId, session, isCabRide ? rideMinutes : 0);
   const actCheck = checkActProgression(story, { ...session, location: targetId }, session.flags);
 
   return {
