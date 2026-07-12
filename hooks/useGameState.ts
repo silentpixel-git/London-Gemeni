@@ -457,6 +457,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setIsGameOver(true);
         if (result.endingType) setEndingType(result.endingType);
       }
+      // No advancingAct gate needed — selectApproach() suppresses on any
+      // newAct/gameOver turn, so approachAtMinutes is always undefined here
+      // whenever advancingAct would be true.
       if (result.approachAtMinutes !== undefined) {
         setLastApproachAtMinutes(result.approachAtMinutes);
       }
@@ -821,7 +824,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsAutoScrollLocked(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, handleSaveGame, captureDiaryEntries, captureLocationArrival]);
+  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, lastApproachAtMinutes, handleSaveGame, captureDiaryEntries, captureLocationArrival]);
 
   // ── Holmes hint ───────────────────────────────────────────────────────────
 
