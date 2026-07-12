@@ -325,6 +325,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setLocation,
     setLocationVisitCounts,
     setElapsedMinutes,
+    setLastApproachAtMinutes,
     setNpcStates,
     setInventory,
     setIsLoading,

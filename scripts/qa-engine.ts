@@ -1856,6 +1856,30 @@ console.log('\n── NPC approaches ──');
     else fail('matured rumor approach', JSON.stringify((r.aiContext as any).npcApproach));
   } else warn('rumor approach cases skipped', `${spread0.npcId} offstage in act 1 — pick another spread entry`);
 
+  // 8c. Rumor kind delivers the actual matured statement (Bug 1 regression guard):
+  // the framing (`text`) alone has nothing to disclose — `statement` must carry
+  // spread1's authored content, and the TALK-based delivery must be acked so the
+  // same hearsay doesn't surface a second time as though newly heard.
+  const spread1 = rumor0.spread[1]; // 'abberline' — onstage acts 4-6, unlike spread0
+  const rumorApproachAbberline = {
+    id: 'test_rumor_content', npcId: spread1.npcId, locationId: 'any',
+    kind: 'rumor', rumorId: rumor0.id, text: 'TEST RUMOR FRAME 2',
+  };
+  const abLoc = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, spread1.npcId, 4,
+    timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 4, 0), {});
+  const abLocVignetteCount = WHITECHAPEL_MANIFEST.locations[abLoc]?.vignettes?.length ?? 0;
+  const abLocVignetteFlags: Record<string, boolean> = {};
+  for (let i = 0; i < abLocVignetteCount; i++) abLocVignetteFlags[`vignette_${abLoc}_${i}`] = true;
+  r = mkEngine([rumorApproachAbberline]).resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 4, location: abLoc,
+      flags: { [rumor0.triggerFlag]: true, ...abLocVignetteFlags },
+      rumorEvents: { [rumor0.id]: { act: 0, atMinutes: 0 } } }));
+  const apContent = (r.aiContext as any).npcApproach;
+  if (apContent?.kind === 'rumor' && apContent.statement === spread1.statement &&
+      r.flagsUpdate?.[`rumor_ack_${rumor0.id}_${spread1.npcId}`] === true) {
+    pass('rumor approach delivers the matured statement and acks TALK-based delivery');
+  } else fail('rumor approach statement content', JSON.stringify({ apContent, flags: r.flagsUpdate, expected: spread1.statement }));
+
   // 9. Vignette wins: a location with an unfired vignette shows no approach that turn.
   //    dorset_street has vignettes; a fresh look-around fires vignette idx 0.
   const freshVignetteSnap = buildSnapshot({ currentAct: 1, location: 'dorset_street' });
@@ -1863,6 +1887,39 @@ console.log('\n── NPC approaches ──');
   if ((rv.aiContext as any).vignette ? !(rv.aiContext as any).npcApproach : true) {
     pass('vignette-wins: no approach on a vignette turn');
   } else fail('vignette-wins');
+
+  // 10. Cross-act cooldown (Bug 2 regression guard): canonicalMinutes is a
+  // time-of-day value that resets per act — it is NOT a monotonic clock.
+  // A lastApproachAtMinutes stamp carried over from a DIFFERENT act's clock
+  // space can compute as deeply "in the past" relative to the new act's
+  // canonicalMinutes and wrongly suppress. The engine itself just does the
+  // arithmetic it's given; the fix is that callers (useActBreak's
+  // beginNextAct) must clear lastApproachAtMinutes to undefined on every
+  // committed act transition, the same way elapsedMinutes resets to 0.
+  const hutchAct2Loc = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, SELF_INTRO_NPC, 2,
+    timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 2, 0), {});
+  const mundaneAct2 = { id: 'test_mundane_act2', npcId: SELF_INTRO_NPC, locationId: hutchAct2Loc,
+    acts: [2], kind: 'mundane', text: 'TEST BEAT ACT2' };
+  const act2LocVignetteCount = WHITECHAPEL_MANIFEST.locations[hutchAct2Loc]?.vignettes?.length ?? 0;
+  const act2VignetteFlags: Record<string, boolean> = {};
+  for (let i = 0; i < act2LocVignetteCount; i++) act2VignetteFlags[`vignette_${hutchAct2Loc}_${i}`] = true;
+  // 10a. Documents the mechanism: an un-cleared stale act-1 stamp (945 —
+  // late in act 1's own clock space) reads as deeply "in the past" against
+  // act 2's canonicalMinutes (540) and wrongly suppresses.
+  r = mkEngine([mundaneAct2]).resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 2, location: hutchAct2Loc, elapsedMinutes: 0,
+      flags: act2VignetteFlags, lastApproachAtMinutes: cfg1.canonicalMinutes + 300 }));
+  if (!(r.aiContext as any).npcApproach) {
+    pass('stale cross-act lastApproachAtMinutes would wrongly suppress if not cleared (documents the bug mechanism)');
+  } else fail('cross-act cooldown mechanism', JSON.stringify((r.aiContext as any).npcApproach));
+  // 10b. The actual fix: once beginNextAct clears lastApproachAtMinutes to
+  // undefined on the transition, the same turn fires normally.
+  r = mkEngine([mundaneAct2]).resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 2, location: hutchAct2Loc, elapsedMinutes: 0,
+      flags: act2VignetteFlags, lastApproachAtMinutes: undefined }));
+  if ((r.aiContext as any).npcApproach?.npcId === SELF_INTRO_NPC) {
+    pass('approach fires normally at a new act\'s start once lastApproachAtMinutes is cleared');
+  } else fail('cross-act cooldown fix', JSON.stringify((r.aiContext as any).npcApproach));
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

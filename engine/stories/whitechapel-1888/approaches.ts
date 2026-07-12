@@ -39,7 +39,7 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
     locationId: 'any',
     kind: 'rumor',
     rumorId: 'bond_saw_the_letter',
-    text: 'They cross to Watson, voice dropped low, to pass on what has reached them.',
+    text: 'He crosses to Watson, voice dropped low, to pass on what has reached him.',
   },
 
   // ── Edmund — mundane approaches (recession rule) ──────────────────────────
@@ -62,7 +62,7 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
     locationId: 'bond_office',
     acts: [5],
     kind: 'mundane',
-    text: "He clears a stack of files from the second chair without being asked, and remarks that the office holds the cold badly this time of year — Watson would do better nearer the stove.",
+    text: "He clears a stack of files from the second chair before Watson can ask, and remarks that the office holds the cold badly this time of year — Watson would do better nearer the stove.",
   },
 
   // ── Rumor deliveries ───────────────────────────────────────────────────────
@@ -105,6 +105,12 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
     text: "He turns from his glass to ask, not for the first time, whether Watson thinks a man might have done something different that night — then waves the question off before an answer can be given.",
   },
   {
+    // No `acts` filter: Abberline's schedule also has him at whitechapel_pub
+    // in Act 0, but Act 0 confines Watson to Baker Street (its only exit is
+    // act-1-gated), so that slot is structurally unreachable — this fires
+    // only in Act 2 evening/night/lateNight in practice. Left unfiltered
+    // rather than pinned to acts: [2] so a future Act-0 exit change doesn't
+    // silently leave this approach stale.
     id: 'abberline_pub_evening',
     npcId: 'abberline',
     locationId: 'whitechapel_pub',

@@ -349,6 +349,11 @@ export interface NarrationContext {
     realName?: string;        // only when introducesSelf
     kind: 'mundane' | 'rumor';
     text: string;
+    // Set only for kind: 'rumor' — the actual matured gossip content (from
+    // the rumor's spread entry). Distinct from `text`, which is just the
+    // authored delivery framing ("They cross to Watson, voice dropped
+    // low..."); without `statement` the AI has nothing real to disclose.
+    statement?: string;
   };
   // Controls how much the AI writes:
   //   'full'    — move or look: Act header + location prose + atmosphere + exits/objects/NPCs

@@ -64,9 +64,12 @@ export function selectApproach(
     if (session.npcStates[a.npcId]?.status === 'deceased') continue;
     if (npcLocationAt(story.npcs, a.npcId, session.currentAct, period, session.npcStates) !== locationId) continue;
 
+    let rumorStatement: string | undefined;
     if (a.kind === 'rumor') {
       const matured = maturedSpreadsFor(story.rumors, session.rumorEvents, a.npcId, session.currentAct, now);
-      if (!matured.some(m => m.rumorId === a.rumorId)) continue;
+      const match = matured.find(m => m.rumorId === a.rumorId);
+      if (!match) continue;
+      rumorStatement = match.statement;
     }
 
     // Introduction: an approach counts as a first TALK. Self-introduction
@@ -88,8 +91,16 @@ export function selectApproach(
         realName: introducesSelf ? npc.displayName : undefined,
         kind: a.kind,
         text: a.text,
+        statement: rumorStatement,
       },
-      flagsUpdate: { [`approach_${a.id}`]: true },
+      flagsUpdate: {
+        [`approach_${a.id}`]: true,
+        // De-dup against the ordinary TALK-based rumor delivery (see
+        // engine/narrationContext.ts) — this beat already delivered the
+        // matured statement, so it must not surface a second time on the
+        // next TALK as though newly heard.
+        ...(a.kind === 'rumor' ? { [`rumor_ack_${a.rumorId}_${a.npcId}`]: true } : {}),
+      },
       introductionFlagsUpdate: introducesSelf
         ? { [`npc_introduced_${a.npcId}`]: true }
         : undefined,

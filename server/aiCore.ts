@@ -225,16 +225,22 @@ export function buildNarrationPrompt(ctx: NarrationContext): string {
 
   // NPC approach — a present NPC initiates contact this turn, as its own
   // beat after the main action. Introduction handling mirrors
-  // targetNpcInterview's introducingThisTurn contract.
+  // targetNpcInterview's introducingThisTurn contract. For kind: 'rumor',
+  // `statement` carries the actual matured gossip content — `text` alone is
+  // just the delivery framing and has nothing in it to disclose.
   const approachBlock = ctx.npcApproach ? `
 NPC APPROACH — after the main action is narrated, ${ctx.npcApproach.label} approaches Watson unprompted, as their own short beat (2–3 sentences):
-${ctx.npcApproach.text}
+${ctx.npcApproach.text}${ctx.npcApproach.statement
+  ? `\nWhat they actually pass on (hearsay register, hedged sourcing — "word is…", "they say…" — never as if witnessed firsthand): ${ctx.npcApproach.statement}`
+  : ''}
 ${ctx.npcApproach.introducesSelf
   ? `They give their name in this beat — ${ctx.npcApproach.realName}. Narrate the introduction naturally (a touch of the hat, a name offered); from this beat on you may use the name.`
   : ctx.npcApproach.isIntroduced
     ? ''
     : `Refer to them ONLY as "${ctx.npcApproach.label}". Their real name must NOT appear.`}
-The text above is the complete content of the approach — do not extend what they know, reveal, or claim beyond it. Watson may react briefly; do not open a full dialogue.` : '';
+${ctx.npcApproach.statement
+  ? 'The framing and the passed-on content above are the complete content of the approach — do not extend what they know, reveal, or claim beyond either of them.'
+  : 'The text above is the complete content of the approach — do not extend what they know, reveal, or claim beyond it.'} Watson may react briefly; do not open a full dialogue.` : '';
 
   if (isOpening) {
     // OPENING MODE — game start only: tight hook, no inventory of scene elements
