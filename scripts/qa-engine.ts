@@ -1793,7 +1793,12 @@ console.log('\n── NPC approaches ──');
   // schedule authoring can't silently break this case.
   const edLoc = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, 'edmund', 2,
     timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 2, 0), {});
-  const snapEd = buildSnapshot({ currentAct: 2, location: edLoc });
+  // Pre-consume edLoc's authored vignettes so an unfired vignette doesn't
+  // win over the approach this turn (vignette-wins is case 9's concern, not this one).
+  const edLocVignetteCount = WHITECHAPEL_MANIFEST.locations[edLoc]?.vignettes?.length ?? 0;
+  const edLocVignetteFlags: Record<string, boolean> = {};
+  for (let i = 0; i < edLocVignetteCount; i++) edLocVignetteFlags[`vignette_${edLoc}_${i}`] = true;
+  const snapEd = buildSnapshot({ currentAct: 2, location: edLoc, flags: edLocVignetteFlags });
   r = mkEngine([edmundApproach]).resolve(parseIntent('look'), snapEd);
   const apEd = (r.aiContext as any).npcApproach;
   if (apEd && apEd.introducesSelf === false && !apEd.realName &&
