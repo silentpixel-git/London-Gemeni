@@ -78,7 +78,10 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
     acts: [4, 5, 6],
     kind: 'rumor',
     rumorId: 'the_assistant_wrote_careful_notes',
-    text: 'Lusk waits until the door has swung shut behind them before repeating something passed to him by a constable who frequents the mortuary.',
+    // Sourcing ("constables who frequent the mortuary") lives in the paired
+    // rumor statement (rumors.ts) — kept out of the framing here so the two
+    // don't repeat it back to back when narrated as one beat.
+    text: 'Lusk waits until the door has swung shut behind them before repeating something recently passed to him.',
   },
   {
     // rumorId 'bond_was_broken_by_kelly' (trigger 'talked_to_bond_at_millers_court',

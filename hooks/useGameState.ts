@@ -498,6 +498,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const actionMinutes = result.minutesAdvanced ?? ACTION_TIME_MINUTES[result.actionType] ?? 2;
       const newElapsedMinutes = advancingAct ? 0 : elapsedMinutes + actionMinutes;
       if (!advancingAct) setElapsedMinutes(newElapsedMinutes);
+      // Mirrors newElapsedMinutes's override scheme: result.approachAtMinutes
+      // is architecturally always undefined on an advancing turn, so without
+      // this explicit null the DB's last_approach_at_minutes would never be
+      // cleared on the transition turn and a reload/resync before (or after)
+      // Begin Act N would pull the previous act's stale stamp straight back in.
+      const newLastApproachAtMinutes = advancingAct ? null : result.approachAtMinutes;
       // Clock label for any diary entries captured this turn. Use the held clock
       // (current act + this action's time), not the next act's reset — entries
       // captured this turn belong to the current act even on an advancing turn.
@@ -560,7 +566,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       if (user && activeInvestigation) {
         await GameRepository.applyEngineResult(activeInvestigation.id, result, {
           location, inventory, medicalPoints, moralPoints, currentAct, flags, rumorEvents,
-        }, newElapsedMinutes);
+        }, newElapsedMinutes, newLastApproachAtMinutes);
         if (result.npcUpdates) {
           GameRepository.applyNPCUpdates(activeInvestigation.id, result.npcUpdates);
         }
