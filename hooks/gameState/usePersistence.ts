@@ -37,6 +37,7 @@ export interface PersistenceDeps {
   setMoralPoints: React.Dispatch<React.SetStateAction<number>>;
   setCurrentAct: React.Dispatch<React.SetStateAction<number>>;
   setElapsedMinutes: React.Dispatch<React.SetStateAction<number>>;
+  setLastApproachAtMinutes: React.Dispatch<React.SetStateAction<number | undefined>>;
   setRumorEvents: React.Dispatch<React.SetStateAction<RumorEvents>>;
   setIsGameOver: React.Dispatch<React.SetStateAction<boolean>>;
   setFlags: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
@@ -86,6 +87,7 @@ export function usePersistence(deps: PersistenceDeps) {
     setMoralPoints,
     setCurrentAct,
     setElapsedMinutes,
+    setLastApproachAtMinutes,
     setRumorEvents,
     setIsGameOver,
     setFlags,
@@ -130,6 +132,7 @@ export function usePersistence(deps: PersistenceDeps) {
       ? ((investigation as any).introducedNpcs as string[])
       : INITIAL_INTRODUCED_NPCS;
     const loadedElapsed = (investigation as any).elapsedMinutes ?? 0;
+    const loadedLastApproachAtMinutes = (investigation as any).lastApproachAtMinutes ?? undefined;
 
     setLocation(investigation.currentLocation);
     setInventory(inv);
@@ -141,6 +144,7 @@ export function usePersistence(deps: PersistenceDeps) {
     setJournalNotes(investigation.journalNotes || INITIAL_JOURNAL);
     setIntroducedNpcs(loadedIntroduced);
     setElapsedMinutes(loadedElapsed);
+    setLastApproachAtMinutes(loadedLastApproachAtMinutes);
     setRumorEvents((investigation as Investigation).rumorEvents ?? {});
     setActiveInvestigation(investigation);
 
@@ -275,6 +279,7 @@ export function usePersistence(deps: PersistenceDeps) {
       setMoralPoints(state.moralPoints || 0);
       setCurrentAct(guestAct);
       setElapsedMinutes(0);
+      setLastApproachAtMinutes(undefined);
       setRumorEvents(state.rumorEvents ?? {});
       setFlags(state.flags || {});
       setJournalNotes(state.journalNotes || INITIAL_JOURNAL);
@@ -391,6 +396,7 @@ export function usePersistence(deps: PersistenceDeps) {
         setMoralPoints(data.moral_points);
         setCurrentAct(data.current_act ?? INITIAL_ACT);
         if (data.elapsed_minutes !== undefined) setElapsedMinutes(data.elapsed_minutes ?? 0);
+        if (data.last_approach_at_minutes !== undefined) setLastApproachAtMinutes(data.last_approach_at_minutes ?? undefined);
         if (data.rumor_events !== undefined) setRumorEvents(data.rumor_events ?? {});
         setFlags(data.global_flags || {});
         setJournalNotes(data.journal_notes || INITIAL_JOURNAL);
@@ -479,6 +485,7 @@ export function usePersistence(deps: PersistenceDeps) {
     setNpcStates(INITIAL_NPC_STATES as Record<string, NPCState>);
     setCurrentAct(INITIAL_ACT);
     setElapsedMinutes(0);
+    setLastApproachAtMinutes(undefined);
     setRumorEvents({});
     setStim({});
     setTurnCount(0);

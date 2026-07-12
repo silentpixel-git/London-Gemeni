@@ -151,6 +151,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // In-game clock — minutes elapsed since act's canonical start time
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  // In-game clock value of the last NPC approach — drives the 30-minute
+  // cooldown (see engine/approaches.ts). Undefined = no approach yet this game.
+  const [lastApproachAtMinutes, setLastApproachAtMinutes] = useState<number | undefined>(undefined);
   // Phase 4b — rumor-event log: when each rumor's trigger flag first fired
   const [rumorEvents, setRumorEvents] = useState<RumorEvents>({});
   // How many times Watson has visited each location
@@ -288,6 +291,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setMoralPoints,
     setCurrentAct,
     setElapsedMinutes,
+    setLastApproachAtMinutes,
     setRumorEvents,
     setIsGameOver,
     setFlags,
@@ -389,6 +393,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         locationVisitCounts,
         turnCount,
         rumorEvents,
+        lastApproachAtMinutes,
       };
 
       // STEP 3: Engine resolves — no AI yet
@@ -451,6 +456,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       if (result.gameOver) {
         setIsGameOver(true);
         if (result.endingType) setEndingType(result.endingType);
+      }
+      if (result.approachAtMinutes !== undefined) {
+        setLastApproachAtMinutes(result.approachAtMinutes);
       }
 
       if (result.npcUpdates && !advancingAct) {

@@ -210,6 +210,10 @@ export class GameRepository {
         updates.elapsed_minutes = newElapsedMinutes;
       }
 
+      if (result.approachAtMinutes !== undefined) {
+        updates.last_approach_at_minutes = result.approachAtMinutes;
+      }
+
       if (result.newLocation) {
         updates.current_location = result.newLocation;
       }
@@ -569,6 +573,7 @@ export class GameRepository {
       introducedNpcs: (data.introduced_npcs as string[]) || [],
       saveSlot: (data.save_slot as number | null) ?? undefined,
       elapsedMinutes: (data.elapsed_minutes as number) ?? 0,
+      lastApproachAtMinutes: (data.last_approach_at_minutes as number | null) ?? undefined,
       rumorEvents: (data.rumor_events as RumorEvents) || {},
     } as Investigation & { currentAct: number; inventory: string[]; introducedNpcs: string[] };
   }

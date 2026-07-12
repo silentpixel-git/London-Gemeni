@@ -59,6 +59,7 @@ export interface Investigation {
   stim?: Record<string, STIMEntry>;
   saveSlot?: number;
   elapsedMinutes?: number;
+  lastApproachAtMinutes?: number; // in-game clock value of the last NPC approach (30-min cooldown)
   rumorEvents?: RumorEvents; // Phase 4b — rumor-event log (see RumorEvents)
   createdAt: string;
   updatedAt: string;
