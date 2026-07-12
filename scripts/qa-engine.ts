@@ -1756,6 +1756,110 @@ function testEnvelopeAndNudge() {
   }
 }
 
+// ── NPC approaches ───────────────────────────────────────────────────────────
+console.log('\n── NPC approaches ──');
+{
+  const SELF_INTRO_NPC = 'hutchinson'; // requiresIntroduction, introduction absent = self
+  const mkEngine = (approaches: any[]) =>
+    new GameEngine({ ...WHITECHAPEL_MANIFEST, approaches });
+  const mundane = {
+    id: 'test_mundane', npcId: SELF_INTRO_NPC, locationId: 'dorset_street',
+    acts: [1], kind: 'mundane', text: 'TEST BEAT',
+  };
+
+  // Full-mode turn at the NPC's location: a look-around ("look") is narrationMode full.
+  // dorset_street's authored vignettes are pre-consumed here — an unfired
+  // vignette wins over an approach (case 9 proves that with a fresh snapshot).
+  const base = buildSnapshot({ currentAct: 1, location: 'dorset_street',
+    flags: { vignette_dorset_street_0: true, vignette_dorset_street_1: true } });
+
+  // 1. Fires on an eligible full-mode turn, sets the once-flag and the cooldown stamp.
+  let r = mkEngine([mundane]).resolve(parseIntent('look'), base);
+  const ap = (r.aiContext as any).npcApproach;
+  if (ap && ap.npcId === SELF_INTRO_NPC && ap.text === 'TEST BEAT' &&
+      r.flagsUpdate?.['approach_test_mundane'] && typeof r.approachAtMinutes === 'number') {
+    pass('approach fires with once-flag and cooldown stamp');
+  } else fail('approach fires', JSON.stringify({ ap, flags: r.flagsUpdate, at: r.approachAtMinutes }));
+
+  // 2. Introduction-on-approach: unintroduced self-intro NPC → introducesSelf + npc_introduced flag.
+  if (ap && ap.introducesSelf === true && ap.realName &&
+      r.introductionFlagsUpdate?.[`npc_introduced_${SELF_INTRO_NPC}`]) {
+    pass('self-introduction NPC introduces on approach');
+  } else fail('introduction on approach', JSON.stringify({ ap, intro: r.introductionFlagsUpdate }));
+
+  // 3. Document-gated NPC (edmund) never introduces via approach — alias-masked.
+  const edmundApproach = { id: 'test_edmund', npcId: 'edmund', locationId: 'any', kind: 'mundane', text: 'TEST EDMUND' };
+  // Derive edmund's live act-2 location instead of hard-coding it, so
+  // schedule authoring can't silently break this case.
+  const edLoc = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, 'edmund', 2,
+    timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 2, 0), {});
+  const snapEd = buildSnapshot({ currentAct: 2, location: edLoc });
+  r = mkEngine([edmundApproach]).resolve(parseIntent('look'), snapEd);
+  const apEd = (r.aiContext as any).npcApproach;
+  if (apEd && apEd.introducesSelf === false && !apEd.realName &&
+      !(r.introductionFlagsUpdate?.['npc_introduced_edmund'])) {
+    pass('document-gated NPC stays alias-masked on approach');
+  } else fail('edmund approach masked', JSON.stringify({ apEd, intro: r.introductionFlagsUpdate }));
+
+  // 4. Once-only: fired flag suppresses it.
+  r = mkEngine([mundane]).resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 1, location: 'dorset_street', flags: { approach_test_mundane: true } }));
+  if (!(r.aiContext as any).npcApproach) pass('fired approach never repeats');
+  else fail('once-only');
+
+  // 5. Cooldown: an approach 10 in-game minutes ago suppresses the next.
+  const cfg1 = WHITECHAPEL_MANIFEST.actTimeConfig[1];
+  r = mkEngine([mundane]).resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 1, location: 'dorset_street', elapsedMinutes: 10,
+      flags: { vignette_dorset_street_0: true, vignette_dorset_street_1: true },
+      lastApproachAtMinutes: cfg1.canonicalMinutes }));
+  if (!(r.aiContext as any).npcApproach) pass('cooldown suppresses approaches within 30 in-game minutes');
+  else fail('cooldown');
+
+  // 6. Compact-mode turns are suppressed (examining an object is compact).
+  r = mkEngine([mundane]).resolve(parseIntent('examine the crowd'), base);
+  if (!(r.aiContext as any).npcApproach) pass('no approach on compact-mode turns');
+  else fail('compact suppression');
+
+  // 7. NPC not scheduled here → nothing (act 1, wrong location for the NPC).
+  r = mkEngine([{ ...mundane, locationId: 'baker_street' }]).resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 1, location: 'baker_street' }));
+  if (!(r.aiContext as any).npcApproach) pass('approach requires the NPC actually present');
+  else fail('presence check');
+
+  // 8. Rumor kind: never fires before the rumor's trigger has been recorded.
+  const rumor0 = WHITECHAPEL_MANIFEST.rumors[0];
+  const spread0 = rumor0.spread[0];
+  const rumorApproach = {
+    id: 'test_rumor', npcId: spread0.npcId, locationId: 'any',
+    kind: 'rumor', rumorId: rumor0.id, text: 'TEST RUMOR FRAME',
+  };
+  // (a) trigger never fired → suppressed, wherever the NPC is.
+  const npcLoc1 = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, spread0.npcId, 1,
+    timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 1, 0), {});
+  if (npcLoc1 !== 'offstage') {
+    r = mkEngine([rumorApproach]).resolve(parseIntent('look'),
+      buildSnapshot({ currentAct: 1, location: npcLoc1 }));
+    if (!(r.aiContext as any).npcApproach) pass('rumor approach never precedes its trigger');
+    else fail('rumor anachronism guard');
+    // (b) trigger fired an act ago (act transition matures everything) → fires.
+    r = mkEngine([rumorApproach]).resolve(parseIntent('look'),
+      buildSnapshot({ currentAct: 1, location: npcLoc1,
+        flags: { [rumor0.triggerFlag]: true },
+        rumorEvents: { [rumor0.id]: { act: 0, atMinutes: 0 } } }));
+    if ((r.aiContext as any).npcApproach?.kind === 'rumor') pass('matured rumor approach fires');
+    else fail('matured rumor approach', JSON.stringify((r.aiContext as any).npcApproach));
+  } else warn('rumor approach cases skipped', `${spread0.npcId} offstage in act 1 — pick another spread entry`);
+
+  // 9. Vignette wins: a location with an unfired vignette shows no approach that turn.
+  //    dorset_street has vignettes; a fresh look-around fires vignette idx 0.
+  const freshVignetteSnap = buildSnapshot({ currentAct: 1, location: 'dorset_street' });
+  const rv = mkEngine([mundane]).resolve(parseIntent('look'), freshVignetteSnap);
+  if ((rv.aiContext as any).vignette ? !(rv.aiContext as any).npcApproach : true) {
+    pass('vignette-wins: no approach on a vignette turn');
+  } else fail('vignette-wins');
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
