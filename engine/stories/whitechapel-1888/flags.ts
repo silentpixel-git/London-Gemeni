@@ -11,7 +11,11 @@
  * The runtime flag store (GameSession.flags) stays Record<string, boolean>
  * because the engine also sets dynamic families (`rumor_ack_*`,
  * `vignette_<loc>_<idx>`, `world_event_<id>`, `npc_introduced_<npc>`) that are
- * constructed, not authored.
+ * constructed, not authored. One exception: `world_event_<id>` IS included in
+ * StoryFlag (as WorldEventFlag, below) — the flag is still engine-constructed,
+ * not authored, but authored data may legitimately *read* it (e.g. an
+ * approach's requireFlags gating on a world event having already broadcast),
+ * so it belongs in the vocabulary of flags authored data can reference.
  */
 
 import type { LocationId, ObjectId } from './locations';
@@ -35,6 +39,18 @@ type UsedFlag = `used_${ObjectId}_with_${ObjectId}`;
 type VisitedFlag = `visited_${LocationId}`;
 
 /**
+ * A world event has broadcast (see events.ts / engine/narrationContext.ts,
+ * flag set once as `world_event_<id>`). The flag itself is engine-constructed,
+ * not authored — but authored data (an approach's requireFlags, say) may
+ * legitimately *read* it to gate content on "has this happening already
+ * broadcast", so it belongs in the readable vocabulary. Loosely typed
+ * (event ids aren't preserved as literals in events.ts); qa:validate's
+ * flagUnreachableReason cross-checks the suffix against WORLD_EVENTS at
+ * the data-integrity layer instead.
+ */
+type WorldEventFlag = `world_event_${string}`;
+
+/**
  * One-off story flags that don't follow a template convention.
  * Add here deliberately — anything else is treated as a typo.
  */
@@ -51,6 +67,7 @@ export type StoryFlag =
   | ShowedFlag
   | UsedFlag
   | VisitedFlag
+  | WorldEventFlag
   | LiteralFlag;
 
 // NOTE: locations.ts and npcs.ts author a handful of flags of their own

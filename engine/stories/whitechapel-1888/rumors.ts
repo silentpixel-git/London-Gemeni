@@ -16,6 +16,17 @@ export const RUMORS: RumorDefinition<StoryFlag>[] = [
   // Fixture pair for the engine test suite — real triggers, exact statements preserved.
   // The fixture assertions in qa-engine.ts depend on these IDs and trigger flags;
   // statements may be reworded as long as intent matches.
+  //
+  // NOTE: the 'phillips' spread entry below is a protected engine-test fixture
+  // (scripts/qa-engine.ts Phase 4b, testEnvelopeAndNudge — ~10 assertions on
+  // phillips's envelope/nudge/ack-flag content for this exact rumor) and is
+  // NOT removed here, even though it is narratively dead: the trigger
+  // (showed_from_hell_letter_to_bond) cannot fire before Act 4 — the letter
+  // lives at lusk_office, which is Act-4-gated — and Phillips is never
+  // onstage past Act 3, so he can never actually receive this delivery in
+  // play. The 'abberline' entry below is the genuinely reachable recipient
+  // (onstage Acts 4-6, i.e. every act where the trigger could first become
+  // true and after); approaches.ts's rumor_delivery_seed now targets him.
   {
     id: 'bond_saw_the_letter',
     triggerFlag: 'showed_from_hell_letter_to_bond',
@@ -24,6 +35,11 @@ export const RUMORS: RumorDefinition<StoryFlag>[] = [
         npcId: 'phillips',
         delayPeriods: 1,
         statement: 'Has heard through the mortuary men that Dr. Bond was shown the Lusk letter itself by the doctor from Baker Street — and that Bond went very quiet over one passage of it',
+      },
+      {
+        npcId: 'abberline',
+        delayPeriods: 2,
+        statement: 'Word from the men at the Yard is that Bond was shown the Lusk letter by the doctor from Baker Street — and went quiet over one passage of it',
       },
     ],
   },
