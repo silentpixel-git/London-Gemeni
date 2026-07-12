@@ -33,6 +33,9 @@ export interface SessionSnapshot {
   turnCount: number;
   // Phase 4b — when each rumor's trigger flag first fired (see RumorEvents)
   rumorEvents: RumorEvents;
+  // In-game clock value (act canonical start + elapsed) of the last NPC
+  // approach — drives the 30-minute cooldown. Optional: absent on old saves.
+  lastApproachAtMinutes?: number;
   // Note: sanity has been removed. Watson's prose register is now fixed
   // at the professional-composure baseline defined in the AI system prompt.
 }
