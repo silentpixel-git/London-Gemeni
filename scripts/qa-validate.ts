@@ -35,6 +35,7 @@ import { DECISION_BY_FLAG } from '../engine/stories/whitechapel-1888/diaryDecisi
 import { INITIAL_INVENTORY } from '../constants';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { RUMORS } from '../engine/stories/whitechapel-1888/rumors';
+import { APPROACHES } from '../engine/stories/whitechapel-1888/approaches';
 
 // ── Logging helpers (same conventions as qa-engine.ts) ──────────────────────
 
@@ -152,6 +153,11 @@ function flagUnreachableReason(flag: string): string | null {
   if (flag.startsWith('vignette_')) return null;
   if (/^act_\d+_started$/.test(flag)) return null;
   if (flag.startsWith('holmes_nudged_at_')) return null;
+
+  if (flag.startsWith('world_event_')) {
+    const evId = flag.slice('world_event_'.length);
+    return WORLD_EVENTS.some(e => e.id === evId) ? null : `no world event with id "${evId}"`;
+  }
 
   return 'does not match any flag the engine or story data can set';
 }
@@ -586,6 +592,62 @@ section('Rumors (Phase 4b)');
     }
   }
   if (fails === failsBefore) pass(`${RUMORS.length} rumors: ids unique, triggers settable, recipients resolve, statements spoiler-clean`);
+}
+
+// ── NPC approaches (Phase 5) ─────────────────────────────────────────────────
+
+section('NPC approaches (Phase 5)');
+{
+  const seenIds = new Set<string>();
+  const failsBefore = fails;
+  for (const a of APPROACHES) {
+    const label = `approach ${a.id}`;
+
+    if (seenIds.has(a.id)) fail(`${label}: id is duplicated`);
+    seenIds.add(a.id);
+
+    if (!npcIds.has(a.npcId)) { fail(`${label}: npc "${a.npcId}" does not resolve`); continue; }
+    if (a.locationId !== 'any' && !locationIds.has(a.locationId)) {
+      fail(`${label}: location "${a.locationId}" does not resolve`);
+      continue;
+    }
+
+    if ((a.kind === 'rumor') !== !!a.rumorId) {
+      fail(`${label}: kind is "${a.kind}" but rumorId is ${a.rumorId ? `set to "${a.rumorId}"` : 'unset'}`,
+        'rumorId must be set if and only if kind is "rumor"');
+    }
+    if (a.rumorId && !RUMORS.some(r => r.id === a.rumorId && r.spread.some(s => s.npcId === a.npcId))) {
+      fail(`${label}: rumor "${a.rumorId}" has no spread entry for ${a.npcId}`,
+        'the rumor must exist and list this npcId as a recipient');
+    }
+
+    for (const f of [...(a.requireFlags ?? []), ...(a.forbidFlags ?? [])]) {
+      const reason = flagUnreachableReason(f);
+      if (reason) fail(`${label}: flag "${f}" can never be set`, reason);
+    }
+
+    // The silent break: the NPC must actually be schedulable at the location
+    // in at least one (act, period) combination the approach allows.
+    if (a.locationId !== 'any') {
+      const acts = a.acts ?? Object.keys(NPCS[a.npcId].scheduleByAct).map(Number);
+      const periods = a.timePeriods ?? PERIOD_ORDER;
+      const reachable = acts.some(act => periods.some(p =>
+        npcLocationAt(NPCS, a.npcId, act, p, {}) === a.locationId));
+      if (!reachable) fail(`${label}: ${a.npcId} is never at ${a.locationId} in the allowed acts/periods`);
+    }
+
+    // Spoiler guard over the authored text — same guard as world events.
+    if (/halward/i.test(a.text)) {
+      fail(`${label}: text names Halward`,
+        `"${a.text.slice(0, 80)}…" — approaches fire unconditionally once eligible, this cannot be gated`);
+    }
+  }
+  if (fails === failsBefore) {
+    pass(`${APPROACHES.length} approaches: ids unique, npc/location/rumor references resolve, flags settable, placement reachable, text spoiler-clean`);
+  }
+
+  const edmundCount = APPROACHES.filter(a => a.npcId === 'edmund' && a.kind === 'mundane').length;
+  if (edmundCount < 2) warn('Edmund has fewer than 2 mundane approaches', 'recession rule — the murderer must initiate contact like everyone else');
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────

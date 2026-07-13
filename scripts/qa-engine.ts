@@ -1756,6 +1756,273 @@ function testEnvelopeAndNudge() {
   }
 }
 
+// ── NPC approaches ───────────────────────────────────────────────────────────
+console.log('\n── NPC approaches ──');
+{
+  const SELF_INTRO_NPC = 'hutchinson'; // requiresIntroduction, introduction absent = self
+  const mkEngine = (approaches: any[]) =>
+    new GameEngine({ ...WHITECHAPEL_MANIFEST, approaches });
+  const mundane = {
+    id: 'test_mundane', npcId: SELF_INTRO_NPC, locationId: 'dorset_street',
+    acts: [1], kind: 'mundane', text: 'TEST BEAT',
+  };
+
+  // Full-mode turn at the NPC's location: a look-around ("look") is narrationMode full.
+  // dorset_street's authored vignettes are pre-consumed here — an unfired
+  // vignette wins over an approach (case 9 proves that with a fresh snapshot).
+  const base = buildSnapshot({ currentAct: 1, location: 'dorset_street',
+    flags: { vignette_dorset_street_0: true, vignette_dorset_street_1: true } });
+
+  // 1. Fires on an eligible full-mode turn, sets the once-flag and the cooldown stamp.
+  let r = mkEngine([mundane]).resolve(parseIntent('look'), base);
+  const ap = (r.aiContext as any).npcApproach;
+  if (ap && ap.npcId === SELF_INTRO_NPC && ap.text === 'TEST BEAT' &&
+      r.flagsUpdate?.['approach_test_mundane'] && typeof r.approachAtMinutes === 'number') {
+    pass('approach fires with once-flag and cooldown stamp');
+  } else fail('approach fires', JSON.stringify({ ap, flags: r.flagsUpdate, at: r.approachAtMinutes }));
+
+  // 2. Introduction-on-approach: unintroduced self-intro NPC → introducesSelf + npc_introduced flag.
+  if (ap && ap.introducesSelf === true && ap.realName &&
+      r.introductionFlagsUpdate?.[`npc_introduced_${SELF_INTRO_NPC}`]) {
+    pass('self-introduction NPC introduces on approach');
+  } else fail('introduction on approach', JSON.stringify({ ap, intro: r.introductionFlagsUpdate }));
+
+  // 3. Document-gated NPC (edmund) never introduces via approach — alias-masked.
+  const edmundApproach = { id: 'test_edmund', npcId: 'edmund', locationId: 'any', kind: 'mundane', text: 'TEST EDMUND' };
+  // Derive edmund's live act-2 location instead of hard-coding it, so
+  // schedule authoring can't silently break this case.
+  const edLoc = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, 'edmund', 2,
+    timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 2, 0), {});
+  // Pre-consume edLoc's authored vignettes so an unfired vignette doesn't
+  // win over the approach this turn (vignette-wins is case 9's concern, not this one).
+  const edLocVignetteCount = WHITECHAPEL_MANIFEST.locations[edLoc]?.vignettes?.length ?? 0;
+  const edLocVignetteFlags: Record<string, boolean> = {};
+  for (let i = 0; i < edLocVignetteCount; i++) edLocVignetteFlags[`vignette_${edLoc}_${i}`] = true;
+  const snapEd = buildSnapshot({ currentAct: 2, location: edLoc, flags: edLocVignetteFlags });
+  r = mkEngine([edmundApproach]).resolve(parseIntent('look'), snapEd);
+  const apEd = (r.aiContext as any).npcApproach;
+  if (apEd && apEd.introducesSelf === false && !apEd.realName &&
+      !(r.introductionFlagsUpdate?.['npc_introduced_edmund'])) {
+    pass('document-gated NPC stays alias-masked on approach');
+  } else fail('edmund approach masked', JSON.stringify({ apEd, intro: r.introductionFlagsUpdate }));
+
+  // 4. Once-only: fired flag suppresses it.
+  r = mkEngine([mundane]).resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 1, location: 'dorset_street', flags: { approach_test_mundane: true } }));
+  if (!(r.aiContext as any).npcApproach) pass('fired approach never repeats');
+  else fail('once-only');
+
+  // 5. Cooldown: an approach 10 in-game minutes ago suppresses the next.
+  const cfg1 = WHITECHAPEL_MANIFEST.actTimeConfig[1];
+  r = mkEngine([mundane]).resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 1, location: 'dorset_street', elapsedMinutes: 10,
+      flags: { vignette_dorset_street_0: true, vignette_dorset_street_1: true },
+      lastApproachAtMinutes: cfg1.canonicalMinutes }));
+  if (!(r.aiContext as any).npcApproach) pass('cooldown suppresses approaches within 30 in-game minutes');
+  else fail('cooldown');
+
+  // 6. Compact-mode, non-TALK turns are suppressed (examining an object is compact and not a talk).
+  r = mkEngine([mundane]).resolve(parseIntent('examine the crowd'), base);
+  if (!(r.aiContext as any).npcApproach) pass('no approach on compact-mode turns');
+  else fail('compact suppression');
+
+  // 7. NPC not scheduled here → nothing (act 1, wrong location for the NPC).
+  r = mkEngine([{ ...mundane, locationId: 'baker_street' }]).resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 1, location: 'baker_street' }));
+  if (!(r.aiContext as any).npcApproach) pass('approach requires the NPC actually present');
+  else fail('presence check');
+
+  // 8. Rumor kind: never fires before the rumor's trigger has been recorded.
+  const rumor0 = WHITECHAPEL_MANIFEST.rumors[0];
+  const spread0 = rumor0.spread[0];
+  const rumorApproach = {
+    id: 'test_rumor', npcId: spread0.npcId, locationId: 'any',
+    kind: 'rumor', rumorId: rumor0.id, text: 'TEST RUMOR FRAME',
+  };
+  // (a) trigger never fired → suppressed, wherever the NPC is.
+  const npcLoc1 = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, spread0.npcId, 1,
+    timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 1, 0), {});
+  if (npcLoc1 !== 'offstage') {
+    r = mkEngine([rumorApproach]).resolve(parseIntent('look'),
+      buildSnapshot({ currentAct: 1, location: npcLoc1 }));
+    if (!(r.aiContext as any).npcApproach) pass('rumor approach never precedes its trigger');
+    else fail('rumor anachronism guard');
+    // (b) trigger fired an act ago (act transition matures everything) → fires.
+    r = mkEngine([rumorApproach]).resolve(parseIntent('look'),
+      buildSnapshot({ currentAct: 1, location: npcLoc1,
+        flags: { [rumor0.triggerFlag]: true },
+        rumorEvents: { [rumor0.id]: { act: 0, atMinutes: 0 } } }));
+    if ((r.aiContext as any).npcApproach?.kind === 'rumor') pass('matured rumor approach fires');
+    else fail('matured rumor approach', JSON.stringify((r.aiContext as any).npcApproach));
+  } else warn('rumor approach cases skipped', `${spread0.npcId} offstage in act 1 — pick another spread entry`);
+
+  // 8c. Rumor kind delivers the actual matured statement (Bug 1 regression guard):
+  // the framing (`text`) alone has nothing to disclose — `statement` must carry
+  // spread1's authored content, and the TALK-based delivery must be acked so the
+  // same hearsay doesn't surface a second time as though newly heard.
+  const spread1 = rumor0.spread[1]; // 'abberline' — onstage acts 4-6, unlike spread0
+  const rumorApproachAbberline = {
+    id: 'test_rumor_content', npcId: spread1.npcId, locationId: 'any',
+    kind: 'rumor', rumorId: rumor0.id, text: 'TEST RUMOR FRAME 2',
+  };
+  const abLoc = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, spread1.npcId, 4,
+    timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 4, 0), {});
+  const abLocVignetteCount = WHITECHAPEL_MANIFEST.locations[abLoc]?.vignettes?.length ?? 0;
+  const abLocVignetteFlags: Record<string, boolean> = {};
+  for (let i = 0; i < abLocVignetteCount; i++) abLocVignetteFlags[`vignette_${abLoc}_${i}`] = true;
+  r = mkEngine([rumorApproachAbberline]).resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 4, location: abLoc,
+      flags: { [rumor0.triggerFlag]: true, ...abLocVignetteFlags },
+      rumorEvents: { [rumor0.id]: { act: 0, atMinutes: 0 } } }));
+  const apContent = (r.aiContext as any).npcApproach;
+  if (apContent?.kind === 'rumor' && apContent.statement === spread1.statement &&
+      r.flagsUpdate?.[`rumor_ack_${rumor0.id}_${spread1.npcId}`] === true) {
+    pass('rumor approach delivers the matured statement and acks TALK-based delivery');
+  } else fail('rumor approach statement content', JSON.stringify({ apContent, flags: r.flagsUpdate, expected: spread1.statement }));
+
+  // 9. Vignette wins: a location with an unfired vignette shows no approach that turn.
+  //    dorset_street has vignettes; a fresh look-around fires vignette idx 0.
+  const freshVignetteSnap = buildSnapshot({ currentAct: 1, location: 'dorset_street' });
+  const rv = mkEngine([mundane]).resolve(parseIntent('look'), freshVignetteSnap);
+  if ((rv.aiContext as any).vignette ? !(rv.aiContext as any).npcApproach : true) {
+    pass('vignette-wins: no approach on a vignette turn');
+  } else fail('vignette-wins');
+
+  // 10. Cross-act cooldown (Bug 2 regression guard): canonicalMinutes is a
+  // time-of-day value that resets per act — it is NOT a monotonic clock.
+  // A lastApproachAtMinutes stamp carried over from a DIFFERENT act's clock
+  // space can compute as deeply "in the past" relative to the new act's
+  // canonicalMinutes and wrongly suppress. The engine itself just does the
+  // arithmetic it's given; the fix is that callers (useActBreak's
+  // beginNextAct) must clear lastApproachAtMinutes to undefined on every
+  // committed act transition, the same way elapsedMinutes resets to 0.
+  const hutchAct2Loc = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, SELF_INTRO_NPC, 2,
+    timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 2, 0), {});
+  const mundaneAct2 = { id: 'test_mundane_act2', npcId: SELF_INTRO_NPC, locationId: hutchAct2Loc,
+    acts: [2], kind: 'mundane', text: 'TEST BEAT ACT2' };
+  const act2LocVignetteCount = WHITECHAPEL_MANIFEST.locations[hutchAct2Loc]?.vignettes?.length ?? 0;
+  const act2VignetteFlags: Record<string, boolean> = {};
+  for (let i = 0; i < act2LocVignetteCount; i++) act2VignetteFlags[`vignette_${hutchAct2Loc}_${i}`] = true;
+  // 10a. Documents the mechanism: an un-cleared stale act-1 stamp (945 —
+  // late in act 1's own clock space) reads as deeply "in the past" against
+  // act 2's canonicalMinutes (540) and wrongly suppresses.
+  r = mkEngine([mundaneAct2]).resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 2, location: hutchAct2Loc, elapsedMinutes: 0,
+      flags: act2VignetteFlags, lastApproachAtMinutes: cfg1.canonicalMinutes + 300 }));
+  if (!(r.aiContext as any).npcApproach) {
+    pass('stale cross-act lastApproachAtMinutes would wrongly suppress if not cleared (documents the bug mechanism)');
+  } else fail('cross-act cooldown mechanism', JSON.stringify((r.aiContext as any).npcApproach));
+  // 10b. The actual fix: once beginNextAct clears lastApproachAtMinutes to
+  // undefined on the transition, the same turn fires normally.
+  r = mkEngine([mundaneAct2]).resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 2, location: hutchAct2Loc, elapsedMinutes: 0,
+      flags: act2VignetteFlags, lastApproachAtMinutes: undefined }));
+  if ((r.aiContext as any).npcApproach?.npcId === SELF_INTRO_NPC) {
+    pass('approach fires normally at a new act\'s start once lastApproachAtMinutes is cleared');
+  } else fail('cross-act cooldown fix', JSON.stringify((r.aiContext as any).npcApproach));
+
+  // 11. TALK-turn widening: a successful TALK to a DIFFERENT NPC (abberline)
+  // still lets a distinct, also-present NPC (hutchinson) approach this same
+  // turn, even though TALK is compact-mode narration.
+  r = mkEngine([mundane]).resolve(parseIntent('talk to abberline'), base);
+  const apTalk = (r.aiContext as any).npcApproach;
+  if (r.aiContext.narrationMode === 'compact' && apTalk?.npcId === SELF_INTRO_NPC) {
+    pass('approach fires on a successful TALK turn for a different present NPC');
+  } else fail('talk-turn approach widening', JSON.stringify({ mode: r.aiContext.narrationMode, apTalk }));
+
+  // 12. Interviewee exclusion: the only eligible approach in scope targets the
+  // NPC Watson is currently talking to (hutchinson) — it must NOT fire for
+  // them, even though every other eligibility condition (location, act,
+  // presence) is satisfied. Proves the exclusion, not a coincidental miss.
+  r = mkEngine([mundane]).resolve(parseIntent(`talk to ${SELF_INTRO_NPC}`), base);
+  const apSelf = (r.aiContext as any).npcApproach;
+  if (!apSelf) {
+    pass('approach does not fire for the NPC Watson is currently talking to');
+  } else fail('interviewee exclusion', JSON.stringify(apSelf));
+
+  // 13/14. Double-hearsay guard: a rumor-kind approach must not land in the
+  // same beat as the interviewee's OWN matured hearsay (targetNpcInterview
+  // .recentlyHeard) — two independent secondhand-gossip deliveries in one
+  // compact-mode reply reads as narration overload. Reuses rumor0's real
+  // fixture pair (phillips + abberline), who share whitechapel_pub during
+  // act 2's evening period per their authored schedules.
+  const cfg2 = WHITECHAPEL_MANIFEST.actTimeConfig[2];
+  const dhElapsed = 500; // 540 (act2 canonical) + 500 = 1040 → 'evening'
+  const dhPeriod = timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 2, dhElapsed);
+  const abberlineLoc2 = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, 'abberline', 2, dhPeriod, {});
+  const phillipsLoc2 = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, 'phillips', 2, dhPeriod, {});
+  if (abberlineLoc2 !== 'offstage' && abberlineLoc2 === phillipsLoc2) {
+    const dhRumorApproach = {
+      id: 'test_dh_rumor', npcId: 'phillips', locationId: 'any', kind: 'rumor',
+      rumorId: rumor0.id, text: 'TEST DH RUMOR FRAME',
+    };
+    const dhSnap = buildSnapshot({ currentAct: 2, location: abberlineLoc2, elapsedMinutes: dhElapsed,
+      flags: { [rumor0.triggerFlag]: true },
+      rumorEvents: { [rumor0.id]: { act: 0, atMinutes: 0 } } });
+    r = mkEngine([dhRumorApproach]).resolve(parseIntent('talk to abberline'), dhSnap);
+    const dhRecentlyHeard = (r.aiContext as any).targetNpcInterview?.recentlyHeard;
+    const dhApRumor = (r.aiContext as any).npcApproach;
+    if (dhRecentlyHeard?.length > 0 && !dhApRumor) {
+      pass('rumor-kind approach suppressed when the interviewee independently delivers matured hearsay this turn');
+    } else fail('double-hearsay guard', JSON.stringify({ dhRecentlyHeard, dhApRumor }));
+
+    // 14. Companion assertion: a MUNDANE approach for the SAME npc, in the
+    // exact same double-hearsay scenario, is unaffected — the guard is
+    // scoped to rumor-kind approaches only.
+    const dhMundaneApproach = {
+      id: 'test_dh_mundane', npcId: 'phillips', locationId: 'any', acts: [2],
+      kind: 'mundane', text: 'TEST DH MUNDANE',
+    };
+    r = mkEngine([dhMundaneApproach]).resolve(parseIntent('talk to abberline'), dhSnap);
+    const dhApMundane = (r.aiContext as any).npcApproach;
+    if (dhApMundane?.npcId === 'phillips' && dhApMundane?.kind === 'mundane') {
+      pass('mundane approach still fires alongside interviewee hearsay — guard scoped to rumor-kind only');
+    } else fail('mundane unaffected by double-hearsay guard', JSON.stringify(dhApMundane));
+  } else {
+    warn('double-hearsay guard cases skipped',
+      `abberline/phillips do not share a location in act 2's ${dhPeriod} — schedule changed, pick new fixtures`);
+  }
+
+  // 15. Holmes authored approach (production data, not a synthetic fixture):
+  // 'holmes_watson_revolver' (acts: [0], locationId: 'any') should fire on a
+  // fresh Act 0 look-around at Baker Street — Holmes is a follows_watson NPC
+  // stored at baker_street from game start (see INITIAL_NPC_STATES).
+  // Pre-consume baker_street's 2 authored vignettes so an unfired vignette
+  // doesn't win over the approach this turn (case 9's concern, not this one).
+  const holmesApproachSnap = buildSnapshot({
+    currentAct: 0, location: 'baker_street',
+    flags: { vignette_baker_street_0: true, vignette_baker_street_1: true },
+  });
+  r = gameEngine.resolve(parseIntent('look'), holmesApproachSnap);
+  const apHolmes = (r.aiContext as any).npcApproach;
+  if (apHolmes?.npcId === 'holmes' && apHolmes.text?.includes('revolver') &&
+      r.flagsUpdate?.['approach_holmes_watson_revolver']) {
+    pass('authored Holmes approach (holmes_watson_revolver) fires on a fresh Act 0 look-around');
+  } else fail('Holmes approach fires', JSON.stringify({ apHolmes, flags: r.flagsUpdate }));
+
+  // 16. Holmes authored approach in the acts-2/3 forbidFlags band:
+  // 'holmes_watson_fatigue' (acts: [2], forbidFlags:
+  // ['talked_to_tumblety_at_h_division_station']) should fire at a location
+  // other than h_division_station in Act 2 when that flag is unset — the
+  // exact scenario the forbidFlags guard is meant to leave open (only the
+  // scriptedLine's own location+flag combination is meant to be excluded).
+  const holmesAct2Snap = buildSnapshot({
+    currentAct: 2, location: 'whitechapel_mortuary',
+    npcStates: { ...INITIAL_NPC_STATES,
+      holmes: { npcId: 'holmes', currentLocation: 'whitechapel_mortuary', status: 'alive', disposition: 50, memory: [] } },
+    // Pre-consume the vignette and Edmund's own competing approach (also
+    // eligible here, and earlier in authored order) so Holmes's entry gets
+    // its turn.
+    flags: { vignette_whitechapel_mortuary_0: true, approach_edmund_mortuary_tea: true },
+  });
+  r = gameEngine.resolve(parseIntent('look'), holmesAct2Snap);
+  const apHolmesAct2 = (r.aiContext as any).npcApproach;
+  if (apHolmesAct2?.npcId === 'holmes' && apHolmesAct2.text?.includes('slept badly') &&
+      r.flagsUpdate?.['approach_holmes_watson_fatigue']) {
+    pass('authored Holmes approach (holmes_watson_fatigue) fires in Act 2 away from h_division_station');
+  } else fail('Holmes Act 2 approach fires', JSON.stringify({ apHolmesAct2, flags: r.flagsUpdate }));
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {

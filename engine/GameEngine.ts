@@ -24,6 +24,7 @@ import { resolveTalk, resolveShow } from './resolvers/npc';
 import { resolveTake, resolveUse, resolveDrop, resolveInventory } from './resolvers/items';
 import { resolveDeduce, resolveNotebook } from './resolvers/deduce';
 import { resolveWait, resolveHelp, resolveQuery, resolveUnresolvedTarget, resolveOther } from './resolvers/meta';
+import { selectApproach } from './approaches';
 
 // Re-export for existing consumers (useGameState, parseFallback, qa scripts).
 export { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor };
@@ -133,6 +134,21 @@ export class GameEngine {
     if (ctxWithIntro._rumorAckFlagsUpdate) {
       result.flagsUpdate = { ...result.flagsUpdate, ...ctxWithIntro._rumorAckFlagsUpdate };
       delete ctxWithIntro._rumorAckFlagsUpdate;
+    }
+
+    // NPC approach (see engine/approaches.ts) — after all outcome handling,
+    // so suppression rules can see the whole turn.
+    const approach = selectApproach(this.story, session, result);
+    if (approach) {
+      result.aiContext.npcApproach = approach.npcApproach;
+      result.flagsUpdate = { ...result.flagsUpdate, ...approach.flagsUpdate };
+      if (approach.introductionFlagsUpdate) {
+        result.introductionFlagsUpdate = {
+          ...result.introductionFlagsUpdate,
+          ...approach.introductionFlagsUpdate,
+        };
+      }
+      result.approachAtMinutes = approach.atMinutes;
     }
 
     // Rumor trigger recording (Phase 4b): the first turn a rumor's trigger

@@ -210,6 +210,38 @@ const fixtures: Array<{ label: string; rubric: string; ctx: NarrationContext }> 
       timePeriod: 'afternoon',
     }),
   },
+  {
+    label: 'spoiler-approach-edmund-masked',
+    rubric: '2b_spoiler_containment',
+    ctx: makeCtx({
+      narrationMode: 'full',
+      act: 2,
+      actName: 'The First Victims',
+      locationName: 'Whitechapel Mortuary',
+      locationAtmosphere: 'Clinical and cold, carbolic and candle wax.',
+      locationDescription: "Dr. Bond's mortuary, rows of covered tables and a ledger desk.",
+      npcsPresent: [
+        { label: 'Dr. Thomas Bond', npcId: 'bond', isIntroduced: true },
+        { label: "Bond's assistant", npcId: 'edmund', isIntroduced: false },
+      ],
+      availableObjects: ['Autopsy Ledger', 'Specimen Jars'],
+      availableExits: ['Whitechapel Pub'],
+      actionDescription: 'Watson surveys the mortuary.',
+      actionResultNote: 'Watson takes stock of the room and its occupants.',
+      timeLabel: '11:30 AM — Saturday, 10 November 1888',
+      timePeriod: 'morning',
+      npcApproach: {
+        npcId: 'edmund',
+        label: "Bond's assistant",
+        isIntroduced: false,
+        introducesSelf: false,
+        kind: 'mundane',
+        text: 'He crosses to the desk with a folded cloth and asks, without looking up, whether Watson requires the ledger brought closer to the light.',
+      },
+    }),
+    // EVALUATE (spoiler): the approach beat must refer to him ONLY as "Bond's
+    // assistant" — his real name (Edmund Halward) must not appear anywhere.
+  },
 
   // 2c — Writing quality
   {
@@ -315,6 +347,37 @@ const fixtures: Array<{ label: string; rubric: string; ctx: NarrationContext }> 
     }),
     // EVALUATE (STATE_MISMATCH check): the prose must convey that Watson took/
     // clipped the Dear Boss letter — the acquisition cannot be silent.
+  },
+  {
+    label: 'approach-hutchinson-self-introduces',
+    rubric: '2c_writing_quality',
+    ctx: makeCtx({
+      narrationMode: 'full',
+      act: 1,
+      actName: 'The Last Murder',
+      locationName: 'Dorset Street',
+      locationAtmosphere: 'Damp cobbles, curious onlookers held back by a police cordon.',
+      locationDescription: "The narrow street outside Miller's Court, thick with rumour and rain-slick stone.",
+      npcsPresent: [{ label: 'a lingering labourer', npcId: 'hutchinson', isIntroduced: false }],
+      availableObjects: ['Crowd Gossip'],
+      availableExits: ["Miller's Court"],
+      actionDescription: 'Watson surveys Dorset Street.',
+      actionResultNote: 'Watson takes in the scene outside the court.',
+      timeLabel: '9:15 AM — Saturday, 10 November 1888',
+      timePeriod: 'morning',
+      npcApproach: {
+        npcId: 'hutchinson',
+        label: 'a lingering labourer',
+        isIntroduced: false,
+        introducesSelf: true,
+        realName: 'George Hutchinson',
+        kind: 'mundane',
+        text: 'A man detaches himself from the crowd to remark that he has stood this corner half the night, and that the rain has only now thought to stop.',
+      },
+    }),
+    // EVALUATE: the approach must land as its own beat AFTER the main
+    // arrival narration, and the name reveal ("George Hutchinson") must read
+    // as a natural in-scene introduction, not an info-dump.
   },
 ];
 

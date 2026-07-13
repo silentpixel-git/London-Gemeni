@@ -151,6 +151,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // In-game clock — minutes elapsed since act's canonical start time
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  // In-game clock value of the last NPC approach — drives the 30-minute
+  // cooldown (see engine/approaches.ts). Undefined = no approach yet this game.
+  const [lastApproachAtMinutes, setLastApproachAtMinutes] = useState<number | undefined>(undefined);
   // Phase 4b — rumor-event log: when each rumor's trigger flag first fired
   const [rumorEvents, setRumorEvents] = useState<RumorEvents>({});
   // How many times Watson has visited each location
@@ -288,6 +291,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setMoralPoints,
     setCurrentAct,
     setElapsedMinutes,
+    setLastApproachAtMinutes,
     setRumorEvents,
     setIsGameOver,
     setFlags,
@@ -321,6 +325,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setLocation,
     setLocationVisitCounts,
     setElapsedMinutes,
+    setLastApproachAtMinutes,
     setNpcStates,
     setInventory,
     setIsLoading,
@@ -389,6 +394,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         locationVisitCounts,
         turnCount,
         rumorEvents,
+        lastApproachAtMinutes,
       };
 
       // STEP 3: Engine resolves — no AI yet
@@ -452,6 +458,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setIsGameOver(true);
         if (result.endingType) setEndingType(result.endingType);
       }
+      // No advancingAct gate needed — selectApproach() suppresses on any
+      // newAct/gameOver turn, so approachAtMinutes is always undefined here
+      // whenever advancingAct would be true.
+      if (result.approachAtMinutes !== undefined) {
+        setLastApproachAtMinutes(result.approachAtMinutes);
+      }
 
       if (result.npcUpdates && !advancingAct) {
         setNpcStates(prev => {
@@ -486,6 +498,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       const actionMinutes = result.minutesAdvanced ?? ACTION_TIME_MINUTES[result.actionType] ?? 2;
       const newElapsedMinutes = advancingAct ? 0 : elapsedMinutes + actionMinutes;
       if (!advancingAct) setElapsedMinutes(newElapsedMinutes);
+      // Mirrors newElapsedMinutes's override scheme: result.approachAtMinutes
+      // is architecturally always undefined on an advancing turn, so without
+      // this explicit null the DB's last_approach_at_minutes would never be
+      // cleared on the transition turn and a reload/resync before (or after)
+      // Begin Act N would pull the previous act's stale stamp straight back in.
+      const newLastApproachAtMinutes = advancingAct ? null : result.approachAtMinutes;
       // Clock label for any diary entries captured this turn. Use the held clock
       // (current act + this action's time), not the next act's reset — entries
       // captured this turn belong to the current act even on an advancing turn.
@@ -548,7 +566,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       if (user && activeInvestigation) {
         await GameRepository.applyEngineResult(activeInvestigation.id, result, {
           location, inventory, medicalPoints, moralPoints, currentAct, flags, rumorEvents,
-        }, newElapsedMinutes);
+        }, newElapsedMinutes, newLastApproachAtMinutes);
         if (result.npcUpdates) {
           GameRepository.applyNPCUpdates(activeInvestigation.id, result.npcUpdates);
         }
@@ -813,7 +831,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsAutoScrollLocked(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, handleSaveGame, captureDiaryEntries, captureLocationArrival]);
+  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, lastApproachAtMinutes, handleSaveGame, captureDiaryEntries, captureLocationArrival]);
 
   // ── Holmes hint ───────────────────────────────────────────────────────────
 

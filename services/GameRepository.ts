@@ -199,7 +199,14 @@ export class GameRepository {
       flags: Record<string, boolean>;
       rumorEvents: RumorEvents;
     },
-    newElapsedMinutes?: number
+    newElapsedMinutes?: number,
+    // Explicit override, same shape/reasoning as newElapsedMinutes: on an
+    // act-advancing turn, result.approachAtMinutes is architecturally always
+    // undefined (selectApproach suppresses on any newAct turn), so without
+    // this override the DB column would simply never be touched on the
+    // transition turn and the previous act's stale value would sit there
+    // until some later write happened to include it. Pass `null` to clear.
+    newLastApproachAtMinutes?: number | null
   ): Promise<void> {
     try {
       const updates: Record<string, unknown> = {
@@ -208,6 +215,12 @@ export class GameRepository {
 
       if (newElapsedMinutes !== undefined) {
         updates.elapsed_minutes = newElapsedMinutes;
+      }
+
+      if (newLastApproachAtMinutes !== undefined) {
+        updates.last_approach_at_minutes = newLastApproachAtMinutes;
+      } else if (result.approachAtMinutes !== undefined) {
+        updates.last_approach_at_minutes = result.approachAtMinutes;
       }
 
       if (result.newLocation) {
@@ -569,6 +582,7 @@ export class GameRepository {
       introducedNpcs: (data.introduced_npcs as string[]) || [],
       saveSlot: (data.save_slot as number | null) ?? undefined,
       elapsedMinutes: (data.elapsed_minutes as number) ?? 0,
+      lastApproachAtMinutes: (data.last_approach_at_minutes as number | null) ?? undefined,
       rumorEvents: (data.rumor_events as RumorEvents) || {},
     } as Investigation & { currentAct: number; inventory: string[]; introducedNpcs: string[] };
   }

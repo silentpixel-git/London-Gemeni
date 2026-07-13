@@ -59,6 +59,7 @@ export interface Investigation {
   stim?: Record<string, STIMEntry>;
   saveSlot?: number;
   elapsedMinutes?: number;
+  lastApproachAtMinutes?: number; // in-game clock value of the last NPC approach (30-min cooldown)
   rumorEvents?: RumorEvents; // Phase 4b — rumor-event log (see RumorEvents)
   createdAt: string;
   updatedAt: string;
@@ -210,6 +211,9 @@ export interface EngineResult {
   // set by WAIT (time to the next period boundary). The hook prefers this
   // over its ACTION_TIME_MINUTES table.
   minutesAdvanced?: number;
+  // Set when an approach fired this turn: the in-game clock value used for
+  // the cooldown. The hook stores it into session.lastApproachAtMinutes.
+  approachAtMinutes?: number;
   newAct?: number;
   gameOver?: boolean;
   // Which ending fired (set by the engine whenever gameOver is true):
@@ -333,6 +337,24 @@ export interface NarrationContext {
     label: string;       // Alias or displayName depending on introduction state
     instruction: string; // What the AI should naturally work into the narration
   }>;
+  // NPC approach — a present NPC initiates contact this turn. `text` is the
+  // authored content spine. When introducesSelf, the AI must narrate the
+  // name reveal (label → realName), mirroring targetNpcInterview's
+  // introducingThisTurn contract.
+  npcApproach?: {
+    npcId: string;
+    label: string;            // alias until introduced, then displayName
+    isIntroduced: boolean;
+    introducesSelf: boolean;
+    realName?: string;        // only when introducesSelf
+    kind: 'mundane' | 'rumor';
+    text: string;
+    // Set only for kind: 'rumor' — the actual matured gossip content (from
+    // the rumor's spread entry). Distinct from `text`, which is just the
+    // authored delivery framing ("They cross to Watson, voice dropped
+    // low..."); without `statement` the AI has nothing real to disclose.
+    statement?: string;
+  };
   // Controls how much the AI writes:
   //   'full'    — move or look: Act header + location prose + atmosphere + exits/objects/NPCs
   //   'compact' — examine/talk/take/etc: short observation + NPC response, no header or location listing

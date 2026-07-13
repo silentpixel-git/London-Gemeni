@@ -31,6 +31,7 @@ import { isRequiredFlag, clueGateFlag, leadContextFor, detectSilentLeadFlags } f
 import { FACTS } from './facts';
 import { WORLD_EVENTS } from './events';
 import { RUMORS } from './rumors';
+import { APPROACHES } from './approaches';
 
 // Holmes case-state demeanor — derived, no new state. Colors how he carries
 // himself this act; injected only when he is present and not interviewed.
@@ -103,6 +104,8 @@ export const WHITECHAPEL_MANIFEST: StoryManifest = {
   worldEvents: WORLD_EVENTS,
 
   rumors: RUMORS,
+
+  approaches: APPROACHES,
 
   // The smoking-gun clue (the 'prasarved' misspelling in Edmund's forensic note)
   smokingGunClueId: 'clue_06_prasarved_spelling',

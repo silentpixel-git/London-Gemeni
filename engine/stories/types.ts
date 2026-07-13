@@ -144,6 +144,29 @@ export interface RumorDefinition<F extends string = string> {
   }>;
 }
 
+// ── NPC approaches ───────────────────────────────────────────────────────────
+// The world initiates contact: authored one-shot beats where a present NPC
+// steps up to Watson unprompted — mundane texture, or a matured rumor
+// delivered. Fired once via flag `approach_<id>`; at most one per turn,
+// first-eligible in file order; the engine suppresses them on dramatic
+// turns (see engine/approaches.ts). An approach counts as a first TALK for
+// introduction purposes: self-introduction NPCs reveal their name in-beat,
+// document-gated NPCs stay alias-masked.
+export interface ApproachDefinition<F extends string = string> {
+  id: string;                      // unique, snake_case
+  npcId: string;
+  locationId: string | 'any';      // 'any' = wherever the NPC's schedule has them
+  acts?: number[];                 // omit = any act the NPC is onstage
+  timePeriods?: TimePeriod[];      // omit = any period
+  requireFlags?: F[];
+  forbidFlags?: F[];
+  kind: 'mundane' | 'rumor';
+  // The authored beat — the canonical content spine. For 'rumor', the
+  // delivery framing around the matured statement.
+  text: string;
+  rumorId?: string;                // required iff kind === 'rumor'
+}
+
 export interface SuspectProfile<F extends string = string> {
   npcId: string;
   aliases: string[];           // lowercase name variants the player might type
@@ -319,6 +342,9 @@ export interface StoryManifest {
 
   // Rumor propagation (Phase 4b)
   rumors: RumorDefinition[];
+
+  // NPC approaches
+  approaches: ApproachDefinition[];
 
   // Story constants previously inlined in GameEngine. smokingGunClueId is
   // consumed by GameEngine today; convergenceFlag and playerNpcId are unused
