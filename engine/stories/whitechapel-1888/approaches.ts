@@ -65,6 +65,75 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
     text: "He clears a stack of files from the second chair before Watson can ask, and remarks that the office holds the cold badly this time of year — Watson would do better nearer the stove.",
   },
 
+  // ── Holmes — mundane approaches ───────────────────────────────────────────
+  // A third register, distinct from his other two systems: scriptedLines are
+  // act/flag-gated capstones (major theory beats); idleBehaviors are flat,
+  // rotating atmosphere with zero narrative weight. These sit between the
+  // two — a one-shot moment where Holmes specifically initiates something
+  // WITH Watson (notices him, cracks composure, dryly corrects himself) —
+  // never case-theory content, never a foreshadow of a still-gated reveal.
+  // locationId 'any': he's a follows_watson NPC, present wherever Watson is,
+  // so there's no single location to anchor these to (npcLocationAt resolves
+  // his live position from the follower's stored location — see presence.ts).
+  //
+  // His scriptedLines fire at h_division_station/act2 (triggerFlag
+  // talked_to_tumblety_at_h_division_station), goulston_street/act3
+  // (triggerFlag examined_goulston_street), lusk_office/act4, and
+  // bond_office+baker_street/act5. Two entries below (acts 0, 1, 6) sidestep
+  // collision entirely by using acts where Holmes has no scriptedLines at
+  // all. The other two (acts 2, 3) use `forbidFlags` on the exact
+  // triggerFlag instead of avoiding the whole act — the only real collision
+  // risk is this approach firing at literally h_division_station/goulston_street
+  // once that specific flag is true (scriptedLines fire on every turn at
+  // that location once their flag is set, not just once), so forbidFlags
+  // closes that window precisely rather than forfeiting acts 2-3 entirely.
+  {
+    id: 'holmes_watson_revolver',
+    npcId: 'holmes',
+    locationId: 'any',
+    acts: [0],
+    kind: 'mundane',
+    text: 'Holmes glances up from his own preparations to observe, with the faint approval he rarely troubles to voice, that Watson has remembered the revolver, and not merely the intention of bringing it.',
+  },
+  {
+    id: 'holmes_quiet_composure',
+    npcId: 'holmes',
+    locationId: 'any',
+    acts: [1],
+    kind: 'mundane',
+    text: 'Holmes has gone quiet for some minutes together — no aside, no reasoning worked aloud — and when Watson catches his eye he says only that he does not care to describe what he is thinking, and returns to his notebook.',
+  },
+  {
+    id: 'holmes_watson_fatigue',
+    npcId: 'holmes',
+    locationId: 'any',
+    acts: [2],
+    // Dodges only his h_division_station scriptedLine, not the whole act —
+    // see the section note above.
+    forbidFlags: ['talked_to_tumblety_at_h_division_station'],
+    kind: 'mundane',
+    text: 'Holmes studies Watson a moment longer than the conversation requires, then observes, unprompted, that Watson has slept badly for three nights running and eaten less than that — he offers no remedy, only the observation, and lets the subject drop.',
+  },
+  {
+    id: 'holmes_discarded_theories',
+    npcId: 'holmes',
+    locationId: 'any',
+    acts: [3],
+    // Dodges only his goulston_street scriptedLine, not the whole act — see
+    // the section note above.
+    forbidFlags: ['examined_goulston_street'],
+    kind: 'mundane',
+    text: "Holmes remarks, watching the crowd rather than Watson, that he has discarded nine theories this week before breakfast could interrupt him — and does not seem to consider that a poor morning's work.",
+  },
+  {
+    id: 'holmes_patience_admission',
+    npcId: 'holmes',
+    locationId: 'any',
+    acts: [6],
+    kind: 'mundane',
+    text: 'Holmes remarks, without any apparent wish to be excused for it, that he was slower about this business than he cares to admit — the facts wanted more patience than his temperament generally allows. He does not dwell on it further.',
+  },
+
   // ── Rumor deliveries ───────────────────────────────────────────────────────
   // Framing only — the matured statement itself is injected by the engine.
 

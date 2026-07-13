@@ -1982,6 +1982,45 @@ console.log('\n── NPC approaches ──');
     warn('double-hearsay guard cases skipped',
       `abberline/phillips do not share a location in act 2's ${dhPeriod} — schedule changed, pick new fixtures`);
   }
+
+  // 15. Holmes authored approach (production data, not a synthetic fixture):
+  // 'holmes_watson_revolver' (acts: [0], locationId: 'any') should fire on a
+  // fresh Act 0 look-around at Baker Street — Holmes is a follows_watson NPC
+  // stored at baker_street from game start (see INITIAL_NPC_STATES).
+  // Pre-consume baker_street's 2 authored vignettes so an unfired vignette
+  // doesn't win over the approach this turn (case 9's concern, not this one).
+  const holmesApproachSnap = buildSnapshot({
+    currentAct: 0, location: 'baker_street',
+    flags: { vignette_baker_street_0: true, vignette_baker_street_1: true },
+  });
+  r = gameEngine.resolve(parseIntent('look'), holmesApproachSnap);
+  const apHolmes = (r.aiContext as any).npcApproach;
+  if (apHolmes?.npcId === 'holmes' && apHolmes.text?.includes('revolver') &&
+      r.flagsUpdate?.['approach_holmes_watson_revolver']) {
+    pass('authored Holmes approach (holmes_watson_revolver) fires on a fresh Act 0 look-around');
+  } else fail('Holmes approach fires', JSON.stringify({ apHolmes, flags: r.flagsUpdate }));
+
+  // 16. Holmes authored approach in the acts-2/3 forbidFlags band:
+  // 'holmes_watson_fatigue' (acts: [2], forbidFlags:
+  // ['talked_to_tumblety_at_h_division_station']) should fire at a location
+  // other than h_division_station in Act 2 when that flag is unset — the
+  // exact scenario the forbidFlags guard is meant to leave open (only the
+  // scriptedLine's own location+flag combination is meant to be excluded).
+  const holmesAct2Snap = buildSnapshot({
+    currentAct: 2, location: 'whitechapel_mortuary',
+    npcStates: { ...INITIAL_NPC_STATES,
+      holmes: { npcId: 'holmes', currentLocation: 'whitechapel_mortuary', status: 'alive', disposition: 50, memory: [] } },
+    // Pre-consume the vignette and Edmund's own competing approach (also
+    // eligible here, and earlier in authored order) so Holmes's entry gets
+    // its turn.
+    flags: { vignette_whitechapel_mortuary_0: true, approach_edmund_mortuary_tea: true },
+  });
+  r = gameEngine.resolve(parseIntent('look'), holmesAct2Snap);
+  const apHolmesAct2 = (r.aiContext as any).npcApproach;
+  if (apHolmesAct2?.npcId === 'holmes' && apHolmesAct2.text?.includes('slept badly') &&
+      r.flagsUpdate?.['approach_holmes_watson_fatigue']) {
+    pass('authored Holmes approach (holmes_watson_fatigue) fires in Act 2 away from h_division_station');
+  } else fail('Holmes Act 2 approach fires', JSON.stringify({ apHolmesAct2, flags: r.flagsUpdate }));
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
