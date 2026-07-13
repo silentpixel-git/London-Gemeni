@@ -1821,7 +1821,7 @@ console.log('\n── NPC approaches ──');
   if (!(r.aiContext as any).npcApproach) pass('cooldown suppresses approaches within 30 in-game minutes');
   else fail('cooldown');
 
-  // 6. Compact-mode turns are suppressed (examining an object is compact).
+  // 6. Compact-mode, non-TALK turns are suppressed (examining an object is compact and not a talk).
   r = mkEngine([mundane]).resolve(parseIntent('examine the crowd'), base);
   if (!(r.aiContext as any).npcApproach) pass('no approach on compact-mode turns');
   else fail('compact suppression');
@@ -1920,6 +1920,68 @@ console.log('\n── NPC approaches ──');
   if ((r.aiContext as any).npcApproach?.npcId === SELF_INTRO_NPC) {
     pass('approach fires normally at a new act\'s start once lastApproachAtMinutes is cleared');
   } else fail('cross-act cooldown fix', JSON.stringify((r.aiContext as any).npcApproach));
+
+  // 11. TALK-turn widening: a successful TALK to a DIFFERENT NPC (abberline)
+  // still lets a distinct, also-present NPC (hutchinson) approach this same
+  // turn, even though TALK is compact-mode narration.
+  r = mkEngine([mundane]).resolve(parseIntent('talk to abberline'), base);
+  const apTalk = (r.aiContext as any).npcApproach;
+  if (r.aiContext.narrationMode === 'compact' && apTalk?.npcId === SELF_INTRO_NPC) {
+    pass('approach fires on a successful TALK turn for a different present NPC');
+  } else fail('talk-turn approach widening', JSON.stringify({ mode: r.aiContext.narrationMode, apTalk }));
+
+  // 12. Interviewee exclusion: the only eligible approach in scope targets the
+  // NPC Watson is currently talking to (hutchinson) — it must NOT fire for
+  // them, even though every other eligibility condition (location, act,
+  // presence) is satisfied. Proves the exclusion, not a coincidental miss.
+  r = mkEngine([mundane]).resolve(parseIntent(`talk to ${SELF_INTRO_NPC}`), base);
+  const apSelf = (r.aiContext as any).npcApproach;
+  if (!apSelf) {
+    pass('approach does not fire for the NPC Watson is currently talking to');
+  } else fail('interviewee exclusion', JSON.stringify(apSelf));
+
+  // 13/14. Double-hearsay guard: a rumor-kind approach must not land in the
+  // same beat as the interviewee's OWN matured hearsay (targetNpcInterview
+  // .recentlyHeard) — two independent secondhand-gossip deliveries in one
+  // compact-mode reply reads as narration overload. Reuses rumor0's real
+  // fixture pair (phillips + abberline), who share whitechapel_pub during
+  // act 2's evening period per their authored schedules.
+  const cfg2 = WHITECHAPEL_MANIFEST.actTimeConfig[2];
+  const dhElapsed = 500; // 540 (act2 canonical) + 500 = 1040 → 'evening'
+  const dhPeriod = timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 2, dhElapsed);
+  const abberlineLoc2 = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, 'abberline', 2, dhPeriod, {});
+  const phillipsLoc2 = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, 'phillips', 2, dhPeriod, {});
+  if (abberlineLoc2 !== 'offstage' && abberlineLoc2 === phillipsLoc2) {
+    const dhRumorApproach = {
+      id: 'test_dh_rumor', npcId: 'phillips', locationId: 'any', kind: 'rumor',
+      rumorId: rumor0.id, text: 'TEST DH RUMOR FRAME',
+    };
+    const dhSnap = buildSnapshot({ currentAct: 2, location: abberlineLoc2, elapsedMinutes: dhElapsed,
+      flags: { [rumor0.triggerFlag]: true },
+      rumorEvents: { [rumor0.id]: { act: 0, atMinutes: 0 } } });
+    r = mkEngine([dhRumorApproach]).resolve(parseIntent('talk to abberline'), dhSnap);
+    const dhRecentlyHeard = (r.aiContext as any).targetNpcInterview?.recentlyHeard;
+    const dhApRumor = (r.aiContext as any).npcApproach;
+    if (dhRecentlyHeard?.length > 0 && !dhApRumor) {
+      pass('rumor-kind approach suppressed when the interviewee independently delivers matured hearsay this turn');
+    } else fail('double-hearsay guard', JSON.stringify({ dhRecentlyHeard, dhApRumor }));
+
+    // 14. Companion assertion: a MUNDANE approach for the SAME npc, in the
+    // exact same double-hearsay scenario, is unaffected — the guard is
+    // scoped to rumor-kind approaches only.
+    const dhMundaneApproach = {
+      id: 'test_dh_mundane', npcId: 'phillips', locationId: 'any', acts: [2],
+      kind: 'mundane', text: 'TEST DH MUNDANE',
+    };
+    r = mkEngine([dhMundaneApproach]).resolve(parseIntent('talk to abberline'), dhSnap);
+    const dhApMundane = (r.aiContext as any).npcApproach;
+    if (dhApMundane?.npcId === 'phillips' && dhApMundane?.kind === 'mundane') {
+      pass('mundane approach still fires alongside interviewee hearsay — guard scoped to rumor-kind only');
+    } else fail('mundane unaffected by double-hearsay guard', JSON.stringify(dhApMundane));
+  } else {
+    warn('double-hearsay guard cases skipped',
+      `abberline/phillips do not share a location in act 2's ${dhPeriod} — schedule changed, pick new fixtures`);
+  }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
