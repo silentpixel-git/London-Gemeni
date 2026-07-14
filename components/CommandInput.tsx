@@ -95,7 +95,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
         className="relative pointer-events-auto max-w-3xl mx-auto"
       >
         {isStreaming && (
-          <div className="absolute bottom-full left-4 mb-2 flex items-center gap-2 text-lb-accent animate-in fade-in zoom-in-95 duration-300 z-20">
+          <div className="absolute bottom-full left-4 mb-2 flex items-center gap-2 text-lb-accent animate-in fade-in zoom-in-95 duration-200 z-20">
             {isConsultingHolmes ? (
               <>
                 <Feather size={14} className="animate-bounce" />

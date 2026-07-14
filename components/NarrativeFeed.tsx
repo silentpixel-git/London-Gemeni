@@ -8,7 +8,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { Feather, MapPin } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { StoryRenderer } from './StoryRenderer';
 import { TypewriterBlock } from './TypewriterBlock';
 import { GameOverScreen } from './GameOverScreen';
@@ -67,6 +67,7 @@ export function NarrativeFeed({
   isActBreakReady,
   onBeginAct,
 }: NarrativeFeedProps) {
+  const reducedMotion = useReducedMotion();
   // Anchor the act-closing diary to the TOP of the viewport when it appears, so
   // the player reads it from line one (rather than the feed jumping to the bottom
   // and clipping the top of a multi-paragraph entry). Fires once on append —
@@ -110,9 +111,9 @@ export function NarrativeFeed({
               <motion.div
                 key={index}
                 ref={isLatestUser ? lastUserMessageRef : null}
-                initial={isLatestUser ? { y: 300, opacity: 0 } : { opacity: 1 }}
+                initial={isLatestUser ? { y: 12, opacity: 0 } : { opacity: 1 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ type: 'spring', stiffness: 120, damping: 20, mass: 0.8 }}
+                transition={reducedMotion ? { duration: 0 } : { duration: 0.25, ease: 'easeOut' }}
                 className="my-8 scroll-mt-[120px]"
               >
                 <div className="pl-6 border-l-[3px] border-lb-accent">
