@@ -59,9 +59,17 @@ const TwoPageDropdown: React.FC<{ page1: React.ReactNode; page2: React.ReactNode
 
   useLayoutEffect(() => {
     const target = showPage2 ? page2Ref.current : page1Ref.current;
-    if (target && viewportRef.current) {
-      viewportRef.current.style.height = `${target.offsetHeight}px`;
-    }
+    const viewport = viewportRef.current;
+    if (!target || !viewport) return;
+    const syncHeight = () => {
+      viewport.style.height = `${target.offsetHeight}px`;
+    };
+    syncHeight();
+    // The active page can grow after mount (e.g. the New Game inline
+    // confirmation) — keep the viewport height in sync or it clips.
+    const observer = new ResizeObserver(syncHeight);
+    observer.observe(target);
+    return () => observer.disconnect();
   }, [showPage2]);
 
   return (
@@ -99,14 +107,31 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isConfirmingNewGame, setIsConfirmingNewGame] = useState(false);
-  // Settings sub-page within the profile dropdown (slide-over, iOS-style).
   const [settingsView, setSettingsView] = useState(false);
-  // Guest menu mirrors the signed-in dropdown: a Sign In button in place of
-  // the account info, plus the same Settings sub-page.
   const [isGuestMenuOpen, setIsGuestMenuOpen] = useState(false);
   const [guestSettingsView, setGuestSettingsView] = useState(false);
+  const [profileMenuPositionAbove, setProfileMenuPositionAbove] = useState(false);
+  const [guestMenuPositionAbove, setGuestMenuPositionAbove] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const guestMenuRef = useRef<HTMLDivElement>(null);
 
   const displayName = userProfile?.displayName || user?.user_metadata?.full_name || user?.email;
+
+  // Check available space and reposition menu above if needed
+  useLayoutEffect(() => {
+    if (!isProfileMenuOpen || !profileMenuRef.current) return;
+    const rect = profileMenuRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    // If less than 100px of space below, position above instead
+    setProfileMenuPositionAbove(spaceBelow < 100);
+  }, [isProfileMenuOpen, isConfirmingNewGame, settingsView]);
+
+  useLayoutEffect(() => {
+    if (!isGuestMenuOpen || !guestMenuRef.current) return;
+    const rect = guestMenuRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    setGuestMenuPositionAbove(spaceBelow < 100);
+  }, [isGuestMenuOpen, guestSettingsView]);
 
   const closeProfileMenu = () => {
     setIsProfileMenuOpen(false);
@@ -236,7 +261,12 @@ export const Header: React.FC<HeaderProps> = ({
               {isGuestMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={closeGuestMenu} />
-                  <div className="absolute right-0 top-full mt-2 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 overflow-hidden">
+                  <div
+                    ref={guestMenuRef}
+                    className={`absolute right-0 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 max-h-[80vh] overflow-y-auto ${
+                      guestMenuPositionAbove ? 'bottom-full mb-2' : 'top-full mt-2'
+                    }`}
+                  >
                     <TwoPageDropdown
                       showPage2={guestSettingsView}
                       page1={
@@ -319,7 +349,12 @@ export const Header: React.FC<HeaderProps> = ({
               {isProfileMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={closeProfileMenu} />
-                  <div className="absolute right-0 top-full mt-2 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 overflow-hidden">
+                  <div
+                    ref={profileMenuRef}
+                    className={`absolute right-0 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 max-h-[80vh] overflow-y-auto ${
+                      profileMenuPositionAbove ? 'bottom-full mb-2' : 'top-full mt-2'
+                    }`}
+                  >
                     <TwoPageDropdown
                       showPage2={settingsView}
                       page1={
