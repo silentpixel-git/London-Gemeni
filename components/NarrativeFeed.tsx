@@ -37,7 +37,7 @@ interface NarrativeFeedProps {
 function SceneHeader({ actHeading, location }: { actHeading?: string; location?: string }) {
   if (!actHeading && !location) return null;
   return (
-    <div className="mb-6 space-y-4">
+    <div className="mb-4 space-y-8">
       {actHeading && (
         <h4 className="pt-8 text-sm font-bold tracking-[0.2em] uppercase text-lb-primary opacity-80 font-sans">
           {actHeading}
