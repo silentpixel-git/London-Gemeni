@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion, useReducedMotion } from 'motion/react';
+import { EASE_OUT, DUR_DRAMATIC } from './motionTokens';
 import { ACT_ROMAN } from '../constants';
 import { ACT_NAMES } from '../engine/gameData';
 
@@ -20,14 +21,14 @@ export const ActBreakCurtain: React.FC<ActBreakCurtainProps> = ({ fromAct, toAct
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -40 }}
-      transition={{ duration: 0.6 }}
+      transition={{ duration: DUR_DRAMATIC, ease: EASE_OUT }}
       className="fixed inset-0 z-[60] flex flex-col items-center justify-center text-center px-6"
       style={{ backgroundColor: 'rgb(var(--lb-bg))' }}
     >
       <motion.div
         initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.7 }}
+        transition={{ delay: 0.3, duration: DUR_DRAMATIC, ease: EASE_OUT }}
         className="flex flex-col items-center gap-2"
       >
         <span className="font-sans text-xs md:text-sm tracking-[0.3em] uppercase text-lb-muted">{endLabel}</span>

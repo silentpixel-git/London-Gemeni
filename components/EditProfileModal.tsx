@@ -99,13 +99,18 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(41, 51, 81, 0.75)' }}
     >
-      {/* Backdrop */}
-      <div className="absolute inset-0 backdrop-blur-sm" onClick={handleBackdrop} />
+      {/* Backdrop — carries the tint and the fade itself; animating an
+          ancestor of a backdrop-filter element causes a flash when the
+          animation's compositing group collapses. */}
+      <div
+        className="absolute inset-0 backdrop-blur-sm animate-in fade-in duration-200"
+        style={{ backgroundColor: 'rgba(41, 51, 81, 0.75)' }}
+        onClick={handleBackdrop}
+      />
 
       {/* Modal card */}
-      <div className="relative w-full max-w-sm bg-lb-paper border border-lb-border rounded-xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-sm bg-lb-paper border border-lb-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 ease-out">
 
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-lb-border">

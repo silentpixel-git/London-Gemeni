@@ -69,7 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <div className={`
-      fixed lg:relative z-50 h-full border-r border-lb-border transition-all duration-300 ease-in-out flex flex-col bg-lb-bg flex-shrink-0 overflow-hidden w-80
+      fixed lg:relative z-50 h-full border-r border-lb-border transition-[width,transform,opacity] duration-300 ease-out-expo flex flex-col bg-lb-bg flex-shrink-0 overflow-hidden w-80
       ${isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full lg:w-0 lg:translate-x-0 lg:opacity-0'}
     `}>
       {/* Mobile close button */}
@@ -79,7 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
 
-      <div className={`flex-1 overflow-y-auto p-8 w-80 ${isSidebarOpen ? 'opacity-100 transition-opacity duration-500 delay-100' : 'opacity-0'}`}>
+      <div className={`flex-1 overflow-y-auto p-8 w-80 ${isSidebarOpen ? 'opacity-100 transition-opacity duration-300 delay-75' : 'opacity-0'}`}>
 
         {/* Current location */}
         <div className="mb-8">

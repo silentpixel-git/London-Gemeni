@@ -9,7 +9,7 @@
  *   - "Sign In" pill button when unauthenticated
  */
 
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import type { UserProfile } from '../services/GameRepository';
 import {
@@ -73,8 +73,8 @@ const TwoPageDropdown: React.FC<{ page1: React.ReactNode; page2: React.ReactNode
   }, [showPage2]);
 
   return (
-    <div ref={viewportRef} className="overflow-hidden transition-[height] duration-300 ease-in-out">
-      <div className={`flex w-[200%] items-start transition-transform duration-300 ease-in-out ${showPage2 ? '-translate-x-1/2' : ''}`}>
+    <div ref={viewportRef} className="overflow-hidden transition-[height] duration-300 ease-out">
+      <div className={`flex w-[200%] items-start transition-transform duration-300 ease-out ${showPage2 ? '-translate-x-1/2' : ''}`}>
         <div ref={page1Ref} className="w-1/2">{page1}</div>
         <div ref={page2Ref} className="w-1/2">{page2}</div>
       </div>
@@ -114,6 +114,9 @@ export const Header: React.FC<HeaderProps> = ({
   const [guestMenuPositionAbove, setGuestMenuPositionAbove] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const guestMenuRef = useRef<HTMLDivElement>(null);
+  // Wrappers around trigger + menu, for outside-press detection.
+  const profileWrapRef = useRef<HTMLDivElement>(null);
+  const guestWrapRef = useRef<HTMLDivElement>(null);
 
   const displayName = userProfile?.displayName || user?.user_metadata?.full_name || user?.email;
 
@@ -143,6 +146,21 @@ export const Header: React.FC<HeaderProps> = ({
     setIsGuestMenuOpen(false);
     setGuestSettingsView(false);
   };
+
+  // Close the menus on any pointer press outside trigger + menu. (A fixed
+  // inset-0 click-catcher doesn't work here: the header's backdrop-filter
+  // makes it the containing block for fixed descendants, clipping the
+  // catcher to the header strip.)
+  useEffect(() => {
+    if (!isGuestMenuOpen && !isProfileMenuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (isGuestMenuOpen && !guestWrapRef.current?.contains(target)) closeGuestMenu();
+      if (isProfileMenuOpen && !profileWrapRef.current?.contains(target)) closeProfileMenu();
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [isGuestMenuOpen, isProfileMenuOpen]);
 
   // Shared between the guest and signed-in layouts below — a plain JSX
   // value (not a nested component) so it doesn't remount on every render.
@@ -242,7 +260,7 @@ export const Header: React.FC<HeaderProps> = ({
         {!user && (
           <div className="flex items-center gap-3">
             {diaryButton}
-            <div className="relative">
+            <div className="relative" ref={guestWrapRef}>
               <button
                 onClick={() => { setIsGuestMenuOpen(o => !o); setGuestSettingsView(false); }}
                 className="flex items-center gap-2 text-lb-primary group"
@@ -260,11 +278,10 @@ export const Header: React.FC<HeaderProps> = ({
 
               {isGuestMenuOpen && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={closeGuestMenu} />
                   <div
                     ref={guestMenuRef}
-                    className={`absolute right-0 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 max-h-[80vh] overflow-y-auto ${
-                      guestMenuPositionAbove ? 'bottom-full mb-2' : 'top-full mt-2'
+                    className={`absolute right-0 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 max-h-[80vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 ease-out ${
+                      guestMenuPositionAbove ? 'bottom-full mb-2 origin-bottom-right' : 'top-full mt-2 origin-top-right'
                     }`}
                   >
                     <TwoPageDropdown
@@ -323,7 +340,7 @@ export const Header: React.FC<HeaderProps> = ({
         {user && (
           <div className="flex items-center gap-3">
             {diaryButton}
-            <div className="relative">
+            <div className="relative" ref={profileWrapRef}>
               <button
                 onClick={() => { setIsProfileMenuOpen(o => !o); setIsConfirmingNewGame(false); setSettingsView(false); }}
                 className="flex items-center gap-2 text-lb-primary group"
@@ -348,11 +365,10 @@ export const Header: React.FC<HeaderProps> = ({
 
               {isProfileMenuOpen && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={closeProfileMenu} />
                   <div
                     ref={profileMenuRef}
-                    className={`absolute right-0 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 max-h-[80vh] overflow-y-auto ${
-                      profileMenuPositionAbove ? 'bottom-full mb-2' : 'top-full mt-2'
+                    className={`absolute right-0 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 max-h-[80vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 ease-out ${
+                      profileMenuPositionAbove ? 'bottom-full mb-2 origin-bottom-right' : 'top-full mt-2 origin-top-right'
                     }`}
                   >
                     <TwoPageDropdown
