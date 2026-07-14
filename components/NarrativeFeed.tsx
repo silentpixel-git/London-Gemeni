@@ -7,7 +7,7 @@
  */
 
 import React, { useRef, useEffect } from 'react';
-import { Feather } from 'lucide-react';
+import { Feather, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { StoryRenderer } from './StoryRenderer';
 import { TypewriterBlock } from './TypewriterBlock';
@@ -26,6 +26,33 @@ interface NarrativeFeedProps {
   pendingActTransition: PendingActTransition | null;
   isActBreakReady: boolean;
   onBeginAct: () => void;
+}
+
+/**
+ * Deterministic scene chrome above the narrated prose: the act heading (scene
+ * entries only) and the pin + location-name header (any full-mode turn). Data
+ * comes from engine-verified fields on the history item — the AI has no hand
+ * in it. Renders immediately; the prose typewrites below.
+ */
+function SceneHeader({ actHeading, location }: { actHeading?: string; location?: string }) {
+  if (!actHeading && !location) return null;
+  return (
+    <div className="mb-6 space-y-4">
+      {actHeading && (
+        <h4 className="pt-8 text-sm font-bold tracking-[0.2em] uppercase text-lb-primary opacity-80 font-sans">
+          {actHeading}
+        </h4>
+      )}
+      {location && (
+        <div className="flex items-center gap-2.5">
+          <MapPin size={18} className="text-lb-accent shrink-0" />
+          <span className="font-sans font-bold text-lb-primary text-[16px] md:text-[18px] lg:text-[20px]">
+            {location}
+          </span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function NarrativeFeed({
@@ -133,7 +160,7 @@ export function NarrativeFeed({
           }
 
           // Latest AI message — typewriter animation while streaming
-          if (isLast && isAI && !isJournal && msg.text !== '') {
+          if (isLast && isAI && !isJournal && (msg.text !== '' || msg.actHeading || msg.location)) {
             return (
               <motion.div
                 key={index}
@@ -141,13 +168,14 @@ export function NarrativeFeed({
                 animate={{ opacity: 1 }}
                 className="mb-8"
               >
+                <SceneHeader actHeading={msg.actHeading} location={msg.location} />
                 <TypewriterBlock text={msg.text} />
               </motion.div>
             );
           }
 
           // Previous AI messages — static render
-          if (isAI && !isJournal && msg.text !== '') {
+          if (isAI && !isJournal && (msg.text !== '' || msg.actHeading || msg.location)) {
             return (
               <motion.div
                 key={index}
@@ -155,6 +183,7 @@ export function NarrativeFeed({
                 animate={{ opacity: 1 }}
                 className="mb-8"
               >
+                <SceneHeader actHeading={msg.actHeading} location={msg.location} />
                 <StoryRenderer text={msg.text} />
               </motion.div>
             );
