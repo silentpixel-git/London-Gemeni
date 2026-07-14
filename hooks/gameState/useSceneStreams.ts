@@ -91,7 +91,7 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
     captureLocationArrival(INITIAL_LOCATION, INITIAL_ACT, formatGameClock(INITIAL_ACT, 0));
     setIsLoading(true);
     const actHeading = formatActHeading(INITIAL_ACT);
-    let locationLabel: string | undefined;
+    let locationLabel: string | undefined = INITIAL_LOCATION;
     setHistory([{ role: 'assistant', text: '', actHeading }]);
 
     try {
@@ -116,18 +116,22 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
       const result = gameEngine.resolve(intent, snapshot);
       commitVignetteFlags(result.flagsUpdate, {}, activeInvestigation?.id);
       locationLabel = result.aiContext.locationName;
+      setHistory(prev => {
+        const next = [...prev];
+        next[next.length - 1] = { ...next[next.length - 1], location: locationLabel };
+        return next;
+      });
 
       const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 - three months after the Jack the Ripper murders had begun, and the day before it concluded.\n\n";
       let lastText = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening', blockquoteHint: 'none' })) {
         if (update.narrative) {
           lastText = update.narrative;
-          setHistory([{
-            role: 'assistant',
-            text: injectAfterHeading(stripLeadingActHeading(lastText), OPENING_FIXED_LINE),
-            actHeading,
-            location: locationLabel,
-          }]);
+          setHistory(prev => {
+            const next = [...prev];
+            next[next.length - 1] = { ...next[next.length - 1], text: injectAfterHeading(stripLeadingActHeading(lastText), OPENING_FIXED_LINE) };
+            return next;
+          });
         }
       }
       if (!lastText) setHistory([{ role: 'assistant', text: OPENING_FIXED_LINE + OPENING_FALLBACK_NARRATIVE, actHeading, location: locationLabel }]);
