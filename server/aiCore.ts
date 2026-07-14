@@ -320,7 +320,7 @@ ${structure}`;
   // COMPACT MODE — examine, talk, take, use, inventory, deduce, blocked action
   const compactWordLimit = ctx.blockquoteHint !== 'none' ? 130 : 100;
   let compactPrompt = `=== NARRATION MODE: COMPACT ===
-Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line. NO act header. NO location description. NO exits listing.
+Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line. Do NOT include any Markdown heading. NO act header. NO location description. NO exits listing.
 ${temporalSection}
 === VERIFIED CONTEXT ===
 Location: ${ctx.locationName} (Act ${ctx.act}: ${ctx.actName})
