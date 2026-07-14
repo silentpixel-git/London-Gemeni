@@ -2,10 +2,10 @@ import React, { useRef, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
 import { GameRepository } from '../../services/GameRepository';
 import { aiService } from '../../services/AIService';
-import { injectAfterHeading } from '../../services/narrationFormat';
+import { injectAfterHeading, stripLeadingActHeading, formatActHeading } from '../../services/narrationFormat';
 import { gameEngine, SessionSnapshot } from '../../engine/GameEngine';
 import { parseIntent } from '../../engine/intentParser';
-import { ACT_NAMES, ACT_BRIDGES, ITEM_SPENT_AFTER_ACT, formatGameClock } from '../../engine/gameData';
+import { ACT_BRIDGES, ITEM_SPENT_AFTER_ACT, formatGameClock } from '../../engine/gameData';
 import {
   INITIAL_LOCATION,
   INITIAL_ACT,
@@ -90,7 +90,9 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
     // Seed the diary with the opening locale so it is never empty on a fresh start.
     captureLocationArrival(INITIAL_LOCATION, INITIAL_ACT, formatGameClock(INITIAL_ACT, 0));
     setIsLoading(true);
-    setHistory([{ role: 'assistant', text: '' }]);
+    const actHeading = formatActHeading(INITIAL_ACT);
+    let locationLabel: string | undefined = INITIAL_LOCATION;
+    setHistory([{ role: 'assistant', text: '', actHeading }]);
 
     try {
       const intent = parseIntent('look');
@@ -113,19 +115,29 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
       };
       const result = gameEngine.resolve(intent, snapshot);
       commitVignetteFlags(result.flagsUpdate, {}, activeInvestigation?.id);
+      locationLabel = result.aiContext.locationName;
+      setHistory(prev => {
+        const next = [...prev];
+        next[next.length - 1] = { ...next[next.length - 1], location: locationLabel };
+        return next;
+      });
 
       const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 - three months after the Jack the Ripper murders had begun, and the day before it concluded.\n\n";
       let lastText = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening', blockquoteHint: 'none' })) {
         if (update.narrative) {
           lastText = update.narrative;
-          setHistory([{ role: 'assistant', text: injectAfterHeading(lastText, OPENING_FIXED_LINE) }]);
+          setHistory(prev => {
+            const next = [...prev];
+            next[next.length - 1] = { ...next[next.length - 1], text: injectAfterHeading(stripLeadingActHeading(lastText), OPENING_FIXED_LINE) };
+            return next;
+          });
         }
       }
-      if (!lastText) setHistory([{ role: 'assistant', text: OPENING_FIXED_LINE + OPENING_FALLBACK_NARRATIVE }]);
+      if (!lastText) setHistory([{ role: 'assistant', text: OPENING_FIXED_LINE + OPENING_FALLBACK_NARRATIVE, actHeading, location: locationLabel }]);
     } catch (error) {
       console.error('Opening scene generation failed:', error);
-      setHistory([{ role: 'assistant', text: OPENING_FALLBACK_NARRATIVE }]);
+      setHistory([{ role: 'assistant', text: OPENING_FALLBACK_NARRATIVE, actHeading, location: locationLabel }]);
     } finally {
       setIsLoading(false);
     }
@@ -149,7 +161,8 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
     elapsedMinutes: number;
     investigationId?: string;
   }) => {
-    setHistory([{ role: 'assistant', text: '' }]);
+    const actHeading = formatActHeading(resume.act);
+    setHistory([{ role: 'assistant', text: '', actHeading }]);
     setIsAutoScrollLocked(false);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
     try {
@@ -173,24 +186,27 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
       };
       const result = gameEngine.resolve(intent, snapshot);
       commitVignetteFlags(result.flagsUpdate, resume.flags, resume.investigationId);
+      const locationLabel = result.aiContext.locationName;
+      setHistory(prev => {
+        const next = [...prev];
+        next[next.length - 1] = { ...next[next.length - 1], location: locationLabel };
+        return next;
+      });
       let last = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'full', blockquoteHint: 'world_event' })) {
         if (update.narrative) {
           last = update.narrative;
           setHistory(prev => {
             const next = [...prev];
-            next[next.length - 1] = { ...next[next.length - 1], text: last };
+            next[next.length - 1] = { ...next[next.length - 1], text: stripLeadingActHeading(last) };
             return next;
           });
         }
       }
     } catch (e) {
       console.error('Resume scene failed', e);
-      setHistory(prev => {
-        const next = [...prev];
-        next[next.length - 1] = { ...next[next.length - 1], text: `### ${ACT_NAMES[resume.act] ?? `Act ${resume.act}`}` };
-        return next;
-      });
+      // The actHeading/location chrome is already on the history item — the
+      // player still sees where they are; no text fallback needed.
     }
   }, [commitVignetteFlags]);
 
@@ -218,7 +234,8 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
     });
     // Fresh feed for the new act — clear the prior act's transcript and pin to
     // the top so it reads as a clean start (masthead + the act's opening scene).
-    setHistory([{ role: 'assistant', text: '' }]);
+    const actHeading = formatActHeading(toAct);
+    setHistory([{ role: 'assistant', text: '', actHeading }]);
     setIsAutoScrollLocked(false);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
     try {
@@ -242,6 +259,12 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
       };
       const result = gameEngine.resolve(intent, snapshot);
       commitVignetteFlags(result.flagsUpdate, flags, activeInvestigation?.id);
+      const locationLabel = result.aiContext.locationName;
+      setHistory(prev => {
+        const next = [...prev];
+        next[next.length - 1] = { ...next[next.length - 1], location: locationLabel };
+        return next;
+      });
       // Authored bridge ("why we are here") injected after the AI's act heading,
       // mirroring the opening's fixed line. Empty for any act without one.
       const bridge = ACT_BRIDGES[toAct] ? ACT_BRIDGES[toAct] + '\n\n' : '';
@@ -251,18 +274,14 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
           last = update.narrative;
           setHistory(prev => {
             const next = [...prev];
-            next[next.length - 1] = { ...next[next.length - 1], text: injectAfterHeading(last, bridge) };
+            next[next.length - 1] = { ...next[next.length - 1], text: injectAfterHeading(stripLeadingActHeading(last), bridge) };
             return next;
           });
         }
       }
     } catch (e) {
       console.error('Arrival scene failed', e);
-      setHistory(prev => {
-        const next = [...prev];
-        next[next.length - 1] = { ...next[next.length - 1], text: `### Act ${toAct}` };
-        return next;
-      });
+      // The actHeading/location chrome is already on the history item.
     }
   }, [inventory, flags, npcStates, medicalPoints, moralPoints, activeInvestigation, introducedNpcs, locationVisitCounts, turnCount, commitVignetteFlags]);
 

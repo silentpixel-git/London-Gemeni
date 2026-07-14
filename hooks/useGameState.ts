@@ -31,6 +31,7 @@ import {
   NPC_DISPLAY_NAMES,
 } from '../constants';
 import { GameHistoryItem, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod, ThemeMode, RumorEvents } from '../types';
+import { stripLeadingActHeading } from '../services/narrationFormat';
 import { AI_PARSER_ENABLED, resolveIntentWithAI } from './gameState/aiParse';
 import { extractOpeningSentence } from './gameState/narration';
 import { useConnections } from './gameState/useConnections';
@@ -667,10 +668,25 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         ? `\n\n**You picked up:** ${itemsPickedUp.join(', ')}`
         : '';
 
+      // Location header — full-mode turns (successful move / target-less look)
+      // surface the engine-verified location name as feed chrome above the
+      // prose (see NarrativeFeed's SceneHeader). Compact turns get no header.
+      if (aiContext.narrationMode === 'full') {
+        const locationLabel = aiContext.locationName;
+        setHistory(prev => {
+          const next = [...prev];
+          next[next.length - 1] = { ...next[next.length - 1], location: locationLabel };
+          return next;
+        });
+      }
+
       // STEP 7: Stream AI narration
       for await (const update of aiService.stream(aiContext)) {
         const { narrative, isComplete, parsed } = update;
-        const displayText = isComplete ? narrative + pickupNote : narrative;
+        // Defensive: full-mode prompts no longer ask for a heading, but strip
+        // any the model still emits (compact mode never produced one).
+        const cleaned = aiContext.narrationMode === 'full' ? stripLeadingActHeading(narrative) : narrative;
+        const displayText = isComplete ? cleaned + pickupNote : cleaned;
 
         setHistory(prev => {
           const next = [...prev];

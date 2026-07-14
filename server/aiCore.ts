@@ -27,7 +27,6 @@
 import { GoogleGenAI, Type, FunctionCallingConfigMode } from '@google/genai';
 import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod, HintTarget, HintVerb, STIMEntry, ParseCandidates } from '../types.js';
 import { ATMOSPHERIC_SEEDS } from '../engine/gameData.js';
-import { ACT_ROMAN } from '../constants.js';
 import { buildParseTools, buildParsePrompt, toolCallToIntent, type ToolCallOutcome } from './parseAction.js';
 
 // ============================================================
@@ -173,10 +172,6 @@ export function buildNarrationPrompt(ctx: NarrationContext): string {
           .join('\n')}\nOccasionally a character may reference an earlier exchange unprompted — a half-sentence, in character, never expository.\n`
       : '';
 
-  const actHeader = ctx.act === 0
-    ? `PROLOGUE`
-    : `ACT ${ACT_ROMAN[ctx.act] ?? String(ctx.act)}`;
-
   const synthesisSection = ctx.holmesSynthesis
     ? `\n=== HOLMES' CROSS-CASE DEDUCTION (incorporate naturally into prose) ===\n"${ctx.holmesSynthesis}"\n`
     : '';
@@ -245,7 +240,7 @@ ${ctx.npcApproach.statement
   if (isOpening) {
     // OPENING MODE — game start only: tight hook, no inventory of scene elements
     return `=== NARRATION MODE: OPENING ===
-Write exactly 2 short paragraphs (max 130 words total). Begin with: ### ${actHeader}: ${ctx.actName}
+Write exactly 2 short paragraphs (max 130 words total). Do NOT include any Markdown heading — begin directly with the prose.
 ${temporalSection}
 === VERIFIED LOCATION ===
 Location: ${ctx.locationName}
@@ -260,7 +255,7 @@ Paragraph 1 — ATMOSPHERE: 2–3 tight sentences. Vivid sensory hook. Apply cor
 
 Paragraph 2 — MYSTERY HOOK: One sentence that raises a question or creates dread. Leave the player wanting to look around.
 
-NO blockquote. NO exits listing. NO character roster. NPCs, objects, and exits will be appended separately.`;
+NO Markdown headings. NO blockquote. NO exits listing. NO character roster. NPCs, objects, and exits will be appended separately.`;
   }
 
   if (isFull) {
@@ -301,7 +296,7 @@ Paragraph 2 — ${blockquoteBeat}
 Paragraph 3 — ${noticeBeat}`;
 
     return `=== NARRATION MODE: FULL ===
-${lengthLine} Begin with: ### ${actHeader}: ${ctx.actName}
+${lengthLine} Do NOT include any Markdown heading (no "###" line) — begin directly with the prose.
 ${temporalSection}
 === VERIFIED LOCATION ===
 ${locationBlock}
@@ -325,7 +320,7 @@ ${structure}`;
   // COMPACT MODE — examine, talk, take, use, inventory, deduce, blocked action
   const compactWordLimit = ctx.blockquoteHint !== 'none' ? 130 : 100;
   let compactPrompt = `=== NARRATION MODE: COMPACT ===
-Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line. NO act header. NO location description. NO exits listing.
+Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line. Do NOT include any Markdown heading. NO act header. NO location description. NO exits listing.
 ${temporalSection}
 === VERIFIED CONTEXT ===
 Location: ${ctx.locationName} (Act ${ctx.act}: ${ctx.actName})

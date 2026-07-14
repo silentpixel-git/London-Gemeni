@@ -15,6 +15,10 @@ export interface GameHistoryItem {
   role: 'user' | 'assistant' | 'system';
   text: string;
   type?: 'journal'; // marks act-closing diary entries in the narrative feed
+  /** Scene-entry chrome (opening / act arrival / resume only) — rendered by the feed, never part of the AI text. */
+  actHeading?: string;
+  /** Engine-verified location name, set on full/opening-mode turns (move / look / scene entry) — rendered as the pin header. */
+  location?: string;
 }
 
 export interface PendingActTransition {
