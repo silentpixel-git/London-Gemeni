@@ -22,7 +22,7 @@ export const TypewriterBlock: React.FC<TypewriterBlockProps> = ({
   text = "",
   onComplete,
   className = "relative min-h-[1.8em]",
-  cursorClassName = "inline-block w-1.5 h-[1.1em] bg-lb-accent opacity-70 animate-pulse ml-0.5 align-text-bottom translate-y-[-0.1em] transition-opacity duration-300",
+  cursorClassName = "inline-block w-1.5 h-[1.1em] bg-lb-accent opacity-70 animate-pulse ml-0.5 align-text-bottom translate-y-[-0.1em]",
   isComplete = true,
 }) => {
   const [displayedText, setDisplayedText] = useState('');

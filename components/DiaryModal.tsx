@@ -125,7 +125,7 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4 transition-opacity duration-200 ${entered ? 'opacity-100' : 'opacity-0'}`}
+      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 sm:p-4 transition-opacity duration-200 ${entered ? 'opacity-100' : 'opacity-0'}`}
       onClick={onClose}
     >
       <div

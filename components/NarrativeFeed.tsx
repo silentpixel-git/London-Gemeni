@@ -9,7 +9,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Feather, MapPin } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
-import { EASE_OUT, DUR_DRAMATIC } from './motionTokens';
+import { EASE_OUT, DUR_DRAMATIC, DUR_PANEL } from './motionTokens';
 import { StoryRenderer } from './StoryRenderer';
 import { TypewriterBlock } from './TypewriterBlock';
 import { GameOverScreen } from './GameOverScreen';
@@ -199,7 +199,7 @@ export function NarrativeFeed({
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+          transition={{ duration: DUR_PANEL, ease: EASE_OUT }}
           className="my-10 flex justify-center"
         >
           <button
