@@ -54,14 +54,18 @@
   color-scheme: dark;
 }
 
-/* Smooth theme transition on all elements */
-*, *::before, *::after {
-  transition-property: background-color, border-color, color, fill, stroke;
-  transition-duration: 200ms;
-  transition-timing-function: ease;
-}
+/* Theme switches crossfade via the View Transitions API (see useAppearance).
+   No per-element color transitions: `color` inherits, so universal transition
+   rules make inheriting nodes visibly bounce at transition end. Keeping
+   transitions off the steady-state DOM also avoids per-node transition style
+   resolution during typewriter streaming. */
 
-/* Preserve animation-only transitions from being overridden */
-.animate-in, .animate-pulse, .animate-spin, .animate-bounce {
-  transition: none;
+/* Reduced motion: stop decorative continuous motion and entrance movement.
+   animate-spin is kept — spinners communicate essential loading state. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse,
+  .animate-bounce,
+  .animate-in {
+    animation: none !important;
+  }
 }

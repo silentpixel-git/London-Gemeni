@@ -44,7 +44,23 @@ export function useAppearance(deps: AppearanceDeps) {
     } else {
       theme = themeMode; // 'light' | 'dark'
     }
-    document.documentElement.dataset.theme = theme;
+    // Crossfade the whole page atomically via the View Transitions API.
+    // Per-element CSS color transitions can't do this cleanly: `color`
+    // inherits, so every inheriting node runs its own transition and snaps
+    // back to its parent's still-animating value when it finishes — a visible
+    // bounce. A snapshot crossfade has no per-element dynamics (and also
+    // smooths gradients and scrollbars, which color transitions never covered).
+    // Skipped on first mount (nothing to fade from), under reduced motion,
+    // and in browsers without the API — those get an instant switch.
+    const isFirstTheme = document.documentElement.dataset.theme === undefined;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (isFirstTheme || reduceMotion || !document.startViewTransition) {
+      document.documentElement.dataset.theme = theme;
+    } else {
+      document.startViewTransition(() => {
+        document.documentElement.dataset.theme = theme;
+      });
+    }
   }, [themeMode, currentTimePeriod]);
 
   // Persist the appearance choice — localStorage + Supabase cloud sync.

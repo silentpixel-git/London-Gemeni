@@ -9,7 +9,7 @@ import React from 'react';
 import { Feather, ArrowDown } from 'lucide-react';
 
 export const GameOverScreen: React.FC = () => (
-  <div className="flex flex-col items-center justify-center py-16 border-t border-lb-accent/20 mt-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+  <div className="flex flex-col items-center justify-center py-16 border-t border-lb-accent/20 mt-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
     <div className="text-lb-accent flex flex-col items-center gap-4 text-center">
       <Feather size={48} className="opacity-30" />
       <div className="space-y-1">

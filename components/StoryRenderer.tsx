@@ -21,13 +21,6 @@ const parseInlineMarkdown = (text: string, animate: boolean = false) => {
       return <span key={j} className="italic">{part.slice(1, -1)}</span>;
     }
 
-    if (animate && part.trim().length > 0) {
-      return (
-        <span key={j} className="animate-in fade-in duration-500 fill-mode-forwards">
-          {part}
-        </span>
-      );
-    }
     return <span key={j}>{part}</span>;
   });
 };
@@ -55,7 +48,6 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
       leading-relaxed md:leading-relaxed lg:leading-[1.8]
       text-lb-primary
       max-w-3xl
-      transition-all duration-200
     ">
       {lines.map((line, i) => {
         const trimmed = line.trim();
@@ -95,7 +87,7 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
         const spacingClass = (isSystemSummary && trimmed.length > 25) ? '-mt-3' : 'm-0';
 
         return (
-          <p key={i} className={`${spacingClass} p-0 transition-all duration-300`}>
+          <p key={i} className={`${spacingClass} p-0`}>
             {parseInlineMarkdown(line, animate)}
           </p>
         );
