@@ -18,7 +18,7 @@
  * Exit code 1 if any assertion fails.
  */
 
-import { injectAfterHeading } from '../services/narrationFormat';
+import { injectAfterHeading, stripLeadingActHeading, formatActHeading } from '../services/narrationFormat';
 import { ACT_BRIDGES, ACT_NAMES } from '../engine/gameData';
 import { ACT_ROMAN } from '../constants';
 import { buildNarrationPrompt } from '../server/aiCore';
@@ -72,6 +72,49 @@ const LINE = 'A bridge sentence.';
   const out = injectAfterHeading(body, LINE);
   check('multiple headings: line lands after the first only',
     out === HEADING + LINE + 'Intro.\n\n### A later subhead\n\nMore.');
+}
+
+// ── stripLeadingActHeading (defensive net — prompts no longer ask for a heading) ──
+
+// A. Complete heading line is removed along with its trailing blank line(s).
+{
+  const out = stripLeadingActHeading(HEADING + SCENE);
+  check('strip: heading line removed, scene preserved', out === SCENE);
+}
+
+// B. Partial mid-stream heading (no newline yet) strips to nothing until the
+//    line completes — never show a half-typed heading.
+{
+  check('strip: partial heading strips to empty',
+    stripLeadingActHeading('### ACT I: The La') === '');
+}
+
+// C. Text without a heading is untouched.
+{
+  check('strip: no heading is a no-op', stripLeadingActHeading(SCENE) === SCENE);
+}
+
+// D. Strip-then-inject composition — the exact consumer order in useSceneStreams.
+{
+  const out = injectAfterHeading(stripLeadingActHeading(HEADING + SCENE), LINE);
+  check('strip+inject: authored line leads, heading gone', out === LINE + SCENE);
+}
+
+// E. Only the leading line goes — a later ### subhead in the body survives.
+{
+  const body = HEADING + 'Intro.\n\n### A later subhead\n\nMore.';
+  check('strip: later subhead untouched',
+    stripLeadingActHeading(body) === 'Intro.\n\n### A later subhead\n\nMore.');
+}
+
+// ── formatActHeading (feed chrome string — CSS uppercases it) ─────────────────
+{
+  check('formatActHeading: prologue',
+    formatActHeading(0) === 'Prologue: The Baker Street Vigil');
+  check('formatActHeading: act 3 roman numeral',
+    formatActHeading(3) === 'Act III: The Double Event');
+  check('formatActHeading: unknown act degrades gracefully',
+    formatActHeading(9) === 'Act 9');
 }
 
 // ── ACT_BRIDGES integration ───────────────────────────────────────────────────
