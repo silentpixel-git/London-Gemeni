@@ -98,17 +98,17 @@ export const CommandInput: React.FC<CommandInputProps> = ({
           <div className="absolute bottom-full left-4 mb-2 flex items-center gap-2 text-lb-accent animate-in fade-in zoom-in-95 duration-200 z-20">
             {isConsultingHolmes ? (
               <>
-                <Feather size={14} className="animate-bounce" />
+                <Feather size={14} className="animate-pulse" />
                 <span className="text-sm italic font-serif">Watson is contemplating...</span>
               </>
             ) : isAdvancingAct ? (
               <>
-                <BookOpen size={14} className="animate-bounce" />
+                <BookOpen size={14} className="animate-pulse" />
                 <span className="text-sm italic font-serif">Turning the page to a new act...</span>
               </>
             ) : (
               <>
-                <loadingVariant.icon size={14} className="animate-bounce" />
+                <loadingVariant.icon size={14} className="animate-pulse" />
                 <span className="text-sm italic font-serif">{loadingVariant.text}</span>
               </>
             )}

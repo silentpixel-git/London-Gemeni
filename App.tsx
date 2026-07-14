@@ -187,7 +187,7 @@ const AppContent: React.FC = () => {
         weather={gs.weather}
       />
 
-      <div className="flex-1 flex flex-col h-full relative w-full transition-all duration-300">
+      <div className="flex-1 flex flex-col h-full relative w-full transition-[width] duration-300 ease-out-expo">
         <Header
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={() => setIsSidebarOpen(s => !s)}

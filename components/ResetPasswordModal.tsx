@@ -80,11 +80,17 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ isOpen }
   return (
     <div
       className="fixed inset-0 z-[210] flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(41, 51, 81, 0.75)' }}
     >
-      <div className="absolute inset-0 backdrop-blur-sm" onClick={handleSkip} />
+      {/* Backdrop — carries the tint and the fade itself; animating an
+          ancestor of a backdrop-filter element causes a flash when the
+          animation's compositing group collapses. */}
+      <div
+        className="absolute inset-0 backdrop-blur-sm animate-in fade-in duration-200"
+        style={{ backgroundColor: 'rgba(41, 51, 81, 0.75)' }}
+        onClick={handleSkip}
+      />
 
-      <div className="relative w-full max-w-md bg-lb-bg border border-lb-border rounded-xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-md bg-lb-bg border border-lb-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 ease-out">
         <div className="h-1 bg-lb-accent" />
 
         <div className="relative px-6 pt-7 pb-4 text-center">

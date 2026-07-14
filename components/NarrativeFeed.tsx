@@ -9,6 +9,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Feather, MapPin } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
+import { EASE_OUT, DUR_DRAMATIC } from './motionTokens';
 import { StoryRenderer } from './StoryRenderer';
 import { TypewriterBlock } from './TypewriterBlock';
 import { GameOverScreen } from './GameOverScreen';
@@ -113,7 +114,7 @@ export function NarrativeFeed({
                 ref={isLatestUser ? lastUserMessageRef : null}
                 initial={isLatestUser ? { y: 12, opacity: 0 } : { opacity: 1 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={reducedMotion ? { duration: 0 } : { duration: 0.25, ease: 'easeOut' }}
+                transition={reducedMotion ? { duration: 0 } : { duration: 0.25, ease: EASE_OUT }}
                 className="my-8 scroll-mt-[120px]"
               >
                 <div className="pl-6 border-l-[3px] border-lb-accent">
@@ -135,7 +136,7 @@ export function NarrativeFeed({
                 ref={isLast ? journalRef : null}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ duration: 0.6 }}
+                transition={{ duration: DUR_DRAMATIC, ease: EASE_OUT }}
                 className="my-10 scroll-mt-8"
               >
                 <div className="border-l-2 border-lb-muted/40 pl-6 py-1">
