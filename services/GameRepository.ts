@@ -393,8 +393,8 @@ export class GameRepository {
   static async applyNPCUpdates(
     investigationId: string,
     npcUpdates: Record<string, Partial<NPCState>>
-  ): Promise<void> {
-    if (!npcUpdates || Object.keys(npcUpdates).length === 0) return;
+  ): Promise<boolean> {
+    if (!npcUpdates || Object.keys(npcUpdates).length === 0) return true;
 
     const rows = Object.entries(npcUpdates).map(([npcId, updates]) => ({
       investigation_id: investigationId,
@@ -412,8 +412,10 @@ export class GameRepository {
         .from('npc_states')
         .upsert(rows, { onConflict: 'investigation_id,npc_id' });
       if (error) throw error;
+      return true;
     } catch (err) {
       console.error('GameRepository.applyNPCUpdates:', describeError(err), err);
+      return false;
     }
   }
 

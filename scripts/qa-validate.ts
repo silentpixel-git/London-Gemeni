@@ -271,6 +271,7 @@ section('NPCs');
 {
   let placementOk = true;
   let scriptedOk = true;
+  let idleOk = true;
   for (const [npcId, npc] of Object.entries(NPCS)) {
     for (const [act, sched] of Object.entries(npc.scheduleByAct)) {
       if (!locationIds.has(sched.default)) {
@@ -307,9 +308,30 @@ section('NPCs');
         }
       }
     }
+    // Idle beats: a scoped beat must name a real location, and (unless the NPC
+    // is a follower, who can be led anywhere) one their schedule can actually
+    // place them at — otherwise it is silently dead content.
+    for (const [i, beat] of (npc.idleBeats ?? []).entries()) {
+      if (!beat.locationId) continue;
+      if (!locationIds.has(beat.locationId)) {
+        fail(`npc ${npcId}: idleBeats[${i}] location "${beat.locationId}" does not resolve`);
+        idleOk = false;
+        continue;
+      }
+      if (!npc.followsNpcId) {
+        const reachable = Object.values(npc.scheduleByAct).some(s =>
+          s.default === beat.locationId ||
+          Object.values(s.byPeriod ?? {}).includes(beat.locationId));
+        if (!reachable) {
+          warn(`npc ${npcId}: idleBeats[${i}] scoped to "${beat.locationId}" but the schedule never places them there`,
+            'dead content — the beat can never fire');
+        }
+      }
+    }
   }
   if (placementOk) pass(`all ${npcIds.size} NPC canonical locations resolve`);
   if (scriptedOk) pass('all scriptedLines locations and trigger flags are valid');
+  if (idleOk) pass('all idleBeats location scopes resolve');
 }
 
 // ── 4b. Fact graph ───────────────────────────────────────────────────────────
@@ -353,7 +375,7 @@ section('Spoiler guard');
     if (npcId === 'edmund') continue;
     const surfaces: Array<[string, string]> = [
       ...(npc.aliasDescription ? [[`aliasDescription`, npc.aliasDescription] as [string, string]] : []),
-      ...(npc.idleBehaviors ?? []).map((k, i) => [`idleBehaviors[${i}]`, k] as [string, string]),
+      ...(npc.idleBeats ?? []).map((b, i) => [`idleBeats[${i}]`, b.text] as [string, string]),
     ];
     for (const [where, text] of surfaces) {
       if (/halward/i.test(text)) {

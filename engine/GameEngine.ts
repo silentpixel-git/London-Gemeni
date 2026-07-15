@@ -10,14 +10,14 @@
  * The engine NEVER hallucinate — it only knows what's in gameData.ts.
  */
 
-import { EngineResult, NarrationContext, RumorEvents } from '../types';
+import { EngineResult, NarrationContext, RumorEvents, NPCState } from '../types';
 import { ParsedIntent } from './intentParser';
 import type { StoryManifest } from './stories/types';
 import { WHITECHAPEL_MANIFEST } from './stories/whitechapel-1888/manifest';
 import { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor } from './time';
 import { npcLocationAt, returnsPeriodFor, getPresentNpcIds, maturedSpreadsFor } from './presence';
 import type { SessionSnapshot } from './session';
-import { checkActProgression, computeActEntry } from './resolvers/support';
+import { checkActProgression, computeActEntry, computeNpcMovements } from './resolvers/support';
 import { resolveMove } from './resolvers/move';
 import { resolveExamine, resolveRead } from './resolvers/examine';
 import { resolveTalk, resolveShow } from './resolvers/npc';
@@ -183,6 +183,25 @@ export class GameEngine {
   /** See resolvers/support.computeActEntry — kept as a method for existing callers. */
   public computeActEntry(toAct: number, session: SessionSnapshot) {
     return computeActEntry(this.story, toAct, session);
+  }
+
+  /**
+   * Reconcile stored NPC positions against the canonical world for a RESUMED
+   * session. A plain "look" (how resume opens) never runs NPC movement, so a
+   * follower whose saved `currentLocation` drifted from Watson's — e.g. a
+   * dropped per-turn `npc_states` write — would stay stranded a location away
+   * (Holmes "goes to Miller's Court without Watson"). Running the same movement
+   * pass a move uses re-snaps followers to whom they follow and location-based
+   * NPCs to their schedule, healing the drift (and any legacy bad save) before
+   * the resume look resolves. Returns the fully corrected npcStates map.
+   */
+  public reconcileNpcPositions(session: SessionSnapshot): Record<string, NPCState> {
+    const updates = computeNpcMovements(this.story, session.location, session);
+    const next: Record<string, NPCState> = { ...session.npcStates };
+    for (const [id, upd] of Object.entries(updates)) {
+      next[id] = { ...(next[id] || { npcId: id, disposition: 50, status: 'alive' }), ...upd } as NPCState;
+    }
+    return next;
   }
 }
 

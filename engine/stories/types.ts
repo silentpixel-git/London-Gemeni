@@ -76,10 +76,19 @@ export interface NPCDefinition<F extends string = string> {
     act?: number;          // Optional: only fire during this act (omit = any act)
     instruction: string;   // Directorial instruction for the AI
   }>;
-  // Rotating idle behaviors — one is injected when this NPC is present but not
-  // being interviewed, cycled by turn count so the same beat never repeats
-  // twice in a row. Keep flat and unemphasized (recession rule for Edmund).
-  idleBehaviors?: string[];
+  // Rotating idle beats — flat ambient texture for a present NPC. The engine
+  // injects at most ONE beat per turn across ALL present NPCs (round-robin by
+  // turn count), never for the interview target, and none on a turn where a
+  // scripted moment or safety net fires. locationId scopes a beat to a prop
+  // that lives at one location (Holmes's violin at Baker Street); omit it for
+  // a portable personality quirk. Keep flat and unemphasized (recession rule
+  // for Edmund). For requiresIntroduction NPCs write alias-safe text ("the
+  // surgeon", "he") — a beat can fire before Watson learns the name.
+  idleBeats?: Array<{
+    text: string;          // Directorial beat, no narrative weight
+    locationId?: string;   // Only fire at this location (omit = anywhere)
+    act?: number;          // Only fire during this act (omit = any act)
+  }>;
 }
 
 export interface ClueDefinition {

@@ -98,15 +98,31 @@ export function buildNarrationContext(
     npcScriptedLines.push({ npcId: present.npcId, label: present.label, instruction: net.instruction });
   }
 
-  // Idle behaviors — one rotating flat beat per present NPC who is not being
-  // interviewed this turn, cycled by turn count so it never repeats twice running.
-  for (const { npcId, label } of npcsPresent) {
-    if (npcId === outcome.targetNpcId) continue;
-    const idle = story.npcs[npcId]?.idleBehaviors;
-    if (idle && idle.length > 0) {
+  // Idle beat — at most ONE flat ambient beat per turn across ALL present
+  // NPCs, and none on a turn where a scripted moment or safety net fired
+  // (those are the scene's texture that round). The NPC is chosen round-robin
+  // by turn count so no one hogs the background; within the chosen NPC,
+  // location-scoped beats (props that live here) win over portable quirks.
+  // The beat index strides by the round-robin QUOTIENT, not turnCount itself —
+  // with a shared counter, gcd(eligible.length, beats.length) > 1 would lock
+  // each NPC to a fixed subset of their beats forever.
+  if (npcScriptedLines.length === 0) {
+    const eligible = npcsPresent
+      .filter(({ npcId }) => npcId !== outcome.targetNpcId)
+      .map(({ npcId, label }) => {
+        const applicable = (story.npcs[npcId]?.idleBeats ?? []).filter(b =>
+          (!b.locationId || b.locationId === locationId) &&
+          (b.act === undefined || b.act === session.currentAct));
+        const located = applicable.filter(b => b.locationId);
+        return { npcId, label, beats: located.length > 0 ? located : applicable };
+      })
+      .filter(e => e.beats.length > 0);
+    if (eligible.length > 0) {
+      const { npcId, label, beats } = eligible[session.turnCount % eligible.length];
+      const beatIndex = Math.floor(session.turnCount / eligible.length) % beats.length;
       npcScriptedLines.push({
         npcId, label,
-        instruction: `Background only, no emphasis: ${idle[session.turnCount % idle.length]}`,
+        instruction: `Background only, no emphasis: ${beats[beatIndex].text}`,
       });
     }
   }

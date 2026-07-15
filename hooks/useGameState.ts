@@ -571,16 +571,21 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         const persisted = await GameRepository.applyEngineResult(activeInvestigation.id, result, {
           location, inventory, medicalPoints, moralPoints, currentAct, flags, rumorEvents,
         }, newElapsedMinutes, newLastApproachAtMinutes);
+        // Await the NPC-position write alongside Watson's own so a dropped
+        // npc_states upsert is caught, not silent: otherwise a follower (Holmes)
+        // could be left a location behind in the DB and, since resume trusts the
+        // stored position, appear to abandon Watson on the next reload.
+        const npcPersisted = result.npcUpdates
+          ? await GameRepository.applyNPCUpdates(activeInvestigation.id, result.npcUpdates)
+          : true;
         // A reload before the next successful write would lose this turn's
-        // sparse fields (location, act, inventory), so the player must know.
-        if (persisted) {
+        // sparse fields (location, act, inventory) or NPC positions, so the
+        // player must know either way.
+        if (persisted && npcPersisted) {
           cloudPersistFailedRef.current = false;
         } else if (!cloudPersistFailedRef.current) {
           cloudPersistFailedRef.current = true;
           setNotification({ message: 'Cloud sync failed — recent progress may not be saved online.', type: 'error' });
-        }
-        if (result.npcUpdates) {
-          GameRepository.applyNPCUpdates(activeInvestigation.id, result.npcUpdates);
         }
         if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
           GameRepository.addDiscoveredClues(activeInvestigation.id, result.discoveredClueIds);
