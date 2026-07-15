@@ -60,12 +60,106 @@
    transitions off the steady-state DOM also avoids per-node transition style
    resolution during typewriter streaming. */
 
+/* Press feedback for buttons: a subtle scale settle on :active plus the
+   standard 150ms colour/opacity transitions in one class. The scale is kept
+   under reduced motion — it's direct-manipulation feedback, not decoration. */
+@layer utilities {
+  .pressable {
+    --press-scale: 0.97;
+    transition-property: color, background-color, border-color, opacity, transform;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+  .pressable:active {
+    transform: scale(var(--press-scale));
+    /* Press lands near-instantly so even a quick click shows the full dip;
+       the release settles back at the base 150ms. */
+    transition-duration: 50ms;
+  }
+  /* Companion to .pressable for small icon-only buttons: 0.97 of ~36px is
+     under a pixel and reads as no feedback at all — press deeper. */
+  .pressable-icon {
+    --press-scale: 0.88;
+  }
+}
+
+/* ── Waiting indicator — "developing ink" (CommandInput) ─────────────────
+   The message text surfaces left→right under a soft gradient mask while the
+   icon keeps a slow breathing pulse; messages exit with a quick blur-fade.
+   Two modes:
+     .lb-wait-*  one-shot entrance for single fixed messages (Holmes consult,
+                 act transition)
+     .lb-rot-*   rotating loop for the loading messages: 6 messages × 3.1s
+                 slots = an 18.6s cycle. Keyframe percentages are slices of
+                 that cycle (enter 0.7s ≈ 3.8%, hold to 15.3%, exit 0.26s to
+                 16.7%). Keep in sync with LOADING_VARIANTS.length in
+                 CommandInput.tsx; each line's slot offset arrives via
+                 --lb-slot. */
+@keyframes lb-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+}
+.lb-ink-mask {
+  -webkit-mask-image: linear-gradient(90deg, #000 40%, transparent 65%);
+  mask-image: linear-gradient(90deg, #000 40%, transparent 65%);
+  -webkit-mask-size: 300% 100%;
+  mask-size: 300% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.lb-wait-icon {
+  animation: lb-wait-icon-in 0.3s ease-out both, lb-breathe 1.4s ease-in-out infinite;
+}
+@keyframes lb-wait-icon-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.lb-wait-txt {
+  animation: lb-wait-sweep 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes lb-wait-sweep {
+  from { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
+  to { -webkit-mask-position: 0 0; mask-position: 0 0; }
+}
+
+.lb-rot-line {
+  opacity: 0;
+  animation: lb-rot-slot 18.6s linear infinite;
+  animation-delay: var(--lb-slot);
+}
+@keyframes lb-rot-slot {
+  0%, 15.3% { opacity: 1; filter: none; }
+  16.7%, 100% { opacity: 0; filter: blur(3px); }
+}
+.lb-rot-icon {
+  animation: lb-rot-icon-in 18.6s linear infinite, lb-breathe 1.4s ease-in-out infinite;
+  animation-delay: var(--lb-slot), 0s;
+}
+@keyframes lb-rot-icon-in {
+  0% { opacity: 0; }
+  2.2%, 100% { opacity: 1; }
+}
+.lb-rot-txt {
+  animation: lb-rot-sweep 18.6s linear infinite;
+  animation-delay: var(--lb-slot);
+}
+@keyframes lb-rot-sweep {
+  0% { -webkit-mask-position: 100% 0; mask-position: 100% 0; animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+  3.8%, 100% { -webkit-mask-position: 0 0; mask-position: 0 0; }
+}
+
 /* Reduced motion: stop decorative continuous motion and entrance movement.
-   animate-spin is kept — spinners communicate essential loading state. */
+   animate-spin is kept — spinners communicate essential loading state.
+   .lb-rot-* is deliberately NOT listed: its lines are opacity-0 at rest, so
+   killing the animation would leave them invisible — CommandInput renders a
+   single static line under reduced motion instead. */
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse,
   .animate-bounce,
-  .animate-in {
+  .animate-in,
+  .lb-wait-icon,
+  .lb-wait-txt {
     animation: none !important;
   }
 }

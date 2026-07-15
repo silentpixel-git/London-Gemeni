@@ -26,7 +26,7 @@ export const GameOverScreen: React.FC = () => (
 
     <button
       onClick={() => window.location.reload()}
-      className="group flex items-center gap-3 px-10 py-4 bg-lb-primary text-lb-bg rounded-full font-sans text-xs tracking-[0.2em] uppercase hover:bg-lb-accent transition-[transform,background-color] duration-150 ease-out shadow-xl hover:-translate-y-1"
+      className="group flex items-center gap-3 px-10 py-4 bg-lb-primary text-lb-bg rounded-full font-sans text-xs tracking-[0.2em] uppercase hover:bg-lb-accent pressable shadow-xl hover:-translate-y-1"
     >
       <span>Begin a New Diary</span>
       <ArrowDown size={14} className="group-hover:translate-y-1 transition-transform" />

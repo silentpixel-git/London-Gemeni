@@ -1,5 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  // Touch devices fire :hover on tap and leave it stuck — only emit hover
+  // styles where hovering is actually supported.
+  future: { hoverOnlyWhenSupported: true },
   content: [
     './index.html',
     './components/**/*.{ts,tsx}',

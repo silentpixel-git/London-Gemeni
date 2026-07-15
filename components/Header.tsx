@@ -10,6 +10,7 @@
  */
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { User } from '@supabase/supabase-js';
 import type { UserProfile } from '../services/GameRepository';
 import {
@@ -18,6 +19,8 @@ import {
   Settings, BookOpenText,
 } from 'lucide-react';
 import { SettingsPanel } from './SettingsPanel';
+import { Tooltip } from './Tooltip';
+import { zoomFade } from './motionTokens';
 import type { ThemeMode } from '../types';
 
 interface HeaderProps {
@@ -105,6 +108,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenEditProfile,
   onLogout,
 }) => {
+  const reducedMotion = useReducedMotion();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isConfirmingNewGame, setIsConfirmingNewGame] = useState(false);
   const [settingsView, setSettingsView] = useState(false);
@@ -166,19 +170,20 @@ export const Header: React.FC<HeaderProps> = ({
   // value (not a nested component) so it doesn't remount on every render.
   const hasNewDiaryEntries = diaryUnreadCount > 0;
   const diaryButton = (
-    <button
-      onClick={onOpenDiary}
-      className="relative w-10 h-10 rounded-full border border-lb-primary/30 text-lb-primary flex items-center justify-center shrink-0 hover:border-lb-accent hover:text-lb-accent transition-colors"
-      title="Read Watson's Diary"
-      aria-label={hasNewDiaryEntries ? `Read Watson's Diary — ${diaryUnreadCount} new ${diaryUnreadCount === 1 ? 'entry' : 'entries'}` : "Read Watson's Diary"}
-    >
-      <BookOpenText size={20} />
-      {hasNewDiaryEntries && (
-        <span key={diaryUnreadCount} className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-lb-accent text-white text-[10px] font-bold leading-none animate-in zoom-in-50 fade-in duration-300 ease-out">
-          {diaryUnreadCount > 9 ? '9+' : diaryUnreadCount}
-        </span>
-      )}
-    </button>
+    <Tooltip label="Read Watson's Diary">
+      <button
+        onClick={onOpenDiary}
+        className="relative w-10 h-10 rounded-full border border-lb-primary/30 text-lb-primary flex items-center justify-center shrink-0 hover:border-lb-accent hover:text-lb-accent pressable pressable-icon"
+        aria-label={hasNewDiaryEntries ? `Read Watson's Diary — ${diaryUnreadCount} new ${diaryUnreadCount === 1 ? 'entry' : 'entries'}` : "Read Watson's Diary"}
+      >
+        <BookOpenText size={20} />
+        {hasNewDiaryEntries && (
+          <span key={diaryUnreadCount} className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-lb-accent text-white text-[10px] font-bold leading-none animate-in zoom-in-50 fade-in duration-300 ease-out">
+            {diaryUnreadCount > 9 ? '9+' : diaryUnreadCount}
+          </span>
+        )}
+      </button>
+    </Tooltip>
   );
 
   return (
@@ -186,12 +191,15 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Left — sidebar toggle + connection dots */}
       <div className="flex items-center gap-4">
-        <button
-          onClick={onToggleSidebar}
-          className="w-10 h-10 flex items-center justify-center text-lb-primary hover:bg-lb-primary/5 rounded-full shrink-0"
-        >
-          {isSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
-        </button>
+        <Tooltip label={isSidebarOpen ? 'Hide the panel' : 'Show the panel'}>
+          <button
+            onClick={onToggleSidebar}
+            className="w-10 h-10 flex items-center justify-center text-lb-primary hover:bg-lb-primary/5 rounded-full shrink-0 pressable pressable-icon"
+            aria-label={isSidebarOpen ? 'Hide the panel' : 'Show the panel'}
+          >
+            {isSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
+          </button>
+        </Tooltip>
 
         <div className="hidden md:flex items-center gap-3 px-3 py-1.5 bg-lb-paper/50 rounded-full border border-lb-border/50">
           {/* Engine dot */}
@@ -261,26 +269,29 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-3">
             {diaryButton}
             <div className="relative" ref={guestWrapRef}>
-              <button
-                onClick={() => { setIsGuestMenuOpen(o => !o); setGuestSettingsView(false); }}
-                className="flex items-center gap-2 text-lb-primary group"
-                aria-expanded={isGuestMenuOpen}
-                aria-label="Account menu"
-              >
-                <div className="w-10 h-10 rounded-full bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white flex items-center justify-center shrink-0">
-                  <LogIn size={18} />
-                </div>
-                <ChevronDown
-                  size={14}
-                  className={`transition-transform duration-200 ${isGuestMenuOpen ? 'rotate-180' : ''}`}
-                />
-              </button>
+              <Tooltip label="Account">
+                <button
+                  onClick={() => { setIsGuestMenuOpen(o => !o); setGuestSettingsView(false); }}
+                  className="flex items-center gap-2 text-lb-primary group pressable"
+                  aria-expanded={isGuestMenuOpen}
+                  aria-label="Account menu"
+                >
+                  <div className="w-10 h-10 rounded-full bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white flex items-center justify-center shrink-0">
+                    <LogIn size={18} />
+                  </div>
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform duration-200 ${isGuestMenuOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+              </Tooltip>
 
-              {isGuestMenuOpen && (
-                <>
-                  <div
+              <AnimatePresence>
+                {isGuestMenuOpen && (
+                  <motion.div
                     ref={guestMenuRef}
-                    className={`absolute right-0 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 max-h-[80vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 ease-out ${
+                    {...zoomFade(reducedMotion)}
+                    className={`absolute right-0 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 max-h-[80vh] overflow-y-auto ${
                       guestMenuPositionAbove ? 'bottom-full mb-2 origin-bottom-right' : 'top-full mt-2 origin-top-right'
                     }`}
                   >
@@ -293,7 +304,7 @@ export const Header: React.FC<HeaderProps> = ({
                             <p className="text-[10px] uppercase tracking-widest text-lb-muted font-bold mb-2">Playing As Guest</p>
                             <button
                               onClick={() => { onOpenAuth(); closeGuestMenu(); }}
-                              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white rounded-md text-xs font-bold tracking-widest uppercase hover:bg-lb-accent dark:hover:bg-lb-accent/80 transition-colors"
+                              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white rounded-md text-xs font-bold tracking-widest uppercase hover:bg-lb-accent dark:hover:bg-lb-accent/80 pressable"
                             >
                               <LogIn size={14} /><span>Sign In</span>
                             </button>
@@ -329,9 +340,9 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                       }
                     />
-                  </div>
-                </>
-              )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         )}
@@ -341,33 +352,37 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="flex items-center gap-3">
             {diaryButton}
             <div className="relative" ref={profileWrapRef}>
-              <button
-                onClick={() => { setIsProfileMenuOpen(o => !o); setIsConfirmingNewGame(false); setSettingsView(false); }}
-                className="flex items-center gap-2 text-lb-primary group"
-              >
-                <div className="w-10 h-10 rounded-full bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white flex items-center justify-center overflow-hidden shrink-0">
-                  {user.user_metadata?.avatar_url ? (
-                    <img
-                      src={user.user_metadata.avatar_url}
-                      alt="Profile"
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <UserIcon size={18} />
-                  )}
-                </div>
-                <ChevronDown
-                  size={14}
-                  className={`transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180' : ''}`}
-                />
-              </button>
+              <Tooltip label="Account">
+                <button
+                  onClick={() => { setIsProfileMenuOpen(o => !o); setIsConfirmingNewGame(false); setSettingsView(false); }}
+                  className="flex items-center gap-2 text-lb-primary group pressable"
+                  aria-label="Account menu"
+                >
+                  <div className="w-10 h-10 rounded-full bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white flex items-center justify-center overflow-hidden shrink-0">
+                    {user.user_metadata?.avatar_url ? (
+                      <img
+                        src={user.user_metadata.avatar_url}
+                        alt="Profile"
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <UserIcon size={18} />
+                    )}
+                  </div>
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+              </Tooltip>
 
-              {isProfileMenuOpen && (
-                <>
-                  <div
+              <AnimatePresence>
+                {isProfileMenuOpen && (
+                  <motion.div
                     ref={profileMenuRef}
-                    className={`absolute right-0 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 max-h-[80vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 ease-out ${
+                    {...zoomFade(reducedMotion)}
+                    className={`absolute right-0 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 max-h-[80vh] overflow-y-auto ${
                       profileMenuPositionAbove ? 'bottom-full mb-2 origin-bottom-right' : 'top-full mt-2 origin-top-right'
                     }`}
                   >
@@ -424,13 +439,13 @@ export const Header: React.FC<HeaderProps> = ({
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => { setIsConfirmingNewGame(false); closeProfileMenu(); onNewGame(); }}
-                                  className="flex-1 px-2 py-1.5 bg-lb-primary text-lb-bg text-xs font-semibold rounded hover:bg-lb-accent transition-colors"
+                                  className="flex-1 px-2 py-1.5 bg-lb-primary text-lb-bg text-xs font-semibold rounded hover:bg-lb-accent pressable"
                                 >
                                   Yes, start fresh
                                 </button>
                                 <button
                                   onClick={() => setIsConfirmingNewGame(false)}
-                                  className="flex-1 px-2 py-1.5 border border-lb-border text-lb-primary text-xs font-semibold rounded hover:bg-lb-bg transition-colors"
+                                  className="flex-1 px-2 py-1.5 border border-lb-border text-lb-primary text-xs font-semibold rounded hover:bg-lb-bg pressable"
                                 >
                                   Cancel
                                 </button>
@@ -475,9 +490,9 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                       }
                     />
-                  </div>
-                </>
-              )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         )}

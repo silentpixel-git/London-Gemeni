@@ -61,7 +61,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             type="button"
             onClick={() => onSetThemeMode(value)}
             aria-pressed={selected}
-            className={`flex flex-col items-center gap-1 py-2 rounded-md border transition-colors ${
+            className={`flex flex-col items-center gap-1 py-2 rounded-md border pressable ${
               selected
                 ? 'border-lb-accent bg-lb-paper text-lb-primary'
                 : 'border-transparent text-lb-muted hover:text-lb-accent hover:bg-lb-paper/50'
