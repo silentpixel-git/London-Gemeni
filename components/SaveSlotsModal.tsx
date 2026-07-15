@@ -15,6 +15,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Play, Trash2, FileText, Clock } from 'lucide-react';
 import type { Investigation } from '../types';
 import { ACT_NAMES, LOCATIONS } from '../engine/gameData';
+import { ModalBackdrop } from './ModalBackdrop';
 
 const SLOT_COUNT = 5;
 
@@ -74,7 +75,8 @@ export const SaveSlotsModal: React.FC<SaveSlotsModalProps> = ({
   const bySlot = (n: number) => slots.find(s => s.saveSlot === n);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <ModalBackdrop />
       <div
         className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-lb-paper border border-lb-border rounded-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200 ease-out"
         onClick={e => e.stopPropagation()}

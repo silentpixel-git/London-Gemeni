@@ -15,6 +15,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { X, BookOpenText, Search, Gavel, MessageSquare, Feather, MapPin, ChevronDown, Check, type LucideIcon } from 'lucide-react';
+import { ModalBackdrop } from './ModalBackdrop';
 import type { DiaryEntry } from '../types';
 import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION } from '../engine/gameData';
 
@@ -125,11 +126,12 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 sm:p-4 transition-opacity duration-200 ${entered ? 'opacity-100' : 'opacity-0'}`}
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4"
       onClick={onClose}
     >
+      <ModalBackdrop />
       <div
-        className={`relative w-full max-w-3xl max-h-[94dvh] sm:max-h-[88vh] flex flex-col bg-lb-paper border border-lb-border rounded-t-2xl sm:rounded-xl shadow-2xl transition-transform duration-300 ease-out ${entered ? 'translate-y-0' : 'translate-y-full sm:translate-y-0'}`}
+        className={`relative w-full max-w-3xl max-h-[94dvh] sm:max-h-[88vh] flex flex-col bg-lb-paper border border-lb-border rounded-t-2xl sm:rounded-xl shadow-2xl transition-transform duration-300 ease-out sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200 ${entered ? 'translate-y-0' : 'translate-y-full sm:translate-y-0'}`}
         style={dragY > 0 ? { transform: `translateY(${dragY}px)`, transition: 'none' } : undefined}
         onClick={e => e.stopPropagation()}
       >
@@ -213,7 +215,12 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                       </span>
                     </button>
 
-                    {expanded && (
+                    <div
+                      className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+                        expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                      }`}
+                    >
+                      <div className="overflow-hidden">
                       <div className="space-y-5 pt-1 pb-6">
                         {actEntries.map(entry => {
                           const resolved = resolveDiaryEntry(entry);
@@ -257,7 +264,8 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                           );
                         })}
                       </div>
-                    )}
+                      </div>
+                    </div>
                   </div>
                 );
               })

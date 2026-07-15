@@ -36,9 +36,14 @@ interface NarrativeFeedProps {
  * in it. Renders immediately; the prose typewrites below.
  */
 function SceneHeader({ actHeading, location }: { actHeading?: string; location?: string }) {
+  const reducedMotion = useReducedMotion();
   if (!actHeading && !location) return null;
   return (
-    <div className="mb-4 space-y-8">
+    <motion.div
+      initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: DUR_PANEL, ease: EASE_OUT }}
+      className="mb-4 space-y-8">
       {actHeading && (
         <h4 className="pt-8 text-sm font-bold tracking-[0.2em] uppercase text-lb-primary opacity-80 font-sans">
           {actHeading}
@@ -52,7 +57,7 @@ function SceneHeader({ actHeading, location }: { actHeading?: string; location?:
           </span>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
