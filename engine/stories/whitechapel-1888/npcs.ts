@@ -56,11 +56,17 @@ const NPCS_DATA = {
         instruction: 'The convergence is made — the documents lie side by side on the desk and the casefiles wall has given up its answer. Holmes is certain, and grim with it: "We know the man, Watson. Knowing him and proving him are not the same act — and proving him and stopping him may prove a third thing entirely." He is already reaching for his coat.',
       },
     ],
-    idleBehaviors: [
-      'Holmes draws a single long note from the violin, then sets it down unfinished',
-      'Holmes re-pins a thread on the case map a quarter-inch to the left, studies it, moves it back',
-      'Holmes stands at the window with his hands behind his back, perfectly still',
-      'Holmes leafs through his index of criminal records, not appearing to read it',
+    idleBeats: [
+      // 221B props — only fire at Baker Street (Holmes follows Watson everywhere,
+      // so unscoped these would put the violin in the mortuary).
+      { locationId: 'baker_street', text: 'Holmes draws a single long note from the violin, then sets it down unfinished' },
+      { locationId: 'baker_street', text: 'Holmes re-pins a thread on the case map a quarter-inch to the left, studies it, moves it back' },
+      { locationId: 'baker_street', text: 'Holmes stands at the window with his hands behind his back, perfectly still' },
+      { locationId: 'baker_street', text: 'Holmes leafs through his index of criminal records, not appearing to read it' },
+      // Portable — pocket props and habits that travel with him.
+      { text: 'Holmes turns his lens over in his fingers without raising it to anything' },
+      { text: 'Holmes fills his pipe from his pouch with great care, then does not light it' },
+      { text: 'Holmes closes his eyes for the space of three breaths — cataloguing, not resting' },
     ],
   },
 
@@ -92,10 +98,11 @@ const NPCS_DATA = {
         instruction: 'Abberline brings the day\'s news, weary and flat: the American, Tumblety, has jumped his bail and fled the country — France, they think, and on to America. The public will call that a confession; Abberline is not so sure — a man may flee an indecency charge without being a murderer. And there is the other file: the vanished barrister, a gentleman of good family, erratic, dismissed, not to be found. "A family of standing does not let a son hang, Doctor. They make the embarrassment disappear." He says it of the barrister, without weight.',
       },
     ],
-    idleBehaviors: [
-      'Abberline works through a stack of witness statements, initialing each page without looking up',
-      'Abberline rubs his eyes with thumb and forefinger, then squares the papers and continues',
-      'Abberline stands a moment over a map of the district, saying nothing, then returns to his desk',
+    // Alias-safe ("the inspector") — beats can fire before his introduction.
+    idleBeats: [
+      { text: 'The inspector thumbs back through his pocket-book, stops at a page, and reads it as though it might have changed' },
+      { text: 'The inspector rubs his eyes with thumb and forefinger, then squares his shoulders and continues' },
+      { text: 'The inspector unfolds a map of the district, stands a moment over it saying nothing, then folds it away' },
     ],
   },
 
@@ -144,10 +151,14 @@ const NPCS_DATA = {
         instruction: 'Bond is ashen. His assistant is gone — taken at dawn. The family came with a private physician, had the young man declared of unsound mind, and committed him to a private asylum before any charge could be laid. Bond vouched for him for years; the man stood at his elbow through every post-mortem. His horror is quiet and his self-reproach absolute. He gives Watson the asylum\'s name without being asked twice.',
       },
     ],
-    idleBehaviors: [
-      'Bond cleans an instrument that is already clean, sets it in its place, takes up the next',
-      'Bond writes steadily in his report book, pausing only to date the page',
-      'Bond checks a label on a specimen jar against his ledger, makes a small tick',
+    // Alias-safe ("the surgeon") — beats can fire before his introduction.
+    idleBeats: [
+      // Mortuary props — instrument rack and specimen cabinet live there.
+      { locationId: 'whitechapel_mortuary', text: 'The surgeon cleans an instrument that is already clean, sets it in its place, takes up the next' },
+      { locationId: 'whitechapel_mortuary', text: 'The surgeon checks a label on a specimen jar against his ledger, makes a small tick' },
+      // Portable.
+      { text: 'The surgeon writes steadily in his report book, pausing only to date the page' },
+      { text: 'The surgeon draws out his watch, notes the hour against something in his papers, and returns it without comment' },
     ],
   },
 
@@ -209,10 +220,13 @@ const NPCS_DATA = {
     ],
     // RECESSION RULE: idle beats must be the dullest in the game — pure
     // clerical texture, no narrator weight, nothing the eye would catch.
-    idleBehaviors: [
-      'He continues his cataloguing, pen moving at an even pace',
-      'He blots a line dry and turns the page',
-      'He straightens a stack of papers so the edges align',
+    // Unscoped is safe: at the Act 6 asylum (where clerical work would
+    // contradict his committed-patient staging) his unconditional scripted
+    // line above always fires, and scripted moments suppress idle beats.
+    idleBeats: [
+      { text: "Bond's assistant continues his cataloguing, pen moving at an even pace" },
+      { text: "Bond's assistant blots a line dry and turns the page" },
+      { text: "Bond's assistant straightens a stack of papers so the edges align" },
     ],
   },
 
@@ -232,6 +246,11 @@ const NPCS_DATA = {
       5: { default: 'lusk_office' },
       6: { default: 'lusk_office' },
     },
+    idleBeats: [
+      { text: "Lusk squares the committee's correspondence into a single neat pile, as though order might answer it" },
+      { text: 'Lusk works a stub of pencil between his fingers like a man who misses having a proper tool in his hand' },
+      { text: 'Lusk glances toward the window at the sound of boots in the street, and does not settle until they pass' },
+    ],
   },
 
   diemschutz: {
@@ -254,6 +273,12 @@ const NPCS_DATA = {
       5: { default: 'working_mens_club' },
       6: { default: 'working_mens_club' },
     },
+    // Alias-safe ("the steward") — beats can fire before his introduction.
+    idleBeats: [
+      { text: 'The steward wipes the same stretch of counter a second time, his mind plainly elsewhere' },
+      { text: 'The steward pauses in his work at the sound of a cart in the street — only a moment — then continues' },
+      { text: "The steward counts the club's takings in small exact stacks, and then counts them again" },
+    ],
   },
 
   // ── REWEAVE: the loud suspects and the second medical voice ────────────────
@@ -274,6 +299,12 @@ const NPCS_DATA = {
       2: { default: 'whitechapel_pub' },   // lingers at the Ten Bells thereafter
       3: { default: 'whitechapel_pub' },
     },
+    // Alias-safe ("the labourer") — beats can fire before he gives his name.
+    idleBeats: [
+      { text: 'The labourer edges half a step closer to whatever conversation is nearest, ready to be asked' },
+      { text: 'The labourer tells a neighbour some small story with far more particulars than it needs' },
+      { text: 'The labourer turns his cap in his hands, watching the street as though he expects to be wanted' },
+    ],
   },
 
   phillips: {
@@ -292,6 +323,10 @@ const NPCS_DATA = {
       2: { default: 'whitechapel_mortuary', byPeriod: { evening: 'whitechapel_pub', night: 'whitechapel_pub', lateNight: 'whitechapel_pub' } },
       3: { default: 'whitechapel_mortuary' },
     },
+    idleBeats: [
+      { text: 'Dr. Phillips polishes his spectacles with great deliberation, in no hurry to be finished' },
+      { text: 'Dr. Phillips consults his own memorandum-book, unhurried, as though the hour would wait for him' },
+    ],
   },
 
   tumblety: {
@@ -309,6 +344,11 @@ const NPCS_DATA = {
       2: { default: 'h_division_station' },
       3: { default: 'h_division_station' },
     },
+    idleBeats: [
+      { text: 'Tumblety grooms his enormous moustache as though a portraitist were expected at any moment' },
+      { text: 'Tumblety declaims some remark to no one in particular, pitched to carry across the room' },
+      { text: 'Tumblety inspects his cuffs and finds them, as ever, magnificent' },
+    ],
   },
 
   pizer: {
@@ -324,6 +364,11 @@ const NPCS_DATA = {
     scheduleByAct: {
       3: { default: 'working_mens_club' }, // sheltering among the club's community during the reconstruction
     },
+    idleBeats: [
+      { text: 'Pizer keeps his hands in plain sight on the table, deliberately, like a man long practised at seeming harmless' },
+      { text: 'Pizer flinches when someone laughs too loudly, then pretends he did not' },
+      { text: 'Pizer folds a newspaper away face-down without finishing it' },
+    ],
   },
 
   superintendent: {
@@ -346,6 +391,12 @@ const NPCS_DATA = {
       5: { default: 'private_asylum' },
       6: { default: 'private_asylum' },
     },
+    // Alias-safe ("the superintendent") — matches his pre-introduction alias.
+    idleBeats: [
+      { text: 'The superintendent aligns the blotter and inkstand on his desk to a precision that admits no disorder' },
+      { text: 'The superintendent consults his watch against the corridor clock, and finds both correct' },
+      { text: "The superintendent watches Watson's glance travel round the room, and lets it" },
+    ],
   },
 } satisfies Record<string, NPCDefinition>;
 

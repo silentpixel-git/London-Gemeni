@@ -67,7 +67,7 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
 
   // ── Holmes — mundane approaches ───────────────────────────────────────────
   // A third register, distinct from his other two systems: scriptedLines are
-  // act/flag-gated capstones (major theory beats); idleBehaviors are flat,
+  // act/flag-gated capstones (major theory beats); idleBeats are flat,
   // rotating atmosphere with zero narrative weight. These sit between the
   // two — a one-shot moment where Holmes specifically initiates something
   // WITH Watson (notices him, cracks composure, dryly corrects himself) —

@@ -73,4 +73,4 @@ Then summarise what was added:
 - NPC ID and display name
 - Which acts/locations they appear in (and when offstage)
 - Fact-graph entries and their `visibleFromAct` gates
-- Whether any additional wiring is needed (e.g. scriptedLines, idleBehaviors, rumor hops in `rumors.ts`, atmosphere entries)
+- Whether any additional wiring is needed (e.g. scriptedLines, idleBeats, rumor hops in `rumors.ts`, atmosphere entries)
