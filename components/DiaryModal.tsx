@@ -17,6 +17,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { X, BookOpenText, Search, Gavel, MessageSquare, Feather, MapPin, ChevronDown, Check, type LucideIcon } from 'lucide-react';
 import { ModalBackdrop } from './ModalBackdrop';
+import { Tooltip } from './Tooltip';
 import { overlayPresence, zoomFadeVariants, DUR_PANEL, DUR_EXIT, EASE_OUT_EXPO } from './motionTokens';
 import type { DiaryEntry } from '../types';
 import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION } from '../engine/gameData';
@@ -210,20 +211,22 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                                 <Check size={13} /> Complete
                               </span>
                             ) : leads ? (
-                              <span
-                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-lb-accent/40 bg-lb-accent/10 text-lb-accent text-xs font-semibold"
-                                title={`${leads.found} of ${leads.total} leads followed`}
-                              >
-                                <span className="flex items-center gap-1">
-                                  {Array.from({ length: leads.total }).map((_, i) => (
-                                    <span
-                                      key={i}
-                                      className={`w-2 h-2 rounded-full border border-current ${i < leads.found ? 'bg-current' : ''}`}
-                                    />
-                                  ))}
+                              <Tooltip label={`${leads.found} of ${leads.total} leads followed`}>
+                                <span
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-lb-accent/40 bg-lb-accent/10 text-lb-accent text-xs font-semibold"
+                                  aria-label={`${leads.found} of ${leads.total} leads followed`}
+                                >
+                                  <span className="flex items-center gap-1">
+                                    {Array.from({ length: leads.total }).map((_, i) => (
+                                      <span
+                                        key={i}
+                                        className={`w-2 h-2 rounded-full border border-current ${i < leads.found ? 'bg-current' : ''}`}
+                                      />
+                                    ))}
+                                  </span>
+                                  <span className="text-[11px] tracking-wide">leads</span>
                                 </span>
-                                <span className="text-[11px] tracking-wide">leads</span>
-                              </span>
+                              </Tooltip>
                             ) : null}
                             <ChevronDown
                               size={18}
