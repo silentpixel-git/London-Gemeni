@@ -186,6 +186,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastUserMessageRef = useRef<HTMLDivElement>(null);
+  // True while per-turn cloud persists are failing — dedupes the failure toast
+  // to once per streak instead of once per turn during an outage.
+  const cloudPersistFailedRef = useRef(false);
 
   // ── Derived ──────────────────────────────────────────────────────────────
   const lastUserMsgIdx = [...history].reverse().findIndex(m => m.role === 'user');
@@ -565,9 +568,17 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // RAW result (new act, anchor location, reset clock, act-entry NPC positions)
       // so a mid-curtain reload reads the committed new act and resume-looks there.
       if (user && activeInvestigation) {
-        await GameRepository.applyEngineResult(activeInvestigation.id, result, {
+        const persisted = await GameRepository.applyEngineResult(activeInvestigation.id, result, {
           location, inventory, medicalPoints, moralPoints, currentAct, flags, rumorEvents,
         }, newElapsedMinutes, newLastApproachAtMinutes);
+        // A reload before the next successful write would lose this turn's
+        // sparse fields (location, act, inventory), so the player must know.
+        if (persisted) {
+          cloudPersistFailedRef.current = false;
+        } else if (!cloudPersistFailedRef.current) {
+          cloudPersistFailedRef.current = true;
+          setNotification({ message: 'Cloud sync failed — recent progress may not be saved online.', type: 'error' });
+        }
         if (result.npcUpdates) {
           GameRepository.applyNPCUpdates(activeInvestigation.id, result.npcUpdates);
         }

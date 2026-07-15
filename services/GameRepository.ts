@@ -38,6 +38,30 @@ export const VICTORIAN_ROLES = [
 
 export type VictorianRole = typeof VICTORIAN_ROLES[number];
 
+/**
+ * Render a thrown value (PostgrestError, AuthError, TypeError…) as one readable
+ * line. Logging the raw object serializes to "[object Object]" in captured
+ * console output, hiding the code/message that identify the failure.
+ */
+export function describeError(err: unknown): string {
+  if (err && typeof err === 'object') {
+    const e = err as Partial<{ name: string; message: string; code: string | number; status: number; details: string; hint: string }>;
+    const parts = [
+      e.name && e.name !== 'Error' ? e.name : null,
+      e.message ? `message="${e.message}"` : null,
+      e.code !== undefined ? `code=${e.code}` : null,
+      e.status !== undefined ? `status=${e.status}` : null,
+      e.details ? `details="${e.details}"` : null,
+      e.hint ? `hint="${e.hint}"` : null,
+    ].filter(Boolean);
+    if (parts.length > 0) return parts.join(' ');
+    try {
+      return JSON.stringify(err);
+    } catch { /* fall through */ }
+  }
+  return String(err);
+}
+
 export interface UserProfile {
   id: string;
   displayName: string | null;
@@ -207,7 +231,7 @@ export class GameRepository {
     // transition turn and the previous act's stale value would sit there
     // until some later write happened to include it. Pass `null` to clear.
     newLastApproachAtMinutes?: number | null
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       const updates: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
@@ -267,9 +291,24 @@ export class GameRepository {
         .update(updates)
         .eq('id', investigationId);
 
-      if (error) throw error;
+      if (!error) return true;
+
+      // Intermittent failures here are most often a stale/expired access token
+      // (auto-refresh ticks stop while the tab is backgrounded or the machine
+      // sleeps). getSession() forces a refresh of an expired session, so one
+      // retry heals that case; it also covers a brief network blip.
+      console.warn(`GameRepository.applyEngineResult: ${describeError(error)} — refreshing session and retrying once`);
+      await supabase.auth.getSession();
+      const { error: retryError } = await supabase
+        .from('investigations')
+        .update(updates)
+        .eq('id', investigationId);
+
+      if (retryError) throw retryError;
+      return true;
     } catch (err) {
-      console.error('GameRepository.applyEngineResult:', err);
+      console.error('GameRepository.applyEngineResult:', describeError(err), err);
+      return false;
     }
   }
 
@@ -374,7 +413,7 @@ export class GameRepository {
         .upsert(rows, { onConflict: 'investigation_id,npc_id' });
       if (error) throw error;
     } catch (err) {
-      console.error('GameRepository.applyNPCUpdates:', err);
+      console.error('GameRepository.applyNPCUpdates:', describeError(err), err);
     }
   }
 
@@ -440,7 +479,7 @@ export class GameRepository {
         .upsert(rows as Record<string, unknown>[], { onConflict: 'investigation_id,clue_id' });
       if (error) throw error;
     } catch (err) {
-      console.error('GameRepository.addDiscoveredClues:', err);
+      console.error('GameRepository.addDiscoveredClues:', describeError(err), err);
     }
   }
 
