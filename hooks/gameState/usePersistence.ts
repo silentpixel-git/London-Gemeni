@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
 import { GameRepository } from '../../services/GameRepository';
+import { gameEngine } from '../../engine/GameEngine';
 import { LOCATIONS, formatGameClock } from '../../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -155,9 +156,30 @@ export function usePersistence(deps: PersistenceDeps) {
     loggedLocationsRef.current = new Set(loadedDiary.filter(e => e.kind === 'location').map(e => e.refId));
 
     const npcMap = await GameRepository.getAllNPCStates(investigation.id);
-    const loadedNpcStates: Record<string, NPCState> = Object.keys(npcMap).length > 0
+    const storedNpcStates: Record<string, NPCState> = Object.keys(npcMap).length > 0
       ? { ...(INITIAL_NPC_STATES as Record<string, NPCState>), ...npcMap }
       : (INITIAL_NPC_STATES as Record<string, NPCState>);
+    // Re-snap NPC positions to the resumed world before the look. A plain resume
+    // "look" never runs NPC movement, so a follower whose stored position drifted
+    // (e.g. a dropped per-turn npc_states write) would appear stranded a location
+    // away from Watson; reconciling heals that (and any legacy bad save).
+    const loadedNpcStates = gameEngine.reconcileNpcPositions({
+      location: investigation.currentLocation,
+      inventory: inv,
+      flags: loadedFlags,
+      npcStates: storedNpcStates,
+      currentAct: act,
+      medicalPoints: investigation.medicalPoints || 0,
+      moralPoints: investigation.moralPoints || 0,
+      discoveredClueIds: [],
+      investigationId: investigation.id,
+      turnsAtLocationWithoutProgress: 0,
+      elapsedMinutes: loadedElapsed,
+      introducedNpcs: loadedIntroduced,
+      locationVisitCounts: {},
+      turnCount: 0,
+      rumorEvents: (investigation as Investigation).rumorEvents ?? {},
+    });
     setNpcStates(loadedNpcStates);
 
     setStim((investigation as any).stim || {});
@@ -271,8 +293,26 @@ export function usePersistence(deps: PersistenceDeps) {
       // Prefer the saved act; fall back to location-derived for older local saves
       // (ambiguous for shared anchors, e.g. bond_office serves Act 5 and Act 6).
       const guestAct = state.currentAct ?? LOCATIONS[state.location]?.act ?? INITIAL_ACT;
-      const guestNpcStates = state.npcStates || (INITIAL_NPC_STATES as Record<string, NPCState>);
+      const storedGuestNpcStates = state.npcStates || (INITIAL_NPC_STATES as Record<string, NPCState>);
       const guestIntroduced = state.introducedNpcs?.length ? state.introducedNpcs : INITIAL_INTRODUCED_NPCS;
+      // Re-snap followers/schedule to the resumed world (see loadInvestigationIntoState).
+      // Local saves reset the clock to 0, matching the streamResumeScene snapshot below.
+      const guestNpcStates = gameEngine.reconcileNpcPositions({
+        location: state.location,
+        inventory: state.inventory,
+        flags: state.flags || {},
+        npcStates: storedGuestNpcStates,
+        currentAct: guestAct,
+        medicalPoints: state.medicalPoints || 0,
+        moralPoints: state.moralPoints || 0,
+        discoveredClueIds: [],
+        turnsAtLocationWithoutProgress: 0,
+        elapsedMinutes: 0,
+        introducedNpcs: guestIntroduced,
+        locationVisitCounts: {},
+        turnCount: 0,
+        rumorEvents: state.rumorEvents ?? {},
+      });
       setLocation(state.location);
       setInventory(state.inventory);
       setMedicalPoints(state.medicalPoints || 0);
