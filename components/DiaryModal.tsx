@@ -215,7 +215,12 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                       </span>
                     </button>
 
-                    {expanded && (
+                    <div
+                      className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+                        expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                      }`}
+                    >
+                      <div className="overflow-hidden">
                       <div className="space-y-5 pt-1 pb-6">
                         {actEntries.map(entry => {
                           const resolved = resolveDiaryEntry(entry);
@@ -259,7 +264,8 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                           );
                         })}
                       </div>
-                    )}
+                      </div>
+                    </div>
                   </div>
                 );
               })

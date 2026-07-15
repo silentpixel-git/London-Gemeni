@@ -174,7 +174,7 @@ export const Header: React.FC<HeaderProps> = ({
     >
       <BookOpenText size={20} />
       {hasNewDiaryEntries && (
-        <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-lb-accent text-white text-[10px] font-bold leading-none">
+        <span key={diaryUnreadCount} className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-lb-accent text-white text-[10px] font-bold leading-none animate-in zoom-in-50 fade-in duration-300 ease-out">
           {diaryUnreadCount > 9 ? '9+' : diaryUnreadCount}
         </span>
       )}

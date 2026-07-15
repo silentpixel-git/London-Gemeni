@@ -81,6 +81,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <div className={`flex-1 overflow-y-auto p-8 w-80 ${isSidebarOpen ? 'opacity-100 transition-opacity duration-300 delay-75' : 'opacity-0'}`}>
 
+        <div key={location} className="animate-in fade-in duration-300">
+
         {/* Current location */}
         <div className="mb-8">
           <div className="flex items-center gap-2 text-lb-accent mb-2">
@@ -189,6 +191,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ) : (
             <p className="font-sans text-sm text-lb-primary opacity-70 italic">Investigate further before leaving</p>
           )}
+        </div>
+
         </div>
 
       </div>
