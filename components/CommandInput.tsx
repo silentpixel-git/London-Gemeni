@@ -8,8 +8,11 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Feather, Lightbulb, Send, Eye, Search, Glasses, Compass, Brain, Microscope, BookOpen, type LucideIcon } from 'lucide-react';
 import { GameHistoryItem } from '../types';
+import { zoomFade } from './motionTokens';
+import { Tooltip } from './Tooltip';
 
 const LOADING_VARIANTS: Array<{ icon: LucideIcon; text: string }> = [
   { icon: Eye,        text: 'Surveying the scene...' },
@@ -59,13 +62,16 @@ export const CommandInput: React.FC<CommandInputProps> = ({
   onAction,
   onConsultHolmes,
 }) => {
+  const reducedMotion = useReducedMotion();
   const [input, setInput] = useState('');
 
-  // Pick a random loading variant once per wait
-  const loadingVariant = useMemo(
-    () => LOADING_VARIANTS[Math.floor(Math.random() * LOADING_VARIANTS.length)],
+  // Pick a random starting message once per wait; the CSS rotation loop
+  // (see index.css lb-rot-*) cycles onward from there.
+  const loadingStart = useMemo(
+    () => Math.floor(Math.random() * LOADING_VARIANTS.length),
     [isLoading], // eslint-disable-line react-hooks/exhaustive-deps
   );
+  const loadingVariant = LOADING_VARIANTS[loadingStart];
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
   const prompts = isMobile ? PROMPTS_MOBILE : PROMPTS_DESKTOP;
@@ -94,26 +100,44 @@ export const CommandInput: React.FC<CommandInputProps> = ({
         onSubmit={handleSubmit}
         className="relative pointer-events-auto max-w-3xl mx-auto"
       >
+        <AnimatePresence>
         {isStreaming && (
-          <div className="absolute bottom-full left-4 mb-2 flex items-center gap-2 text-lb-accent animate-in fade-in zoom-in-95 duration-200 z-20">
+          <motion.div {...zoomFade(reducedMotion)} className="absolute bottom-full left-4 mb-2 flex items-center gap-2 text-lb-accent origin-bottom-left z-20">
             {isConsultingHolmes ? (
               <>
-                <Feather size={14} className="animate-pulse" />
-                <span className="text-sm italic font-serif">Watson is contemplating...</span>
+                <Feather size={14} className="lb-wait-icon shrink-0" />
+                <span className="text-sm italic font-serif lb-ink-mask lb-wait-txt">Watson is contemplating...</span>
               </>
             ) : isAdvancingAct ? (
               <>
-                <BookOpen size={14} className="animate-pulse" />
-                <span className="text-sm italic font-serif">Turning the page to a new act...</span>
+                <BookOpen size={14} className="lb-wait-icon shrink-0" />
+                <span className="text-sm italic font-serif lb-ink-mask lb-wait-txt">Turning the page to a new act...</span>
               </>
-            ) : (
+            ) : reducedMotion ? (
               <>
-                <loadingVariant.icon size={14} className="animate-pulse" />
+                <loadingVariant.icon size={14} className="shrink-0" />
                 <span className="text-sm italic font-serif">{loadingVariant.text}</span>
               </>
+            ) : (
+              // All messages render stacked; the lb-rot-* CSS loop shows one
+              // 3.1s slot at a time, offset per line via --lb-slot, starting
+              // from the randomly chosen message.
+              <span className="relative block h-5">
+                {LOADING_VARIANTS.map(({ icon: Icon, text }, k) => (
+                  <span
+                    key={text}
+                    className="lb-rot-line absolute left-0 top-0 flex items-center gap-2 whitespace-nowrap"
+                    style={{ '--lb-slot': `${((k - loadingStart + LOADING_VARIANTS.length) % LOADING_VARIANTS.length) * 3.1}s` } as React.CSSProperties}
+                  >
+                    <Icon size={14} className="lb-rot-icon shrink-0" />
+                    <span className="text-sm italic font-serif lb-ink-mask lb-rot-txt">{text}</span>
+                  </span>
+                ))}
+              </span>
             )}
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
 
         <div className="relative flex items-center">
           <input
@@ -121,26 +145,31 @@ export const CommandInput: React.FC<CommandInputProps> = ({
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder={placeholder}
-            className="w-full bg-lb-paper border border-lb-border rounded-full py-4 pl-6 pr-24 text-lb-primary placeholder-lb-muted text-lg focus:outline-none focus:border-lb-accent shadow-sm relative z-10"
+            className="w-full bg-lb-paper border border-lb-border rounded-full py-4 pl-6 pr-24 text-lb-primary placeholder-lb-muted text-lg focus:outline-none focus:border-lb-accent transition-colors duration-150 shadow-sm relative z-10"
             autoFocus
           />
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 z-20">
-            <button
-              type="button"
-              onClick={onConsultHolmes}
-              disabled={isLoading}
-              className="p-2 text-lb-muted hover:text-lb-accent transition-colors disabled:opacity-50"
-              title="Gather your thoughts"
-            >
-              <Lightbulb size={20} />
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading || !input.trim()}
-              className="p-2 text-lb-muted hover:text-lb-accent transition-colors disabled:opacity-50"
-            >
-              <Send size={20} />
-            </button>
+            <Tooltip label="Gather your thoughts" side="top">
+              <button
+                type="button"
+                onClick={onConsultHolmes}
+                disabled={isLoading}
+                className="p-2 text-lb-muted hover:text-lb-accent pressable pressable-icon disabled:opacity-50"
+                aria-label="Gather your thoughts"
+              >
+                <Lightbulb size={20} />
+              </button>
+            </Tooltip>
+            <Tooltip label="Send" side="top">
+              <button
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                className="p-2 text-lb-muted hover:text-lb-accent pressable pressable-icon disabled:opacity-50"
+                aria-label="Send"
+              >
+                <Send size={20} />
+              </button>
+            </Tooltip>
           </div>
         </div>
       </form>

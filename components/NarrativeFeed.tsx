@@ -209,7 +209,7 @@ export function NarrativeFeed({
         >
           <button
             onClick={onBeginAct}
-            className="font-sans text-xs tracking-[0.08em] uppercase text-lb-accent border border-lb-accent/50 rounded px-5 py-2.5 hover:bg-lb-accent/10 transition-colors"
+            className="font-sans text-xs tracking-[0.08em] uppercase text-lb-accent border border-lb-accent/50 rounded px-5 py-2.5 hover:bg-lb-accent/10 pressable"
           >
             Begin Act {ACT_ROMAN[pendingActTransition.toAct] ?? pendingActTransition.toAct} →
           </button>
