@@ -27,7 +27,7 @@ import { ModalBackdrop } from './ModalBackdrop';
 import { Tooltip } from './Tooltip';
 import { overlayPresence, zoomFadeVariants, DUR_PANEL, DUR_EXIT, EASE_OUT_EXPO } from './motionTokens';
 import type { DiaryEntry } from '../types';
-import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION, CLUE_DEFINITIONS, LOCATIONS, PERSONS_OF_INTEREST } from '../engine/gameData';
+import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION, CLUE_DEFINITIONS, LOCATIONS, PERSONS_OF_INTEREST, TAKEABLE_OBJECTS, DOCUMENT_TEXT } from '../engine/gameData';
 
 interface DiaryModalProps {
   isOpen: boolean;
@@ -56,9 +56,7 @@ const roman = (n: number): string => {
   return out;
 };
 
-// --- Panel stubs -----------------------------------------------------------
-// DocumentsPanel is a placeholder; its real implementation lands in a
-// later task. Do not build out that logic here.
+// --- Panels ------------------------------------------------------------
 const EvidencePanel: React.FC<{ entries: DiaryEntry[] }> = ({ entries }) => {
   // Discovered clues, newest first. Numbering is chronological (oldest = No. I).
   const clues = entries
@@ -148,7 +146,51 @@ const PersonsPanel: React.FC<{ flags: Record<string, boolean> }> = ({ flags }) =
     </div>
   );
 };
-const DocumentsPanel: React.FC<{ inventory: string[] }> = () => null;
+/** Display name → object id, for looking up carried items in DOCUMENT_TEXT. */
+const OBJECT_ID_BY_DISPLAY_NAME: Record<string, string> = Object.fromEntries(
+  Object.entries(TAKEABLE_OBJECTS).map(([id, name]) => [name, id]),
+);
+
+const DocumentsPanel: React.FC<{ inventory: string[] }> = ({ inventory }) => {
+  const docs = inventory
+    .map(name => ({ name, objectId: OBJECT_ID_BY_DISPLAY_NAME[name] }))
+    .filter((d): d is { name: string; objectId: string } => Boolean(d.objectId && DOCUMENT_TEXT[d.objectId]));
+
+  if (docs.length === 0) {
+    return (
+      <p className="text-[15px] text-lb-muted font-serif italic py-8 text-center">
+        Watson carries no papers worth rereading.
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <p className="uppercase tracking-widest text-[11px] font-bold text-lb-accent mb-1">Carried in the Medical Bag</p>
+      <h3 className="font-serif text-2xl font-bold text-lb-primary mb-2">Documents</h3>
+      {docs.map((doc, i) => (
+        <div key={doc.objectId} className={`py-4 ${i > 0 ? 'border-t border-lb-border' : ''}`}>
+          <h4 className="font-serif text-lg font-bold text-lb-primary mb-2">{doc.name}</h4>
+          <div className="space-y-2">
+            {DOCUMENT_TEXT[doc.objectId].split('\n').map((line, j) => {
+              const trimmed = line.trim();
+              if (trimmed === '') return null;
+              const caption = trimmed.match(/^\*(.+)\*$/);
+              return caption ? (
+                <p key={j} className="uppercase tracking-wider text-[10px] text-lb-muted">{caption[1]}</p>
+              ) : (
+                <p key={j} className="italic text-[15px] text-lb-primary/90 leading-relaxed">{trimmed}</p>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <p className="mt-5 pt-4 border-t border-lb-border text-[13px] italic text-lb-muted">
+        Verbatim copies, in Watson's hand. He may read them as often as he likes.
+      </p>
+    </div>
+  );
+};
 
 const KIND_ICON: Record<DiaryEntry['kind'], LucideIcon> = {
   clue: Search,
@@ -274,7 +316,13 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
         const cleared = visible.filter(p => p.clearedByFlag && flags[p.clearedByFlag]).length;
         return visible.length === 0 ? 'none yet' : `${cleared} cleared, ${visible.length - cleared} open`;
       }
-      case 'documents': return '';   // filled in a later task
+      case 'documents': {
+        const n = inventory.filter(name => {
+          const id = OBJECT_ID_BY_DISPLAY_NAME[name];
+          return id && DOCUMENT_TEXT[id];
+        }).length;
+        return `${n} carried`;
+      }
     }
   };
 
