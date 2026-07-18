@@ -57,8 +57,8 @@ const roman = (n: number): string => {
 };
 
 // --- Panel stubs -----------------------------------------------------------
-// Persons/Documents are placeholders only; real implementations land in
-// later tasks. Do not build out that logic here.
+// DocumentsPanel is a placeholder; its real implementation lands in a
+// later task. Do not build out that logic here.
 const EvidencePanel: React.FC<{ entries: DiaryEntry[] }> = ({ entries }) => {
   // Discovered clues, newest first. Numbering is chronological (oldest = No. I).
   const clues = entries
