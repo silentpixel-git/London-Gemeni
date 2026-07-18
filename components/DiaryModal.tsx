@@ -27,7 +27,7 @@ import { ModalBackdrop } from './ModalBackdrop';
 import { Tooltip } from './Tooltip';
 import { overlayPresence, zoomFadeVariants, DUR_PANEL, DUR_EXIT, EASE_OUT_EXPO } from './motionTokens';
 import type { DiaryEntry } from '../types';
-import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION, CLUE_DEFINITIONS, LOCATIONS } from '../engine/gameData';
+import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION, CLUE_DEFINITIONS, LOCATIONS, PERSONS_OF_INTEREST } from '../engine/gameData';
 
 interface DiaryModalProps {
   isOpen: boolean;
@@ -102,7 +102,52 @@ const EvidencePanel: React.FC<{ entries: DiaryEntry[] }> = ({ entries }) => {
     </div>
   );
 };
-const PersonsPanel: React.FC<{ flags: Record<string, boolean> }> = () => null;
+const PersonsPanel: React.FC<{ flags: Record<string, boolean> }> = ({ flags }) => {
+  const visible = PERSONS_OF_INTEREST.filter(p => !p.requiresFlag || flags[p.requiresFlag]);
+
+  if (visible.length === 0) {
+    return (
+      <p className="text-[15px] text-lb-muted font-serif italic py-8 text-center">
+        Watson has no names in his ledger yet.
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <p className="uppercase tracking-widest text-[11px] font-bold text-lb-accent mb-1">The Running Ledger</p>
+      <h3 className="font-serif text-2xl font-bold text-lb-primary mb-2">Persons of Interest</h3>
+      {visible.map((p, i) => {
+        const cleared = Boolean(p.clearedByFlag && flags[p.clearedByFlag]);
+        return (
+          <div key={p.id} className={`py-4 ${i > 0 ? 'border-t border-lb-border' : ''}`}>
+            <div className="flex items-baseline justify-between gap-4">
+              <span
+                className={`font-serif text-lg font-bold ${
+                  cleared
+                    ? 'text-lb-primary/55 line-through decoration-red-800/70 decoration-[1.5px]'
+                    : 'text-lb-primary'
+                }`}
+              >
+                {p.label}
+              </span>
+              <span
+                className={`shrink-0 uppercase tracking-[0.2em] text-[10px] font-bold ${
+                  cleared ? 'text-red-800/70' : 'text-lb-accent'
+                }`}
+              >
+                {cleared ? 'Cleared' : 'Open'}
+              </span>
+            </div>
+            <p className={`mt-1 text-[15px] leading-relaxed ${cleared ? 'text-lb-primary/55' : 'text-lb-primary/85'}`}>
+              {cleared && p.clearedNote ? p.clearedNote : p.detail}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 const DocumentsPanel: React.FC<{ inventory: string[] }> = () => null;
 
 const KIND_ICON: Record<DiaryEntry['kind'], LucideIcon> = {
@@ -224,7 +269,11 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
         const n = entries.filter(e => e.kind === 'clue' && CLUE_DEFINITIONS[e.refId]).length;
         return `${n} recorded`;
       }
-      case 'persons':   return '';   // filled in a later task
+      case 'persons': {
+        const visible = PERSONS_OF_INTEREST.filter(p => !p.requiresFlag || flags[p.requiresFlag]);
+        const cleared = visible.filter(p => p.clearedByFlag && flags[p.clearedByFlag]).length;
+        return visible.length === 0 ? 'none yet' : `${cleared} cleared, ${visible.length - cleared} open`;
+      }
       case 'documents': return '';   // filled in a later task
     }
   };
