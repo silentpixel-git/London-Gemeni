@@ -27,7 +27,7 @@ import { ModalBackdrop } from './ModalBackdrop';
 import { Tooltip } from './Tooltip';
 import { overlayPresence, zoomFadeVariants, DUR_PANEL, DUR_EXIT, EASE_OUT_EXPO } from './motionTokens';
 import type { DiaryEntry } from '../types';
-import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION } from '../engine/gameData';
+import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION, CLUE_DEFINITIONS, LOCATIONS } from '../engine/gameData';
 
 interface DiaryModalProps {
   isOpen: boolean;
@@ -48,10 +48,60 @@ const TABS: { id: DiaryTab; label: string }[] = [
   { id: 'documents', label: 'Documents' },
 ];
 
+/** 1 → "I", 4 → "IV" … supports the full clue count (≤ 20). */
+const roman = (n: number): string => {
+  const map: Array<[number, string]> = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+  let out = '';
+  for (const [v, s] of map) while (n >= v) { out += s; n -= v; }
+  return out;
+};
+
 // --- Panel stubs -----------------------------------------------------------
-// Placeholders only. Real implementations land in later tasks; do not build
-// out Evidence/Persons/Documents logic here.
-const EvidencePanel: React.FC<{ entries: DiaryEntry[] }> = () => null;
+// Persons/Documents are placeholders only; real implementations land in
+// later tasks. Do not build out that logic here.
+const EvidencePanel: React.FC<{ entries: DiaryEntry[] }> = ({ entries }) => {
+  // Discovered clues, newest first. Numbering is chronological (oldest = No. I).
+  const clues = entries
+    .filter(e => e.kind === 'clue' && CLUE_DEFINITIONS[e.refId])
+    .sort((a, b) => b.sequence - a.sequence);
+
+  if (clues.length === 0) {
+    return (
+      <p className="text-[15px] text-lb-muted font-serif italic py-8 text-center">
+        No evidence formally recorded yet.
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <p className="uppercase tracking-widest text-[11px] font-bold text-lb-accent mb-1">Case Notes</p>
+      <h3 className="font-serif text-2xl font-bold text-lb-primary mb-2">Evidence</h3>
+      {clues.map((entry, i) => {
+        const def = CLUE_DEFINITIONS[entry.refId];
+        const where = LOCATIONS[def.locationFound]?.name ?? def.locationFound;
+        return (
+          <div
+            key={entry.id}
+            className={`grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-1 sm:gap-5 py-4 ${i > 0 ? 'border-t border-lb-border' : ''}`}
+          >
+            <div className="sm:text-right pt-0.5">
+              <span className="font-serif italic text-lb-accent">No. {roman(clues.length - i)}</span>
+              <span className="block uppercase tracking-wider text-[10px] text-lb-muted mt-1 leading-relaxed">
+                {where}
+                {entry.timeLabel && <><br />{entry.timeLabel}</>}
+              </span>
+            </div>
+            <div>
+              <h4 className="font-serif text-lg font-bold text-lb-primary mb-1">{def.name}</h4>
+              <p className="text-[15px] text-lb-primary/90 leading-relaxed">{def.diaryNote}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 const PersonsPanel: React.FC<{ flags: Record<string, boolean> }> = () => null;
 const DocumentsPanel: React.FC<{ inventory: string[] }> = () => null;
 
@@ -170,7 +220,10 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
   const tabCount = (tab: DiaryTab): string => {
     switch (tab) {
       case 'journal':   return `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`;
-      case 'evidence':  return '';   // filled in a later task
+      case 'evidence': {
+        const n = entries.filter(e => e.kind === 'clue' && CLUE_DEFINITIONS[e.refId]).length;
+        return `${n} recorded`;
+      }
       case 'persons':   return '';   // filled in a later task
       case 'documents': return '';   // filled in a later task
     }
