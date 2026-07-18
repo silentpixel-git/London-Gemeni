@@ -207,7 +207,7 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
               onTouchEnd={handleDragEnd}
             >
               <span className="font-serif text-xl font-bold text-lb-primary">Watson's Diary</span>
-              <button onClick={onClose} className="p-1.5 text-lb-muted hover:text-lb-primary hover:bg-lb-bg rounded-md transition-colors" aria-label="Close">
+              <button onClick={onClose} className="pressable pressable-icon p-1.5 text-lb-muted hover:text-lb-primary hover:bg-lb-bg rounded-md transition-colors" aria-label="Close">
                 <X size={22} />
               </button>
             </div>
@@ -265,7 +265,7 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
               <div className="relative flex-1 min-h-0 flex flex-col">
                 <button
                   onClick={onClose}
-                  className="hidden sm:block absolute top-3 right-3 z-20 p-1.5 text-lb-muted hover:text-lb-primary hover:bg-lb-bg rounded-md transition-colors"
+                  className="pressable pressable-icon hidden sm:block absolute top-3 right-3 z-20 p-1.5 text-lb-muted hover:text-lb-primary hover:bg-lb-bg rounded-md transition-colors"
                   aria-label="Close"
                 >
                   <X size={22} />
