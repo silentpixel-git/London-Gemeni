@@ -4,7 +4,7 @@
  * in index.html. Use lb-* class names in all components.
  *
  * Color tokens: lb-bg, lb-paper, lb-primary, lb-accent, lb-muted, lb-border
- * Font tokens:  font-sans (Open Sans), font-serif (Playfair Display)
+ * Font tokens:  font-sans (Lato), font-serif (Playfair Display)
  */
 export const THEME = {
   fonts: {
