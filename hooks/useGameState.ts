@@ -732,18 +732,24 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
                 parsed.npcMemoryUpdate,
                 npcStates
               );
-              setNpcStates(prev => {
-                const next = { ...prev };
-                Object.entries(parsed.npcMemoryUpdate!).forEach(([npcId, summary]) => {
-                  const existing = next[npcId]?.memory || [];
-                  next[npcId] = {
-                    ...(next[npcId] || { npcId, disposition: 50, status: 'alive' }),
-                    memory: [summary, ...existing].slice(0, 5),
-                  } as NPCState;
-                });
-                return next;
-              });
             }
+          }
+
+          // In-memory NPC continuity (feeds npcRecentMemory into the next prompt)
+          // — runs for guests too, same as STIM below; only the Supabase mirror
+          // above is gated on being signed in.
+          if (parsed.npcMemoryUpdate && Object.keys(parsed.npcMemoryUpdate).length > 0) {
+            setNpcStates(prev => {
+              const next = { ...prev };
+              Object.entries(parsed.npcMemoryUpdate!).forEach(([npcId, summary]) => {
+                const existing = next[npcId]?.memory || [];
+                next[npcId] = {
+                  ...(next[npcId] || { npcId, disposition: 50, status: 'alive' }),
+                  memory: [summary, ...existing].slice(0, 5),
+                } as NPCState;
+              });
+              return next;
+            });
           }
 
           // Handle STIM updates (session memory — first observation wins, never overwrite)
