@@ -25,7 +25,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { X, Search, Gavel, MessageSquare, Feather, MapPin, ChevronDown, Check, type LucideIcon } from 'lucide-react';
 import { ModalBackdrop } from './ModalBackdrop';
 import { Tooltip } from './Tooltip';
-import { overlayPresence, zoomFadeVariants, DUR_PANEL, DUR_EXIT, EASE_OUT_EXPO } from './motionTokens';
+import { overlayPresence, zoomFadeVariants, DUR_PANEL, DUR_EXIT, EASE_OUT, EASE_OUT_EXPO } from './motionTokens';
 import type { DiaryEntry } from '../types';
 import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION, CLUE_DEFINITIONS, LOCATIONS, PERSONS_OF_INTEREST, TAKEABLE_OBJECTS, DOCUMENT_TEXT } from '../engine/gameData';
 
@@ -65,7 +65,7 @@ const EvidencePanel: React.FC<{ entries: DiaryEntry[] }> = ({ entries }) => {
 
   if (clues.length === 0) {
     return (
-      <p className="text-[15px] text-lb-muted font-serif italic py-8 text-center">
+      <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
         No evidence formally recorded yet.
       </p>
     );
@@ -105,7 +105,7 @@ const PersonsPanel: React.FC<{ flags: Record<string, boolean> }> = ({ flags }) =
 
   if (visible.length === 0) {
     return (
-      <p className="text-[15px] text-lb-muted font-serif italic py-8 text-center">
+      <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
         Watson has no names in his ledger yet.
       </p>
     );
@@ -158,7 +158,7 @@ const DocumentsPanel: React.FC<{ inventory: string[] }> = ({ inventory }) => {
 
   if (docs.length === 0) {
     return (
-      <p className="text-[15px] text-lb-muted font-serif italic py-8 text-center">
+      <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
         Watson carries no papers worth rereading.
       </p>
     );
@@ -228,6 +228,14 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
   // Accordion: exactly one act open at a time; defaults to the current act.
   const [openAct, setOpenAct] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<DiaryTab>('journal');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // A tab switched while scrolled deep into a long Journal reads as an abrupt
+  // jump (the incoming panel renders far below the fold, or the transition is
+  // masked entirely) — snap back to the top of the panel on every tab change.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [activeTab]);
 
   // Lock body scroll; ESC to close (mirrors SaveSlotsModal)
   useEffect(() => {
@@ -406,9 +414,6 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                     </button>
                   ))}
                 </div>
-                <p className="mt-auto px-5 pt-4 text-[11px] italic text-lb-muted leading-relaxed">
-                  What he notices here is his own affair.
-                </p>
               </div>
 
               {/* Panel */}
@@ -420,24 +425,39 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                 >
                   <X size={22} />
                 </button>
-                <div className="flex-1 overflow-y-auto px-6 sm:px-8 pb-5 sm:pt-6">
+                <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 sm:px-8 pb-5 sm:pt-6">
+                <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={activeTab}
+                  initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+                  transition={{ duration: DUR_PANEL, ease: EASE_OUT }}
+                >
                   {activeTab === 'journal' && (
                     <>
                 {actNumbers.length === 0 ? (
-                  <p className="text-[15px] text-lb-muted font-serif italic py-8 text-center">
+                  <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
                     Watson has yet to commit anything to his diary.
                   </p>
                 ) : (
                   actNumbers.map(act => {
                     const expanded = openAct === act;
-                    const actEntries = [...byAct.get(act)!].sort((a, b) => b.sequence - a.sequence);
+                    // Newest-first by sequence, except the act-closing reflection
+                    // ("Watson's reflections") always reads last — it is the act's
+                    // capstone, regardless of when it happened to be captured.
+                    const actEntries = [...byAct.get(act)!].sort((a, b) => {
+                      if (a.kind === 'act' && b.kind !== 'act') return 1;
+                      if (b.kind === 'act' && a.kind !== 'act') return -1;
+                      return b.sequence - a.sequence;
+                    });
                     const leads = actLeads(act, flags);
                     const complete = act < currentAct || (leads != null && leads.found >= leads.total);
                     return (
                       <div key={act}>
                         <button
                           onClick={() => setOpenAct(prev => (prev === act ? null : act))}
-                          className="sticky top-0 z-10 w-full flex items-center justify-between gap-3 py-3.5 bg-lb-paper text-left"
+                          className="sticky top-0 z-10 w-full flex items-center justify-between gap-3 py-3.5 sm:pr-10 bg-lb-paper text-left"
                         >
                           <span className={`flex-1 min-w-0 uppercase tracking-widest text-[13px] font-bold ${act === currentAct ? 'text-lb-accent' : 'text-lb-muted'}`}>
                             {actLabel(act)}
@@ -533,6 +553,8 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                   {activeTab === 'evidence' && <EvidencePanel entries={entries} />}
                   {activeTab === 'persons' && <PersonsPanel flags={flags} />}
                   {activeTab === 'documents' && <DocumentsPanel inventory={inventory} />}
+                </motion.div>
+                </AnimatePresence>
                 </div>
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-7 bg-gradient-to-t from-lb-paper to-transparent sm:rounded-b-xl" />
               </div>
