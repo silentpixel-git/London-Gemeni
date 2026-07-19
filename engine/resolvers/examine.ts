@@ -1,6 +1,6 @@
 import { EngineResult } from '../../types';
 import { ParsedIntent } from '../intentParser';
-import type { StoryManifest } from '../stories/types';
+import type { StoryManifest, ClueDefinition } from '../stories/types';
 import type { SessionSnapshot } from '../session';
 import { periodOf, triggerClues, checkActProgression } from './support';
 import { buildNarrationContext, blocked, absentNpcBlocked } from '../narrationContext';
@@ -174,16 +174,61 @@ export function resolveRead(story: StoryManifest, intent: ParsedIntent, session:
     if (inLocation || inInventory) {
       const objectName = story.objectDisplayNames[targetId] ?? intent.targetRaw ?? targetId;
       const flagKey = `read_${targetId}`;
+
+      // Mirror EXAMINE's flag-setting when the object is physically present,
+      // so READ is a full substitute for EXAMINE — not a side-door that skips
+      // act-progression gates and diary leads keyed on "examined_<loc>_<obj>".
+      let flagsUpdate: Record<string, boolean> = { [flagKey]: true };
+      let newClueIds: string[] = [];
+      let newClueDefs: ClueDefinition[] = [];
+      let medicalDelta = 0;
+      let moralDelta = 0;
+      let newAct: number | undefined;
+      let gameOver: boolean | undefined;
+      let inventoryAdd: string[] | undefined;
+
+      if (inLocation) {
+        const alreadyExaminedFlag = `examined_${session.location}_${targetId}`;
+        const alreadyExamined = session.flags[alreadyExaminedFlag] === true;
+        const triggered = triggerClues(story, session.location, targetId, alreadyExamined, session.discoveredClueIds);
+        newClueIds = triggered.newClueIds;
+        newClueDefs = triggered.newClueDefs;
+        medicalDelta = triggered.medicalDelta;
+        moralDelta = triggered.moralDelta;
+
+        const locationFlag = currentLoc.locationExaminedFlag;
+        flagsUpdate = {
+          ...flagsUpdate,
+          [alreadyExaminedFlag]: true,
+          ...(locationFlag ? { [locationFlag]: true } : {}),
+        };
+
+        if (story.takeableObjects[targetId] && !session.inventory.includes(story.takeableObjects[targetId])) {
+          inventoryAdd = [story.takeableObjects[targetId]];
+        }
+
+        const actCheck = checkActProgression(story, session, { ...session.flags, ...flagsUpdate });
+        flagsUpdate = { ...flagsUpdate, ...(actCheck.flagsUpdate || {}) };
+        newAct = actCheck.newAct;
+        gameOver = actCheck.gameOver;
+      }
+
       return {
         actionSuccess: true,
         actionType: 'read',
-        flagsUpdate: { [flagKey]: true },
-        discoveredClueIds: [],
+        flagsUpdate,
+        newAct,
+        gameOver,
+        discoveredClueIds: newClueIds,
+        medicalPointsDelta: medicalDelta || undefined,
+        moralPointsDelta: moralDelta || undefined,
+        inventoryAdd,
         aiContext: buildNarrationContext(story, intent, session, {
           success: true,
           actionDescription: `Watson reads the ${objectName}.`,
           actionResultNote: `SUCCESS — Watson reads the literal text of the document:\n\n${docText}\n\nNarrate Watson reading this, quoting or paraphrasing it in his voice. Note any details that stand out to a trained observer.`,
-          newClueDefs: [],
+          newClueDefs,
+          itemsGained: inventoryAdd,
         }),
       };
     }

@@ -25,7 +25,7 @@ export default {
         'lb-border':  'rgb(var(--lb-border)  / <alpha-value>)',
       },
       fontFamily: {
-        sans:     ['"Open Sans"', 'sans-serif'],
+        sans:     ['"Lato"', 'sans-serif'],
         serif:    ['"Playfair Display"', 'serif'],
         playfair: ['"Playfair"', 'serif'],
       },

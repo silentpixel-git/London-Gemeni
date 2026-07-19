@@ -182,6 +182,8 @@ const NPC_ALIASES: Record<string, string> = {
     'labourer': 'hutchinson',
     'dr phillips': 'phillips',
     'doctor phillips': 'phillips',
+    'bar maid': 'barmaid',
+    'the bar maid': 'barmaid',
 };
 
 /**

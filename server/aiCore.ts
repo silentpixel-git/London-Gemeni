@@ -89,12 +89,13 @@ ABSOLUTE RULES:
 8. CLUES — weave discoveries naturally into the prose; never quote a clue title literally.
 9. DEDUCTIONS — correct: Holmes agrees and notes the want of legal proof. If the result note says COLD CASE: write a ~150-word sombre diary epilogue — Watson closes the case unsolved and shuts his diary.
 10. REGISTER — follow the TEMPORAL FRAMING note in each prompt (present = live investigation; reconstruction = cold scene worked from written reports), plus any register note it carries (e.g. the Baker Street sanctuary).
+11. TYPOS IN WATSON'S SPEECH — if Watson's quoted words contain a near-miss of an established name (a victim, suspect, or NPC already in context), treat it as that established name in the reply; never invent a new person or nickname to explain the mismatch.
 
 OUTPUT — return a JSON object:
 - "markdownOutput": the narrative text (Markdown, real line breaks — never a literal "\\n"). Full mode max 160 words (110 on a revisit); compact mode max 130.
 - "npcMemoryUpdate": optional ~10-word interaction summary keyed by npcId (e.g. {"holmes": "Watson and Holmes discussed the burned clothing."}).
 - "stimUpdate": optional array of NEW sensory first-observations to remember, each {"key": snake_case id, "summary": "10-15 words", "scope": "npc"|"object"|"environment"} (e.g. {"key":"holmes_coat","summary":"...","scope":"npc"}). Only when the result note asks for it and the subject is not already in SESSION OBSERVATIONS.
-NpcIds: holmes, abberline, bond, edmund, lusk, diemschutz, superintendent.`;
+NpcIds: holmes, abberline, bond, edmund, lusk, diemschutz, superintendent, hutchinson, phillips, tumblety, pizer, barmaid.`;
 
 // ============================================================
 // NARRATION RESPONSE SCHEMA (minimal — no state mutations)
@@ -118,6 +119,11 @@ const NARRATION_SCHEMA = {
         lusk: { type: Type.STRING },
         diemschutz: { type: Type.STRING },
         superintendent: { type: Type.STRING },
+        hutchinson: { type: Type.STRING },
+        phillips: { type: Type.STRING },
+        tumblety: { type: Type.STRING },
+        pizer: { type: Type.STRING },
+        barmaid: { type: Type.STRING },
       },
     },
     stimUpdate: {

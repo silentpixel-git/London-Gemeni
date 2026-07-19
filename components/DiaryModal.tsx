@@ -1,26 +1,33 @@
 /**
  * components/DiaryModal.tsx
  *
- * Watson's casebook. A browsable, read-only record of the important events the
- * engine auto-captures (clue discoveries, act milestones, major decisions),
- * grouped by act. Acts behave as an accordion — exactly one is open, defaulting
- * to the current act; earlier acts collapse.
+ * Watson's casebook. A browsable, read-only record of the investigation,
+ * organized into four tabs behind a desktop spine / mobile ribbon:
  *
- * Each act header shows a progress pill: the current act displays "leads" as
- * pips (its ACT_PROGRESSION gate — every action needed to advance), and finished
- * acts read as Complete. Entries store only a reference; the Watson-voiced text
- * is resolved from authored story data via resolveDiaryEntry(). Built entirely
- * from lb-* theme tokens so it adapts to light/dark mode.
+ *  - Journal: the auto-captured act accordion (clue discoveries, act
+ *    milestones, major decisions), unchanged from the diary's original form.
+ *    Acts behave as an accordion — exactly one is open, defaulting to the
+ *    current act; earlier acts collapse. Each act header shows a progress
+ *    pill: the current act displays "leads" as pips (its ACT_PROGRESSION
+ *    gate — every action needed to advance), and finished acts read as
+ *    Complete. Entries store only a reference; the Watson-voiced text is
+ *    resolved from authored story data via resolveDiaryEntry().
+ *  - Evidence: a ledger of discovered clues.
+ *  - Persons: a suspect ledger mirroring the engine's NOTEBOOK verb.
+ *  - Documents: papers Watson is carrying, verbatim.
+ *
+ * Read-only throughout. Built entirely from lb-* theme tokens so it adapts
+ * across all theme palettes.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { X, BookOpenText, Search, Gavel, MessageSquare, Feather, MapPin, ChevronDown, Check, type LucideIcon } from 'lucide-react';
+import { X, Search, Gavel, MessageSquare, Feather, MapPin, ChevronDown, Check, type LucideIcon } from 'lucide-react';
 import { ModalBackdrop } from './ModalBackdrop';
 import { Tooltip } from './Tooltip';
-import { overlayPresence, zoomFadeVariants, DUR_PANEL, DUR_EXIT, EASE_OUT_EXPO } from './motionTokens';
+import { overlayPresence, zoomFadeVariants, DUR_PANEL, DUR_EXIT, EASE_OUT, EASE_OUT_EXPO } from './motionTokens';
 import type { DiaryEntry } from '../types';
-import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION } from '../engine/gameData';
+import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION, CLUE_DEFINITIONS, LOCATIONS, PERSONS_OF_INTEREST, TAKEABLE_OBJECTS, DOCUMENT_TEXT } from '../engine/gameData';
 
 interface DiaryModalProps {
   isOpen: boolean;
@@ -28,8 +35,162 @@ interface DiaryModalProps {
   entries: DiaryEntry[];
   currentAct: number;
   flags: Record<string, boolean>;
+  inventory: string[];
   newEntryIds?: Set<string>;
 }
+
+type DiaryTab = 'journal' | 'evidence' | 'persons' | 'documents';
+
+const TABS: { id: DiaryTab; label: string }[] = [
+  { id: 'journal',   label: 'Journal' },
+  { id: 'evidence',  label: 'Evidence' },
+  { id: 'persons',   label: 'Persons' },
+  { id: 'documents', label: 'Documents' },
+];
+
+/** 1 → "I", 4 → "IV" … supports the full clue count (≤ 20). */
+const roman = (n: number): string => {
+  const map: Array<[number, string]> = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+  let out = '';
+  for (const [v, s] of map) while (n >= v) { out += s; n -= v; }
+  return out;
+};
+
+// --- Panels ------------------------------------------------------------
+const EvidencePanel: React.FC<{ entries: DiaryEntry[] }> = ({ entries }) => {
+  // Discovered clues, newest first. Numbering is chronological (oldest = No. I).
+  const clues = entries
+    .filter(e => e.kind === 'clue' && CLUE_DEFINITIONS[e.refId])
+    .sort((a, b) => b.sequence - a.sequence);
+
+  if (clues.length === 0) {
+    return (
+      <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
+        No evidence formally recorded yet.
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <p className="uppercase tracking-widest text-[11px] font-bold text-lb-accent mb-1">Case Notes</p>
+      <h3 className="font-serif text-2xl font-bold text-lb-primary mb-2">Evidence</h3>
+      {clues.map((entry, i) => {
+        const def = CLUE_DEFINITIONS[entry.refId];
+        const where = LOCATIONS[def.locationFound]?.name ?? def.locationFound;
+        return (
+          <div
+            key={entry.id}
+            className={`grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-1 sm:gap-5 py-4 ${i > 0 ? 'border-t border-lb-border' : ''}`}
+          >
+            <div className="sm:text-right pt-0.5">
+              <span className="font-serif italic text-lb-accent">No. {roman(clues.length - i)}</span>
+              <span className="block uppercase tracking-wider text-[10px] text-lb-muted mt-1 leading-relaxed">
+                {where}
+                {entry.timeLabel && <><br />{entry.timeLabel}</>}
+              </span>
+            </div>
+            <div>
+              <h4 className="font-serif text-lg font-bold text-lb-primary mb-1">{def.name}</h4>
+              <p className="text-[15px] text-lb-primary/90 leading-relaxed">{def.diaryNote}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+const PersonsPanel: React.FC<{ flags: Record<string, boolean> }> = ({ flags }) => {
+  const visible = PERSONS_OF_INTEREST.filter(p => !p.requiresFlag || flags[p.requiresFlag]);
+
+  if (visible.length === 0) {
+    return (
+      <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
+        Watson has no names in his ledger yet.
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <p className="uppercase tracking-widest text-[11px] font-bold text-lb-accent mb-1">The Running Ledger</p>
+      <h3 className="font-serif text-2xl font-bold text-lb-primary mb-2">Persons of Interest</h3>
+      {visible.map((p, i) => {
+        const cleared = Boolean(p.clearedByFlag && flags[p.clearedByFlag]);
+        return (
+          <div key={p.id} className={`py-4 ${i > 0 ? 'border-t border-lb-border' : ''}`}>
+            <div className="flex items-baseline justify-between gap-4">
+              <span
+                className={`font-serif text-lg font-bold ${
+                  cleared
+                    ? 'text-lb-primary/55 line-through decoration-red-800/70 decoration-[1.5px]'
+                    : 'text-lb-primary'
+                }`}
+              >
+                {p.label}
+              </span>
+              <span
+                className={`shrink-0 uppercase tracking-[0.2em] text-[10px] font-bold ${
+                  cleared ? 'text-red-800/70' : 'text-lb-accent'
+                }`}
+              >
+                {cleared ? 'Cleared' : 'Open'}
+              </span>
+            </div>
+            <p className={`mt-1 text-[15px] leading-relaxed ${cleared ? 'text-lb-primary/55' : 'text-lb-primary/85'}`}>
+              {cleared && p.clearedNote ? p.clearedNote : p.detail}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+/** Display name → object id, for looking up carried items in DOCUMENT_TEXT. */
+const OBJECT_ID_BY_DISPLAY_NAME: Record<string, string> = Object.fromEntries(
+  Object.entries(TAKEABLE_OBJECTS).map(([id, name]) => [name, id]),
+);
+
+const DocumentsPanel: React.FC<{ inventory: string[] }> = ({ inventory }) => {
+  const docs = inventory
+    .map(name => ({ name, objectId: OBJECT_ID_BY_DISPLAY_NAME[name] }))
+    .filter((d): d is { name: string; objectId: string } => Boolean(d.objectId && DOCUMENT_TEXT[d.objectId]));
+
+  if (docs.length === 0) {
+    return (
+      <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
+        Watson carries no papers worth rereading.
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <p className="uppercase tracking-widest text-[11px] font-bold text-lb-accent mb-1">Carried in the Medical Bag</p>
+      <h3 className="font-serif text-2xl font-bold text-lb-primary mb-2">Documents</h3>
+      {docs.map((doc, i) => (
+        <div key={doc.objectId} className={`py-4 ${i > 0 ? 'border-t border-lb-border' : ''}`}>
+          <h4 className="font-serif text-lg font-bold text-lb-primary mb-2">{doc.name}</h4>
+          <div className="space-y-2">
+            {DOCUMENT_TEXT[doc.objectId].split('\n').map((line, j) => {
+              const trimmed = line.trim();
+              if (trimmed === '') return null;
+              const caption = trimmed.match(/^\*(.+)\*$/);
+              return caption ? (
+                <p key={j} className="uppercase tracking-wider text-[10px] text-lb-muted">{caption[1]}</p>
+              ) : (
+                <p key={j} className="italic text-[15px] text-lb-primary/90 leading-relaxed">{trimmed}</p>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <p className="mt-5 pt-4 border-t border-lb-border text-[13px] italic text-lb-muted">
+        Verbatim copies, in Watson's hand. He may read them as often as he likes.
+      </p>
+    </div>
+  );
+};
 
 const KIND_ICON: Record<DiaryEntry['kind'], LucideIcon> = {
   clue: Search,
@@ -62,10 +223,19 @@ const actLeads = (
   return { found: real.filter(f => flags[f]).length, total: real.length };
 };
 
-export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries, currentAct, flags, newEntryIds }) => {
+export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries, currentAct, flags, inventory, newEntryIds }) => {
   const reducedMotion = useReducedMotion();
   // Accordion: exactly one act open at a time; defaults to the current act.
   const [openAct, setOpenAct] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<DiaryTab>('journal');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // A tab switched while scrolled deep into a long Journal reads as an abrupt
+  // jump (the incoming panel renders far below the fold, or the transition is
+  // masked entirely) — snap back to the top of the panel on every tab change.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [activeTab]);
 
   // Lock body scroll; ESC to close (mirrors SaveSlotsModal)
   useEffect(() => {
@@ -82,9 +252,12 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
     };
   }, [isOpen, onClose]);
 
-  // Open the current act each time the diary is opened.
+  // Open the current act, and always land on Journal, each time the diary is opened.
   useEffect(() => {
-    if (isOpen) setOpenAct(currentAct);
+    if (isOpen) {
+      setOpenAct(currentAct);
+      setActiveTab('journal');
+    }
   }, [isOpen, currentAct]);
 
   // Swipe-down-to-close on the mobile bottom sheet — drag from the handle or
@@ -139,6 +312,28 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
   }
   const actNumbers = Array.from(byAct.keys()).sort((a, b) => b - a);
 
+  const tabCount = (tab: DiaryTab): string => {
+    switch (tab) {
+      case 'journal':   return `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`;
+      case 'evidence': {
+        const n = entries.filter(e => e.kind === 'clue' && CLUE_DEFINITIONS[e.refId]).length;
+        return `${n} recorded`;
+      }
+      case 'persons': {
+        const visible = PERSONS_OF_INTEREST.filter(p => !p.requiresFlag || flags[p.requiresFlag]);
+        const cleared = visible.filter(p => p.clearedByFlag && flags[p.clearedByFlag]).length;
+        return visible.length === 0 ? 'none yet' : `${cleared} cleared, ${visible.length - cleared} open`;
+      }
+      case 'documents': {
+        const n = inventory.filter(name => {
+          const id = OBJECT_ID_BY_DISPLAY_NAME[name];
+          return id && DOCUMENT_TEXT[id];
+        }).length;
+        return `${n} carried`;
+      }
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -162,44 +357,107 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
             >
               <div className="w-10 h-1 rounded-full bg-lb-border" />
             </div>
-            {/* Header */}
+            {/* Mobile header (drag target) */}
             <div
-              className="flex items-center justify-between px-6 sm:px-7 py-4 sm:py-5 border-b border-lb-border"
+              className="flex sm:hidden items-center justify-between px-6 py-4 border-b border-lb-border"
               onTouchStart={handleDragStart}
               onTouchMove={handleDragMove}
               onTouchEnd={handleDragEnd}
             >
-              <div className="flex items-center gap-2.5 text-lb-accent">
-                <BookOpenText size={22} />
-                <span className="font-serif text-xl sm:text-2xl font-bold text-lb-primary">Watson's Diary</span>
-              </div>
-              <button
-                onClick={onClose}
-                className="p-1.5 text-lb-muted hover:text-lb-primary hover:bg-lb-bg rounded-md pressable pressable-icon"
-                aria-label="Close"
-              >
+              <span className="font-serif text-xl font-bold text-lb-primary">Watson's Diary</span>
+              <button onClick={onClose} className="pressable pressable-icon p-1.5 text-lb-muted hover:text-lb-primary hover:bg-lb-bg rounded-md transition-colors" aria-label="Close">
                 <X size={22} />
               </button>
             </div>
 
-            {/* Entries — scroll region with a soft bottom fade cueing more content */}
-            <div className="relative flex-1 min-h-0 flex">
-              <div className="flex-1 overflow-y-auto px-6 sm:px-7 pb-4">
+            {/* Mobile tab ribbon */}
+            <div className="flex sm:hidden border-b border-lb-border overflow-x-auto" role="tablist">
+              {TABS.map(t => (
+                <button
+                  key={t.id}
+                  role="tab"
+                  aria-selected={activeTab === t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`shrink-0 px-4 py-3 uppercase tracking-widest text-[11px] font-bold border-b-2 -mb-px transition-colors ${
+                    activeTab === t.id ? 'text-lb-accent border-lb-accent' : 'text-lb-muted border-transparent hover:text-lb-primary'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-1 min-h-0">
+              {/* Desktop spine */}
+              <div className="hidden sm:flex w-44 shrink-0 flex-col border-r border-lb-border bg-lb-primary/[0.04] pt-6 pb-4">
+                <div className="px-5 pb-5">
+                  <h2 className="font-serif text-2xl font-bold leading-tight text-lb-primary">Watson's<br />Diary</h2>
+                  <p className="mt-2 uppercase tracking-[0.2em] text-[10px] text-lb-muted">Whitechapel · 1888</p>
+                </div>
+                <div className="flex flex-col" role="tablist">
+                  {TABS.map(t => (
+                    <button
+                      key={t.id}
+                      role="tab"
+                      aria-selected={activeTab === t.id}
+                      onClick={() => setActiveTab(t.id)}
+                      className={`text-left px-5 py-3 border-l-[3px] uppercase tracking-widest text-[11px] font-bold transition-colors ${
+                        activeTab === t.id
+                          ? 'text-lb-primary border-lb-accent bg-lb-paper'
+                          : 'text-lb-muted border-transparent hover:text-lb-primary'
+                      }`}
+                    >
+                      {t.label}
+                      <span className="block normal-case tracking-normal font-normal text-[11px] opacity-70 mt-0.5">
+                        {tabCount(t.id)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Panel */}
+              <div className="relative flex-1 min-h-0 flex flex-col">
+                <button
+                  onClick={onClose}
+                  className="pressable pressable-icon hidden sm:block absolute top-3 right-3 z-20 p-1.5 text-lb-muted hover:text-lb-primary hover:bg-lb-bg rounded-md transition-colors"
+                  aria-label="Close"
+                >
+                  <X size={22} />
+                </button>
+                <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 sm:px-8 pb-5 sm:pt-6">
+                <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={activeTab}
+                  initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+                  transition={{ duration: DUR_PANEL, ease: EASE_OUT }}
+                >
+                  {activeTab === 'journal' && (
+                    <>
                 {actNumbers.length === 0 ? (
-                  <p className="text-[15px] text-lb-muted font-serif italic py-8 text-center">
+                  <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
                     Watson has yet to commit anything to his diary.
                   </p>
                 ) : (
                   actNumbers.map(act => {
                     const expanded = openAct === act;
-                    const actEntries = [...byAct.get(act)!].sort((a, b) => b.sequence - a.sequence);
+                    // Newest-first by sequence, except the act-closing reflection
+                    // ("Watson's reflections") always reads last — it is the act's
+                    // capstone, regardless of when it happened to be captured.
+                    const actEntries = [...byAct.get(act)!].sort((a, b) => {
+                      if (a.kind === 'act' && b.kind !== 'act') return 1;
+                      if (b.kind === 'act' && a.kind !== 'act') return -1;
+                      return b.sequence - a.sequence;
+                    });
                     const leads = actLeads(act, flags);
                     const complete = act < currentAct || (leads != null && leads.found >= leads.total);
                     return (
                       <div key={act}>
                         <button
                           onClick={() => setOpenAct(prev => (prev === act ? null : act))}
-                          className="sticky top-0 z-10 w-full flex items-center justify-between gap-3 py-3.5 bg-lb-paper text-left"
+                          className="sticky top-0 z-10 w-full flex items-center justify-between gap-3 py-3.5 sm:pr-10 bg-lb-paper text-left"
                         >
                           <span className={`flex-1 min-w-0 uppercase tracking-widest text-[13px] font-bold ${act === currentAct ? 'text-lb-accent' : 'text-lb-muted'}`}>
                             {actLabel(act)}
@@ -290,8 +548,16 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                     );
                   })
                 )}
+                    </>
+                  )}
+                  {activeTab === 'evidence' && <EvidencePanel entries={entries} />}
+                  {activeTab === 'persons' && <PersonsPanel flags={flags} />}
+                  {activeTab === 'documents' && <DocumentsPanel inventory={inventory} />}
+                </motion.div>
+                </AnimatePresence>
+                </div>
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-7 bg-gradient-to-t from-lb-paper to-transparent sm:rounded-b-xl" />
               </div>
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-7 bg-gradient-to-t from-lb-paper to-transparent sm:rounded-b-xl" />
             </div>
           </motion.div>
         </motion.div>

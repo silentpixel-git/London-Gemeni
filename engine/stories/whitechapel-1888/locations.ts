@@ -116,7 +116,7 @@ const LOCATIONS_DATA = {
     atmosphere: "Sawdust floors, gas lamps turned low, the smell of cheap gin and wet wool. A public house that has served Spitalfields for a century and has seen everything.",
     description: "The Ten Bells on Commercial Street stands directly opposite Spitalfields Market. It is the kind of pub that doesn't need a reputation — it simply exists, as it always has, as a place where the people of this neighbourhood come to be warm. Several of the women who worked these streets drank here. Watson is not sure all of them are still alive.",
     exits: ['h_division_station', 'bucks_row'],
-    interactables: ['pub_regulars', 'the_barmaid', 'corner_table', 'notice_board'],
+    interactables: ['pub_regulars', 'corner_table', 'notice_board'],
     locationExaminedFlag: 'examined_whitechapel_pub',
     timeOfDay: 'night',
     extras: [
@@ -357,7 +357,6 @@ const OBJECT_DISPLAY_NAMES_DATA = {
   case_files_cabinet: 'Case Files Cabinet',
   // The Ten Bells
   pub_regulars: 'Pub Regulars',
-  the_barmaid: 'The Barmaid',
   corner_table: 'Corner Table',
   notice_board: 'Notice Board',
   // Buck's Row

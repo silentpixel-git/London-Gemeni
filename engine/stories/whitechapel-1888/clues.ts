@@ -296,7 +296,6 @@ export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
   },
   whitechapel_pub: {
     pub_regulars: [],
-    the_barmaid: [],
     corner_table: [],
     notice_board: [],
   },
@@ -404,7 +403,6 @@ export const ATMOSPHERIC_NOTES: Record<string, Record<string, string>> = {
   },
   whitechapel_pub: {
     pub_regulars: "The men at the bar drink without much conversation. One of them, noticing Watson's coat, asks if he's a doctor. When Watson says yes, the man nods slowly and says: 'We could've used one, a few months back.' Watson doesn't ask him to explain.",
-    the_barmaid: "The barmaid is perhaps forty, with the particular efficiency of someone who has learned not to waste motion. She sets Watson's drink down and says, unprompted: 'Three of them used to come in here regular. Before.' She doesn't say before what. She doesn't need to.",
     corner_table: "Watson sits in the corner, half-listening to the room, when a woman approaches — not a barmaid, just a regular — and asks if he has found anything yet. 'About the Kelly girl,' she says. 'I knew her. Mary.' She says the name the way Abberline does when he forgets himself. Watson has no answer. She nods once, as though she expected this, and goes back to her drink. Watson writes nothing in his notebook.",
     notice_board: "A notice board near the door carries a poster from the Whitechapel Vigilance Committee: 'MURDER — LIBERAL REWARD offered to any person (other than a Police Officer) who shall give such information as will lead to the discovery and conviction of the murderer.' Watson has seen this poster before. He is no closer to claiming the reward.",
   },
@@ -625,6 +623,19 @@ export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const DOCUMENT_TEXT: Record<string, string> = {
+  // The published facsimile of the "Dear Boss" letter — the piece of press
+  // theatre that gave the killer his public name. Historical text, verbatim.
+  newspaper_pile: `*The Star — facsimile reprint, "Dear Boss" letter.*
+
+Dear Boss,
+
+I keep on hearing the police have caught me but they wont fix me just yet. I have laughed when they look so clever and talk about being on the right track. That joke about Leather Apron gave me real fits. I am down on whores and I shant quit ripping them till I do get buckled. Grand work the last job was. I gave the lady no time to squeal. How can they catch me now. I love my work and want to start again. You will soon hear of me with my funny little games. I saved some of the proper red stuff in a ginger beer bottle over the last job to write with but it went thick like glue and I cant use it. Red ink is fit enough I hope ha. ha. The next job I do I shall clip the ladys ears off and send to the police officers just for jolly wouldnt you. Keep this letter back till I do a bit more work, then give it out straight. My knife's so nice and sharp I want to get to work right away if I get a chance. Good luck.
+
+Yours truly
+Jack the Ripper
+
+Dont mind me giving the trade name`,
+
   from_hell_letter: `*From Hell.*
 
 Mr Lusk,

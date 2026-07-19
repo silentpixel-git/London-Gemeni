@@ -252,6 +252,7 @@ const AppContent: React.FC = () => {
         entries={gs.diaryEntries}
         currentAct={gs.currentAct}
         flags={gs.flags}
+        inventory={gs.inventory}
         newEntryIds={diaryNewIds}
       />
       <ResetPasswordModal isOpen={isPasswordRecovery} />

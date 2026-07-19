@@ -4,7 +4,7 @@
  * in index.html. Use lb-* class names in all components.
  *
  * Color tokens: lb-bg, lb-paper, lb-primary, lb-accent, lb-muted, lb-border
- * Font tokens:  font-sans (Open Sans), font-serif (Playfair Display)
+ * Font tokens:  font-sans (Lato), font-serif (Playfair Display)
  */
 export const THEME = {
   fonts: {
@@ -41,6 +41,7 @@ export const INITIAL_NPC_STATES: Record<string, any> = {
   phillips: { npcId: 'phillips', currentLocation: 'whitechapel_mortuary', status: 'alive', memory: [] },
   tumblety: { npcId: 'tumblety', currentLocation: 'h_division_station', status: 'alive', memory: [] },
   pizer: { npcId: 'pizer', currentLocation: 'working_mens_club', status: 'alive', memory: [] },
+  barmaid: { npcId: 'barmaid', currentLocation: 'whitechapel_pub', status: 'alive', memory: [] },
 };
 
 // NPC_DISPLAY_NAMES kept here for sidebar rendering (App.tsx doesn't import from engine/gameData)
@@ -56,6 +57,7 @@ export const NPC_DISPLAY_NAMES: Record<string, string> = {
   phillips: 'Dr. George Bagster Phillips',
   tumblety: 'Francis Tumblety',
   pizer: 'John Pizer',
+  barmaid: 'The Barmaid',
 };
 
 // Roman numerals for act labels (index 0 = prologue, unused as a numeral).

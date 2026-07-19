@@ -16,6 +16,13 @@ export interface DecisionDiaryEntry {
 }
 
 export const DECISION_DIARY: Record<string, DecisionDiaryEntry> = {
+  // The prologue tutorial beat — Watson reads the pile before he shows Holmes
+  // anything from it.
+  read_newspaper_pile: {
+    flag: 'examined_baker_street_newspaper_pile',
+    name: 'The Newspaper Pile',
+    diaryNote: "I went through the stack by Holmes's chair — weeks of headlines growing more hysterical by the day. Near the top, the Star had printed a facsimile of a letter, signed 'Jack the Ripper.' I set it aside to show Holmes.",
+  },
   // The prologue tutorial choice — Watson lays the press hoax before Holmes.
   showed_dear_boss_to_holmes: {
     flag: 'showed_newspaper_pile_to_holmes',
