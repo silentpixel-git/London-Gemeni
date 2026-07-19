@@ -625,6 +625,19 @@ export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const DOCUMENT_TEXT: Record<string, string> = {
+  // The published facsimile of the "Dear Boss" letter — the piece of press
+  // theatre that gave the killer his public name. Historical text, verbatim.
+  newspaper_pile: `*The Star — facsimile reprint, "Dear Boss" letter.*
+
+Dear Boss,
+
+I keep on hearing the police have caught me but they wont fix me just yet. I have laughed when they look so clever and talk about being on the right track. That joke about Leather Apron gave me real fits. I am down on whores and I shant quit ripping them till I do get buckled. Grand work the last job was. I gave the lady no time to squeal. How can they catch me now. I love my work and want to start again. You will soon hear of me with my funny little games. I saved some of the proper red stuff in a ginger beer bottle over the last job to write with but it went thick like glue and I cant use it. Red ink is fit enough I hope ha. ha. The next job I do I shall clip the ladys ears off and send to the police officers just for jolly wouldnt you. Keep this letter back till I do a bit more work, then give it out straight. My knife's so nice and sharp I want to get to work right away if I get a chance. Good luck.
+
+Yours truly
+Jack the Ripper
+
+Dont mind me giving the trade name`,
+
   from_hell_letter: `*From Hell.*
 
 Mr Lusk,
