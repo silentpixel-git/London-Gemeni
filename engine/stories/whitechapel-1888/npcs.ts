@@ -371,6 +371,26 @@ const NPCS_DATA = {
     ],
   },
 
+  barmaid: {
+    id: 'barmaid',
+    displayName: 'The Barmaid',
+    alias: 'The Barmaid',
+    requiresIntroduction: false, // no hidden identity to learn — she is simply "the barmaid"
+    role: 'Barmaid, the Ten Bells',
+    description: 'Perhaps forty, with the particular efficiency of someone who has learned not to waste motion. She knew several of the murdered women personally, back when they were regulars — she does not name them and does not need to. Not a witness to anything, not a source of facts about the case; just someone who has watched the regulars disappear, one by one, and kept pouring drinks regardless.',
+    speakingStyle: 'Economical. Volunteers a fragment unprompted, then goes quiet rather than explain it. Never gossips at length; never speculates about the killer.',
+    personality: ['Efficient', 'Guarded warmth', 'Quietly grieving', "Doesn't waste words"],
+    followingRule: 'location_based',
+    scheduleByAct: {
+      2: { default: 'whitechapel_pub' },
+      3: { default: 'whitechapel_pub' },
+    },
+    idleBeats: [
+      { text: 'The barmaid moves down the bar without being asked, refilling glasses by habit rather than request' },
+      { text: 'The barmaid glances toward the door each time it opens, then returns to her work without a word' },
+    ],
+  },
+
   superintendent: {
     id: 'superintendent',
     displayName: 'Asylum Superintendent',
@@ -422,6 +442,7 @@ export const NPC_DISPLAY_NAMES: Record<string, string> = {
   phillips: 'Dr. George Bagster Phillips',
   tumblety: 'Francis Tumblety',
   pizer: 'John Pizer',
+  barmaid: 'The Barmaid',
 };
 
 // Alias names used before introduction — keyed by NPC ID

@@ -1167,6 +1167,7 @@ function testScheduleParity() {
     phillips:       { 2: 'whitechapel_mortuary', 3: 'whitechapel_mortuary' },
     tumblety:       { 2: 'h_division_station', 3: 'h_division_station' },
     pizer:          { 3: 'working_mens_club' },
+    barmaid:        { 2: 'whitechapel_pub', 3: 'whitechapel_pub' },
     superintendent: { 0: 'private_asylum', 1: 'private_asylum', 2: 'private_asylum', 3: 'private_asylum', 4: 'private_asylum', 5: 'private_asylum', 6: 'private_asylum' },
   };
 

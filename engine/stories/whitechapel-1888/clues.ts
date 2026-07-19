@@ -296,7 +296,6 @@ export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
   },
   whitechapel_pub: {
     pub_regulars: [],
-    the_barmaid: [],
     corner_table: [],
     notice_board: [],
   },
@@ -404,7 +403,6 @@ export const ATMOSPHERIC_NOTES: Record<string, Record<string, string>> = {
   },
   whitechapel_pub: {
     pub_regulars: "The men at the bar drink without much conversation. One of them, noticing Watson's coat, asks if he's a doctor. When Watson says yes, the man nods slowly and says: 'We could've used one, a few months back.' Watson doesn't ask him to explain.",
-    the_barmaid: "The barmaid is perhaps forty, with the particular efficiency of someone who has learned not to waste motion. She sets Watson's drink down and says, unprompted: 'Three of them used to come in here regular. Before.' She doesn't say before what. She doesn't need to.",
     corner_table: "Watson sits in the corner, half-listening to the room, when a woman approaches — not a barmaid, just a regular — and asks if he has found anything yet. 'About the Kelly girl,' she says. 'I knew her. Mary.' She says the name the way Abberline does when he forgets himself. Watson has no answer. She nods once, as though she expected this, and goes back to her drink. Watson writes nothing in his notebook.",
     notice_board: "A notice board near the door carries a poster from the Whitechapel Vigilance Committee: 'MURDER — LIBERAL REWARD offered to any person (other than a Police Officer) who shall give such information as will lead to the discovery and conviction of the murderer.' Watson has seen this poster before. He is no closer to claiming the reward.",
   },
