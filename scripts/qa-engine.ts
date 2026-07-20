@@ -199,13 +199,19 @@ function runWinningPath() {
     expectLocation: 'dorset_street', // ← anchor auto-move (overnight cut; Kelly dies tonight)
   });
 
-  // Act 1 — "The Stranger". The witness-test chain: the account must be heard,
-  // taken down, tried against the ground, and only then read back to its author.
-  s = step('Act1', s, 'examine the account',     { expectSuccess: false }); // gated: examine must not bypass the take gate either
-  s = step('Act1', s, 'take the account',        { expectSuccess: false }); // gated: not yet heard
+  // Act 1 — "The Stranger". The witness-test chain: the account only exists
+  // once Hutchinson has given it (granted by TALK, not a location object —
+  // it must never be examinable/takeable as scenery, before or after the
+  // conversation), tried against the ground, and only then read back to him.
+  s = step('Act1', s, 'examine the account',     { expectSuccess: false }); // not scenery: no such object here yet
+  s = step('Act1', s, 'take the account',        { expectSuccess: false }); // not scenery: no such object here yet
   s = step('Act1', s, 'talk to hutchinson',      { expectSuccess: true, expectFlag: 'talked_to_hutchinson_at_dorset_street' });
-  s = step('Act1', s, 'show account to hutchinson', { expectSuccess: false }); // not in inventory yet
-  s = step('Act1', s, 'take the account',        { expectSuccess: true });
+  if (s.inventory.includes("Hutchinson's Account (Watson's note)")) {
+    pass("Act1 → Hutchinson's account transcribed into inventory as he speaks (no separate take)");
+  } else {
+    fail(`Act1 → account not granted by the talk: ${JSON.stringify(s.inventory)}`);
+  }
+  s = step('Act1', s, 'take the account',        { expectSuccess: false }); // still not a location object — talk already granted it
   s = step('Act1', s, 'show account to hutchinson', { expectSuccess: false }); // gated: sightline test not done
   // Reversed phrasing exercises the Task 1 symmetry fix — flag must still be
   // keyed to the authored orientation (account first).

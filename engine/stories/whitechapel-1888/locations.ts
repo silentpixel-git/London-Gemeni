@@ -31,7 +31,11 @@ const LOCATIONS_DATA = {
     atmosphere: 'Foggy mornings, muddy roads, constant noise from vendors and carts. A crowded and impoverished street in Whitechapel.',
     description: "The air is thick with the smell of coal smoke and the press of humanity. A crowd has gathered outside Miller's Court, their whispers a low hum against the city's noise.",
     exits: ['millers_court', 'baker_street', 'h_division_station'],
-    interactables: ['police_barricade', 'street_lamps', 'lodging_house_entrances', 'crowd', 'court_archway', 'hutchinson_account'],
+    // hutchinson_account is deliberately absent: it is not scenery — it only
+    // exists in Watson's bag once Hutchinson has given it (see
+    // TALK_GRANTS_ITEM in clues.ts). Listing it here would leak his name and
+    // let it be examined/taken before the conversation that produces it.
+    interactables: ['police_barricade', 'street_lamps', 'lodging_house_entrances', 'crowd', 'court_archway'],
     locationExaminedFlag: 'examined_dorset_street',
     timeOfDay: 'morning',
     extras: [

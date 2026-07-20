@@ -389,7 +389,6 @@ export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
     lodging_house_entrances: [],
     crowd: [],
     court_archway: [],
-    hutchinson_account: [],
   },
 };
 
@@ -424,7 +423,6 @@ export const ATMOSPHERIC_NOTES: Record<string, Record<string, string>> = {
     lodging_house_entrances: "The lodging houses along Dorset Street take in anyone who can afford fourpence a night. The women who lived here moved between them constantly — a bed here, a floor there, wherever the money stretched. Watson thinks of the difference between having a home and merely having a place to sleep.",
     crowd: "The crowd pressed against the barricade is a mixture of the morbidly curious, the genuinely afraid, and the simply poor who have nowhere else to be. A woman near Watson says nothing, just stares at the entrance to Miller's Court with the flat expression of someone who has been waiting for this to happen.",
     court_archway: "The covered passage into Miller's Court is barely three feet wide — a brick throat between two lodging houses, unlit along its length. The nearest lamp stands across the street, its glow arriving as a rumour. Watson stands where a watcher would have stood, opposite, and studies what the light actually reaches: outlines, movement, the pale smudge of a face. No more.",
-    hutchinson_account: "Watson's note of Hutchinson's statement, taken down at the man's own eager dictation — the astrakhan trim, the gold chain, the tie-pin, the parcel in the left hand. Read back in daylight, the detail is remarkable. That is precisely what troubles him.",
   },
   millers_court: {
     the_bed: "The bed dominates the small room. Watson, who has seen field surgery and the aftermath of battle, stands at its foot for a moment and says nothing. What happened here required hours. The killer was comfortable in this room. He made it his.",
@@ -500,15 +498,27 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
   // Prologue: examining the newspapers yields the clipping of the published
   // "Dear Boss" letter — the object the player SHOWS to Holmes (tutorial beat).
   newspaper_pile: 'Newspaper Clipping (the "Dear Boss" letter)',
+  // Not a location interactable — granted directly by TALK (see
+  // TALK_GRANTS_ITEM below). Kept here for its display name and so
+  // USE/SHOW's inventory-possession checks resolve it.
   hutchinson_account: "Hutchinson's Account (Watson's note)",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TAKEABLE GATES — object may only be taken once this flag is set.
-// hutchinson_account: Watson cannot note down an account he has not heard.
+// (No entries currently authored — see TALK_GRANTS_ITEM for the pattern used
+// when an item should exist only because an NPC gave it, not as scenery.)
 // ─────────────────────────────────────────────────────────────────────────────
-export const TAKEABLE_REQUIRES_FLAG: Record<string, StoryFlag> = {
-  hutchinson_account: 'talked_to_hutchinson_at_dorset_street',
+export const TAKEABLE_REQUIRES_FLAG: Record<string, StoryFlag> = {};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TALK GRANTS ITEM — talking to this NPC adds a takeable object straight to
+// inventory (once). For testimony that exists only because the NPC gave it —
+// modeling it as a location object a player could examine/take before ever
+// speaking to them would both leak the NPC's name early and make no sense.
+// ─────────────────────────────────────────────────────────────────────────────
+export const TALK_GRANTS_ITEM: Record<string, string> = {
+  hutchinson: 'hutchinson_account',
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -37,17 +37,28 @@ export function resolveTalk(story: StoryManifest, intent: ParsedIntent, session:
   const interactionFlag = `talked_to_${targetId}_at_${session.location}`;
   const flagsUpdate: Record<string, boolean> = { [interactionFlag]: true };
 
+  // Talk-granted item: some NPCs hand over testimony that only exists because
+  // they gave it (a witness's account) — not scenery the player could have
+  // taken beforehand. Granted once, the first time the talk succeeds.
+  const grantedObjectId = story.talkGrantsItem[targetId];
+  const grantedItem = grantedObjectId ? story.takeableObjects[grantedObjectId] : undefined;
+  const inventoryAdd = grantedItem && !session.inventory.includes(grantedItem) ? [grantedItem] : undefined;
+
   return {
     actionSuccess: true,
     actionType: 'talk',
     flagsUpdate,
     discoveredClueIds: [],
+    inventoryAdd,
     aiContext: buildNarrationContext(story, intent, session, {
       success: true,
       actionDescription: `Watson addressed ${npcName} at ${currentLoc.name}. Watson said: "${intent.raw}"`,
-      actionResultNote: `SUCCESS — Watson engaged ${npcName} in conversation.`,
+      actionResultNote: inventoryAdd
+        ? `SUCCESS — Watson engaged ${npcName} in conversation. As ${npcName} speaks, Watson takes down what is said in writing — narrate him transcribing it as part of the conversation, not as a separate act of picking something up.`
+        : `SUCCESS — Watson engaged ${npcName} in conversation.`,
       newClueDefs: [],
       targetNpcId: targetId,
+      itemsGained: inventoryAdd,
     }),
   };
 }
