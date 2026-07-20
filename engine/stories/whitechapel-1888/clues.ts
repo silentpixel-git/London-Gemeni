@@ -279,9 +279,9 @@ const CLUE_DEFINITIONS_DATA = {
   clue_12_letter_knows_too_much: {
     id: 'clue_12_letter_knows_too_much',
     name: 'The Letter Knows Too Much',
-    diaryNote: "I set Bond's notes on the kidney beside the letter that boasted of it. The papers printed the letter entire — but the organ's condition was never published anywhere. The letter describes what only the hands that took it could know. Whoever wrote those crude lines is no hoaxer. He held the thing.",
-    description: "Watson lays the kidney examination notes beside the From Hell letter. The press reprinted the letter in facsimile — half of London has read it. But the notes record what no newspaper ever carried: the organ's condition, the attached inch of renal artery, the state of its preservation. The letter's boast matches the unpublished facts. Its writer did not read about the kidney. He handled it.",
-    holmesDeduction: "The hoax letters trade in what the papers printed, Watson. This one trades in what they did not. Strike every letter from the case but this — this one the killer wrote.",
+    diaryNote: "I set Bond's notes on the kidney beside the letter that boasted of it. The letter itself says nothing a fairground barker could not invent — half a kidney, fried and eaten. But held against what Bond's own hand recorded, and against what the papers never printed, the boast reads differently. A man who had only read the newspapers could not have written it so carelessly right.",
+    description: "Watson lays the kidney examination notes beside the From Hell letter and reads one against the other. The letter's own words are crude and say little — a boast of taking, preserving, eating. But Bond's notes, in Watson's hand from the examination itself, record what no newspaper ever carried: the organ's condition, the attached inch of renal artery. Nothing in the letter names these details outright, and yet Watson finds himself unable to dismiss the coincidence — a hoaxer, working only from the papers, would have had nothing but the papers to embroider from. Whoever wrote those clumsy lines wrote them with the thing, or the knowledge of it, close at hand.",
+    holmesDeduction: "The hoax letters trade only in what the papers printed, Watson — that is how I have discarded a hundred of them without a second reading. This one I cannot discard so easily. Set beside Bond's notes it does not contradict a single particular, and a man inventing from newsprint alone tends to invent wrongly, somewhere, eventually. That is my judgment, not a certainty carved in stone — but I would stake a good deal on it.",
     locationFound: 'lusk_office',
     // Synthetic label — granted only via the USE combination (kidney notes + letter).
     triggerObject: 'letter_kidney_crossref',
@@ -671,7 +671,7 @@ export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = 
     // location lock: deliberately friction-free, both items are Act 4 finds).
     'from_hell_letter': {
       clueId: 'clue_12_letter_knows_too_much',
-      resultNote: "SUCCESS — Watson reads the letter's boast against Bond's examination notes, line by line. The papers printed every crude word of the letter — but the notes hold what was never published: the organ's condition, the artery, the preservation. The letter describes the kidney as only its taker could. The hoax theory does not survive the comparison.",
+      resultNote: "SUCCESS — Watson reads the letter's boast against Bond's examination notes, line by line. The papers printed every crude word of the letter, but the notes hold what was never published: the organ's condition, the attached inch of artery. The letter contradicts nothing Bond recorded — and a hoaxer working only from newsprint would have had nothing else to work from. Watson sets the pages down convinced the writer had handled the thing, not merely read about it.",
     },
   },
   // USE forensic reports WITH case files wall
