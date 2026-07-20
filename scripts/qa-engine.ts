@@ -201,6 +201,7 @@ function runWinningPath() {
 
   // Act 1 — "The Stranger". The witness-test chain: the account must be heard,
   // taken down, tried against the ground, and only then read back to its author.
+  s = step('Act1', s, 'examine the account',     { expectSuccess: false }); // gated: examine must not bypass the take gate either
   s = step('Act1', s, 'take the account',        { expectSuccess: false }); // gated: not yet heard
   s = step('Act1', s, 'talk to hutchinson',      { expectSuccess: true, expectFlag: 'talked_to_hutchinson_at_dorset_street' });
   s = step('Act1', s, 'show account to hutchinson', { expectSuccess: false }); // not in inventory yet
