@@ -90,11 +90,14 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
 }
 
 // 6) Unvisited-location guard: a hint must never name a location's contents before
-//    Watson has been there. Act 1 at Dorset Street with Hutchinson already spoken to →
-//    the only steps left are inside Miller's Court, which has NOT been visited.
+//    Watson has been there. Act 1 at Dorset Street with the whole Hutchinson
+//    witness-test chain already completed → the only steps left are inside
+//    Miller's Court, which has NOT been visited.
 {
   const s = state({ currentAct: 1, location: 'dorset_street',
-    flags: { talked_to_hutchinson_at_dorset_street: true },
+    flags: { talked_to_hutchinson_at_dorset_street: true,
+             used_hutchinson_account_with_court_archway: true,
+             showed_hutchinson_account_to_hutchinson: true },
     npcStates: { bond: { currentLocation: 'millers_court', status: 'alive' } } });
   let leaks = 0;
   for (let i = 0; i < 30; i++) {
