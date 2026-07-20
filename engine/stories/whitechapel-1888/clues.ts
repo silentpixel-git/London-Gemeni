@@ -162,7 +162,7 @@ const CLUE_DEFINITIONS_DATA = {
     holmesDeduction: 'A man barely lettered, Watson — or one who wishes us to believe it. The hand is steady; the errors are consistent; the cruelty is genuine. Keep your transcript close. Documents have a way of answering one another, given time.',
     locationFound: 'lusk_office',
     triggerObject: 'from_hell_letter',
-    connections: ['clue_06_prasarved_spelling', 'clue_05_human_kidney'],
+    connections: ['clue_06_prasarved_spelling', 'clue_05_human_kidney', 'clue_12_letter_knows_too_much'],
     clueGroup: 5,
     medicalPoints: 5,
     moralPoints: 5,
@@ -175,7 +175,7 @@ const CLUE_DEFINITIONS_DATA = {
     holmesDeduction: "Mark the preservation, Watson, more than the cutting. A showman's curio is crudely kept — this was fixed by laboratory hands, to laboratory standards. The man who kept this kidney keeps specimens for his living. He did not flee, and he did not vanish. He is still at his bench.",
     locationFound: 'lusk_office',
     triggerObject: 'kidney_parcel',
-    connections: ['clue_04_kidney_removal', 'clue_06_prasarved_spelling', 'clue_08_preserved_kidney'],
+    connections: ['clue_04_kidney_removal', 'clue_06_prasarved_spelling', 'clue_08_preserved_kidney', 'clue_12_letter_knows_too_much'],
     clueGroup: 5,
     medicalPoints: 10,
     moralPoints: 5,
@@ -269,6 +269,24 @@ const CLUE_DEFINITIONS_DATA = {
     triggerObject: 'witness_test',
     connections: ['clue_04b_adjustable_appearance'],
     clueGroup: 11,
+    medicalPoints: 5,
+    moralPoints: 5,
+  },
+  // GROUP 12 — The Letter Knows Too Much (Act 4 refresher: the USE verb again,
+  // one act before the convergence. Spoiler containment: establishes only that
+  // the writer HANDLED the kidney — never the preservation-method-matches-Bond's-
+  // lab thread (that is the SHOW-to-Bond beat), never Edmund, never the asylum.)
+  clue_12_letter_knows_too_much: {
+    id: 'clue_12_letter_knows_too_much',
+    name: 'The Letter Knows Too Much',
+    diaryNote: "I set Bond's notes on the kidney beside the letter that boasted of it. The papers printed the letter entire — but the organ's condition was never published anywhere. The letter describes what only the hands that took it could know. Whoever wrote those crude lines is no hoaxer. He held the thing.",
+    description: "Watson lays the kidney examination notes beside the From Hell letter. The press reprinted the letter in facsimile — half of London has read it. But the notes record what no newspaper ever carried: the organ's condition, the attached inch of renal artery, the state of its preservation. The letter's boast matches the unpublished facts. Its writer did not read about the kidney. He handled it.",
+    holmesDeduction: "The hoax letters trade in what the papers printed, Watson. This one trades in what they did not. Strike every letter from the case but this — this one the killer wrote.",
+    locationFound: 'lusk_office',
+    // Synthetic label — granted only via the USE combination (kidney notes + letter).
+    triggerObject: 'letter_kidney_crossref',
+    connections: ['clue_05_from_hell_letter', 'clue_05_human_kidney'],
+    clueGroup: 12,
     medicalPoints: 5,
     moralPoints: 5,
   },
@@ -648,6 +666,12 @@ export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = 
       // are obtainable then) and spoil the Act 6 asylum reveal.
       requiresAct: 6,
       resultNote: "SUCCESS — Watson cross-references the kidney's preservation against the ledger's documented method. Bond's notes specify spirit of wine at a precise dilution — the same concentration Watson observes in the parcel. This kidney was preserved by someone who had read, or written, that ledger entry.",
+    },
+    // USE kidney notes WITH the from hell letter (Act 4 refresher — no act or
+    // location lock: deliberately friction-free, both items are Act 4 finds).
+    'from_hell_letter': {
+      clueId: 'clue_12_letter_knows_too_much',
+      resultNote: "SUCCESS — Watson reads the letter's boast against Bond's examination notes, line by line. The papers printed every crude word of the letter — but the notes hold what was never published: the organ's condition, the artery, the preservation. The letter describes the kidney as only its taker could. The hoax theory does not survive the comparison.",
     },
   },
   // USE forensic reports WITH case files wall
