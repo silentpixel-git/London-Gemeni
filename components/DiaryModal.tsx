@@ -186,18 +186,22 @@ const DocumentsPanel: React.FC<{ flags: Record<string, boolean>; inventory: stri
               const trimmed = line.trim();
               if (trimmed === '') return null;
               const caption = trimmed.match(/^\*(.+)\*$/);
-              return caption ? (
+              if (!caption) {
+                return <p key={j} className="italic text-[15px] text-lb-primary/90 leading-relaxed">{trimmed}</p>;
+              }
+              // Short captions (dates, attributions) stay as small uppercase
+              // labels; longer asides (Watson's own annotations) read as a
+              // full sentence would collapse into unreadable shouting in all
+              // caps, so they get a plain Lato aside instead.
+              return caption[1].length <= 70 ? (
                 <p key={j} className="uppercase tracking-wider text-[10px] text-lb-muted">{caption[1]}</p>
               ) : (
-                <p key={j} className="italic text-[15px] text-lb-primary/90 leading-relaxed">{trimmed}</p>
+                <p key={j} className="font-sans not-italic text-[13px] text-lb-muted leading-relaxed border-l-2 border-lb-border pl-3">{caption[1]}</p>
               );
             })}
           </div>
         </div>
       ))}
-      <p className="mt-5 pt-4 border-t border-lb-border text-[13px] italic text-lb-muted">
-        Verbatim copies, in Watson's hand. He may read them as often as he likes.
-      </p>
     </div>
   );
 };
