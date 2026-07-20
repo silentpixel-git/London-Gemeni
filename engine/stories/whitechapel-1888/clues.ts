@@ -729,6 +729,12 @@ I send you half the Kidne I took from one woman prasarved it for you tother piec
 
 signed Catch me when you can Mishter Lusk`,
 
+  hutchinson_account: `*Statement of George Hutchinson, labourer — taken down by Watson, Dorset Street, 9 November 1888.*
+
+Knew the deceased, Mary Jane Kelly, some three years. Met her on Commercial Street in the small hours; she asked him for sixpence, which he had not. She went off toward Dorset Street with a man of about thirty-four — dark, of prosperous appearance, a moustache curled at the ends, wearing a long dark coat trimmed with astrakhan, a white collar, a black tie fixed with a horseshoe pin, dark spats over button boots, and a thick gold chain with a red stone seal hanging from it. Carried a small parcel in his left hand, done up with a strap. Followed the pair to the court and waited opposite, some three-quarters of an hour, to see whether the man came out again.
+
+*Watson's note: the detail above is extraordinary for a chance encounter in near-darkness — every particular of dress, down to the seal on the watch-chain. He gave it eagerly, almost by rote.*`,
+
   edmund_forensic_note: `*Post-mortem cataloguing note — Miller's Court, 9 November 1888.*
 *Transcribed by E. Halward, assistant to Dr. T. Bond.*
 
@@ -792,3 +798,14 @@ Left kidney removed within estimated four minutes. Efficiency consistent with pr
 Entry 6 — Mary Jane Kelly, 9 November:
 [See supplementary notes. Not reproduced here.]`,
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOCUMENT OBJECT IDS — every takeable object that also has authored document
+// text: the full universe of things that can appear in the Documents tab.
+// Filed status itself is tracked as an engine-set `filed_<objectId>` flag
+// (see GameEngine.resolve()), not as separate save-state, so a document
+// stays on file even after it leaves the inventory bag (dropped, spent after
+// an act transition, or consumed by a USE combination).
+// ─────────────────────────────────────────────────────────────────────────────
+export const DOCUMENT_OBJECT_IDS: string[] = Object.keys(TAKEABLE_OBJECTS)
+  .filter(id => DOCUMENT_TEXT[id] !== undefined);

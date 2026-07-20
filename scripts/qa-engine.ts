@@ -211,6 +211,9 @@ function runWinningPath() {
   } else {
     fail(`Act1 → account not granted by the talk: ${JSON.stringify(s.inventory)}`);
   }
+  s.flags['filed_hutchinson_account']
+    ? pass('Act1 → account marked filed (Documents tab) the moment it is granted')
+    : fail('Act1 → filed_hutchinson_account flag not set on grant');
   s = step('Act1', s, 'take the account',        { expectSuccess: false }); // still not a location object — talk already granted it
   s = step('Act1', s, 'show account to hutchinson', { expectSuccess: false }); // gated: sightline test not done
   // Reversed phrasing exercises the Task 1 symmetry fix — flag must still be

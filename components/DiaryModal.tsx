@@ -27,7 +27,7 @@ import { ModalBackdrop } from './ModalBackdrop';
 import { Tooltip } from './Tooltip';
 import { overlayPresence, zoomFadeVariants, DUR_PANEL, DUR_EXIT, EASE_OUT, EASE_OUT_EXPO } from './motionTokens';
 import type { DiaryEntry } from '../types';
-import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION, CLUE_DEFINITIONS, LOCATIONS, PERSONS_OF_INTEREST, TAKEABLE_OBJECTS, DOCUMENT_TEXT } from '../engine/gameData';
+import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION, CLUE_DEFINITIONS, LOCATIONS, PERSONS_OF_INTEREST, TAKEABLE_OBJECTS, DOCUMENT_TEXT, DOCUMENT_OBJECT_IDS } from '../engine/gameData';
 
 interface DiaryModalProps {
   isOpen: boolean;
@@ -146,31 +146,41 @@ const PersonsPanel: React.FC<{ flags: Record<string, boolean> }> = ({ flags }) =
     </div>
   );
 };
-/** Display name → object id, for looking up carried items in DOCUMENT_TEXT. */
-const OBJECT_ID_BY_DISPLAY_NAME: Record<string, string> = Object.fromEntries(
-  Object.entries(TAKEABLE_OBJECTS).map(([id, name]) => [name, id]),
-);
-
-const DocumentsPanel: React.FC<{ inventory: string[] }> = ({ inventory }) => {
-  const docs = inventory
-    .map(name => ({ name, objectId: OBJECT_ID_BY_DISPLAY_NAME[name] }))
-    .filter((d): d is { name: string; objectId: string } => Boolean(d.objectId && DOCUMENT_TEXT[d.objectId]));
+/**
+ * Filed once, kept forever — driven by the engine's `filed_<objectId>` flags
+ * (set the moment a document-bearing item is gained, see GameEngine.resolve),
+ * not by live inventory. A document Watson has since used, dropped, or lost
+ * to an act transition still belongs to the casebook.
+ */
+const DocumentsPanel: React.FC<{ flags: Record<string, boolean>; inventory: string[] }> = ({ flags, inventory }) => {
+  const docs = DOCUMENT_OBJECT_IDS
+    .filter(objectId => flags[`filed_${objectId}`])
+    .map(objectId => ({
+      objectId,
+      name: TAKEABLE_OBJECTS[objectId],
+      carried: inventory.includes(TAKEABLE_OBJECTS[objectId]),
+    }));
 
   if (docs.length === 0) {
     return (
       <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
-        Watson carries no papers worth rereading.
+        Watson has filed no papers yet.
       </p>
     );
   }
 
   return (
     <div>
-      <p className="uppercase tracking-widest text-[11px] font-bold text-lb-accent mb-1">Carried in the Medical Bag</p>
+      <p className="uppercase tracking-widest text-[11px] font-bold text-lb-accent mb-1">The Casebook</p>
       <h3 className="font-serif text-2xl font-bold text-lb-primary mb-2">Documents</h3>
       {docs.map((doc, i) => (
         <div key={doc.objectId} className={`py-4 ${i > 0 ? 'border-t border-lb-border' : ''}`}>
-          <h4 className="font-serif text-lg font-bold text-lb-primary mb-2">{doc.name}</h4>
+          <div className="flex items-baseline justify-between gap-3">
+            <h4 className="font-serif text-lg font-bold text-lb-primary mb-2">{doc.name}</h4>
+            {!doc.carried && (
+              <span className="shrink-0 uppercase tracking-[0.2em] text-[10px] font-bold text-lb-muted">Filed</span>
+            )}
+          </div>
           <div className="space-y-2">
             {DOCUMENT_TEXT[doc.objectId].split('\n').map((line, j) => {
               const trimmed = line.trim();
@@ -325,11 +335,8 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
         return visible.length === 0 ? 'none yet' : `${cleared} cleared, ${visible.length - cleared} open`;
       }
       case 'documents': {
-        const n = inventory.filter(name => {
-          const id = OBJECT_ID_BY_DISPLAY_NAME[name];
-          return id && DOCUMENT_TEXT[id];
-        }).length;
-        return `${n} carried`;
+        const n = DOCUMENT_OBJECT_IDS.filter(id => flags[`filed_${id}`]).length;
+        return n === 0 ? 'none yet' : `${n} filed`;
       }
     }
   };
@@ -552,7 +559,7 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                   )}
                   {activeTab === 'evidence' && <EvidencePanel entries={entries} />}
                   {activeTab === 'persons' && <PersonsPanel flags={flags} />}
-                  {activeTab === 'documents' && <DocumentsPanel inventory={inventory} />}
+                  {activeTab === 'documents' && <DocumentsPanel flags={flags} inventory={inventory} />}
                 </motion.div>
                 </AnimatePresence>
                 </div>

@@ -36,7 +36,19 @@ export type { SessionSnapshot };
 // ============================================================
 
 export class GameEngine {
-  constructor(private readonly story: StoryManifest) {}
+  // Reverse lookup (inventory display name → objectId) for every takeable
+  // object that also carries authored document text — built once per story
+  // so resolve() can mark a document filed without any resolver needing to
+  // know about the Documents tab.
+  private readonly documentObjectIdByDisplayName: Record<string, string>;
+
+  constructor(private readonly story: StoryManifest) {
+    this.documentObjectIdByDisplayName = Object.fromEntries(
+      Object.entries(story.takeableObjects)
+        .filter(([objectId]) => story.documentText[objectId] !== undefined)
+        .map(([objectId, displayName]) => [displayName, objectId])
+    );
+  }
 
   /**
    * Main entry point. Takes the player's parsed intent and current session
@@ -62,6 +74,23 @@ export class GameEngine {
       case 'unresolved_target':  result = resolveUnresolvedTarget(this.story, intent, session); break;
       case 'other':
       default:                   result = resolveOther(this.story, intent, session); break;
+    }
+
+    // Filed documents — any inventoryAdd containing a document-bearing object
+    // is marked filed via a `filed_<objectId>` flag, permanently (flags
+    // already persist; no new save-state needed). The Documents tab reads
+    // these flags instead of live inventory, so a document stays on file
+    // even after it leaves the bag (dropped, spent after an act transition,
+    // or consumed by a USE combination).
+    if (result.inventoryAdd && result.inventoryAdd.length > 0) {
+      const filedFlags: Record<string, boolean> = {};
+      for (const displayName of result.inventoryAdd) {
+        const objectId = this.documentObjectIdByDisplayName[displayName];
+        if (objectId) filedFlags[`filed_${objectId}`] = true;
+      }
+      if (Object.keys(filedFlags).length > 0) {
+        result.flagsUpdate = { ...result.flagsUpdate, ...filedFlags };
+      }
     }
 
     // Act progression for talk/show — these resolvers set gate flags

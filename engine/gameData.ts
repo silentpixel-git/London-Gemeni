@@ -30,6 +30,7 @@ export {
   SHOW_INTERACTIONS,
   USE_COMBINATIONS,
   DOCUMENT_TEXT,
+  DOCUMENT_OBJECT_IDS,
 } from './stories/whitechapel-1888/clues.js';
 export type { ShowInteraction, UseCombination } from './stories/whitechapel-1888/clues.js';
 

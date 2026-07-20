@@ -19,7 +19,7 @@ import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEn
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { audioManager } from '../services/AudioManager';
 import { parseIntent } from '../engine/intentParser';
-import { CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, DECISION_BY_FLAG, formatGameClock } from '../engine/gameData';
+import { CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, DECISION_BY_FLAG, formatGameClock, TAKEABLE_OBJECTS, DOCUMENT_OBJECT_IDS } from '../engine/gameData';
 import type { ActWeather } from '../engine/gameData';
 import {
   INITIAL_LOCATION,
@@ -43,6 +43,11 @@ import { useActBreak } from './gameState/useActBreak';
 
 // ── Destructure hints and diary leads from the story manifest ────────────────
 const { selectHint } = WHITECHAPEL_MANIFEST;
+
+// Inventory display names for every document-bearing takeable — an item
+// gained from this set is "filed" (see GameEngine.resolve), not merely
+// picked up, and the pickup notice should say so.
+const DOCUMENT_ITEM_NAMES = new Set(DOCUMENT_OBJECT_IDS.map(id => TAKEABLE_OBJECTS[id]));
 const { isRequiredFlag, clueGateFlag, leadContextFor, detectSilentLeadFlags } = WHITECHAPEL_MANIFEST.diaryLeads;
 
 // ── Public interface ──────────────────────────────────────────────────────────
@@ -680,9 +685,15 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // turn (examine can silently grant documents; the player must be told).
       const itemsPickedUp = (result.inventoryAdd ?? []).filter(i => !inventory.includes(i));
       if (itemsPickedUp.length > 0) audioManager.playSfx('item-pickup');
-      const pickupNote = itemsPickedUp.length > 0
-        ? `\n\n**You picked up:** ${itemsPickedUp.join(', ')}`
-        : '';
+      // Documents are "filed" (and stay filed after the bag empties); every
+      // other takeable is plainly "picked up".
+      const filedItems = itemsPickedUp.filter(i => DOCUMENT_ITEM_NAMES.has(i));
+      const plainItems = itemsPickedUp.filter(i => !DOCUMENT_ITEM_NAMES.has(i));
+      const pickupClauses = [
+        filedItems.length > 0 ? `**You filed:** ${filedItems.join(', ')}` : null,
+        plainItems.length > 0 ? `**You picked up:** ${plainItems.join(', ')}` : null,
+      ].filter(Boolean);
+      const pickupNote = pickupClauses.length > 0 ? `\n\n${pickupClauses.join('\n\n')}` : '';
 
       // Location header — full-mode turns (successful move / target-less look)
       // surface the engine-verified location name as feed chrome above the
