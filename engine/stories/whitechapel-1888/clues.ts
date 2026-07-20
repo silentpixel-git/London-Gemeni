@@ -145,7 +145,7 @@ const CLUE_DEFINITIONS_DATA = {
     holmesDeduction: 'He presented differently to each witness. This is not inconsistency in the witnesses — it is consistency in the killer. He is a man of adjustable appearance. Ordinariness is his camouflage.',
     locationFound: 'h_division_station',
     triggerObject: 'witness_description_wall',
-    connections: ['clue_01_respectable_approach', 'clue_07_edmunds_presence'],
+    connections: ['clue_01_respectable_approach', 'clue_07_edmunds_presence', 'clue_11_account_outruns_light'],
     clueGroup: 4,
     medicalPoints: 5,
     moralPoints: 0,
@@ -255,6 +255,23 @@ const CLUE_DEFINITIONS_DATA = {
     medicalPoints: 5,
     moralPoints: 10,
   },
+  // GROUP 11 — The Witness Tested (Act 1 chain: Hutchinson's account laid
+  // against the archway and the light. The Stranger begins to dissolve.)
+  clue_11_account_outruns_light: {
+    id: 'clue_11_account_outruns_light',
+    name: 'The Account Outruns the Light',
+    diaryNote: "I stood where Hutchinson stood and read his statement against the ground itself. The lamp is across the street; the passage is black as a coal cellar; the rain that night would have doused what little glow there was. Spats, a tie-pin, the trim of a coat — no honest glance could have carried so much away. The account is not a lie entire. But it has been dressed.",
+    description: "Watson reads Hutchinson's statement where the man claims to have stood. The gas lamp is across the street; the archway is unlit; the night of the murder was wet. At that distance, in that light, a passing glance yields outline and gait — not spats, not a tie-pin, not a parcel in the left hand. The description has been embroidered after the fact. What remains true is simpler and stranger: a man stood here for three-quarters of an hour, watching.",
+    holmesDeduction: "A witness who saw too much, Watson, has usually seen too little and furnished the rest. Strike the astrakhan man's wardrobe and what is left? A figure. Ordinary. Which is to say: our man, if he was here at all, looked like no one — again.",
+    locationFound: 'dorset_street',
+    // Synthetic label, NOT a physical interactable: granted only via the
+    // USE combination (account + archway) — same pattern as document_convergence.
+    triggerObject: 'witness_test',
+    connections: ['clue_04b_adjustable_appearance'],
+    clueGroup: 11,
+    medicalPoints: 5,
+    moralPoints: 5,
+  },
 } satisfies Record<string, ClueDefinition>;
 
 /** Every authored clue id — the keys of the data table, kept alive by `satisfies`. */
@@ -353,6 +370,8 @@ export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
     street_lamps: [],
     lodging_house_entrances: [],
     crowd: [],
+    court_archway: [],
+    hutchinson_account: [],
   },
 };
 
@@ -386,6 +405,8 @@ export const ATMOSPHERIC_NOTES: Record<string, Record<string, string>> = {
     street_lamps: "The gas lamps are lit against the November fog, their light pooling uselessly in the damp air. They illuminate almost nothing. Watson wonders how the killer moved through these streets unseen and realises that in this light, almost anything is possible.",
     lodging_house_entrances: "The lodging houses along Dorset Street take in anyone who can afford fourpence a night. The women who lived here moved between them constantly — a bed here, a floor there, wherever the money stretched. Watson thinks of the difference between having a home and merely having a place to sleep.",
     crowd: "The crowd pressed against the barricade is a mixture of the morbidly curious, the genuinely afraid, and the simply poor who have nowhere else to be. A woman near Watson says nothing, just stares at the entrance to Miller's Court with the flat expression of someone who has been waiting for this to happen.",
+    court_archway: "The covered passage into Miller's Court is barely three feet wide — a brick throat between two lodging houses, unlit along its length. The nearest lamp stands across the street, its glow arriving as a rumour. Watson stands where a watcher would have stood, opposite, and studies what the light actually reaches: outlines, movement, the pale smudge of a face. No more.",
+    hutchinson_account: "Watson's note of Hutchinson's statement, taken down at the man's own eager dictation — the astrakhan trim, the gold chain, the tie-pin, the parcel in the left hand. Read back in daylight, the detail is remarkable. That is precisely what troubles him.",
   },
   millers_court: {
     the_bed: "The bed dominates the small room. Watson, who has seen field surgery and the aftermath of battle, stands at its foot for a moment and says nothing. What happened here required hours. The killer was comfortable in this room. He made it his.",
@@ -461,13 +482,16 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
   // Prologue: examining the newspapers yields the clipping of the published
   // "Dear Boss" letter — the object the player SHOWS to Holmes (tutorial beat).
   newspaper_pile: 'Newspaper Clipping (the "Dear Boss" letter)',
+  hutchinson_account: "Hutchinson's Account (Watson's note)",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TAKEABLE GATES — object may only be taken once this flag is set.
 // hutchinson_account: Watson cannot note down an account he has not heard.
 // ─────────────────────────────────────────────────────────────────────────────
-export const TAKEABLE_REQUIRES_FLAG: Record<string, StoryFlag> = {};
+export const TAKEABLE_REQUIRES_FLAG: Record<string, StoryFlag> = {
+  hutchinson_account: 'talked_to_hutchinson_at_dorset_street',
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SPENT-AFTER-ACT — authored bag hygiene.
@@ -482,6 +506,8 @@ export const ITEM_SPENT_AFTER_ACT: Record<string, number> = {
   // The "Dear Boss" clipping is a one-time prologue prop (shown to Holmes).
   // Spent once the investigation proper begins.
   'Newspaper Clipping (the "Dear Boss" letter)': 0,
+  // The account is Act 1 business only — spent once Act 1 closes.
+  "Hutchinson's Account (Watson's note)": 1,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -579,6 +605,15 @@ export const SHOW_INTERACTIONS: Record<string, Record<string, ShowInteraction>> 
       resultNote: "SUCCESS — Abberline reads the summary, then lays it on his desk and puts his hand flat on it. 'If this is right,' he says, 'then whoever did this was at every scene in a professional capacity. Not a vagrant. Not a butcher. Someone with a reason to be there.' He does not say who. But his eyes move to the window that faces Bond's office across the courtyard.",
     },
   },
+  // SHOW the account TO hutchinson — only once the sightline test has armed it.
+  // His clearing beat (red-herring rule): he breaks into loneliness, not guilt.
+  'hutchinson_account': {
+    'hutchinson': {
+      requireFlags: ['used_hutchinson_account_with_court_archway'],
+      blockedNote: "Watson's hand goes to the note in his pocket, and stops. He has only the man's own words, unweighed — read them back now and Hutchinson need only repeat them. Better first to try the account against the ground it claims to describe.",
+      resultNote: "SUCCESS — Watson reads the statement back to him, slowly, and then asks — gently, as one asks a patient — how the lamp across the street showed him a tie-pin. Hutchinson's eagerness collapses by degrees. He did see a man, he says. Well-dressed — he thinks. The rest he... filled in, after, so they would take him seriously at the station. But he stood there the three-quarters of an hour, that part is gospel — he knew Mary three years, she'd have let him sleep on the floor, night like that. He looks at the archway rather than at Watson. 'I keep thinking, if I'd only stopped where I was till morning.' He has nothing else. He is not the man. He is only the last of her friends.",
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -620,6 +655,15 @@ export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = 
   'medical_reports': {
     'case_files_wall': {
       resultNote: "SUCCESS — Watson pins the forensic summary beside the case map. The pattern clarifies: the same surgical approach across all five murders, the same efficiency, the same anatomical confidence. Holmes watches from his chair. 'You are beginning to see it,' he says. 'Now ask yourself: who was present at every post-mortem?'",
+    },
+  },
+  // USE hutchinson's account WITH the court archway (Act 1 witness test).
+  // The USE X WITH Y rehearsal — teaches the convergence's verb at low stakes.
+  'hutchinson_account': {
+    'court_archway': {
+      clueId: 'clue_11_account_outruns_light',
+      requiresLocation: 'dorset_street',
+      resultNote: "SUCCESS — Watson stands opposite the archway, note in hand, and reads the statement against the scene. The lamp across the street; the unlit passage; the remembered rain. One by one the account's fine details fail the light. What survives is the man himself: three-quarters of an hour, watching a doorway in the wet. The description was dressed. The waiting was real.",
     },
   },
 };

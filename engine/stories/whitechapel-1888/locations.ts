@@ -31,7 +31,7 @@ const LOCATIONS_DATA = {
     atmosphere: 'Foggy mornings, muddy roads, constant noise from vendors and carts. A crowded and impoverished street in Whitechapel.',
     description: "The air is thick with the smell of coal smoke and the press of humanity. A crowd has gathered outside Miller's Court, their whispers a low hum against the city's noise.",
     exits: ['millers_court', 'baker_street', 'h_division_station'],
-    interactables: ['police_barricade', 'street_lamps', 'lodging_house_entrances', 'crowd'],
+    interactables: ['police_barricade', 'street_lamps', 'lodging_house_entrances', 'crowd', 'court_archway', 'hutchinson_account'],
     locationExaminedFlag: 'examined_dorset_street',
     timeOfDay: 'morning',
     extras: [
@@ -340,6 +340,8 @@ const OBJECT_DISPLAY_NAMES_DATA = {
   street_lamps: 'Street Lamps',
   lodging_house_entrances: 'Lodging House Entrances',
   crowd: 'The Crowd',
+  court_archway: "Miller's Court Archway",
+  hutchinson_account: "Hutchinson's Account",
   // Miller's Court
   the_bed: 'The Bed',
   burned_clothing: 'Burned Clothing',
