@@ -199,8 +199,21 @@ function runWinningPath() {
     expectLocation: 'dorset_street', // ← anchor auto-move (overnight cut; Kelly dies tonight)
   });
 
-  // Act 1 — "The Stranger". Hutchinson gated; closes on Bond's aftermath beat.
+  // Act 1 — "The Stranger". The witness-test chain: the account must be heard,
+  // taken down, tried against the ground, and only then read back to its author.
+  s = step('Act1', s, 'take the account',        { expectSuccess: false }); // gated: not yet heard
   s = step('Act1', s, 'talk to hutchinson',      { expectSuccess: true, expectFlag: 'talked_to_hutchinson_at_dorset_street' });
+  s = step('Act1', s, 'show account to hutchinson', { expectSuccess: false }); // not in inventory yet
+  s = step('Act1', s, 'take the account',        { expectSuccess: true });
+  s = step('Act1', s, 'show account to hutchinson', { expectSuccess: false }); // gated: sightline test not done
+  // Reversed phrasing exercises the Task 1 symmetry fix — flag must still be
+  // keyed to the authored orientation (account first).
+  s = step('Act1', s, 'use court archway with the account', {
+    expectSuccess: true,
+    expectFlag: 'used_hutchinson_account_with_court_archway',
+    expectClue: 'clue_11_account_outruns_light',
+  });
+  s = step('Act1', s, 'show account to hutchinson', { expectSuccess: true, expectFlag: 'showed_hutchinson_account_to_hutchinson' });
   s = step('Act1', s, 'go to millers court',     { expectSuccess: true, expectLocation: 'millers_court' });
   s = step('Act1', s, 'examine burned clothing', { expectSuccess: true, expectFlag: 'examined_millers_court_burned_clothing', expectClue: 'clue_01_killer_confidence' });
   s = step('Act1', s, 'examine the bed',         { expectSuccess: true, expectFlag: 'examined_millers_court_the_bed' });
@@ -253,6 +266,17 @@ function runWinningPath() {
   } else {
     fail(`Act4 → letter transcript missing from inventory: ${JSON.stringify(s.inventory)}`);
   }
+  s = step('Act4', s, 'examine kidney parcel', { expectSuccess: true, expectFlag: 'examined_lusk_office' });
+  if (s.inventory.includes('Kidney Examination Notes')) {
+    pass('Act4 → kidney examination notes added to inventory');
+  } else {
+    fail(`Act4 → kidney notes missing from inventory: ${JSON.stringify(s.inventory)}`);
+  }
+  s = step('Act4', s, 'use the kidney with the letter', {
+    expectSuccess: true,
+    expectFlag: 'used_kidney_parcel_with_from_hell_letter',
+    expectClue: 'clue_12_letter_knows_too_much',
+  });
   s = step('Act4', s, 'talk to abberline',        { expectSuccess: true, expectFlag: 'talked_to_abberline_at_lusk_office' });
   s = step('Act4', s, 'talk to holmes', {
     expectSuccess: true,
