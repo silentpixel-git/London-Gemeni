@@ -91,6 +91,14 @@ export function resolveShow(story: StoryManifest, intent: ParsedIntent, session:
     // Look up authored SHOW interaction
     const interaction = story.showInteractions[targetId]?.[npcId];
     if (interaction) {
+      const unmet = (interaction.requireFlags ?? []).filter(f => session.flags[f] !== true);
+      if (unmet.length > 0) {
+        return blocked(story, intent, session,
+          interaction.blockedNote ?? `Watson holds the ${inventoryName} half-out of his pocket, then thinks better of it — not yet.`,
+          `SHOW gated: ${targetId} → ${npcId} requires flags [${unmet.join(', ')}]. Narrate Watson deciding the moment is premature, without revealing what is missing.`
+        );
+      }
+
       const { newClueIds, newClueDefs } = interaction.clueId
         && !session.discoveredClueIds.includes(interaction.clueId)
         ? { newClueIds: [interaction.clueId], newClueDefs: [{ name: story.clueDefinitions[interaction.clueId]?.name ?? '', description: story.clueDefinitions[interaction.clueId]?.description ?? '', holmesDeduction: story.clueDefinitions[interaction.clueId]?.holmesDeduction ?? '' }] }

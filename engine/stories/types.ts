@@ -207,6 +207,10 @@ export interface ActWeather {
 export interface ShowInteraction {
   clueId?: string;       // Clue unlocked by this show action (optional)
   resultNote: string;    // Passed to AI as actionResultNote
+  /** Optional gate: the interaction only fires once ALL these flags are set.
+   *  Unmet → blocked with blockedNote (authored, narrator voice). */
+  requireFlags?: string[];
+  blockedNote?: string;
 }
 
 export interface UseCombination {
