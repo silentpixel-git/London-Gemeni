@@ -1,4 +1,5 @@
 import type { ClueDefinition, ShowInteraction, UseCombination } from '../types';
+import type { StoryFlag } from './flags';
 
 export type { ShowInteraction, UseCombination } from '../types';
 
@@ -461,6 +462,12 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
   // "Dear Boss" letter — the object the player SHOWS to Holmes (tutorial beat).
   newspaper_pile: 'Newspaper Clipping (the "Dear Boss" letter)',
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TAKEABLE GATES — object may only be taken once this flag is set.
+// hutchinson_account: Watson cannot note down an account he has not heard.
+// ─────────────────────────────────────────────────────────────────────────────
+export const TAKEABLE_REQUIRES_FLAG: Record<string, StoryFlag> = {};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SPENT-AFTER-ACT — authored bag hygiene.

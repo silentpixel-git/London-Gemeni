@@ -320,6 +320,10 @@ export interface StoryManifest {
   clueTriggers: Record<string, Record<string, string[]>>;
   atmosphericNotes: Record<string, Record<string, string>>;
   takeableObjects: Record<string, string>;
+  /** Optional gate: object may only be taken once this flag is set (e.g. a
+   *  witness's account that cannot be noted down before he has given it).
+   *  Blocked takes go through the standard blocked() path in narrator voice. */
+  takeableRequiresFlag: Record<string, string>;
   useInteractions: Record<string, Record<string, string>>;
   showInteractions: Record<string, Record<string, ShowInteraction>>;
   useCombinations: Record<string, Record<string, UseCombination>>;

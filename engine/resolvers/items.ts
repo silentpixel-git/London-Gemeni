@@ -24,6 +24,17 @@ export function resolveTake(story: StoryManifest, intent: ParsedIntent, session:
     );
   }
 
+  // Flag-gated takeable: the object exists here but is not yet Watson's to take.
+  const gateFlag = story.takeableRequiresFlag[targetId];
+  if (gateFlag && session.flags[gateFlag] !== true) {
+    return blocked(story,
+      intent,
+      session,
+      `Watson considers the ${objectName}, but there is nothing yet for him to set down — something must come first.`,
+      `TAKE blocked: "${targetId}" is gated on flag "${gateFlag}" which is not yet set. Narrate Watson recognising the moment is premature, without naming any game mechanism.`
+    );
+  }
+
   // Check if it's a takeable object
   const inventoryItem = story.takeableObjects[targetId];
   if (!inventoryItem) {
