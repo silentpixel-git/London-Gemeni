@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
-import { GameRepository } from '../../services/GameRepository';
+import { GameRepository, refreshAuthSession } from '../../services/GameRepository';
 import { gameEngine } from '../../engine/GameEngine';
 import { LOCATIONS, formatGameClock } from '../../engine/gameData';
 import {
@@ -121,6 +121,14 @@ export function usePersistence(deps: PersistenceDeps) {
   // Hydrate all React state from a cloud investigation (a save slot).
   // Shared by the slot menu (handleSelectSlot) and the anonymous-fallback loader.
   const loadInvestigationIntoState = useCallback(async (investigation: Investigation) => {
+    // Warm the session before the load's reads/writes and — more importantly
+    // — before the player's first subsequent turn fires the first engine-
+    // result write. A tab that was backgrounded or asleep may only have its
+    // token refreshed lazily on focus; loading a game is exactly the moment
+    // that race is most likely to lose, which is why the "cloud sync failed"
+    // toast has historically clustered right after resuming a save.
+    await refreshAuthSession();
+
     const inv = (investigation as any).inventory || INITIAL_INVENTORY;
     // Use ?? not || — Act 0 (the prologue) is a valid act and must not fall back to 1.
     const act = (investigation as any).currentAct ?? INITIAL_ACT;
@@ -354,6 +362,7 @@ export function usePersistence(deps: PersistenceDeps) {
 
     try {
       if (user) {
+        await refreshAuthSession();
         const investigation = await GameRepository.getActiveInvestigation(user.id);
         if (investigation) {
           await loadInvestigationIntoState(investigation);
