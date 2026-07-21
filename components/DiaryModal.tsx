@@ -146,11 +146,51 @@ const PersonsPanel: React.FC<{ flags: Record<string, boolean> }> = ({ flags }) =
     </div>
   );
 };
+/** One parsed line of a filed document's text. */
+type DocLine =
+  | { kind: 'body'; text: string }
+  | { kind: 'label'; text: string }    // short *…* caption — date, attribution, signature
+  | { kind: 'aside'; text: string };   // long *…* caption — Watson's own annotation
+
+/**
+ * Split a document's authored text into a provenance header (the leading
+ * run of *…* caption lines — what the paper is, who took it, when) and the
+ * lines that follow. Provenance is header material and renders as a caption
+ * under the title; only a long caption later in the text is a true aside
+ * (Watson's voice) and gets the tinted-block treatment.
+ */
+const parseDocumentText = (raw: string): { provenance: string[]; lines: DocLine[] } => {
+  const provenance: string[] = [];
+  const lines: DocLine[] = [];
+  let inHeader = true;
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+    const caption = trimmed.match(/^\*(.+)\*$/);
+    if (caption && inHeader) {
+      provenance.push(caption[1]);
+    } else if (caption) {
+      lines.push(caption[1].length <= 70 ? { kind: 'label', text: caption[1] } : { kind: 'aside', text: caption[1] });
+    } else {
+      inHeader = false;
+      lines.push({ kind: 'body', text: trimmed });
+    }
+  }
+  return { provenance, lines };
+};
+
+/** "Watson's note: …" asides get a run-in label; anything else renders plain. */
+const ASIDE_LABEL_RE = /^Watson's note:\s*/i;
+
 /**
  * Filed once, kept forever — driven by the engine's `filed_<objectId>` flags
  * (set the moment a document-bearing item is gained, see GameEngine.resolve),
  * not by live inventory. A document Watson has since used, dropped, or lost
  * to an act transition still belongs to the casebook.
+ *
+ * NOTE on colors: supplement text deliberately avoids `text-lb-muted` — at
+ * body sizes it measures ~2.7:1 (light) / ~2.9:1 (dark) against lb-paper,
+ * failing WCAG AA (4.5:1). `text-lb-primary/75` passes in every theme.
  */
 const DocumentsPanel: React.FC<{ flags: Record<string, boolean>; inventory: string[] }> = ({ flags, inventory }) => {
   const docs = DOCUMENT_OBJECT_IDS
@@ -163,7 +203,7 @@ const DocumentsPanel: React.FC<{ flags: Record<string, boolean>; inventory: stri
 
   if (docs.length === 0) {
     return (
-      <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
+      <p className="text-[15px] text-lb-primary/75 font-sans italic py-8 text-center">
         Watson has filed no papers yet.
       </p>
     );
@@ -173,35 +213,44 @@ const DocumentsPanel: React.FC<{ flags: Record<string, boolean>; inventory: stri
     <div>
       <p className="uppercase tracking-widest text-[11px] font-bold text-lb-accent mb-1">The Casebook</p>
       <h3 className="font-serif text-2xl font-bold text-lb-primary mb-2">Documents</h3>
-      {docs.map((doc, i) => (
-        <div key={doc.objectId} className={`py-4 ${i > 0 ? 'border-t border-lb-border' : ''}`}>
-          <div className="flex items-baseline justify-between gap-3">
-            <h4 className="font-serif text-lg font-bold text-lb-primary mb-2">{doc.name}</h4>
-            {!doc.carried && (
-              <span className="shrink-0 uppercase tracking-[0.2em] text-[10px] font-bold text-lb-muted">Filed</span>
+      {docs.map((doc, i) => {
+        const { provenance, lines } = parseDocumentText(DOCUMENT_TEXT[doc.objectId]);
+        return (
+          <div key={doc.objectId} className={`py-4 ${i > 0 ? 'border-t border-lb-border' : ''}`}>
+            <div className="flex items-baseline justify-between gap-3">
+              <h4 className="font-serif text-lg font-bold text-lb-primary">{doc.name}</h4>
+              {!doc.carried && (
+                <span className="shrink-0 uppercase tracking-[0.2em] text-[10px] font-bold text-lb-primary/75 border border-lb-border rounded-full px-2.5 py-0.5">Filed</span>
+              )}
+            </div>
+            {provenance.length > 0 && (
+              <p className="mt-1 text-[13px] tracking-[0.02em] text-lb-primary/75">
+                {provenance.join(' · ')}
+              </p>
             )}
+            <div className="mt-3 space-y-3">
+              {lines.map((line, j) => {
+                if (line.kind === 'body') {
+                  return <p key={j} className="italic text-[15px] text-lb-primary/90 leading-relaxed">{line.text}</p>;
+                }
+                if (line.kind === 'label') {
+                  return <p key={j} className="uppercase tracking-wider text-[10px] font-bold text-lb-primary/75">{line.text}</p>;
+                }
+                const noteText = line.text.replace(ASIDE_LABEL_RE, '');
+                const hasLabel = noteText !== line.text;
+                return (
+                  <div key={j} className="bg-lb-primary/5 rounded-lg px-[18px] py-3.5 text-[14px] font-sans not-italic text-lb-primary/85 leading-relaxed">
+                    {hasLabel && (
+                      <span className="uppercase tracking-[0.07em] text-[11px] font-bold text-lb-primary mr-2">Watson's note</span>
+                    )}
+                    {noteText}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="space-y-2">
-            {DOCUMENT_TEXT[doc.objectId].split('\n').map((line, j) => {
-              const trimmed = line.trim();
-              if (trimmed === '') return null;
-              const caption = trimmed.match(/^\*(.+)\*$/);
-              if (!caption) {
-                return <p key={j} className="italic text-[15px] text-lb-primary/90 leading-relaxed">{trimmed}</p>;
-              }
-              // Short captions (dates, attributions) stay as small uppercase
-              // labels; longer asides (Watson's own annotations) read as a
-              // full sentence would collapse into unreadable shouting in all
-              // caps, so they get a plain Lato aside instead.
-              return caption[1].length <= 70 ? (
-                <p key={j} className="uppercase tracking-wider text-[10px] text-lb-muted">{caption[1]}</p>
-              ) : (
-                <p key={j} className="font-sans not-italic text-[13px] text-lb-muted leading-relaxed border-l-2 border-lb-border pl-3">{caption[1]}</p>
-              );
-            })}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
