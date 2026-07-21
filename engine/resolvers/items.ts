@@ -24,6 +24,17 @@ export function resolveTake(story: StoryManifest, intent: ParsedIntent, session:
     );
   }
 
+  // Flag-gated takeable: the object exists here but is not yet Watson's to take.
+  const gateFlag = story.takeableRequiresFlag[targetId];
+  if (gateFlag && session.flags[gateFlag] !== true) {
+    return blocked(story,
+      intent,
+      session,
+      `Watson considers the ${objectName}, but there is nothing yet for him to set down — something must come first.`,
+      `TAKE blocked: "${targetId}" is gated on flag "${gateFlag}" which is not yet set. Narrate Watson recognising the moment is premature, without naming any game mechanism.`
+    );
+  }
+
   // Check if it's a takeable object
   const inventoryItem = story.takeableObjects[targetId];
   if (!inventoryItem) {
@@ -79,8 +90,15 @@ export function resolveUse(story: StoryManifest, intent: ParsedIntent, session: 
 
   // ── USE X WITH Y (Infocom-style combination) ──────────────────────────────
   if (intent.useWithTargetId && targetId) {
-    const combination = story.useCombinations[targetId]?.[intent.useWithTargetId]
-                     ?? story.useCombinations[intent.useWithTargetId]?.[targetId];
+    // The authored orientation decides the flag key, whichever way the player
+    // phrased it — "use letter with note" must set the same flag as
+    // "use note with letter", or flag-gated content downstream never sees it.
+    const forward = story.useCombinations[targetId]?.[intent.useWithTargetId];
+    const reverse = story.useCombinations[intent.useWithTargetId]?.[targetId];
+    const combination = forward ?? reverse;
+    const [authoredA, authoredB] = forward
+      ? [targetId, intent.useWithTargetId]
+      : [intent.useWithTargetId, targetId];
 
     if (combination) {
       // Act-locked combinations (spoiler gate — e.g. the kidney cross-reference
@@ -102,19 +120,22 @@ export function resolveUse(story: StoryManifest, intent: ParsedIntent, session: 
         );
       }
 
-      const hasItem = story.takeableObjects[targetId] !== undefined
-        && session.inventory.includes(story.takeableObjects[targetId]);
-      const item2InLocation = currentLoc.interactables.includes(intent.useWithTargetId);
-      const item2InInventory = story.takeableObjects[intent.useWithTargetId] !== undefined
-        && session.inventory.includes(story.takeableObjects[intent.useWithTargetId]);
+      // Symmetric accessibility: each side may be in inventory (via its
+      // takeable mapping) or present in the room; at least one side must be
+      // a held item (Watson brings something TO something).
+      const inInventory = (id: string) =>
+        story.takeableObjects[id] !== undefined && session.inventory.includes(story.takeableObjects[id]);
+      const inLocation = (id: string) => currentLoc.interactables.includes(id);
+      const accessible = (id: string) => inInventory(id) || inLocation(id);
 
-      if (hasItem && (item2InLocation || item2InInventory)) {
+      if (accessible(targetId) && accessible(intent.useWithTargetId)
+          && (inInventory(targetId) || inInventory(intent.useWithTargetId))) {
         const { newClueIds, newClueDefs } = combination.clueId
           && !session.discoveredClueIds.includes(combination.clueId)
           ? { newClueIds: [combination.clueId], newClueDefs: [{ name: story.clueDefinitions[combination.clueId]?.name ?? combination.clueId, description: story.clueDefinitions[combination.clueId]?.description ?? '', holmesDeduction: story.clueDefinitions[combination.clueId]?.holmesDeduction ?? '' }] }
           : { newClueIds: [], newClueDefs: [] };
 
-        const flagKey = `used_${targetId}_with_${intent.useWithTargetId}`;
+        const flagKey = `used_${authoredA}_with_${authoredB}`;
         const allFlags = { ...session.flags, [flagKey]: true };
         const actCheck = checkActProgression(story, session, allFlags);
 

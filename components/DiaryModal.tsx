@@ -27,7 +27,7 @@ import { ModalBackdrop } from './ModalBackdrop';
 import { Tooltip } from './Tooltip';
 import { overlayPresence, zoomFadeVariants, DUR_PANEL, DUR_EXIT, EASE_OUT, EASE_OUT_EXPO } from './motionTokens';
 import type { DiaryEntry } from '../types';
-import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION, CLUE_DEFINITIONS, LOCATIONS, PERSONS_OF_INTEREST, TAKEABLE_OBJECTS, DOCUMENT_TEXT } from '../engine/gameData';
+import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION, CLUE_DEFINITIONS, LOCATIONS, PERSONS_OF_INTEREST, TAKEABLE_OBJECTS, DOCUMENT_TEXT, DOCUMENT_OBJECT_IDS } from '../engine/gameData';
 
 interface DiaryModalProps {
   isOpen: boolean;
@@ -146,48 +146,111 @@ const PersonsPanel: React.FC<{ flags: Record<string, boolean> }> = ({ flags }) =
     </div>
   );
 };
-/** Display name → object id, for looking up carried items in DOCUMENT_TEXT. */
-const OBJECT_ID_BY_DISPLAY_NAME: Record<string, string> = Object.fromEntries(
-  Object.entries(TAKEABLE_OBJECTS).map(([id, name]) => [name, id]),
-);
+/** One parsed line of a filed document's text. */
+type DocLine =
+  | { kind: 'body'; text: string }
+  | { kind: 'label'; text: string }    // short *…* caption — date, attribution, signature
+  | { kind: 'aside'; text: string };   // long *…* caption — Watson's own annotation
 
-const DocumentsPanel: React.FC<{ inventory: string[] }> = ({ inventory }) => {
-  const docs = inventory
-    .map(name => ({ name, objectId: OBJECT_ID_BY_DISPLAY_NAME[name] }))
-    .filter((d): d is { name: string; objectId: string } => Boolean(d.objectId && DOCUMENT_TEXT[d.objectId]));
+/**
+ * Split a document's authored text into a provenance header (the leading
+ * run of *…* caption lines — what the paper is, who took it, when) and the
+ * lines that follow. Provenance is header material and renders as a caption
+ * under the title; only a long caption later in the text is a true aside
+ * (Watson's voice) and gets the tinted-block treatment.
+ */
+const parseDocumentText = (raw: string): { provenance: string[]; lines: DocLine[] } => {
+  const provenance: string[] = [];
+  const lines: DocLine[] = [];
+  let inHeader = true;
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+    const caption = trimmed.match(/^\*(.+)\*$/);
+    if (caption && inHeader) {
+      provenance.push(caption[1]);
+    } else if (caption) {
+      lines.push(caption[1].length <= 70 ? { kind: 'label', text: caption[1] } : { kind: 'aside', text: caption[1] });
+    } else {
+      inHeader = false;
+      lines.push({ kind: 'body', text: trimmed });
+    }
+  }
+  return { provenance, lines };
+};
+
+/** "Watson's note: …" asides get a run-in label; anything else renders plain. */
+const ASIDE_LABEL_RE = /^Watson's note:\s*/i;
+
+/**
+ * Filed once, kept forever — driven by the engine's `filed_<objectId>` flags
+ * (set the moment a document-bearing item is gained, see GameEngine.resolve),
+ * not by live inventory. A document Watson has since used, dropped, or lost
+ * to an act transition still belongs to the casebook.
+ *
+ * NOTE on colors: supplement text deliberately avoids `text-lb-muted` — at
+ * body sizes it measures ~2.7:1 (light) / ~2.9:1 (dark) against lb-paper,
+ * failing WCAG AA (4.5:1). `text-lb-primary/75` passes in every theme.
+ */
+const DocumentsPanel: React.FC<{ flags: Record<string, boolean>; inventory: string[] }> = ({ flags, inventory }) => {
+  const docs = DOCUMENT_OBJECT_IDS
+    .filter(objectId => flags[`filed_${objectId}`])
+    .map(objectId => ({
+      objectId,
+      name: TAKEABLE_OBJECTS[objectId],
+      carried: inventory.includes(TAKEABLE_OBJECTS[objectId]),
+    }));
 
   if (docs.length === 0) {
     return (
-      <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
-        Watson carries no papers worth rereading.
+      <p className="text-[15px] text-lb-primary/75 font-sans italic py-8 text-center">
+        Watson has filed no papers yet.
       </p>
     );
   }
 
   return (
     <div>
-      <p className="uppercase tracking-widest text-[11px] font-bold text-lb-accent mb-1">Carried in the Medical Bag</p>
+      <p className="uppercase tracking-widest text-[11px] font-bold text-lb-accent mb-1">The Casebook</p>
       <h3 className="font-serif text-2xl font-bold text-lb-primary mb-2">Documents</h3>
-      {docs.map((doc, i) => (
-        <div key={doc.objectId} className={`py-4 ${i > 0 ? 'border-t border-lb-border' : ''}`}>
-          <h4 className="font-serif text-lg font-bold text-lb-primary mb-2">{doc.name}</h4>
-          <div className="space-y-2">
-            {DOCUMENT_TEXT[doc.objectId].split('\n').map((line, j) => {
-              const trimmed = line.trim();
-              if (trimmed === '') return null;
-              const caption = trimmed.match(/^\*(.+)\*$/);
-              return caption ? (
-                <p key={j} className="uppercase tracking-wider text-[10px] text-lb-muted">{caption[1]}</p>
-              ) : (
-                <p key={j} className="italic text-[15px] text-lb-primary/90 leading-relaxed">{trimmed}</p>
-              );
-            })}
+      {docs.map((doc, i) => {
+        const { provenance, lines } = parseDocumentText(DOCUMENT_TEXT[doc.objectId]);
+        return (
+          <div key={doc.objectId} className={`py-4 ${i > 0 ? 'border-t border-lb-border' : ''}`}>
+            <div className="flex items-baseline justify-between gap-3">
+              <h4 className="font-serif text-lg font-bold text-lb-primary">{doc.name}</h4>
+              {!doc.carried && (
+                <span className="shrink-0 uppercase tracking-[0.2em] text-[10px] font-bold text-lb-primary/75 border border-lb-border rounded-full px-2.5 py-0.5">Filed</span>
+              )}
+            </div>
+            {provenance.length > 0 && (
+              <p className="mt-1 text-[13px] tracking-[0.02em] text-lb-primary/75">
+                {provenance.join(' · ')}
+              </p>
+            )}
+            <div className="mt-3 space-y-3">
+              {lines.map((line, j) => {
+                if (line.kind === 'body') {
+                  return <p key={j} className="italic text-[15px] text-lb-primary/90 leading-relaxed">{line.text}</p>;
+                }
+                if (line.kind === 'label') {
+                  return <p key={j} className="uppercase tracking-wider text-[10px] font-bold text-lb-primary/75">{line.text}</p>;
+                }
+                const noteText = line.text.replace(ASIDE_LABEL_RE, '');
+                const hasLabel = noteText !== line.text;
+                return (
+                  <div key={j} className="bg-lb-primary/5 rounded-lg px-[18px] py-3.5 text-[14px] font-sans not-italic text-lb-primary/85 leading-relaxed">
+                    {hasLabel && (
+                      <span className="uppercase tracking-[0.07em] text-[11px] font-bold text-lb-primary mr-2">Watson's note</span>
+                    )}
+                    {noteText}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
-      <p className="mt-5 pt-4 border-t border-lb-border text-[13px] italic text-lb-muted">
-        Verbatim copies, in Watson's hand. He may read them as often as he likes.
-      </p>
+        );
+      })}
     </div>
   );
 };
@@ -325,11 +388,8 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
         return visible.length === 0 ? 'none yet' : `${cleared} cleared, ${visible.length - cleared} open`;
       }
       case 'documents': {
-        const n = inventory.filter(name => {
-          const id = OBJECT_ID_BY_DISPLAY_NAME[name];
-          return id && DOCUMENT_TEXT[id];
-        }).length;
-        return `${n} carried`;
+        const n = DOCUMENT_OBJECT_IDS.filter(id => flags[`filed_${id}`]).length;
+        return n === 0 ? 'none yet' : `${n} filed`;
       }
     }
   };
@@ -552,7 +612,7 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                   )}
                   {activeTab === 'evidence' && <EvidencePanel entries={entries} />}
                   {activeTab === 'persons' && <PersonsPanel flags={flags} />}
-                  {activeTab === 'documents' && <DocumentsPanel inventory={inventory} />}
+                  {activeTab === 'documents' && <DocumentsPanel flags={flags} inventory={inventory} />}
                 </motion.div>
                 </AnimatePresence>
                 </div>

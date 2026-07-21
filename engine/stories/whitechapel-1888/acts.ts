@@ -120,16 +120,17 @@ export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
     ],
     advanceTo: 1,
   },
-  // Act 1 — "The Stranger". The fresh Kelly scene; Hutchinson's account is
-  // gated (everyone meets the theory), and the act CLOSES on Bond's aftermath
-  // beat — a character exhale, not a cold examine.
+  // Act 1 — "The Stranger". The fresh Kelly scene. Hutchinson's account is a
+  // three-beat witness test (talk → USE account WITH archway → SHOW it back):
+  // everyone meets the theory, tests it, and clears the man on-screen. The
+  // act CLOSES on Bond's aftermath beat — a character exhale, not a cold examine.
   1: {
     name: 'The Last Murder',
     requireFlags: [
-      'talked_to_hutchinson_at_dorset_street',  // the Stranger account + his loitering admission
-      'examined_millers_court_burned_clothing', // the grate — the killer's use of light
-      'examined_millers_court_the_bed',         // the central horror (arms Bond's aftermath beat)
-      'talked_to_bond_at_millers_court',        // the emotional capstone — the surgeon's burden
+      'showed_hutchinson_account_to_hutchinson', // the witness tested + cleared (implies the talk/take/use chain)
+      'examined_millers_court_burned_clothing',  // the grate — the killer's use of light
+      'examined_millers_court_the_bed',          // the central horror (arms Bond's aftermath beat)
+      'talked_to_bond_at_millers_court',         // the emotional capstone — the surgeon's burden
     ],
     advanceTo: 2,
   },

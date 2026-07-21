@@ -62,6 +62,27 @@ export function describeError(err: unknown): string {
   return String(err);
 }
 
+/**
+ * Force a session refresh rather than relying on getSession()'s implicit
+ * "refresh only if already expired" check — a token that is merely *close*
+ * to expiry is still handed back as-is by getSession(), so a write that
+ * follows immediately can still race the server's own expiry check. Used
+ * both to warm the session right after a game load (see usePersistence's
+ * loadInvestigationIntoState) and as the first step of a write retry.
+ * Never throws — a failed refresh here just means the subsequent write
+ * attempt fails too, which the caller already handles.
+ */
+export async function refreshAuthSession(): Promise<void> {
+  try {
+    await supabase.auth.refreshSession();
+  } catch {
+    // Fall back to getSession's own lazy refresh-if-expired path.
+    try { await supabase.auth.getSession(); } catch { /* surfaced by the retried call */ }
+  }
+}
+
+const RETRY_BACKOFF_MS = 400;
+
 export interface UserProfile {
   id: string;
   displayName: string | null;
@@ -295,10 +316,14 @@ export class GameRepository {
 
       // Intermittent failures here are most often a stale/expired access token
       // (auto-refresh ticks stop while the tab is backgrounded or the machine
-      // sleeps). getSession() forces a refresh of an expired session, so one
-      // retry heals that case; it also covers a brief network blip.
+      // sleeps, or a just-resumed tab races Supabase's own focus-triggered
+      // refresh). A forced refreshSession() plus a short backoff — rather than
+      // an immediate retry — gives that in-flight refresh time to actually
+      // land before the retried write goes out; it also covers a brief
+      // network blip on a machine that just woke up.
       console.warn(`GameRepository.applyEngineResult: ${describeError(error)} — refreshing session and retrying once`);
-      await supabase.auth.getSession();
+      await refreshAuthSession();
+      await new Promise(resolve => setTimeout(resolve, RETRY_BACKOFF_MS));
       const { error: retryError } = await supabase
         .from('investigations')
         .update(updates)
@@ -411,7 +436,20 @@ export class GameRepository {
       const { error } = await supabase
         .from('npc_states')
         .upsert(rows, { onConflict: 'investigation_id,npc_id' });
-      if (error) throw error;
+      if (!error) return true;
+
+      // Same stale-token retry as applyEngineResult — a follower's position
+      // write failing silently here is exactly the kind of drift
+      // reconcileNpcPositions exists to paper over on the next load, but
+      // it's better not to lose the write in the first place.
+      console.warn(`GameRepository.applyNPCUpdates: ${describeError(error)} — refreshing session and retrying once`);
+      await refreshAuthSession();
+      await new Promise(resolve => setTimeout(resolve, RETRY_BACKOFF_MS));
+      const { error: retryError } = await supabase
+        .from('npc_states')
+        .upsert(rows, { onConflict: 'investigation_id,npc_id' });
+
+      if (retryError) throw retryError;
       return true;
     } catch (err) {
       console.error('GameRepository.applyNPCUpdates:', describeError(err), err);

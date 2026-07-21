@@ -93,6 +93,21 @@ export function resolveExamine(story: StoryManifest, intent: ParsedIntent, sessi
     );
   }
 
+  // Flag-gated takeable: the object is physically listed here but Watson has
+  // no cause to examine it closely yet (e.g. a witness's account that isn't
+  // a real note until he's given it). Blocks the whole EXAMINE — mirrors
+  // resolveTake's equivalent gate — so there's no side door around it.
+  const takeGateFlag = story.takeableRequiresFlag[targetId];
+  if (takeGateFlag && session.flags[takeGateFlag] !== true) {
+    const objectName = story.objectDisplayNames[targetId] || intent.targetRaw;
+    return blocked(story,
+      intent,
+      session,
+      `Watson's eye passes over it without particular notice — there is nothing there yet worth his closer attention.`,
+      `EXAMINE blocked: "${targetId}" is gated on flag "${takeGateFlag}" which is not yet set. Narrate Watson's attention passing over ${objectName} without pausing on it, without naming any game mechanism or hinting at what he's missing.`
+    );
+  }
+
   // Check if already examined (prevent clue duplication)
   const alreadyExaminedFlag = `examined_${session.location}_${targetId}`;
   const alreadyExamined = session.flags[alreadyExaminedFlag] === true;
@@ -188,6 +203,17 @@ export function resolveRead(story: StoryManifest, intent: ParsedIntent, session:
       let inventoryAdd: string[] | undefined;
 
       if (inLocation) {
+        // Same gate as resolveExamine — a flag-gated takeable with authored
+        // document text must not be readable before its gate flag is set either.
+        const takeGateFlag = story.takeableRequiresFlag[targetId];
+        if (takeGateFlag && session.flags[takeGateFlag] !== true) {
+          const objectName = story.objectDisplayNames[targetId] ?? intent.targetRaw ?? targetId;
+          return blocked(story, intent, session,
+            `Watson's eye passes over it without particular notice — there is nothing there yet worth his closer attention.`,
+            `READ blocked: "${targetId}" is gated on flag "${takeGateFlag}" which is not yet set. Narrate Watson's attention passing over ${objectName} without pausing on it, without naming any game mechanism.`
+          );
+        }
+
         const alreadyExaminedFlag = `examined_${session.location}_${targetId}`;
         const alreadyExamined = session.flags[alreadyExaminedFlag] === true;
         const triggered = triggerClues(story, session.location, targetId, alreadyExamined, session.discoveredClueIds);

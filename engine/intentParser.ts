@@ -374,6 +374,14 @@ function matchObjectId(raw: string): string | undefined {
     'warehouse': 'warehouse_doors',
     'doorway': 'club_doorway',
     'posters': 'posters',
+    'archway': 'court_archway',
+    'court entrance': 'court_archway',
+    'passage': 'court_archway',
+    'account': 'hutchinson_account',
+    'statement': 'hutchinson_account',
+    "hutchinson's account": 'hutchinson_account',
+    "hutchinson's statement": 'hutchinson_account',
+    'witness statement': 'hutchinson_account',
   };
   // Longest alias wins — "dear boss letter" must match 'dear boss'
   // (newspaper_pile), not the shorter 'letter' (from_hell_letter).

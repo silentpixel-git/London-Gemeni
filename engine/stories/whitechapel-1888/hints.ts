@@ -10,6 +10,8 @@ export type { HintState, HintObjective } from '../types';
 const CLIPPING = 'Newspaper Clipping (the "Dear Boss" letter)';
 const FROM_HELL = 'From Hell Letter (transcript)';
 const FORENSIC_NOTE = "Assistant's Forensic Note (copy)";
+const HUTCH_ACCOUNT = "Hutchinson's Account (Watson's note)";
+const KIDNEY_NOTES = 'Kidney Examination Notes';
 
 // ── Predicate helpers ────────────────────────────────────────────────────────
 function flag(s: HintState, name: string): boolean {
@@ -67,9 +69,17 @@ export const OBJECTIVES: HintObjective<StoryFlag>[] = [
   // ----- Act 1: The Last Murder -----
   { id: 'a1_hutchinson', act: 1, locationId: 'dorset_street', verb: 'talk',
     subject: 'the witness Hutchinson, lingering near the court',
-    flag: 'talked_to_hutchinson_at_dorset_street',
     done: s => flag(s, 'talked_to_hutchinson_at_dorset_street'),
     available: s => npcStep(s, 'dorset_street', 'hutchinson') },
+  { id: 'a1_account_test', act: 1, locationId: 'dorset_street', verb: 'use',
+    subject: 'his account, tried against the archway and the light where he says he stood',
+    done: s => flag(s, 'used_hutchinson_account_with_court_archway'),
+    available: s => hasItem(s, HUTCH_ACCOUNT) && locationReachable(s, 'dorset_street') },
+  { id: 'a1_account_confront', act: 1, locationId: 'dorset_street', verb: 'show',
+    subject: 'the statement, read back to the man who gave it',
+    flag: 'showed_hutchinson_account_to_hutchinson',
+    done: s => flag(s, 'showed_hutchinson_account_to_hutchinson'),
+    available: s => flag(s, 'used_hutchinson_account_with_court_archway') && npcStep(s, 'dorset_street', 'hutchinson') },
   { id: 'a1_clothing', act: 1, locationId: 'millers_court', verb: 'examine',
     subject: 'the burned clothing left in the grate',
     flag: 'examined_millers_court_burned_clothing',
@@ -161,6 +171,10 @@ export const OBJECTIVES: HintObjective<StoryFlag>[] = [
     flag: 'talked_to_holmes_at_lusk_office',
     done: s => flag(s, 'talked_to_holmes_at_lusk_office'),
     available: s => npcStep(s, 'lusk_office', 'holmes') },
+  { id: 'a4_kidney_letter', act: 4, locationId: 'lusk_office', verb: 'use',
+    subject: "Bond's notes on the kidney, set against the letter that boasts of it",
+    done: s => flag(s, 'used_kidney_parcel_with_from_hell_letter'),
+    available: s => hasItem(s, FROM_HELL) && hasItem(s, KIDNEY_NOTES) },
 
   // ----- Act 5: The Suspicion (no flag gate — convergence then deduction) -----
   { id: 'a5_letter', act: 5, locationId: 'lusk_office', verb: 'examine',

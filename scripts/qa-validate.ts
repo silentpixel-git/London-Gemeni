@@ -21,6 +21,7 @@ import {
   CLUE_DEFINITIONS,
   CLUE_TRIGGERS,
   TAKEABLE_OBJECTS,
+  TAKEABLE_REQUIRES_FLAG,
   SHOW_INTERACTIONS,
   USE_COMBINATIONS,
   DOCUMENT_TEXT,
@@ -263,6 +264,41 @@ section('Act progression');
     }
   }
   if (ok) pass('every ACT_PROGRESSION gate flag is settable');
+}
+
+// ── 3b. Takeable gates + gated SHOW interactions ─────────────────────────────
+
+section('Takeable gates + gated SHOW interactions');
+{
+  let takeableOk = true;
+  for (const [objId, flag] of Object.entries(TAKEABLE_REQUIRES_FLAG)) {
+    if (!(objId in TAKEABLE_OBJECTS)) {
+      fail(`TAKEABLE_REQUIRES_FLAG["${objId}"]: "${objId}" is not in TAKEABLE_OBJECTS`,
+        'gating an object that was never takeable to begin with');
+      takeableOk = false;
+      continue;
+    }
+    const reason = flagUnreachableReason(flag);
+    if (reason) {
+      fail(`TAKEABLE_REQUIRES_FLAG["${objId}"]: gate flag "${flag}" can never be set`, reason);
+      takeableOk = false;
+    }
+  }
+  if (takeableOk) pass('every TAKEABLE_REQUIRES_FLAG entry gates a real takeable object with a settable flag');
+
+  let showGateOk = true;
+  for (const [objId, perNpc] of Object.entries(SHOW_INTERACTIONS)) {
+    for (const [npcId, si] of Object.entries(perNpc)) {
+      for (const flag of si.requireFlags ?? []) {
+        const reason = flagUnreachableReason(flag);
+        if (reason) {
+          fail(`SHOW_INTERACTIONS["${objId}"]["${npcId}"]: requireFlags entry "${flag}" can never be set`, reason);
+          showGateOk = false;
+        }
+      }
+    }
+  }
+  if (showGateOk) pass('every SHOW_INTERACTIONS requireFlags entry is settable');
 }
 
 // ── 4. NPCs ──────────────────────────────────────────────────────────────────

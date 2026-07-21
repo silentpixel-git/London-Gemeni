@@ -207,6 +207,10 @@ export interface ActWeather {
 export interface ShowInteraction {
   clueId?: string;       // Clue unlocked by this show action (optional)
   resultNote: string;    // Passed to AI as actionResultNote
+  /** Optional gate: the interaction only fires once ALL these flags are set.
+   *  Unmet → blocked with blockedNote (authored, narrator voice). */
+  requireFlags?: string[];
+  blockedNote?: string;
 }
 
 export interface UseCombination {
@@ -320,6 +324,15 @@ export interface StoryManifest {
   clueTriggers: Record<string, Record<string, string[]>>;
   atmosphericNotes: Record<string, Record<string, string>>;
   takeableObjects: Record<string, string>;
+  /** Optional gate: object may only be taken once this flag is set. Blocked
+   *  takes go through the standard blocked() path in narrator voice. */
+  takeableRequiresFlag: Record<string, string>;
+  /** Optional grant: talking to this NPC (keyed by npcId) adds the named
+   *  takeable object to inventory, once, the first time the talk succeeds —
+   *  for testimony/notes that exist only because the NPC gave them, not
+   *  because they were lying around to be picked up. Uses takeableObjects
+   *  for the display name, same as every other inventory-add path. */
+  talkGrantsItem: Record<string, string>;
   useInteractions: Record<string, Record<string, string>>;
   showInteractions: Record<string, Record<string, ShowInteraction>>;
   useCombinations: Record<string, Record<string, UseCombination>>;

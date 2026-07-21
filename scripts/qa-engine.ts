@@ -199,8 +199,31 @@ function runWinningPath() {
     expectLocation: 'dorset_street', // ← anchor auto-move (overnight cut; Kelly dies tonight)
   });
 
-  // Act 1 — "The Stranger". Hutchinson gated; closes on Bond's aftermath beat.
+  // Act 1 — "The Stranger". The witness-test chain: the account only exists
+  // once Hutchinson has given it (granted by TALK, not a location object —
+  // it must never be examinable/takeable as scenery, before or after the
+  // conversation), tried against the ground, and only then read back to him.
+  s = step('Act1', s, 'examine the account',     { expectSuccess: false }); // not scenery: no such object here yet
+  s = step('Act1', s, 'take the account',        { expectSuccess: false }); // not scenery: no such object here yet
   s = step('Act1', s, 'talk to hutchinson',      { expectSuccess: true, expectFlag: 'talked_to_hutchinson_at_dorset_street' });
+  if (s.inventory.includes("Hutchinson's Account (Watson's note)")) {
+    pass("Act1 → Hutchinson's account transcribed into inventory as he speaks (no separate take)");
+  } else {
+    fail(`Act1 → account not granted by the talk: ${JSON.stringify(s.inventory)}`);
+  }
+  s.flags['filed_hutchinson_account']
+    ? pass('Act1 → account marked filed (Documents tab) the moment it is granted')
+    : fail('Act1 → filed_hutchinson_account flag not set on grant');
+  s = step('Act1', s, 'take the account',        { expectSuccess: false }); // still not a location object — talk already granted it
+  s = step('Act1', s, 'show account to hutchinson', { expectSuccess: false }); // gated: sightline test not done
+  // Reversed phrasing exercises the Task 1 symmetry fix — flag must still be
+  // keyed to the authored orientation (account first).
+  s = step('Act1', s, 'use court archway with the account', {
+    expectSuccess: true,
+    expectFlag: 'used_hutchinson_account_with_court_archway',
+    expectClue: 'clue_11_account_outruns_light',
+  });
+  s = step('Act1', s, 'show account to hutchinson', { expectSuccess: true, expectFlag: 'showed_hutchinson_account_to_hutchinson' });
   s = step('Act1', s, 'go to millers court',     { expectSuccess: true, expectLocation: 'millers_court' });
   s = step('Act1', s, 'examine burned clothing', { expectSuccess: true, expectFlag: 'examined_millers_court_burned_clothing', expectClue: 'clue_01_killer_confidence' });
   s = step('Act1', s, 'examine the bed',         { expectSuccess: true, expectFlag: 'examined_millers_court_the_bed' });
@@ -253,6 +276,17 @@ function runWinningPath() {
   } else {
     fail(`Act4 → letter transcript missing from inventory: ${JSON.stringify(s.inventory)}`);
   }
+  s = step('Act4', s, 'examine kidney parcel', { expectSuccess: true, expectFlag: 'examined_lusk_office' });
+  if (s.inventory.includes('Kidney Examination Notes')) {
+    pass('Act4 → kidney examination notes added to inventory');
+  } else {
+    fail(`Act4 → kidney notes missing from inventory: ${JSON.stringify(s.inventory)}`);
+  }
+  s = step('Act4', s, 'use the kidney with the letter', {
+    expectSuccess: true,
+    expectFlag: 'used_kidney_parcel_with_from_hell_letter',
+    expectClue: 'clue_12_letter_knows_too_much',
+  });
   s = step('Act4', s, 'talk to abberline',        { expectSuccess: true, expectFlag: 'talked_to_abberline_at_lusk_office' });
   s = step('Act4', s, 'talk to holmes', {
     expectSuccess: true,

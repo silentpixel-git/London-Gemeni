@@ -1,4 +1,5 @@
 import type { ClueDefinition, ShowInteraction, UseCombination } from '../types';
+import type { StoryFlag } from './flags';
 
 export type { ShowInteraction, UseCombination } from '../types';
 
@@ -144,7 +145,7 @@ const CLUE_DEFINITIONS_DATA = {
     holmesDeduction: 'He presented differently to each witness. This is not inconsistency in the witnesses — it is consistency in the killer. He is a man of adjustable appearance. Ordinariness is his camouflage.',
     locationFound: 'h_division_station',
     triggerObject: 'witness_description_wall',
-    connections: ['clue_01_respectable_approach', 'clue_07_edmunds_presence'],
+    connections: ['clue_01_respectable_approach', 'clue_07_edmunds_presence', 'clue_11_account_outruns_light'],
     clueGroup: 4,
     medicalPoints: 5,
     moralPoints: 0,
@@ -161,7 +162,7 @@ const CLUE_DEFINITIONS_DATA = {
     holmesDeduction: 'A man barely lettered, Watson — or one who wishes us to believe it. The hand is steady; the errors are consistent; the cruelty is genuine. Keep your transcript close. Documents have a way of answering one another, given time.',
     locationFound: 'lusk_office',
     triggerObject: 'from_hell_letter',
-    connections: ['clue_06_prasarved_spelling', 'clue_05_human_kidney'],
+    connections: ['clue_06_prasarved_spelling', 'clue_05_human_kidney', 'clue_12_letter_knows_too_much'],
     clueGroup: 5,
     medicalPoints: 5,
     moralPoints: 5,
@@ -174,7 +175,7 @@ const CLUE_DEFINITIONS_DATA = {
     holmesDeduction: "Mark the preservation, Watson, more than the cutting. A showman's curio is crudely kept — this was fixed by laboratory hands, to laboratory standards. The man who kept this kidney keeps specimens for his living. He did not flee, and he did not vanish. He is still at his bench.",
     locationFound: 'lusk_office',
     triggerObject: 'kidney_parcel',
-    connections: ['clue_04_kidney_removal', 'clue_06_prasarved_spelling', 'clue_08_preserved_kidney'],
+    connections: ['clue_04_kidney_removal', 'clue_06_prasarved_spelling', 'clue_08_preserved_kidney', 'clue_12_letter_knows_too_much'],
     clueGroup: 5,
     medicalPoints: 10,
     moralPoints: 5,
@@ -253,6 +254,41 @@ const CLUE_DEFINITIONS_DATA = {
     clueGroup: 10,
     medicalPoints: 5,
     moralPoints: 10,
+  },
+  // GROUP 11 — The Witness Tested (Act 1 chain: Hutchinson's account laid
+  // against the archway and the light. The Stranger begins to dissolve.)
+  clue_11_account_outruns_light: {
+    id: 'clue_11_account_outruns_light',
+    name: 'The Account Outruns the Light',
+    diaryNote: "I stood where Hutchinson stood and read his statement against the ground itself. The lamp is across the street; the passage is black as a coal cellar; the rain that night would have doused what little glow there was. Spats, a tie-pin, the trim of a coat — no honest glance could have carried so much away. The account is not a lie entire. But it has been dressed.",
+    description: "Watson reads Hutchinson's statement where the man claims to have stood. The gas lamp is across the street; the archway is unlit; the night of the murder was wet. At that distance, in that light, a passing glance yields outline and gait — not spats, not a tie-pin, not a parcel in the left hand. The description has been embroidered after the fact. What remains true is simpler and stranger: a man stood here for three-quarters of an hour, watching.",
+    holmesDeduction: "A witness who saw too much, Watson, has usually seen too little and furnished the rest. Strike the astrakhan man's wardrobe and what is left? A figure. Ordinary. Which is to say: our man, if he was here at all, looked like no one — again.",
+    locationFound: 'dorset_street',
+    // Synthetic label, NOT a physical interactable: granted only via the
+    // USE combination (account + archway) — same pattern as document_convergence.
+    triggerObject: 'witness_test',
+    connections: ['clue_04b_adjustable_appearance'],
+    clueGroup: 11,
+    medicalPoints: 5,
+    moralPoints: 5,
+  },
+  // GROUP 12 — The Letter Knows Too Much (Act 4 refresher: the USE verb again,
+  // one act before the convergence. Spoiler containment: establishes only that
+  // the writer HANDLED the kidney — never the preservation-method-matches-Bond's-
+  // lab thread (that is the SHOW-to-Bond beat), never Edmund, never the asylum.)
+  clue_12_letter_knows_too_much: {
+    id: 'clue_12_letter_knows_too_much',
+    name: 'The Letter Knows Too Much',
+    diaryNote: "I set Bond's notes on the kidney beside the letter that boasted of it. The letter itself says nothing a fairground barker could not invent — half a kidney, fried and eaten. But held against what Bond's own hand recorded, and against what the papers never printed, the boast reads differently. A man who had only read the newspapers could not have written it so carelessly right.",
+    description: "Watson lays the kidney examination notes beside the From Hell letter and reads one against the other. The letter's own words are crude and say little — a boast of taking, preserving, eating. But Bond's notes, in Watson's hand from the examination itself, record what no newspaper ever carried: the organ's condition, the attached inch of renal artery. Nothing in the letter names these details outright, and yet Watson finds himself unable to dismiss the coincidence — a hoaxer, working only from the papers, would have had nothing but the papers to embroider from. Whoever wrote those clumsy lines wrote them with the thing, or the knowledge of it, close at hand.",
+    holmesDeduction: "The hoax letters trade only in what the papers printed, Watson — that is how I have discarded a hundred of them without a second reading. This one I cannot discard so easily. Set beside Bond's notes it does not contradict a single particular, and a man inventing from newsprint alone tends to invent wrongly, somewhere, eventually. That is my judgment, not a certainty carved in stone — but I would stake a good deal on it.",
+    locationFound: 'lusk_office',
+    // Synthetic label — granted only via the USE combination (kidney notes + letter).
+    triggerObject: 'letter_kidney_crossref',
+    connections: ['clue_05_from_hell_letter', 'clue_05_human_kidney'],
+    clueGroup: 12,
+    medicalPoints: 5,
+    moralPoints: 5,
   },
 } satisfies Record<string, ClueDefinition>;
 
@@ -352,6 +388,7 @@ export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
     street_lamps: [],
     lodging_house_entrances: [],
     crowd: [],
+    court_archway: [],
   },
 };
 
@@ -385,6 +422,7 @@ export const ATMOSPHERIC_NOTES: Record<string, Record<string, string>> = {
     street_lamps: "The gas lamps are lit against the November fog, their light pooling uselessly in the damp air. They illuminate almost nothing. Watson wonders how the killer moved through these streets unseen and realises that in this light, almost anything is possible.",
     lodging_house_entrances: "The lodging houses along Dorset Street take in anyone who can afford fourpence a night. The women who lived here moved between them constantly — a bed here, a floor there, wherever the money stretched. Watson thinks of the difference between having a home and merely having a place to sleep.",
     crowd: "The crowd pressed against the barricade is a mixture of the morbidly curious, the genuinely afraid, and the simply poor who have nowhere else to be. A woman near Watson says nothing, just stares at the entrance to Miller's Court with the flat expression of someone who has been waiting for this to happen.",
+    court_archway: "The covered passage into Miller's Court is barely three feet wide — a brick throat between two lodging houses, unlit along its length. The nearest lamp stands across the street, its glow arriving as a rumour. Watson stands where a watcher would have stood, opposite, and studies what the light actually reaches: outlines, movement, the pale smudge of a face. No more.",
   },
   millers_court: {
     the_bed: "The bed dominates the small room. Watson, who has seen field surgery and the aftermath of battle, stands at its foot for a moment and says nothing. What happened here required hours. The killer was comfortable in this room. He made it his.",
@@ -460,6 +498,27 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
   // Prologue: examining the newspapers yields the clipping of the published
   // "Dear Boss" letter — the object the player SHOWS to Holmes (tutorial beat).
   newspaper_pile: 'Newspaper Clipping (the "Dear Boss" letter)',
+  // Not a location interactable — granted directly by TALK (see
+  // TALK_GRANTS_ITEM below). Kept here for its display name and so
+  // USE/SHOW's inventory-possession checks resolve it.
+  hutchinson_account: "Hutchinson's Account (Watson's note)",
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TAKEABLE GATES — object may only be taken once this flag is set.
+// (No entries currently authored — see TALK_GRANTS_ITEM for the pattern used
+// when an item should exist only because an NPC gave it, not as scenery.)
+// ─────────────────────────────────────────────────────────────────────────────
+export const TAKEABLE_REQUIRES_FLAG: Record<string, StoryFlag> = {};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TALK GRANTS ITEM — talking to this NPC adds a takeable object straight to
+// inventory (once). For testimony that exists only because the NPC gave it —
+// modeling it as a location object a player could examine/take before ever
+// speaking to them would both leak the NPC's name early and make no sense.
+// ─────────────────────────────────────────────────────────────────────────────
+export const TALK_GRANTS_ITEM: Record<string, string> = {
+  hutchinson: 'hutchinson_account',
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -475,6 +534,8 @@ export const ITEM_SPENT_AFTER_ACT: Record<string, number> = {
   // The "Dear Boss" clipping is a one-time prologue prop (shown to Holmes).
   // Spent once the investigation proper begins.
   'Newspaper Clipping (the "Dear Boss" letter)': 0,
+  // The account is Act 1 business only — spent once Act 1 closes.
+  "Hutchinson's Account (Watson's note)": 1,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -572,6 +633,15 @@ export const SHOW_INTERACTIONS: Record<string, Record<string, ShowInteraction>> 
       resultNote: "SUCCESS — Abberline reads the summary, then lays it on his desk and puts his hand flat on it. 'If this is right,' he says, 'then whoever did this was at every scene in a professional capacity. Not a vagrant. Not a butcher. Someone with a reason to be there.' He does not say who. But his eyes move to the window that faces Bond's office across the courtyard.",
     },
   },
+  // SHOW the account TO hutchinson — only once the sightline test has armed it.
+  // His clearing beat (red-herring rule): he breaks into loneliness, not guilt.
+  'hutchinson_account': {
+    'hutchinson': {
+      requireFlags: ['used_hutchinson_account_with_court_archway'],
+      blockedNote: "Watson's hand goes to the note in his pocket, and stops. He has only the man's own words, unweighed — read them back now and Hutchinson need only repeat them. Better first to try the account against the ground it claims to describe.",
+      resultNote: "SUCCESS — Watson reads the statement back to him, slowly, and then asks — gently, as one asks a patient — how the lamp across the street showed him a tie-pin. Hutchinson's eagerness collapses by degrees. He did see a man, he says. Well-dressed — he thinks. The rest he... filled in, after, so they would take him seriously at the station. But he stood there the three-quarters of an hour, that part is gospel — he knew Mary three years, she'd have let him sleep on the floor, night like that. He looks at the archway rather than at Watson. 'I keep thinking, if I'd only stopped where I was till morning.' He has nothing else. He is not the man. He is only the last of her friends.",
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -607,12 +677,27 @@ export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = 
       requiresAct: 6,
       resultNote: "SUCCESS — Watson cross-references the kidney's preservation against the ledger's documented method. Bond's notes specify spirit of wine at a precise dilution — the same concentration Watson observes in the parcel. This kidney was preserved by someone who had read, or written, that ledger entry.",
     },
+    // USE kidney notes WITH the from hell letter (Act 4 refresher — no act or
+    // location lock: deliberately friction-free, both items are Act 4 finds).
+    'from_hell_letter': {
+      clueId: 'clue_12_letter_knows_too_much',
+      resultNote: "SUCCESS — Watson reads the letter's boast against Bond's examination notes, line by line. The papers printed every crude word of the letter, but the notes hold what was never published: the organ's condition, the attached inch of artery. The letter contradicts nothing Bond recorded — and a hoaxer working only from newsprint would have had nothing else to work from. Watson sets the pages down convinced the writer had handled the thing, not merely read about it.",
+    },
   },
   // USE forensic reports WITH case files wall
   // Watson integrates Bond's reports into Holmes's case map
   'medical_reports': {
     'case_files_wall': {
       resultNote: "SUCCESS — Watson pins the forensic summary beside the case map. The pattern clarifies: the same surgical approach across all five murders, the same efficiency, the same anatomical confidence. Holmes watches from his chair. 'You are beginning to see it,' he says. 'Now ask yourself: who was present at every post-mortem?'",
+    },
+  },
+  // USE hutchinson's account WITH the court archway (Act 1 witness test).
+  // The USE X WITH Y rehearsal — teaches the convergence's verb at low stakes.
+  'hutchinson_account': {
+    'court_archway': {
+      clueId: 'clue_11_account_outruns_light',
+      requiresLocation: 'dorset_street',
+      resultNote: "SUCCESS — Watson stands opposite the archway, note in hand, and reads the statement against the scene. The lamp across the street; the unlit passage; the remembered rain. One by one the account's fine details fail the light. What survives is the man himself: three-quarters of an hour, watching a doorway in the wet. The description was dressed. The waiting was real.",
     },
   },
 };
@@ -643,6 +728,12 @@ Sor
 I send you half the Kidne I took from one woman prasarved it for you tother piece I fried and ate it was very nise. I may send you the bloody knif that took it out if you only wate a whil longer.
 
 signed Catch me when you can Mishter Lusk`,
+
+  hutchinson_account: `*Statement of George Hutchinson, labourer — taken down by Watson, Dorset Street, 9 November 1888.*
+
+Knew the deceased, Mary Jane Kelly, some three years. Met her on Commercial Street in the small hours; she asked him for sixpence, which he had not. She went off toward Dorset Street with a man of about thirty-four — dark, of prosperous appearance, a moustache curled at the ends, wearing a long dark coat trimmed with astrakhan, a white collar, a black tie fixed with a horseshoe pin, dark spats over button boots, and a thick gold chain with a red stone seal hanging from it. Carried a small parcel in his left hand, done up with a strap. Followed the pair to the court and waited opposite, some three-quarters of an hour, to see whether the man came out again.
+
+*Watson's note: the detail above is extraordinary for a chance encounter in near-darkness — every particular of dress, down to the seal on the watch-chain. He gave it eagerly, almost by rote.*`,
 
   edmund_forensic_note: `*Post-mortem cataloguing note — Miller's Court, 9 November 1888.*
 *Transcribed by E. Halward, assistant to Dr. T. Bond.*
@@ -707,3 +798,14 @@ Left kidney removed within estimated four minutes. Efficiency consistent with pr
 Entry 6 — Mary Jane Kelly, 9 November:
 [See supplementary notes. Not reproduced here.]`,
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOCUMENT OBJECT IDS — every takeable object that also has authored document
+// text: the full universe of things that can appear in the Documents tab.
+// Filed status itself is tracked as an engine-set `filed_<objectId>` flag
+// (see GameEngine.resolve()), not as separate save-state, so a document
+// stays on file even after it leaves the inventory bag (dropped, spent after
+// an act transition, or consumed by a USE combination).
+// ─────────────────────────────────────────────────────────────────────────────
+export const DOCUMENT_OBJECT_IDS: string[] = Object.keys(TAKEABLE_OBJECTS)
+  .filter(id => DOCUMENT_TEXT[id] !== undefined);
