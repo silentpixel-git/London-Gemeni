@@ -2,283 +2,307 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   /* ============================================================
-     London Bleeds — Story Map (author overview)
-     Daytime theme: the "Victorian parchment" light palette
-     (index.css :root). Single, deliberate light look.
-     No external fonts — system serif/sans fallbacks so the page
-     works offline and under a strict CSP.
+     London Bleeds — The Whitechapel Casebook (author overview)
+     Daytime "Victorian parchment" identity from index.css, worked
+     into an editorial casebook: hairline rules and typographic
+     hierarchy instead of boxed cards; one signature — Holmes's
+     red-thread case wall (the Map). Offline: no external assets.
      ============================================================ */
   :root {
-    --bg:      #FDF9F5;   /* warm parchment page   */
-    --paper:   #FFFFFF;   /* white cards           */
-    --ink:     #293351;   /* deep Victorian navy   */
-    --ink-2:   #52597a;   /* softened navy         */
-    --accent:  #CD7B00;   /* aged brass / amber    */
-    --accent-2:#a8650a;   /* darker brass (text)   */
-    --muted:   #929DBF;   /* slate blue-grey       */
-    --border:  #C5CBDD;   /* periwinkle separator  */
-    --border-soft: #e6e9f2;
-    --tint:    #f4f1fb;   /* faint navy wash       */
-    --tint-amber:#fbf1e0;
-    --serif: "Playfair Display", Georgia, "Times New Roman", serif;
-    --sans:  "Lato", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    --mono:  ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    --shadow: 0 1px 2px rgba(41,51,81,.06), 0 6px 20px rgba(41,51,81,.06);
+    --page:   #FBF6EE;   /* warm parchment ground        */
+    --raise:  #FFFFFF;   /* rare elevated surface         */
+    --ink:    #232838;   /* near-black navy ink (body)    */
+    --navy:   #293351;   /* structural navy               */
+    --brass:  #a8650a;   /* aged brass, text-contrast     */
+    --brass-b:#CD7B00;   /* bright brass, fills           */
+    --thread: #8f2f2f;   /* oxblood — the murder thread   */
+    --muted:  #74788c;   /* slate ink, secondary          */
+    --faint:  #9a9683;   /* faint sepia, tertiary         */
+    --line:   #e4dfd0;   /* warm hairline                 */
+    --line-2: #d3ccb8;   /* stronger hairline             */
+    --tint:   #f1ebdd;   /* parchment wash                */
+    --serif:  Georgia, "Times New Roman", "Playfair Display", serif;
+    --sans:   "Lato", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono:   ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --ease:   cubic-bezier(0.23, 1, 0.32, 1);
+    --measure: 66ch;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
     margin: 0;
-    background: var(--bg);
     color: var(--ink);
+    background:
+      radial-gradient(120% 80% at 50% -10%, #fffdf8 0%, rgba(255,253,248,0) 55%),
+      var(--page);
     font-family: var(--sans);
-    line-height: 1.5;
+    font-size: 15px;
+    line-height: 1.58;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
-  h1, h2, h3, h4 { font-family: var(--serif); font-weight: 700; margin: 0; letter-spacing: .2px; }
-  a { color: var(--accent-2); }
+  h1,h2,h3,h4 { font-family: var(--serif); font-weight: 700; margin: 0; color: var(--navy); }
+  p { margin: 0; }
+  /* Small-caps utility label — used sparingly for structure, not decoration */
+  .eyebrow { font-family: var(--sans); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
 
-  /* ── Top bar ─────────────────────────────────────────── */
-  header.top {
-    position: sticky; top: 0; z-index: 40;
-    background: rgba(253,249,245,.92);
-    backdrop-filter: blur(8px);
-    border-bottom: 1px solid var(--border);
-  }
-  .top-inner {
-    max-width: 1180px; margin: 0 auto; padding: 14px 22px;
-    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
-  }
-  .brand { display: flex; flex-direction: column; }
-  .brand h1 { font-size: 22px; line-height: 1.1; }
-  .brand .sub { color: var(--ink-2); font-size: 12.5px; letter-spacing: .4px; text-transform: uppercase; }
-  .stats { margin-left: auto; display: flex; gap: 14px; color: var(--ink-2); font-size: 12.5px; }
-  .stats b { color: var(--accent-2); font-family: var(--serif); font-size: 15px; }
-  nav.tabs { max-width: 1180px; margin: 0 auto; padding: 0 22px 0; display: flex; gap: 4px; }
-  nav.tabs button {
-    appearance: none; border: 1px solid transparent; border-bottom: none;
-    background: transparent; color: var(--ink-2); font-family: var(--sans);
-    font-size: 14px; font-weight: 700; padding: 9px 16px; cursor: pointer;
-    border-radius: 8px 8px 0 0; transition: background .15s, color .15s;
-  }
-  nav.tabs button:hover { color: var(--ink); background: var(--tint); }
-  nav.tabs button[aria-selected="true"] {
-    color: var(--ink); background: var(--paper);
-    border-color: var(--border); box-shadow: 0 -2px 0 var(--accent) inset;
-  }
+  /* ── Masthead ─────────────────────────────────────────── */
+  header.mast { border-bottom: 2px solid var(--navy); background: linear-gradient(180deg, rgba(251,246,238,.96), rgba(251,246,238,.9)); backdrop-filter: blur(6px); position: sticky; top: 0; z-index: 40; }
+  .mast-inner { max-width: 1120px; margin: 0 auto; padding: 16px 26px 0; }
+  .mast-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+  .mast h1 { font-size: 30px; letter-spacing: .01em; line-height: 1; }
+  .mast h1 .amp { color: var(--brass); font-style: italic; font-weight: 400; }
+  .mast .dateline { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); margin-top: 6px; }
+  .ledger { display: flex; gap: 20px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .ledger b { display: block; font-family: var(--serif); font-size: 21px; font-weight: 700; color: var(--navy); line-height: 1; }
+  nav.tabs { display: flex; gap: 26px; margin-top: 16px; }
+  nav.tabs button { appearance: none; background: none; border: none; cursor: pointer; font-family: var(--sans); font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); padding: 10px 0; position: relative; transition: color .15s var(--ease); }
+  nav.tabs button:hover { color: var(--navy); }
+  nav.tabs button[aria-selected="true"] { color: var(--navy); }
+  nav.tabs button[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px; background: var(--thread); }
 
-  main { max-width: 1180px; margin: 0 auto; padding: 22px; }
+  main { max-width: 1120px; margin: 0 auto; padding: 30px 26px 80px; }
   .view { display: none; }
-  .view.active { display: block; }
+  .view.active { display: block; animation: rise .4s var(--ease) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-  /* ── Controls (walkthrough) ──────────────────────────── */
-  .controls {
-    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
-    margin-bottom: 18px;
-  }
-  .search {
-    flex: 1 1 240px; min-width: 200px; display: flex; align-items: center; gap: 8px;
-    background: var(--paper); border: 1px solid var(--border); border-radius: 10px;
-    padding: 8px 12px;
-  }
-  .search input { border: none; outline: none; background: transparent; width: 100%; font-family: var(--sans); font-size: 14px; color: var(--ink); }
-  .actjump { display: flex; gap: 4px; flex-wrap: wrap; }
-  .actjump button, .btn {
-    appearance: none; cursor: pointer; font-family: var(--sans); font-weight: 700; font-size: 12.5px;
-    border: 1px solid var(--border); background: var(--paper); color: var(--ink-2);
-    border-radius: 999px; padding: 6px 12px; transition: all .15s;
-  }
-  .actjump button:hover, .btn:hover { border-color: var(--accent); color: var(--accent-2); }
+  /* ── Walkthrough controls ─────────────────────────────── */
+  .controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 26px; }
+  .search { flex: 1 1 260px; display: flex; align-items: center; gap: 9px; border: none; border-bottom: 1.5px solid var(--line-2); padding: 7px 2px; background: none; }
+  .search:focus-within { border-color: var(--brass); }
+  .search input { border: none; outline: none; background: none; width: 100%; font-family: var(--sans); font-size: 15px; color: var(--ink); }
+  .search input::placeholder { color: var(--faint); }
+  .txtbtn { appearance: none; background: none; border: none; cursor: pointer; font-family: var(--sans); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 4px 2px; transition: color .15s var(--ease); }
+  .txtbtn:hover { color: var(--brass); }
+  .txtbtn:active { transform: scale(.97); }
+  .actrail { display: flex; gap: 0; flex-wrap: wrap; }
+  .actrail button { appearance: none; background: none; border: none; border-left: 1px solid var(--line-2); cursor: pointer; font-family: var(--mono); font-size: 12px; color: var(--muted); padding: 2px 11px; transition: color .15s var(--ease); }
+  .actrail button:first-child { border-left: none; }
+  .actrail button:hover { color: var(--thread); }
 
-  /* ── Act section ─────────────────────────────────────── */
-  details.act { margin: 0 0 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--paper); box-shadow: var(--shadow); overflow: hidden; scroll-margin-top: 120px; }
-  details.act > summary {
-    list-style: none; cursor: pointer; padding: 16px 20px;
-    display: flex; align-items: center; gap: 14px;
-    background: linear-gradient(180deg, #fff, #fbfaff);
-    border-bottom: 1px solid transparent;
-  }
-  details.act[open] > summary { border-bottom-color: var(--border-soft); }
-  summary::-webkit-details-marker { display: none; }
-  .act-no {
-    flex: none; width: 46px; height: 46px; border-radius: 12px;
-    display: grid; place-items: center;
-    background: var(--ink); color: #fff; font-family: var(--serif); font-size: 20px; font-weight: 700;
-  }
-  .act-head { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-  .act-head .name { font-family: var(--serif); font-size: 19px; }
-  .act-head .meta { color: var(--ink-2); font-size: 12.5px; display: flex; gap: 10px; flex-wrap: wrap; }
-  .act-head .meta span { white-space: nowrap; }
-  .chev { margin-left: auto; color: var(--muted); transition: transform .2s; flex: none; }
-  details.act[open] .chev { transform: rotate(90deg); }
-  .act-body { padding: 6px 20px 20px; }
-  .bridge { font-style: italic; color: var(--ink-2); border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; margin: 12px 0 6px; font-size: 14.5px; }
+  /* ── Act chapter ──────────────────────────────────────── */
+  .act { border-top: 2px solid var(--navy); margin-top: 34px; scroll-margin-top: 120px; }
+  .act:first-child { margin-top: 0; }
+  .act > summary { list-style: none; cursor: pointer; padding: 16px 0 14px; display: grid; grid-template-columns: auto 1fr auto; gap: 18px; align-items: baseline; }
+  .act > summary::-webkit-details-marker { display: none; }
+  .act-numeral { font-family: var(--serif); font-size: 34px; font-weight: 700; color: var(--brass); line-height: .8; font-style: italic; }
+  .act-title { display: flex; flex-direction: column; gap: 5px; }
+  .act-title .t { font-size: 25px; line-height: 1; }
+  .act-title .dateline { font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap; }
+  .act-title .dateline .sep { color: var(--line-2); }
+  .act-chev { color: var(--line-2); transition: transform .2s var(--ease); }
+  .act[open] .act-chev { transform: rotate(90deg); color: var(--muted); }
+  .act-body { padding: 4px 0 30px; }
 
-  /* ── Gate panel ──────────────────────────────────────── */
-  .gate { background: var(--tint-amber); border: 1px solid #eaddc4; border-radius: 12px; padding: 12px 16px; margin: 14px 0 20px; }
-  .gate h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--accent-2); font-family: var(--sans); font-weight: 800; margin-bottom: 8px; }
-  .gate ol { margin: 0; padding-left: 4px; list-style: none; counter-reset: step; }
-  .gate li { display: flex; gap: 10px; padding: 4px 0; align-items: baseline; }
-  .gate li::before { counter-increment: step; content: counter(step); flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; font-family: var(--sans); }
+  .bridge { font-family: var(--serif); font-style: italic; font-size: 16.5px; line-height: 1.6; color: var(--navy); max-width: var(--measure); margin: 6px 0 22px; padding-left: 16px; border-left: 2px solid var(--brass-b); }
 
-  /* ── Location card ───────────────────────────────────── */
-  .loc { border: 1px solid var(--border-soft); border-radius: 12px; margin: 12px 0; overflow: hidden; background: #fff; }
-  .loc > summary { list-style: none; cursor: pointer; padding: 13px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .loc > summary:hover { background: var(--tint); }
-  .loc .lname { font-family: var(--serif); font-size: 16.5px; }
-  .loc-body { padding: 4px 16px 16px; border-top: 1px solid var(--border-soft); }
-  .atmos { font-style: italic; color: var(--ink-2); font-size: 13.5px; margin: 10px 0; }
-  .desc { color: var(--ink); font-size: 13.5px; margin: 8px 0 4px; }
+  /* The thread of the act — the advance objective, as a ledger checklist */
+  .thread-of { margin: 0 0 30px; }
+  .thread-of .eyebrow { display: block; margin-bottom: 10px; color: var(--thread); }
+  .thread-of ol { list-style: none; margin: 0; padding: 0; counter-reset: s; max-width: var(--measure); }
+  .thread-of li { counter-increment: s; display: grid; grid-template-columns: auto auto 1fr; gap: 11px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .thread-of li:last-child { border-bottom: none; }
+  .thread-of li::before { content: counter(s, upper-roman); font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--brass); min-width: 20px; }
+  .kbd { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line-2); border-radius: 3px; padding: 1px 6px; align-self: center; }
+  .thread-of li .txt { font-size: 14.5px; }
 
-  /* Badges */
-  .badge { font-size: 11px; font-weight: 800; letter-spacing: .3px; padding: 3px 8px; border-radius: 999px; white-space: nowrap; font-family: var(--sans); }
-  .b-morning { background: #fdf0d8; color: #9a6a12; }
-  .b-midday  { background: #eef4ff; color: #395a9a; }
-  .b-afternoon { background: #fbe6d6; color: #a8560f; }
-  .b-night   { background: #e7e9f6; color: #3b4270; }
-  .b-recon   { background: #f0eafb; color: #6b4aa0; border: 1px dashed #c9b6ec; }
-  .b-revisit { background: #eafaf1; color: #2f7a52; }
-  .b-anchor  { background: var(--ink); color: #fff; }
-  .b-locked  { background: #fdeaea; color: #b23a3a; }
+  /* ── Scene (location) ─────────────────────────────────── */
+  .scene { border-top: 1px solid var(--line-2); }
+  .scene > summary { list-style: none; cursor: pointer; padding: 15px 0 13px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .scene > summary::-webkit-details-marker { display: none; }
+  .scene > summary:hover .scene-name { color: var(--thread); }
+  .scene-name { font-family: var(--serif); font-size: 19px; font-weight: 700; color: var(--navy); transition: color .15s var(--ease); }
+  .scene-when { font-family: var(--sans); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .scene-flags { margin-left: auto; display: flex; gap: 12px; align-items: baseline; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .flag-note { color: var(--thread); }
+  .scene-body { padding: 2px 0 26px; }
+  .scene-lead { font-family: var(--serif); font-style: italic; font-size: 15.5px; color: var(--navy); max-width: var(--measure); margin: 4px 0 14px; }
+  .scene-desc { max-width: var(--measure); color: var(--ink); margin-bottom: 6px; }
+  .scene-exits { font-size: 13px; color: var(--muted); margin: 12px 0 2px; }
+  .scene-exits b { font-family: var(--sans); font-weight: 800; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-right: 6px; }
+  .scene-exits a { color: var(--brass); text-decoration: none; border-bottom: 1px solid var(--line-2); cursor: pointer; }
+  .scene-exits a:hover { border-color: var(--brass); }
 
-  /* Section blocks within a location */
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
-  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } }
-  .block h5 { font-family: var(--sans); font-size: 11.5px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 800; margin: 0 0 8px; display: flex; align-items: center; gap: 6px; }
-  .block h5 .count { background: var(--tint); color: var(--ink-2); border-radius: 999px; padding: 1px 7px; font-size: 10.5px; }
-  .empty { color: var(--muted); font-size: 12.5px; font-style: italic; }
+  .cols { display: flex; gap: 34px; margin-top: 20px; align-items: flex-start; }
+  .cols > .col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 24px; }
+  @media (max-width: 740px) { .cols { flex-direction: column; gap: 24px; } }
+  .col-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  .col-head .n { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+  .empty { color: var(--faint); font-style: italic; font-size: 13px; }
 
-  /* Character chips */
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { background: var(--tint); border: 1px solid var(--border-soft); border-radius: 999px; padding: 4px 10px; font-size: 12.5px; display: inline-flex; gap: 6px; align-items: baseline; }
-  .chip .role { color: var(--muted); font-size: 11px; }
-  .chip.masked { border-style: dashed; }
+  /* Present — cast line */
+  .present { display: flex; flex-direction: column; gap: 7px; }
+  .present .p { font-size: 14px; }
+  .present .p .nm { font-weight: 700; color: var(--ink); }
+  .present .p .rl { color: var(--muted); font-size: 12.5px; }
+  .present .p .as { color: var(--faint); font-size: 12px; font-style: italic; }
 
-  /* Clue cards */
-  .clue { border: 1px solid var(--border-soft); border-left: 3px solid var(--accent); border-radius: 8px; margin: 8px 0; background: #fffdfa; }
-  .clue > summary { list-style: none; cursor: pointer; padding: 9px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .clue > summary:hover { background: var(--tint-amber); }
-  .clue .cname { font-weight: 700; font-size: 13.5px; }
-  .clue-meta { margin-left: auto; display: flex; gap: 6px; align-items: center; }
-  .pts { font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 999px; }
-  .pts.med { background: #eef4ff; color: #395a9a; }
-  .pts.mor { background: #eafaf1; color: #2f7a52; }
-  .tag { font-size: 10.5px; font-weight: 700; color: var(--ink-2); background: var(--tint); border-radius: 999px; padding: 2px 7px; }
-  .tag.syn { background: #f0eafb; color: #6b4aa0; }
-  .clue-body { padding: 2px 12px 12px; font-size: 13px; }
-  .clue-body .lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 800; margin-top: 8px; }
-  .clue-body .records { color: var(--ink); margin: 2px 0; }
-  .clue-body .holmes { color: var(--ink-2); font-style: italic; border-left: 2px solid var(--border); padding-left: 10px; margin: 3px 0; }
-  .conns { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-  .conns .tag { background: #eef4ff; color: #395a9a; }
+  /* Evidence (clues) — expandable ledger entries */
+  .ev { border-bottom: 1px solid var(--line); }
+  .ev:last-child { border-bottom: none; }
+  .ev > summary { list-style: none; cursor: pointer; padding: 9px 0; display: flex; flex-direction: column; gap: 3px; }
+  .ev > summary::-webkit-details-marker { display: none; }
+  .ev-top { display: flex; align-items: baseline; gap: 10px; }
+  .ev-name { font-family: var(--serif); font-size: 15px; font-weight: 700; color: var(--navy); }
+  .ev:hover .ev-name { color: var(--thread); }
+  .ev-pts { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--faint); white-space: nowrap; }
+  .ev-syn { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--brass); border: 1px solid var(--line-2); border-radius: 3px; padding: 0 5px; }
+  .ev-diary { font-family: var(--serif); font-style: italic; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
+  .ev-detail { padding: 4px 0 12px; display: flex; flex-direction: column; gap: 10px; }
+  .ev-detail .lbl { font-family: var(--sans); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-bottom: 3px; }
+  .ev-detail .records { font-size: 13.5px; color: var(--ink); }
+  .ev-detail .holmes { font-family: var(--serif); font-style: italic; font-size: 13.5px; color: var(--navy); padding-left: 12px; border-left: 2px solid var(--line-2); }
+  .ev-conn { font-size: 12px; color: var(--muted); }
+  .ev-conn a { color: var(--brass); text-decoration: none; }
 
-  /* Objective / hint list */
-  .obj { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; border-bottom: 1px dashed var(--border-soft); }
+  /* Objectives — hint steps */
+  .obj { display: grid; grid-template-columns: auto 1fr; gap: 11px; padding: 8px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
   .obj:last-child { border-bottom: none; }
-  .verb { flex: none; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; padding: 3px 8px; border-radius: 6px; margin-top: 1px; }
-  .v-examine { background: #eef4ff; color: #395a9a; }
-  .v-talk { background: #eafaf1; color: #2f7a52; }
-  .v-show { background: #fbe6d6; color: #a8560f; }
-  .v-use  { background: #f0eafb; color: #6b4aa0; }
-  .v-deduce { background: var(--ink); color: #fff; }
-  .v-travel, .v-reflect { background: var(--tint); color: var(--ink-2); }
-  .obj-txt { font-size: 13px; }
-  .soln { margin-top: 5px; }
-  .soln > summary { cursor: pointer; list-style: none; font-size: 11.5px; font-weight: 700; color: var(--accent-2); display: inline-flex; gap: 5px; align-items: center; }
-  .soln > summary:hover { text-decoration: underline; }
-  .soln-body { font-size: 12.5px; color: var(--ink-2); background: var(--tint); border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
-  .soln-body .how { color: var(--ink); font-weight: 700; margin-bottom: 4px; }
-  .soln-body .grants { margin-top: 5px; font-size: 11.5px; color: var(--accent-2); font-weight: 700; }
+  .obj .kbd { align-self: start; margin-top: 1px; }
+  .obj .subj { font-size: 13.5px; }
+  .how { margin-top: 7px; }
+  .how > summary { list-style: none; cursor: pointer; font-family: var(--sans); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--brass); display: inline-flex; align-items: center; gap: 5px; }
+  .how > summary::-webkit-details-marker { display: none; }
+  .how > summary:hover { color: var(--thread); }
+  .how-body { font-size: 12.5px; color: var(--ink); background: var(--tint); border-radius: 4px; padding: 9px 11px; margin-top: 7px; }
+  .how-body .recipe { font-family: var(--mono); font-size: 11.5px; color: var(--navy); margin-bottom: 6px; }
+  .how-body .recipe b { color: var(--thread); }
+  .how-body .gate { color: var(--faint); }
+  .how-body .grants { margin-top: 6px; font-size: 11px; color: var(--brass); font-weight: 700; }
 
-  /* Interactions + documents */
-  .intr { border: 1px solid var(--border-soft); border-radius: 8px; margin: 7px 0; background: #fff; }
-  .intr > summary { list-style: none; cursor: pointer; padding: 8px 11px; font-size: 12.5px; font-weight: 700; display: flex; gap: 8px; align-items: center; }
-  .intr > summary:hover { background: var(--tint); }
-  .intr-body { padding: 0 11px 11px; font-size: 12.5px; color: var(--ink-2); }
-  .doc > summary { font-family: var(--serif); }
-  .doc-text { white-space: pre-wrap; font-family: var(--mono); font-size: 12px; line-height: 1.55; color: var(--ink); background: #fbf8f2; border: 1px solid #efe7d6; border-radius: 8px; padding: 12px 14px; margin-top: 4px; }
+  /* Interactions + documents — light expandable rows */
+  .row { border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: none; }
+  .row > summary { list-style: none; cursor: pointer; padding: 8px 0; font-family: var(--mono); font-size: 12px; color: var(--navy); display: flex; gap: 9px; align-items: baseline; flex-wrap: wrap; }
+  .row > summary::-webkit-details-marker { display: none; }
+  .row > summary:hover { color: var(--thread); }
+  .row .grant { color: var(--brass); font-size: 10.5px; }
+  .row .note { color: var(--faint); font-size: 10.5px; }
+  .row-body { padding: 0 0 11px; font-size: 12.5px; color: var(--muted); max-width: var(--measure); }
+  .doc > summary { font-family: var(--serif); font-size: 13.5px; font-style: italic; }
+  .doc-text { white-space: pre-wrap; font-family: var(--mono); font-size: 11.5px; line-height: 1.6; color: var(--ink); background: #fbf8f0; border: 1px solid var(--line); border-left: 2px solid var(--brass-b); padding: 13px 15px; margin: 4px 0 10px; }
 
-  .mono-flag { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  /* ── Case Wall (map) ──────────────────────────────────── */
+  .wall-lead { max-width: var(--measure); color: var(--muted); margin: 4px 0 20px; }
+  .wall { position: relative; border: 1px solid var(--line-2); border-radius: 3px; background:
+      repeating-linear-gradient(0deg, transparent, transparent 26px, rgba(41,51,81,.02) 27px),
+      radial-gradient(140% 120% at 50% 0%, #fffdf7, var(--tint));
+    box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(41,51,81,.06); overflow-x: auto; padding: 6px; }
+  .wall svg { display: block; }
+  svg .thread { fill: none; stroke: var(--thread); stroke-width: 1.4; stroke-opacity: .5; }
+  svg .thread.dim { stroke-opacity: .1; }
+  svg .lane { fill: rgba(41,51,81,.018); }
+  svg .lane-label { font-family: var(--serif); font-style: italic; font-size: 13px; font-weight: 700; }
+  .pin { cursor: pointer; }
+  .pin .peg { fill: var(--brass-b); stroke: #fff; stroke-width: 1.5; transition: r .15s var(--ease); }
+  .pin .peg-core { fill: var(--thread); }
+  .pin .tag { fill: #fffdf7; stroke: var(--line-2); stroke-width: 1; transition: stroke .15s var(--ease), transform .15s var(--ease); }
+  .pin .tag-name { font-family: var(--serif); font-size: 12.5px; font-weight: 700; fill: var(--navy); pointer-events: none; }
+  .pin .tag-when { font-family: var(--sans); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; fill: var(--faint); pointer-events: none; }
+  .pin:hover .tag, .pin:focus-visible .tag { stroke: var(--brass); }
+  .pin:hover .peg { r: 6; }
+  .pin.sel .tag { stroke: var(--thread); stroke-width: 2; }
+  .pin.dim { opacity: .28; }
+  .wall-filter { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+  .wall-filter button { appearance: none; cursor: pointer; font-family: var(--mono); font-size: 11px; color: var(--muted); background: none; border: 1px solid var(--line-2); border-radius: 3px; padding: 4px 10px; transition: all .15s var(--ease); }
+  .wall-filter button:hover { border-color: var(--brass); color: var(--brass); }
+  .wall-filter button[aria-pressed="true"] { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .dossier { margin-top: 20px; border-top: 2px solid var(--navy); padding-top: 16px; min-height: 40px; }
+  .dossier .placeholder { color: var(--faint); font-style: italic; }
+  .dossier h3 { font-size: 20px; }
+  .dossier .meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin: 4px 0 10px; }
+  .dossier .lead { font-family: var(--serif); font-style: italic; color: var(--navy); max-width: var(--measure); margin-bottom: 10px; }
+  .dossier .kv { font-size: 13px; margin: 3px 0; }
+  .dossier .kv b { font-family: var(--sans); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-right: 8px; }
 
-  /* ── Map view ────────────────────────────────────────── */
-  .map-wrap { border: 1px solid var(--border); border-radius: 14px; background: var(--paper); box-shadow: var(--shadow); padding: 8px; overflow-x: auto; }
-  .map-legend { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; color: var(--ink-2); font-size: 12.5px; }
-  .map-legend .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 5px; }
-  svg .edge { stroke: var(--border); stroke-width: 1.6; }
-  svg .node circle { fill: #fff; stroke: var(--ink); stroke-width: 2; cursor: pointer; transition: r .15s; }
-  svg .node:hover circle { stroke: var(--accent); }
-  svg .node text { font-family: var(--sans); font-size: 11px; fill: var(--ink); pointer-events: none; }
-  svg .node.dim { opacity: .22; }
-  svg .edge.dim { opacity: .12; }
-  .map-detail { margin-top: 16px; border: 1px dashed var(--border); border-radius: 12px; padding: 16px; min-height: 60px; color: var(--ink-2); }
-  .map-detail h3 { font-size: 17px; color: var(--ink); margin-bottom: 4px; }
+  /* ── Cast & Suspects ──────────────────────────────────── */
+  .section-lead { max-width: var(--measure); color: var(--muted); margin: 4px 0 6px; }
+  .group-head { display: flex; align-items: baseline; gap: 12px; margin: 34px 0 16px; padding-bottom: 8px; border-bottom: 2px solid var(--navy); }
+  .group-head h3 { font-size: 19px; }
+  .group-head .n { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+  .roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2px 34px; }
+  .who { padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .who .nm { font-family: var(--serif); font-size: 17px; font-weight: 700; color: var(--navy); }
+  .who .rl { font-size: 12px; color: var(--brass); font-weight: 700; letter-spacing: .01em; margin-top: 1px; }
+  .who .as { font-size: 12.5px; color: var(--muted); font-style: italic; margin-top: 5px; }
+  .who .as b { font-style: normal; font-weight: 800; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-right: 5px; }
+  .who .desc { font-size: 13px; color: var(--ink); margin: 8px 0; max-width: 46ch; }
+  .traits { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .trait { font-size: 11px; color: var(--navy); background: var(--tint); border-radius: 3px; padding: 2px 8px; }
+  .who .seen { font-family: var(--mono); font-size: 10.5px; color: var(--faint); margin-top: 9px; }
 
-  /* ── Cast view ───────────────────────────────────────── */
-  .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-  .npc-card, .sus-card { border: 1px solid var(--border); border-radius: 12px; background: var(--paper); padding: 14px 16px; box-shadow: var(--shadow); }
-  .npc-card h3 { font-size: 16px; }
-  .npc-card .role { color: var(--accent-2); font-size: 12px; font-weight: 700; }
-  .npc-card .desc { font-size: 12.5px; color: var(--ink-2); margin: 8px 0; }
-  .sched { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
-  .sched .s { font-size: 10.5px; background: var(--tint); border: 1px solid var(--border-soft); border-radius: 6px; padding: 2px 7px; color: var(--ink-2); }
-  .sus-card.guilty { border-color: var(--accent); border-width: 2px; background: #fffaf2; }
-  .sus-card h3 { font-size: 16px; display: flex; align-items: center; gap: 8px; }
-  .verdict { font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; }
-  .verdict.g { background: var(--accent); color: #fff; }
-  .verdict.h { background: var(--tint); color: var(--ink-2); }
-  .sus-card .detail { font-size: 12.5px; color: var(--ink); margin: 8px 0; }
-  .sus-card .rebut { font-size: 12px; color: var(--ink-2); font-style: italic; border-left: 2px solid var(--border); padding-left: 10px; margin-top: 6px; }
-  .sus-card .cleared { font-size: 11.5px; color: #2f7a52; margin-top: 6px; }
+  /* Suspect board */
+  .board-intro { max-width: var(--measure); color: var(--muted); margin: 4px 0 4px; }
+  .answer { border: 2px solid var(--thread); border-radius: 4px; background: linear-gradient(180deg, #fffdf7, var(--tint)); padding: 20px 22px; margin: 18px 0 30px; }
+  .answer .tagline { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--thread); }
+  .answer h3 { font-size: 24px; margin: 6px 0 2px; }
+  .answer .rl { font-size: 13px; color: var(--brass); font-weight: 700; }
+  .answer .as { font-style: italic; color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .answer .why { font-size: 14px; color: var(--ink); margin-top: 10px; max-width: var(--measure); }
+  .herrings { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 26px 34px; }
+  .herring { border-top: 1px solid var(--line-2); padding-top: 12px; }
+  .herring .nm { font-family: var(--serif); font-size: 17px; font-weight: 700; color: var(--navy); }
+  .herring .rl { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .herring .part { margin-top: 10px; }
+  .herring .part .lbl { font-family: var(--sans); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 3px; }
+  .herring .for .lbl { color: var(--faint); }
+  .herring .for p { font-size: 13px; color: var(--ink); }
+  .herring .verdict .lbl { color: var(--thread); }
+  .herring .verdict p { font-family: var(--serif); font-style: italic; font-size: 13px; color: var(--navy); line-height: 1.55; }
+  .herring .struck { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 9px; padding-left: 14px; position: relative; }
+  .herring .struck::before { content: "✕"; position: absolute; left: 0; color: var(--thread); }
 
-  .section-lead { color: var(--ink-2); font-size: 13.5px; margin: 2px 0 18px; max-width: 70ch; }
-  h2.view-title { font-size: 22px; margin-bottom: 2px; }
   .hidden { display: none !important; }
+  :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 </style>
 
-<header class="top">
-  <div class="top-inner">
-    <div class="brand">
-      <h1 id="m-title">London Bleeds — Story Map</h1>
-      <span class="sub" id="m-sub"></span>
+<header class="mast">
+  <div class="mast-inner">
+    <div class="mast-top">
+      <div>
+        <h1>The Whitechapel Casebook</h1>
+        <div class="dateline" id="m-sub"></div>
+      </div>
+      <div class="ledger" id="m-ledger"></div>
     </div>
-    <div class="stats" id="m-stats"></div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-view="walk" aria-selected="true">The Casebook</button>
+      <button role="tab" data-view="map" aria-selected="false">The Case Wall</button>
+      <button role="tab" data-view="cast" aria-selected="false">Cast &amp; Suspects</button>
+    </nav>
   </div>
-  <nav class="tabs" role="tablist">
-    <button role="tab" data-view="walk" aria-selected="true">Walkthrough</button>
-    <button role="tab" data-view="map" aria-selected="false">Map</button>
-    <button role="tab" data-view="cast" aria-selected="false">Cast &amp; Suspects</button>
-  </nav>
 </header>
 
 <main>
   <section class="view active" id="view-walk">
     <div class="controls">
       <label class="search">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#929DBF" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input id="search" type="search" placeholder="Search clues, characters, locations, puzzles…" />
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a8650a" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" type="search" placeholder="Search the casebook — clues, people, places, puzzles…" />
       </label>
-      <button class="btn" id="expand-all">Expand all</button>
-      <button class="btn" id="collapse-all">Collapse all</button>
-      <div class="actjump" id="actjump"></div>
+      <button class="txtbtn" id="expand-all">Open all</button>
+      <button class="txtbtn" id="collapse-all">Close all</button>
+      <div class="actrail" id="actrail"></div>
     </div>
     <div id="acts"></div>
   </section>
 
   <section class="view" id="view-map">
-    <h2 class="view-title">The Investigation Map</h2>
-    <p class="section-lead">Every location, wired by its exit graph and arranged left-to-right by the act it first opens. Click a node for its detail; filter by act to trace the route.</p>
-    <div class="map-legend" id="map-legend"></div>
-    <div class="map-wrap"><svg id="map-svg" role="img" aria-label="Location graph"></svg></div>
-    <div class="map-detail" id="map-detail">Select a location above.</div>
+    <h2 style="font-size:24px">The Case Wall</h2>
+    <p class="wall-lead">Holmes's map, pinned by act and strung with thread where one place leads to the next. Click a pin for its dossier; filter by act to follow the investigation as it moved.</p>
+    <div class="wall-filter" id="wall-filter"></div>
+    <div class="wall"><svg id="wall-svg" role="img" aria-label="Case wall — locations strung by act"></svg></div>
+    <div class="dossier" id="dossier"><p class="placeholder">Pick a location from the wall.</p></div>
   </section>
 
   <section class="view" id="view-cast">
-    <h2 class="view-title">Cast &amp; Suspects</h2>
-    <p class="section-lead">The people of Whitechapel — where each is found across the acts — and the moving-spotlight suspect roster: one guilty hand, six fair red herrings.</p>
-    <h3 style="margin:18px 0 10px">Suspect roster</h3>
-    <div class="grid-cards" id="suspects"></div>
-    <h3 style="margin:26px 0 10px">Cast</h3>
-    <div class="grid-cards" id="cast"></div>
+    <h2 style="font-size:24px">Cast &amp; Suspects</h2>
+    <p class="section-lead">Two lists, kept apart on purpose: the people Watson actually meets, and — separately — every theory the game lets you name, and how it resolves.</p>
+    <div id="cast"></div>
+    <div class="group-head" style="margin-top:44px"><h3>The Suspect Board</h3></div>
+    <p class="board-intro">The moving spotlight: one guilty hand, and the louder suspects London preferred — each raised fairly, and struck fairly.</p>
+    <div id="board"></div>
   </section>
 </main>
 
@@ -289,290 +313,328 @@
   var S = window.STORY;
   var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
   var $ = function (id) { return document.getElementById(id); };
-  var el = function (html) { var t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
 
-  // ── header ──────────────────────────────────────────────
-  $("m-title").textContent = S.meta.title;
-  $("m-sub").textContent = S.meta.subtitle + " · generated " + S.meta.generatedAt;
-  $("m-stats").innerHTML =
-    '<span><b>' + S.meta.actCount + '</b> acts</span>' +
-    '<span><b>' + S.meta.locationCount + '</b> locations</span>' +
-    '<span><b>' + S.meta.npcCount + '</b> characters</span>' +
-    '<span><b>' + S.meta.clueCount + '</b> clues</span>';
+  // ── masthead ─────────────────────────────────────────────
+  $("m-sub").textContent = "London Bleeds · author overview · generated " + S.meta.generatedAt;
+  $("m-ledger").innerHTML =
+    '<span><b>' + S.meta.actCount + '</b>acts</span>' +
+    '<span><b>' + S.meta.locationCount + '</b>places</span>' +
+    '<span><b>' + S.meta.npcCount + '</b>people</span>' +
+    '<span><b>' + S.meta.clueCount + '</b>clues</span>';
 
-  // ── tabs ────────────────────────────────────────────────
+  // ── tabs ─────────────────────────────────────────────────
   var tabs = document.querySelectorAll('nav.tabs button');
   tabs.forEach(function (b) {
     b.addEventListener('click', function () {
       tabs.forEach(function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
       document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
-      $('view-' + b.dataset.view).classList.add('active');
-      if (b.dataset.view === 'map') drawMap();
+      var v = $('view-' + b.dataset.view); v.classList.remove('active'); void v.offsetWidth; v.classList.add('active');
+      if (b.dataset.view === 'map') drawWall();
     });
   });
 
-  // ── badges helpers ──────────────────────────────────────
-  function todBadge(t) { return '<span class="badge b-' + t + '">' + t + '</span>'; }
+  var TOD = { morning: 'Morning', midday: 'Midday', afternoon: 'Afternoon', night: 'Night' };
 
-  function clueCard(c) {
-    var pts = '';
-    if (c.medicalPoints) pts += '<span class="pts med" title="medical points">med +' + c.medicalPoints + '</span>';
-    if (c.moralPoints) pts += '<span class="pts mor" title="moral points">mor +' + c.moralPoints + '</span>';
+  // ── evidence (clue) entry ────────────────────────────────
+  function ev(c) {
+    var pts = [];
+    if (c.medicalPoints) pts.push('med ' + c.medicalPoints);
+    if (c.moralPoints) pts.push('mor ' + c.moralPoints);
     var conns = c.connections.length
-      ? '<div class="conns"><span class="lbl">connects</span>' + c.connections.map(function (x) { return '<span class="tag">' + esc(x) + '</span>'; }).join('') + '</div>'
+      ? '<div class="ev-conn"><span class="lbl" style="font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)">Threads to</span> ' + c.connections.map(esc).join(' · ') + '</div>'
       : '';
-    return '<details class="clue"><summary>' +
-      '<span class="cname">' + esc(c.name) + '</span>' +
-      '<span class="clue-meta">' +
-        (c.synthetic ? '<span class="tag syn" title="granted by a USE combination, not a plain examine">synthesis</span>' : '<span class="tag" title="examine trigger">' + esc(c.trigger) + '</span>') +
-        pts +
-      '</span></summary>' +
-      '<div class="clue-body">' +
-        '<div class="lbl">What Watson records</div><div class="records">' + esc(c.description) + '</div>' +
-        '<div class="lbl">Holmes concludes</div><div class="holmes">' + esc(c.holmes) + '</div>' +
+    return '<details class="ev"><summary>' +
+        '<div class="ev-top"><span class="ev-name">' + esc(c.name) + '</span>' +
+          (c.synthetic ? '<span class="ev-syn" title="pieced together, not found by a plain examine">deduced</span>' : '') +
+          (pts.length ? '<span class="ev-pts">' + pts.join(' · ') + '</span>' : '') +
+        '</div>' +
+        '<div class="ev-diary">' + esc(c.diaryNote) + '</div>' +
+      '</summary>' +
+      '<div class="ev-detail">' +
+        '<div><div class="lbl">Found at</div><div class="records">' + esc(c.trigger) + '</div></div>' +
+        '<div><div class="lbl">What Watson records</div><div class="records">' + esc(c.description) + '</div></div>' +
+        '<div><div class="lbl">Holmes concludes</div><div class="holmes">' + esc(c.holmes) + '</div></div>' +
         conns +
       '</div></details>';
   }
 
-  function objRow(o) {
-    var soln = '';
+  // ── objective (hint) row ─────────────────────────────────
+  function obj(o) {
+    var how = '';
     if (o.solution) {
-      var s = o.solution;
-      var how = s.kind === 'use'
-        ? 'USE <b>' + esc(s.itemName) + '</b> with <b>' + esc(s.targetName) + '</b>'
-        : 'SHOW <b>' + esc(s.itemName) + '</b> to <b>' + esc(s.targetName) + '</b>';
+      var s = o.solution, verb = s.kind === 'use' ? 'Use' : 'Show';
+      var recipe = verb + ' <b>' + esc(s.itemName) + '</b> ' + (s.kind === 'use' ? 'with' : 'to') + ' <b>' + esc(s.targetName) + '</b>';
       var gate = [];
       if (s.requiresLocation) gate.push('at ' + esc(s.requiresLocation));
       if (s.requiresAct) gate.push('Act ' + s.requiresAct + '+');
-      if (s.requireFlags && s.requireFlags.length) gate.push('needs a prior step');
-      var grants = s.clueName ? '<div class="grants">↳ grants clue: ' + esc(s.clueName) + '</div>' : '';
-      soln = '<details class="soln"><summary>▸ how to solve</summary><div class="soln-body">' +
-        '<div class="how">' + how + (gate.length ? ' <span class="mono-flag">(' + gate.join(', ') + ')</span>' : '') + '</div>' +
-        esc(s.result) + grants +
+      if (s.requireFlags && s.requireFlags.length) gate.push('after an earlier step');
+      how = '<details class="how"><summary>Solution ▾</summary><div class="how-body">' +
+        '<div class="recipe">' + recipe + (gate.length ? ' <span class="gate">(' + gate.join(', ') + ')</span>' : '') + '</div>' +
+        esc(s.result) + (s.clueName ? '<div class="grants">→ yields: ' + esc(s.clueName) + '</div>' : '') +
         '</div></details>';
     }
-    return '<div class="obj"><span class="verb v-' + o.verb + '">' + o.verb + '</span>' +
-      '<div><div class="obj-txt">' + esc(o.subject) + '</div>' + soln + '</div></div>';
+    return '<div class="obj"><span class="kbd">' + esc(o.verb) + '</span>' +
+      '<div><div class="subj">' + esc(o.subject) + '</div>' + how + '</div></div>';
   }
 
-  function intrRow(x) {
-    return '<details class="intr"><summary>' + esc(x.label) +
-      (x.clueName ? ' <span class="tag syn">→ ' + esc(x.clueName) + '</span>' : '') +
-      (x.note ? ' <span class="tag">' + esc(x.note) + '</span>' : '') +
-      '</summary><div class="intr-body">' + esc(x.result) + '</div></details>';
+  function row(x) {
+    return '<details class="row"><summary>' + esc(x.label) +
+      (x.clueName ? '<span class="grant">→ ' + esc(x.clueName) + '</span>' : '') +
+      (x.note ? '<span class="note">' + esc(x.note) + '</span>' : '') +
+      '</summary><div class="row-body">' + esc(x.result) + '</div></details>';
   }
 
-  function block(title, count, inner) {
-    return '<div class="block"><h5>' + title + ' <span class="count">' + count + '</span></h5>' +
-      (count ? inner : '<div class="empty">none</div>') + '</div>';
+  function colHead(title, n) {
+    return '<div class="col-head"><span class="eyebrow">' + title + '</span>' + (n != null ? '<span class="n">' + n + '</span>' : '') + '</div>';
   }
 
-  function locCard(l) {
-    var badges = todBadge(l.timeOfDay);
-    if (l.timeframe === 'reconstruction') badges += '<span class="badge b-recon">reconstruction</span>';
-    if (l.revisit) badges += '<span class="badge b-revisit">revisit</span>';
-    if (l.requiresFlag) badges += '<span class="badge b-locked">gated</span>';
-    if (l.openPeriods) badges += '<span class="badge b-morning" title="open only: ' + esc(l.openPeriods.join(', ')) + '">hours</span>';
+  function scene(l) {
+    var present = l.characters.length
+      ? '<div class="present">' + l.characters.map(function (c) {
+          return '<div class="p"><span class="nm">' + esc(c.name) + '</span> <span class="rl">— ' + esc(c.role) + '</span>' +
+            (c.masked ? ' <span class="as">first seen as “' + esc(c.masked) + '”</span>' : '') + '</div>';
+        }).join('') + '</div>'
+      : '<div class="empty">No one present.</div>';
 
-    var chars = l.characters.map(function (c) {
-      return '<span class="chip' + (c.masked ? ' masked' : '') + '">' + esc(c.name) +
-        '<span class="role">' + esc(c.role) + '</span>' +
-        (c.masked ? '<span class="role" title="shown as this until introduced">“' + esc(c.masked) + '”</span>' : '') +
-        '</span>';
-    }).join('');
-
-    var exits = l.exits.map(function (e) { return '<span class="tag">' + esc(e.name) + '</span>'; }).join(' ');
+    var evidence = l.clues.length ? l.clues.map(ev).join('') : '<div class="empty">No clues surface here.</div>';
+    var steps = l.objectives.length ? l.objectives.map(obj).join('') : '<div class="empty">Nothing required here this act.</div>';
+    var intr = l.interactions.length ? l.interactions.map(row).join('') : '<div class="empty">None.</div>';
     var docs = l.documents.map(function (d) {
-      return '<details class="intr doc"><summary>📄 ' + esc(d.name) + '</summary><div class="intr-body"><div class="doc-text">' + esc(d.text) + '</div></div></details>';
+      return '<details class="row doc"><summary>' + esc(d.name) + '</summary><div class="doc-text">' + esc(d.text) + '</div></details>';
     }).join('');
 
-    return '<details class="loc" data-loc="' + l.id + '"><summary>' +
-        '<span class="lname">' + esc(l.name) + '</span>' + badges +
-        '<span style="margin-left:auto" class="tag">' + l.clues.length + ' clue' + (l.clues.length === 1 ? '' : 's') + '</span>' +
+    var when = TOD[l.timeOfDay] || l.timeOfDay;
+    var flags = [];
+    if (l.timeframe === 'reconstruction') flags.push('<span class="flag-note">reconstruction</span>');
+    if (l.requiresFlag) flags.push('<span class="flag-note">gated</span>');
+    if (l.openPeriods) flags.push('open: ' + esc(l.openPeriods.join('/')));
+    if (l.revisit) flags.push('revisit');
+
+    var exits = l.exits.map(function (e) { return '<a data-goto="' + e.id + '">' + esc(e.name) + '</a>'; }).join(' · ');
+
+    return '<details class="scene" data-loc="' + l.id + '"><summary>' +
+        '<span class="scene-name">' + esc(l.name) + '</span>' +
+        '<span class="scene-when">' + when + '</span>' +
+        (flags.length ? '<span class="scene-flags">' + flags.join('<span style="color:var(--line-2)">·</span>') + '</span>' : '') +
       '</summary>' +
-      '<div class="loc-body">' +
-        '<div class="atmos">' + esc(l.atmosphere) + '</div>' +
-        '<div class="desc">' + esc(l.description) + '</div>' +
-        '<div style="margin:8px 0"><span class="lbl" style="font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:800">Exits</span> ' + (exits || '<span class="empty">none</span>') + '</div>' +
+      '<div class="scene-body">' +
+        '<div class="scene-lead">' + esc(l.atmosphere) + '</div>' +
+        '<div class="scene-desc">' + esc(l.description) + '</div>' +
+        (exits ? '<div class="scene-exits"><b>Leads to</b>' + exits + '</div>' : '') +
         '<div class="cols">' +
-          block('Characters', l.characters.length, '<div class="chips">' + chars + '</div>') +
-          block('Clues here', l.clues.length, l.clues.map(clueCard).join('')) +
-          block('Hints &amp; objectives', l.objectives.length, l.objectives.map(objRow).join('')) +
-          block('Puzzles &amp; interactions', l.interactions.length, l.interactions.map(intrRow).join('')) +
+          '<div class="col">' +
+            '<div>' + colHead('Present', l.characters.length) + present + '</div>' +
+            '<div>' + colHead('What to do', l.objectives.length) + steps + '</div>' +
+          '</div>' +
+          '<div class="col">' +
+            '<div>' + colHead('Evidence', l.clues.length) + evidence + '</div>' +
+            '<div>' + colHead('Other interactions', l.interactions.length) + intr + '</div>' +
+          '</div>' +
         '</div>' +
-        (docs ? '<div class="block" style="margin-top:14px"><h5>Readable documents <span class="count">' + l.documents.length + '</span></h5>' + docs + '</div>' : '') +
+        (docs ? '<div style="margin-top:22px">' + colHead('Documents', l.documents.length) + docs + '</div>' : '') +
       '</div></details>';
   }
 
-  function actSection(a, open) {
-    var gateSteps = a.gate.steps.map(function (s) {
-      return '<li>' + (s.verb ? '<span class="verb v-' + s.verb + '" style="margin-right:2px">' + s.verb + '</span> ' : '') + esc(s.text) + '</li>';
+  function actChapter(a, open) {
+    var steps = a.gate.steps.map(function (s) {
+      return '<li>' + (s.verb ? '<span class="kbd">' + esc(s.verb) + '</span>' : '<span></span>') + '<span class="txt">' + esc(s.text) + '</span></li>';
     }).join('');
-    var meta = [
-      a.dayOfWeek + ' ' + a.date,
-      '☁ ' + a.weather,
-      '⚓ ' + a.anchor,
-      a.gate.advanceTo <= S.meta.actCount ? '→ Act ' + a.gate.advanceTo : 'finale'
-    ].map(function (m) { return '<span>' + esc(m) + '</span>'; }).join('');
+    var dl = [a.dayOfWeek + ' ' + a.date, a.weather, a.anchor,
+      (a.gate.advanceTo <= S.meta.actCount ? '→ Act ' + a.gate.advanceTo : 'the finale')]
+      .map(function (m, i) { return (i ? '<span class="sep">·</span>' : '') + '<span>' + esc(m) + '</span>'; }).join('');
 
     return '<details class="act" id="act-' + a.number + '"' + (open ? ' open' : '') + '><summary>' +
-        '<span class="act-no">' + a.number + '</span>' +
-        '<span class="act-head"><span class="name">' + esc(a.name) + '</span><span class="meta">' + meta + '</span></span>' +
-        '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>' +
+        '<span class="act-numeral">' + toRoman(a.number) + '</span>' +
+        '<span class="act-title"><span class="t">' + esc(a.name) + '</span><span class="dateline">' + dl + '</span></span>' +
+        '<svg class="act-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>' +
       '</summary>' +
       '<div class="act-body">' +
-        (a.bridge ? '<div class="bridge">' + esc(a.bridge) + '</div>' : '') +
-        '<div class="gate"><h4>How to advance this act</h4><ol>' + gateSteps + '</ol></div>' +
-        a.locations.map(locCard).join('') +
+        (a.bridge ? '<p class="bridge">' + esc(a.bridge) + '</p>' : '') +
+        '<div class="thread-of"><span class="eyebrow">The thread of the act — to advance</span><ol>' + steps + '</ol></div>' +
+        a.locations.map(scene).join('') +
       '</div></details>';
   }
+  function toRoman(n) { return ['0','I','II','III','IV','V','VI','VII'][n] || String(n); }
 
-  // ── render walkthrough ──────────────────────────────────
-  $("acts").innerHTML = S.acts.map(function (a, i) { return actSection(a, i === 0); }).join('');
-  $("actjump").innerHTML = S.acts.map(function (a) { return '<button data-act="' + a.number + '">Act ' + a.number + '</button>'; }).join('');
-  $("actjump").addEventListener('click', function (e) {
-    var b = e.target.closest('button'); if (!b) return;
-    var d = $('act-' + b.dataset.act); d.open = true;
-    d.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
+  // ── render walkthrough ───────────────────────────────────
+  $("acts").innerHTML = S.acts.map(function (a, i) { return actChapter(a, i === 0); }).join('');
+  $("actrail").innerHTML = S.acts.map(function (a) { return '<button data-act="' + a.number + '">' + toRoman(a.number) + '</button>'; }).join('');
+  $("actrail").addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; var d = $('act-' + b.dataset.act); d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   $("expand-all").addEventListener('click', function () { document.querySelectorAll('#view-walk details').forEach(function (d) { d.open = true; }); });
-  $("collapse-all").addEventListener('click', function () { document.querySelectorAll('#view-walk details.act, #view-walk details.loc').forEach(function (d) { d.open = false; }); });
+  $("collapse-all").addEventListener('click', function () { document.querySelectorAll('#view-walk details.act, #view-walk details.scene').forEach(function (d) { d.open = false; }); });
+  // exit links jump to the referenced scene
+  $("acts").addEventListener('click', function (e) {
+    var a = e.target.closest('a[data-goto]'); if (!a) return;
+    e.preventDefault(); gotoScene(a.dataset.goto);
+  });
+  function gotoScene(id) {
+    var d = document.querySelector('details.scene[data-loc="' + id + '"]');
+    if (!d) return; var act = d.closest('details.act'); if (act) act.open = true; d.open = true;
+    d.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 
-  // ── search filter ───────────────────────────────────────
+  // ── search ───────────────────────────────────────────────
   var search = $("search");
   search.addEventListener('input', function () {
     var q = search.value.trim().toLowerCase();
     document.querySelectorAll('#acts details.act').forEach(function (act) {
-      var anyLoc = false;
-      act.querySelectorAll('details.loc').forEach(function (loc) {
-        var hit = !q || loc.textContent.toLowerCase().indexOf(q) !== -1;
-        loc.classList.toggle('hidden', !hit);
-        if (hit) { anyLoc = true; if (q) loc.open = true; }
+      var any = false;
+      act.querySelectorAll('details.scene').forEach(function (sc) {
+        var hit = !q || sc.textContent.toLowerCase().indexOf(q) !== -1;
+        sc.classList.toggle('hidden', !hit);
+        if (hit && q) { sc.open = true; any = true; } else if (hit) any = true;
       });
-      // also match on the act header text
-      var actHit = !q || act.querySelector('summary').textContent.toLowerCase().indexOf(q) !== -1 || anyLoc;
+      var actHit = !q || any || act.querySelector('summary').textContent.toLowerCase().indexOf(q) !== -1;
       act.classList.toggle('hidden', !actHit);
       if (q && actHit) act.open = true;
     });
   });
 
-  // ── map ─────────────────────────────────────────────────
-  var actColors = ['#293351', '#8a5a1a', '#3b6ea5', '#6b4aa0', '#a8560f', '#2f7a52', '#b23a3a'];
-  var mapDrawn = false, activeAct = null;
-  function drawMap() {
-    if (mapDrawn) return; mapDrawn = true;
-    var nodes = S.map.nodes, edges = S.map.edges;
-    var byId = {}; nodes.forEach(function (n) { byId[n.id] = n; });
-    // columns by act
-    var acts = {};
-    nodes.forEach(function (n) { (acts[n.act] = acts[n.act] || []).push(n); });
-    var actKeys = Object.keys(acts).map(Number).sort(function (a, b) { return a - b; });
-    var colW = 168, rowH = 74, padX = 70, padY = 56;
-    var maxRows = Math.max.apply(null, actKeys.map(function (k) { return acts[k].length; }));
-    var W = padX * 2 + (actKeys.length - 1) * colW;
-    var H = padY * 2 + (maxRows - 1) * rowH + 40;
-    actKeys.forEach(function (k, ci) {
-      var col = acts[k];
-      var offset = (maxRows - col.length) / 2;
-      col.forEach(function (n, ri) {
-        n._x = padX + ci * colW;
-        n._y = padY + (ri + offset) * rowH;
-      });
+  // ── Case Wall ────────────────────────────────────────────
+  var wallDrawn = false, activeAct = null;
+  function drawWall() {
+    if (wallDrawn) return; wallDrawn = true;
+    var nodes = S.map.nodes, edges = S.map.edges, byId = {};
+    nodes.forEach(function (n) { byId[n.id] = n; });
+    var acts = {}; nodes.forEach(function (n) { (acts[n.act] = acts[n.act] || []).push(n); });
+    var keys = Object.keys(acts).map(Number).sort(function (a, b) { return a - b; });
+    var colW = 170, rowH = 92, padX = 90, padTop = 58, padBot = 40, tagW = 118, tagH = 34;
+    var maxRows = Math.max.apply(null, keys.map(function (k) { return acts[k].length; }));
+    var W = padX * 2 + (keys.length - 1) * colW;
+    var H = padTop + padBot + (maxRows - 1) * rowH + tagH;
+    keys.forEach(function (k, ci) {
+      var col = acts[k], off = (maxRows - col.length) / 2;
+      col.forEach(function (n, ri) { n._x = padX + ci * colW; n._y = padTop + (ri + off) * rowH; });
     });
-    var svg = $("map-svg");
+    var svg = $("wall-svg"), P = [];
     svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-    svg.style.width = Math.max(W, 320) + 'px';
-    svg.style.maxWidth = '100%';
-    svg.style.height = 'auto';
-    var parts = [];
-    // act column labels
-    actKeys.forEach(function (k, ci) {
-      parts.push('<text x="' + (padX + ci * colW) + '" y="24" text-anchor="middle" font-weight="700" font-size="12" fill="' + actColors[k % actColors.length] + '">Act ' + k + '</text>');
+    svg.setAttribute('width', W); svg.style.maxWidth = 'none'; svg.setAttribute('height', H);
+    // lanes + labels
+    keys.forEach(function (k, ci) {
+      var x = padX + ci * colW;
+      if (ci % 2 === 1) P.push('<rect class="lane" x="' + (x - colW / 2) + '" y="34" width="' + colW + '" height="' + (H - 34) + '"/>');
+      P.push('<text class="lane-label" x="' + x + '" y="24" text-anchor="middle" fill="' + laneColor(k) + '">Act ' + k + '</text>');
     });
+    // threads (curved) — drawn first, behind pins
     edges.forEach(function (e) {
       var A = byId[e.a], B = byId[e.b]; if (!A || !B) return;
-      parts.push('<line class="edge" data-a="' + e.a + '" data-b="' + e.b + '" x1="' + A._x + '" y1="' + A._y + '" x2="' + B._x + '" y2="' + B._y + '"/>');
+      var mx = (A._x + B._x) / 2, dy = Math.abs(A._y - B._y);
+      var cx1 = A._x + (mx - A._x) * .6, cx2 = B._x + (mx - B._x) * .6;
+      var sag = 8 + dy * .08;
+      var d = 'M ' + A._x + ' ' + A._y + ' C ' + cx1 + ' ' + (A._y + sag) + ' ' + cx2 + ' ' + (B._y + sag) + ' ' + B._x + ' ' + B._y;
+      P.push('<path class="thread" data-a="' + e.a + '" data-b="' + e.b + '" d="' + d + '"/>');
     });
+    // pins
     nodes.forEach(function (n) {
-      var color = actColors[n.act % actColors.length];
-      var label = esc(n.shortName);
-      parts.push('<g class="node" data-id="' + n.id + '" tabindex="0">' +
-        '<circle cx="' + n._x + '" cy="' + n._y + '" r="9" style="stroke:' + color + '"/>' +
-        (n.requiresFlag ? '<circle cx="' + n._x + '" cy="' + n._y + '" r="4" fill="' + color + '"/>' : '') +
-        '<text x="' + n._x + '" y="' + (n._y + 24) + '" text-anchor="middle">' + label + '</text>' +
+      var w = TOD[n.timeOfDay] || '';
+      P.push('<g class="pin" data-id="' + n.id + '" tabindex="0" transform="translate(' + n._x + ',' + n._y + ')">' +
+        '<rect class="tag" x="' + (-tagW / 2) + '" y="8" width="' + tagW + '" height="' + tagH + '" rx="2"/>' +
+        '<text class="tag-name" x="0" y="24" text-anchor="middle">' + esc(clip(n.shortName, 17)) + '</text>' +
+        '<text class="tag-when" x="0" y="35" text-anchor="middle">' + esc(w) + (n.requiresFlag ? ' · gated' : '') + '</text>' +
+        '<circle class="peg" cx="0" cy="4" r="4.5"/>' +
+        (n.requiresFlag ? '<circle class="peg-core" cx="0" cy="4" r="2"/>' : '') +
         '</g>');
     });
-    svg.innerHTML = parts.join('');
-    svg.querySelectorAll('.node').forEach(function (g) {
-      g.addEventListener('click', function () { showLocDetail(g.dataset.id); });
-      g.addEventListener('keydown', function (e) { if (e.key === 'Enter') showLocDetail(g.dataset.id); });
+    svg.innerHTML = P.join('');
+    // thread draw-in (respect reduced motion)
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      svg.querySelectorAll('.thread').forEach(function (t, i) {
+        var len = t.getTotalLength();
+        t.style.strokeDasharray = len; t.style.strokeDashoffset = len;
+        t.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }], { duration: 620, delay: 120 + i * 45, easing: 'cubic-bezier(0.23,1,0.32,1)', fill: 'forwards' });
+      });
+    }
+    svg.querySelectorAll('.pin').forEach(function (g) {
+      g.addEventListener('click', function () { selectPin(g.dataset.id); });
+      g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectPin(g.dataset.id); } });
     });
-
-    // legend = act filter
-    $("map-legend").innerHTML = '<span class="btn" data-act="all" style="cursor:pointer">All acts</span>' +
-      actKeys.map(function (k) {
-        return '<span class="btn" data-act="' + k + '" style="cursor:pointer"><span class="swatch" style="background:' + actColors[k % actColors.length] + '"></span>Act ' + k + '</span>';
-      }).join('');
-    $("map-legend").addEventListener('click', function (e) {
-      var b = e.target.closest('[data-act]'); if (!b) return;
+    $("wall-filter").innerHTML = '<button data-act="all" aria-pressed="true">All acts</button>' +
+      keys.map(function (k) { return '<button data-act="' + k + '" aria-pressed="false">Act ' + k + '</button>'; }).join('');
+    $("wall-filter").addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
       activeAct = b.dataset.act === 'all' ? null : Number(b.dataset.act);
-      filterMap();
+      $("wall-filter").querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      filterWall();
     });
   }
-  function filterMap() {
-    var svg = $("map-svg");
-    svg.querySelectorAll('.node').forEach(function (g) {
+  function laneColor(k) { return ['#293351', '#8a5a1a', '#3b6ea5', '#6b4aa0', '#a8560f', '#2f7a52', '#8f2f2f'][k % 7]; }
+  function clip(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  function filterWall() {
+    var svg = $("wall-svg");
+    svg.querySelectorAll('.pin').forEach(function (g) {
       var n = S.map.nodes.find(function (x) { return x.id === g.dataset.id; });
       g.classList.toggle('dim', activeAct != null && n.act !== activeAct);
     });
-    svg.querySelectorAll('.edge').forEach(function (ln) {
-      var a = S.map.nodes.find(function (x) { return x.id === ln.dataset.a; });
-      var b = S.map.nodes.find(function (x) { return x.id === ln.dataset.b; });
-      ln.classList.toggle('dim', activeAct != null && a.act !== activeAct && b.act !== activeAct);
+    svg.querySelectorAll('.thread').forEach(function (t) {
+      var a = S.map.nodes.find(function (x) { return x.id === t.dataset.a; });
+      var b = S.map.nodes.find(function (x) { return x.id === t.dataset.b; });
+      t.classList.toggle('dim', activeAct != null && a.act !== activeAct && b.act !== activeAct);
     });
   }
-  function showLocDetail(id) {
-    // find the fullest location view across acts (prefer non-revisit / first act)
+  function selectPin(id) {
+    $("wall-svg").querySelectorAll('.pin').forEach(function (g) { g.classList.toggle('sel', g.dataset.id === id); });
     var found = null;
     S.acts.forEach(function (a) { a.locations.forEach(function (l) { if (l.id === id && (!found || !l.revisit)) found = l; }); });
     var n = S.map.nodes.find(function (x) { return x.id === id; });
-    if (!found) { $("map-detail").innerHTML = '<h3>' + esc(n.name) + '</h3><p>Appears from Act ' + n.act + '.</p>'; return; }
+    if (!found) { $("dossier").innerHTML = '<h3>' + esc(n.name) + '</h3><p class="meta">First opens · Act ' + n.act + '</p>'; return; }
     var chars = found.characters.map(function (c) { return esc(c.name); }).join(', ') || '—';
     var clues = found.clues.map(function (c) { return esc(c.name); }).join(', ') || '—';
-    $("map-detail").innerHTML =
+    $("dossier").innerHTML =
       '<h3>' + esc(found.name) + '</h3>' +
-      '<div style="font-size:12.5px;margin-bottom:8px">' + todBadge(found.timeOfDay) + (found.timeframe === 'reconstruction' ? ' <span class="badge b-recon">reconstruction</span>' : '') + ' &nbsp; first opens: <b>Act ' + n.act + '</b></div>' +
-      '<p class="atmos" style="margin:6px 0">' + esc(found.atmosphere) + '</p>' +
-      '<p style="font-size:13px"><b>Exits:</b> ' + (found.exits.map(function (e) { return esc(e.name); }).join(', ') || 'none') + '</p>' +
-      '<p style="font-size:13px"><b>Characters:</b> ' + chars + '</p>' +
-      '<p style="font-size:13px"><b>Clues:</b> ' + clues + '</p>' +
-      '<button class="btn" id="goto-loc">Open in walkthrough →</button>';
-    var go = $("goto-loc");
-    if (go) go.addEventListener('click', function () {
+      '<p class="meta">' + (TOD[found.timeOfDay] || found.timeOfDay) + (found.timeframe === 'reconstruction' ? ' · reconstruction' : '') + ' · first opens Act ' + n.act + '</p>' +
+      '<p class="lead">' + esc(found.atmosphere) + '</p>' +
+      '<p class="kv"><b>Leads to</b>' + (found.exits.map(function (e) { return esc(e.name); }).join(', ') || 'nowhere') + '</p>' +
+      '<p class="kv"><b>Present</b>' + chars + '</p>' +
+      '<p class="kv"><b>Clues</b>' + clues + '</p>' +
+      '<button class="txtbtn" id="dossier-goto" style="margin-top:10px;color:var(--brass)">Open in the casebook →</button>';
+    $("dossier-goto").addEventListener('click', function () {
       document.querySelector('nav.tabs button[data-view="walk"]').click();
-      var d = document.querySelector('details.loc[data-loc="' + id + '"]');
-      if (d) { var act = d.closest('details.act'); if (act) act.open = true; d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      requestAnimationFrame(function () { gotoScene(id); });
     });
   }
 
-  // ── cast + suspects ─────────────────────────────────────
-  $("suspects").innerHTML = S.suspects.map(function (s) {
-    return '<div class="sus-card' + (s.isGuilty ? ' guilty' : '') + '">' +
-      '<h3>' + esc(s.label || s.name) + '<span class="verdict ' + (s.isGuilty ? 'g' : 'h') + '">' + (s.isGuilty ? 'THE ANSWER' : 'red herring') + '</span></h3>' +
-      (s.detail ? '<div class="detail">' + esc(s.detail) + '</div>' : '') +
-      (s.rebuttal ? '<div class="rebut">' + esc(s.rebuttal) + '</div>' : '') +
-      (s.clearedNote ? '<div class="cleared">✓ cleared: ' + esc(s.clearedNote) + '</div>' : '') +
+  // ── Cast ─────────────────────────────────────────────────
+  var GROUPS = [
+    { id: 'detectives', title: 'Holmes & the investigators' },
+    { id: 'witnesses', title: 'Witnesses & locals' },
+    { id: 'blamed', title: 'The men London blamed' },
+  ];
+  function whoCard(c) {
+    return '<div class="who">' +
+      '<div class="nm">' + esc(c.name) + '</div>' +
+      '<div class="rl">' + esc(c.role) + '</div>' +
+      (c.firstSeenAs ? '<div class="as"><b>First met as</b>“' + esc(c.firstSeenAs) + '”</div>' : '') +
+      '<div class="desc">' + esc(c.description) + '</div>' +
+      (c.personality && c.personality.length ? '<div class="traits">' + c.personality.map(function (t) { return '<span class="trait">' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
+      '<div class="seen">' + c.schedule.map(function (s) { return 'A' + s.act; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(' · ') + ' — ' + esc(c.schedule.map(function (s) { return s.location; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).slice(0, 3).join(', ')) + '</div>' +
       '</div>';
+  }
+  $("cast").innerHTML = GROUPS.map(function (g) {
+    var members = S.cast.filter(function (c) { return c.group === g.id; });
+    if (!members.length) return '';
+    return '<div class="group-head"><h3>' + g.title + '</h3><span class="n">' + members.length + '</span></div>' +
+      '<div class="roster">' + members.map(whoCard).join('') + '</div>';
   }).join('');
 
-  $("cast").innerHTML = S.cast.map(function (c) {
-    var sched = c.schedule.map(function (s) { return '<span class="s">A' + s.act + ' · ' + esc(s.location) + '</span>'; }).join('');
-    return '<div class="npc-card">' +
-      '<h3>' + esc(c.name) + '</h3>' +
-      '<div class="role">' + esc(c.role) + (c.masked ? ' · masked as “' + esc(c.masked) + '”' : '') + '</div>' +
-      '<div class="desc">' + esc(c.description) + '</div>' +
-      '<div class="sched">' + sched + '</div>' +
-      '</div>';
-  }).join('');
+  // ── Suspect board ────────────────────────────────────────
+  var guilty = S.suspects.find(function (s) { return s.isGuilty; });
+  var herrings = S.suspects.filter(function (s) { return !s.isGuilty; });
+  $("board").innerHTML =
+    (guilty ? '<div class="answer">' +
+      '<div class="tagline">The hand that did it</div>' +
+      '<h3>' + esc(guilty.name) + '</h3>' +
+      '<div class="rl">' + esc(guilty.role) + '</div>' +
+      (guilty.firstSeenAs ? '<div class="as">Hidden in plain sight — met only as “' + esc(guilty.firstSeenAs) + '”.</div>' : '') +
+      (guilty.whySuspected ? '<div class="why">' + esc(guilty.whySuspected) + '</div>' : '') +
+      '</div>' : '') +
+    '<div class="herrings">' + herrings.map(function (h) {
+      return '<div class="herring">' +
+        '<div class="nm">' + esc(h.name) + '</div>' +
+        '<div class="rl">' + esc(h.role) + '</div>' +
+        (h.whySuspected ? '<div class="part for"><div class="lbl">Why suspected</div><p>' + esc(h.whySuspected) + '</p></div>' : '') +
+        (h.verdict ? '<div class="part verdict"><div class="lbl">Holmes’s verdict</div><p>' + esc(h.verdict) + '</p></div>' : '') +
+        (h.cleared ? '<div class="struck">' + esc(h.cleared) + '</div>' : '') +
+        '</div>';
+    }).join('') + '</div>';
 })();
 </script>

@@ -333,34 +333,59 @@ function actView(act: number) {
 }
 
 // ── cast + suspects roster ───────────────────────────────────────────────────
+// Group the cast by the role they play in Watson's investigation — a reader's
+// organising frame, not a mechanical field. Order within a group by appearance.
+const CAST_GROUP: Record<string, string> = {
+  holmes: 'detectives', abberline: 'detectives', bond: 'detectives', phillips: 'detectives', edmund: 'detectives',
+  hutchinson: 'witnesses', diemschutz: 'witnesses', lusk: 'witnesses', barmaid: 'witnesses', superintendent: 'witnesses',
+  tumblety: 'blamed', pizer: 'blamed',
+};
+const CAST_GROUP_ORDER = ['detectives', 'witnesses', 'blamed'];
+
 function castView() {
-  return Object.values(M.npcs).map(npc => ({
-    id: npc.id,
-    name: npcName(npc.id),
-    role: npc.role,
-    description: npc.description,
-    masked: npc.requiresIntroduction && npc.alias !== npc.displayName ? npc.alias : undefined,
-    following: npc.followingRule,
-    schedule: ACTS
-      .filter(a => npc.scheduleByAct[a])
-      .map(a => ({ act: a, location: locName(npc.scheduleByAct[a].default) })),
-  }));
+  return Object.values(M.npcs).map(npc => {
+    const firstAct = Math.min(...Object.keys(npc.scheduleByAct).map(Number));
+    return {
+      id: npc.id,
+      name: npcName(npc.id),
+      role: npc.role,
+      description: npc.description,
+      personality: npc.personality,
+      // The alias mechanic: who Watson takes them for before they are named.
+      firstSeenAs: npc.requiresIntroduction ? (M.npcAliases[npc.id] ?? npc.alias) : null,
+      group: CAST_GROUP[npc.id] ?? 'witnesses',
+      firstAct,
+      schedule: ACTS
+        .filter(a => npc.scheduleByAct[a])
+        .map(a => ({ act: a, location: locName(npc.scheduleByAct[a].default) })),
+    };
+  }).sort((a, b) =>
+    CAST_GROUP_ORDER.indexOf(a.group) - CAST_GROUP_ORDER.indexOf(b.group) || a.firstAct - b.firstAct,
+  );
 }
 
+// The suspect board: every theory the player can name, resolved. Sourced from
+// SUSPECT_PROFILES (the authority on guilt + Holmes's rebuttal), enriched from
+// PERSONS_OF_INTEREST for the "why suspected" line where one exists. A profile
+// need not be a real NPC (the Vanishing Gentleman is a theory, not a man), and
+// not every profile has a POI (Abberline) — both handled without gaps.
 function suspectsView() {
-  const poi = M.personsOfInterest;
   return M.suspectProfiles.map(sp => {
-    const p = poi.find(x => x.id === `poi_${sp.npcId}` || x.label.toLowerCase().includes(sp.npcId));
+    const npc = M.npcs[sp.npcId];
+    const poi = M.personsOfInterest.find(p => p.id === `poi_${sp.npcId}`);
+    const rebuttal = sp.wrongDeductionNote
+      ?.replace(/^COLD CASE[^—]*—\s*/i, '')          // strip authoring prefix
+      .replace(/\s*Write a 150-word[\s\S]*$/i, '')   // strip authoring directive tail
+      .trim();
     return {
       npcId: sp.npcId,
-      name: npcName(sp.npcId),
-      label: p?.label,
+      name: npc ? npcName(sp.npcId) : (poi?.label ?? sp.npcId),
+      role: npc ? npc.role : 'A theory, never a man Watson meets',
+      firstSeenAs: npc?.requiresIntroduction ? (M.npcAliases[sp.npcId] ?? npc.alias) : null,
       isGuilty: sp.isGuilty,
-      detail: p?.detail,
-      clearedNote: p?.clearedNote,
-      rebuttal: sp.wrongDeductionNote
-        // Trim the authoring directive tail (the "Write a 150-word…" instruction).
-        ?.replace(/Write a 150-word[\s\S]*$/i, '').replace(/^COLD CASE[^—]*—\s*/i, '').trim(),
+      whySuspected: poi?.detail,                     // the case FOR suspicion
+      verdict: sp.isGuilty ? undefined : rebuttal,   // Holmes dismantling the theory
+      cleared: poi?.clearedNote,                     // one-line "how it was struck"
     };
   });
 }
