@@ -1,0 +1,578 @@
+<title>London Bleeds — Story Map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  /* ============================================================
+     London Bleeds — Story Map (author overview)
+     Daytime theme: the "Victorian parchment" light palette
+     (index.css :root). Single, deliberate light look.
+     No external fonts — system serif/sans fallbacks so the page
+     works offline and under a strict CSP.
+     ============================================================ */
+  :root {
+    --bg:      #FDF9F5;   /* warm parchment page   */
+    --paper:   #FFFFFF;   /* white cards           */
+    --ink:     #293351;   /* deep Victorian navy   */
+    --ink-2:   #52597a;   /* softened navy         */
+    --accent:  #CD7B00;   /* aged brass / amber    */
+    --accent-2:#a8650a;   /* darker brass (text)   */
+    --muted:   #929DBF;   /* slate blue-grey       */
+    --border:  #C5CBDD;   /* periwinkle separator  */
+    --border-soft: #e6e9f2;
+    --tint:    #f4f1fb;   /* faint navy wash       */
+    --tint-amber:#fbf1e0;
+    --serif: "Playfair Display", Georgia, "Times New Roman", serif;
+    --sans:  "Lato", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono:  ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --shadow: 0 1px 2px rgba(41,51,81,.06), 0 6px 20px rgba(41,51,81,.06);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { font-family: var(--serif); font-weight: 700; margin: 0; letter-spacing: .2px; }
+  a { color: var(--accent-2); }
+
+  /* ── Top bar ─────────────────────────────────────────── */
+  header.top {
+    position: sticky; top: 0; z-index: 40;
+    background: rgba(253,249,245,.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  .top-inner {
+    max-width: 1180px; margin: 0 auto; padding: 14px 22px;
+    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  }
+  .brand { display: flex; flex-direction: column; }
+  .brand h1 { font-size: 22px; line-height: 1.1; }
+  .brand .sub { color: var(--ink-2); font-size: 12.5px; letter-spacing: .4px; text-transform: uppercase; }
+  .stats { margin-left: auto; display: flex; gap: 14px; color: var(--ink-2); font-size: 12.5px; }
+  .stats b { color: var(--accent-2); font-family: var(--serif); font-size: 15px; }
+  nav.tabs { max-width: 1180px; margin: 0 auto; padding: 0 22px 0; display: flex; gap: 4px; }
+  nav.tabs button {
+    appearance: none; border: 1px solid transparent; border-bottom: none;
+    background: transparent; color: var(--ink-2); font-family: var(--sans);
+    font-size: 14px; font-weight: 700; padding: 9px 16px; cursor: pointer;
+    border-radius: 8px 8px 0 0; transition: background .15s, color .15s;
+  }
+  nav.tabs button:hover { color: var(--ink); background: var(--tint); }
+  nav.tabs button[aria-selected="true"] {
+    color: var(--ink); background: var(--paper);
+    border-color: var(--border); box-shadow: 0 -2px 0 var(--accent) inset;
+  }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 22px; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ── Controls (walkthrough) ──────────────────────────── */
+  .controls {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .search {
+    flex: 1 1 240px; min-width: 200px; display: flex; align-items: center; gap: 8px;
+    background: var(--paper); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 12px;
+  }
+  .search input { border: none; outline: none; background: transparent; width: 100%; font-family: var(--sans); font-size: 14px; color: var(--ink); }
+  .actjump { display: flex; gap: 4px; flex-wrap: wrap; }
+  .actjump button, .btn {
+    appearance: none; cursor: pointer; font-family: var(--sans); font-weight: 700; font-size: 12.5px;
+    border: 1px solid var(--border); background: var(--paper); color: var(--ink-2);
+    border-radius: 999px; padding: 6px 12px; transition: all .15s;
+  }
+  .actjump button:hover, .btn:hover { border-color: var(--accent); color: var(--accent-2); }
+
+  /* ── Act section ─────────────────────────────────────── */
+  details.act { margin: 0 0 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--paper); box-shadow: var(--shadow); overflow: hidden; scroll-margin-top: 120px; }
+  details.act > summary {
+    list-style: none; cursor: pointer; padding: 16px 20px;
+    display: flex; align-items: center; gap: 14px;
+    background: linear-gradient(180deg, #fff, #fbfaff);
+    border-bottom: 1px solid transparent;
+  }
+  details.act[open] > summary { border-bottom-color: var(--border-soft); }
+  summary::-webkit-details-marker { display: none; }
+  .act-no {
+    flex: none; width: 46px; height: 46px; border-radius: 12px;
+    display: grid; place-items: center;
+    background: var(--ink); color: #fff; font-family: var(--serif); font-size: 20px; font-weight: 700;
+  }
+  .act-head { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .act-head .name { font-family: var(--serif); font-size: 19px; }
+  .act-head .meta { color: var(--ink-2); font-size: 12.5px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .act-head .meta span { white-space: nowrap; }
+  .chev { margin-left: auto; color: var(--muted); transition: transform .2s; flex: none; }
+  details.act[open] .chev { transform: rotate(90deg); }
+  .act-body { padding: 6px 20px 20px; }
+  .bridge { font-style: italic; color: var(--ink-2); border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; margin: 12px 0 6px; font-size: 14.5px; }
+
+  /* ── Gate panel ──────────────────────────────────────── */
+  .gate { background: var(--tint-amber); border: 1px solid #eaddc4; border-radius: 12px; padding: 12px 16px; margin: 14px 0 20px; }
+  .gate h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--accent-2); font-family: var(--sans); font-weight: 800; margin-bottom: 8px; }
+  .gate ol { margin: 0; padding-left: 4px; list-style: none; counter-reset: step; }
+  .gate li { display: flex; gap: 10px; padding: 4px 0; align-items: baseline; }
+  .gate li::before { counter-increment: step; content: counter(step); flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; font-family: var(--sans); }
+
+  /* ── Location card ───────────────────────────────────── */
+  .loc { border: 1px solid var(--border-soft); border-radius: 12px; margin: 12px 0; overflow: hidden; background: #fff; }
+  .loc > summary { list-style: none; cursor: pointer; padding: 13px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .loc > summary:hover { background: var(--tint); }
+  .loc .lname { font-family: var(--serif); font-size: 16.5px; }
+  .loc-body { padding: 4px 16px 16px; border-top: 1px solid var(--border-soft); }
+  .atmos { font-style: italic; color: var(--ink-2); font-size: 13.5px; margin: 10px 0; }
+  .desc { color: var(--ink); font-size: 13.5px; margin: 8px 0 4px; }
+
+  /* Badges */
+  .badge { font-size: 11px; font-weight: 800; letter-spacing: .3px; padding: 3px 8px; border-radius: 999px; white-space: nowrap; font-family: var(--sans); }
+  .b-morning { background: #fdf0d8; color: #9a6a12; }
+  .b-midday  { background: #eef4ff; color: #395a9a; }
+  .b-afternoon { background: #fbe6d6; color: #a8560f; }
+  .b-night   { background: #e7e9f6; color: #3b4270; }
+  .b-recon   { background: #f0eafb; color: #6b4aa0; border: 1px dashed #c9b6ec; }
+  .b-revisit { background: #eafaf1; color: #2f7a52; }
+  .b-anchor  { background: var(--ink); color: #fff; }
+  .b-locked  { background: #fdeaea; color: #b23a3a; }
+
+  /* Section blocks within a location */
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } }
+  .block h5 { font-family: var(--sans); font-size: 11.5px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 800; margin: 0 0 8px; display: flex; align-items: center; gap: 6px; }
+  .block h5 .count { background: var(--tint); color: var(--ink-2); border-radius: 999px; padding: 1px 7px; font-size: 10.5px; }
+  .empty { color: var(--muted); font-size: 12.5px; font-style: italic; }
+
+  /* Character chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { background: var(--tint); border: 1px solid var(--border-soft); border-radius: 999px; padding: 4px 10px; font-size: 12.5px; display: inline-flex; gap: 6px; align-items: baseline; }
+  .chip .role { color: var(--muted); font-size: 11px; }
+  .chip.masked { border-style: dashed; }
+
+  /* Clue cards */
+  .clue { border: 1px solid var(--border-soft); border-left: 3px solid var(--accent); border-radius: 8px; margin: 8px 0; background: #fffdfa; }
+  .clue > summary { list-style: none; cursor: pointer; padding: 9px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .clue > summary:hover { background: var(--tint-amber); }
+  .clue .cname { font-weight: 700; font-size: 13.5px; }
+  .clue-meta { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .pts { font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 999px; }
+  .pts.med { background: #eef4ff; color: #395a9a; }
+  .pts.mor { background: #eafaf1; color: #2f7a52; }
+  .tag { font-size: 10.5px; font-weight: 700; color: var(--ink-2); background: var(--tint); border-radius: 999px; padding: 2px 7px; }
+  .tag.syn { background: #f0eafb; color: #6b4aa0; }
+  .clue-body { padding: 2px 12px 12px; font-size: 13px; }
+  .clue-body .lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 800; margin-top: 8px; }
+  .clue-body .records { color: var(--ink); margin: 2px 0; }
+  .clue-body .holmes { color: var(--ink-2); font-style: italic; border-left: 2px solid var(--border); padding-left: 10px; margin: 3px 0; }
+  .conns { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .conns .tag { background: #eef4ff; color: #395a9a; }
+
+  /* Objective / hint list */
+  .obj { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; border-bottom: 1px dashed var(--border-soft); }
+  .obj:last-child { border-bottom: none; }
+  .verb { flex: none; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; padding: 3px 8px; border-radius: 6px; margin-top: 1px; }
+  .v-examine { background: #eef4ff; color: #395a9a; }
+  .v-talk { background: #eafaf1; color: #2f7a52; }
+  .v-show { background: #fbe6d6; color: #a8560f; }
+  .v-use  { background: #f0eafb; color: #6b4aa0; }
+  .v-deduce { background: var(--ink); color: #fff; }
+  .v-travel, .v-reflect { background: var(--tint); color: var(--ink-2); }
+  .obj-txt { font-size: 13px; }
+  .soln { margin-top: 5px; }
+  .soln > summary { cursor: pointer; list-style: none; font-size: 11.5px; font-weight: 700; color: var(--accent-2); display: inline-flex; gap: 5px; align-items: center; }
+  .soln > summary:hover { text-decoration: underline; }
+  .soln-body { font-size: 12.5px; color: var(--ink-2); background: var(--tint); border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
+  .soln-body .how { color: var(--ink); font-weight: 700; margin-bottom: 4px; }
+  .soln-body .grants { margin-top: 5px; font-size: 11.5px; color: var(--accent-2); font-weight: 700; }
+
+  /* Interactions + documents */
+  .intr { border: 1px solid var(--border-soft); border-radius: 8px; margin: 7px 0; background: #fff; }
+  .intr > summary { list-style: none; cursor: pointer; padding: 8px 11px; font-size: 12.5px; font-weight: 700; display: flex; gap: 8px; align-items: center; }
+  .intr > summary:hover { background: var(--tint); }
+  .intr-body { padding: 0 11px 11px; font-size: 12.5px; color: var(--ink-2); }
+  .doc > summary { font-family: var(--serif); }
+  .doc-text { white-space: pre-wrap; font-family: var(--mono); font-size: 12px; line-height: 1.55; color: var(--ink); background: #fbf8f2; border: 1px solid #efe7d6; border-radius: 8px; padding: 12px 14px; margin-top: 4px; }
+
+  .mono-flag { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  /* ── Map view ────────────────────────────────────────── */
+  .map-wrap { border: 1px solid var(--border); border-radius: 14px; background: var(--paper); box-shadow: var(--shadow); padding: 8px; overflow-x: auto; }
+  .map-legend { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; color: var(--ink-2); font-size: 12.5px; }
+  .map-legend .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 5px; }
+  svg .edge { stroke: var(--border); stroke-width: 1.6; }
+  svg .node circle { fill: #fff; stroke: var(--ink); stroke-width: 2; cursor: pointer; transition: r .15s; }
+  svg .node:hover circle { stroke: var(--accent); }
+  svg .node text { font-family: var(--sans); font-size: 11px; fill: var(--ink); pointer-events: none; }
+  svg .node.dim { opacity: .22; }
+  svg .edge.dim { opacity: .12; }
+  .map-detail { margin-top: 16px; border: 1px dashed var(--border); border-radius: 12px; padding: 16px; min-height: 60px; color: var(--ink-2); }
+  .map-detail h3 { font-size: 17px; color: var(--ink); margin-bottom: 4px; }
+
+  /* ── Cast view ───────────────────────────────────────── */
+  .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .npc-card, .sus-card { border: 1px solid var(--border); border-radius: 12px; background: var(--paper); padding: 14px 16px; box-shadow: var(--shadow); }
+  .npc-card h3 { font-size: 16px; }
+  .npc-card .role { color: var(--accent-2); font-size: 12px; font-weight: 700; }
+  .npc-card .desc { font-size: 12.5px; color: var(--ink-2); margin: 8px 0; }
+  .sched { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .sched .s { font-size: 10.5px; background: var(--tint); border: 1px solid var(--border-soft); border-radius: 6px; padding: 2px 7px; color: var(--ink-2); }
+  .sus-card.guilty { border-color: var(--accent); border-width: 2px; background: #fffaf2; }
+  .sus-card h3 { font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .verdict { font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; }
+  .verdict.g { background: var(--accent); color: #fff; }
+  .verdict.h { background: var(--tint); color: var(--ink-2); }
+  .sus-card .detail { font-size: 12.5px; color: var(--ink); margin: 8px 0; }
+  .sus-card .rebut { font-size: 12px; color: var(--ink-2); font-style: italic; border-left: 2px solid var(--border); padding-left: 10px; margin-top: 6px; }
+  .sus-card .cleared { font-size: 11.5px; color: #2f7a52; margin-top: 6px; }
+
+  .section-lead { color: var(--ink-2); font-size: 13.5px; margin: 2px 0 18px; max-width: 70ch; }
+  h2.view-title { font-size: 22px; margin-bottom: 2px; }
+  .hidden { display: none !important; }
+</style>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <h1 id="m-title">London Bleeds — Story Map</h1>
+      <span class="sub" id="m-sub"></span>
+    </div>
+    <div class="stats" id="m-stats"></div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-view="walk" aria-selected="true">Walkthrough</button>
+    <button role="tab" data-view="map" aria-selected="false">Map</button>
+    <button role="tab" data-view="cast" aria-selected="false">Cast &amp; Suspects</button>
+  </nav>
+</header>
+
+<main>
+  <section class="view active" id="view-walk">
+    <div class="controls">
+      <label class="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#929DBF" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" type="search" placeholder="Search clues, characters, locations, puzzles…" />
+      </label>
+      <button class="btn" id="expand-all">Expand all</button>
+      <button class="btn" id="collapse-all">Collapse all</button>
+      <div class="actjump" id="actjump"></div>
+    </div>
+    <div id="acts"></div>
+  </section>
+
+  <section class="view" id="view-map">
+    <h2 class="view-title">The Investigation Map</h2>
+    <p class="section-lead">Every location, wired by its exit graph and arranged left-to-right by the act it first opens. Click a node for its detail; filter by act to trace the route.</p>
+    <div class="map-legend" id="map-legend"></div>
+    <div class="map-wrap"><svg id="map-svg" role="img" aria-label="Location graph"></svg></div>
+    <div class="map-detail" id="map-detail">Select a location above.</div>
+  </section>
+
+  <section class="view" id="view-cast">
+    <h2 class="view-title">Cast &amp; Suspects</h2>
+    <p class="section-lead">The people of Whitechapel — where each is found across the acts — and the moving-spotlight suspect roster: one guilty hand, six fair red herrings.</p>
+    <h3 style="margin:18px 0 10px">Suspect roster</h3>
+    <div class="grid-cards" id="suspects"></div>
+    <h3 style="margin:26px 0 10px">Cast</h3>
+    <div class="grid-cards" id="cast"></div>
+  </section>
+</main>
+
+<script>
+/*__STORY_DATA__*/
+(function () {
+  "use strict";
+  var S = window.STORY;
+  var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var $ = function (id) { return document.getElementById(id); };
+  var el = function (html) { var t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+
+  // ── header ──────────────────────────────────────────────
+  $("m-title").textContent = S.meta.title;
+  $("m-sub").textContent = S.meta.subtitle + " · generated " + S.meta.generatedAt;
+  $("m-stats").innerHTML =
+    '<span><b>' + S.meta.actCount + '</b> acts</span>' +
+    '<span><b>' + S.meta.locationCount + '</b> locations</span>' +
+    '<span><b>' + S.meta.npcCount + '</b> characters</span>' +
+    '<span><b>' + S.meta.clueCount + '</b> clues</span>';
+
+  // ── tabs ────────────────────────────────────────────────
+  var tabs = document.querySelectorAll('nav.tabs button');
+  tabs.forEach(function (b) {
+    b.addEventListener('click', function () {
+      tabs.forEach(function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
+      document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
+      $('view-' + b.dataset.view).classList.add('active');
+      if (b.dataset.view === 'map') drawMap();
+    });
+  });
+
+  // ── badges helpers ──────────────────────────────────────
+  function todBadge(t) { return '<span class="badge b-' + t + '">' + t + '</span>'; }
+
+  function clueCard(c) {
+    var pts = '';
+    if (c.medicalPoints) pts += '<span class="pts med" title="medical points">med +' + c.medicalPoints + '</span>';
+    if (c.moralPoints) pts += '<span class="pts mor" title="moral points">mor +' + c.moralPoints + '</span>';
+    var conns = c.connections.length
+      ? '<div class="conns"><span class="lbl">connects</span>' + c.connections.map(function (x) { return '<span class="tag">' + esc(x) + '</span>'; }).join('') + '</div>'
+      : '';
+    return '<details class="clue"><summary>' +
+      '<span class="cname">' + esc(c.name) + '</span>' +
+      '<span class="clue-meta">' +
+        (c.synthetic ? '<span class="tag syn" title="granted by a USE combination, not a plain examine">synthesis</span>' : '<span class="tag" title="examine trigger">' + esc(c.trigger) + '</span>') +
+        pts +
+      '</span></summary>' +
+      '<div class="clue-body">' +
+        '<div class="lbl">What Watson records</div><div class="records">' + esc(c.description) + '</div>' +
+        '<div class="lbl">Holmes concludes</div><div class="holmes">' + esc(c.holmes) + '</div>' +
+        conns +
+      '</div></details>';
+  }
+
+  function objRow(o) {
+    var soln = '';
+    if (o.solution) {
+      var s = o.solution;
+      var how = s.kind === 'use'
+        ? 'USE <b>' + esc(s.itemName) + '</b> with <b>' + esc(s.targetName) + '</b>'
+        : 'SHOW <b>' + esc(s.itemName) + '</b> to <b>' + esc(s.targetName) + '</b>';
+      var gate = [];
+      if (s.requiresLocation) gate.push('at ' + esc(s.requiresLocation));
+      if (s.requiresAct) gate.push('Act ' + s.requiresAct + '+');
+      if (s.requireFlags && s.requireFlags.length) gate.push('needs a prior step');
+      var grants = s.clueName ? '<div class="grants">↳ grants clue: ' + esc(s.clueName) + '</div>' : '';
+      soln = '<details class="soln"><summary>▸ how to solve</summary><div class="soln-body">' +
+        '<div class="how">' + how + (gate.length ? ' <span class="mono-flag">(' + gate.join(', ') + ')</span>' : '') + '</div>' +
+        esc(s.result) + grants +
+        '</div></details>';
+    }
+    return '<div class="obj"><span class="verb v-' + o.verb + '">' + o.verb + '</span>' +
+      '<div><div class="obj-txt">' + esc(o.subject) + '</div>' + soln + '</div></div>';
+  }
+
+  function intrRow(x) {
+    return '<details class="intr"><summary>' + esc(x.label) +
+      (x.clueName ? ' <span class="tag syn">→ ' + esc(x.clueName) + '</span>' : '') +
+      (x.note ? ' <span class="tag">' + esc(x.note) + '</span>' : '') +
+      '</summary><div class="intr-body">' + esc(x.result) + '</div></details>';
+  }
+
+  function block(title, count, inner) {
+    return '<div class="block"><h5>' + title + ' <span class="count">' + count + '</span></h5>' +
+      (count ? inner : '<div class="empty">none</div>') + '</div>';
+  }
+
+  function locCard(l) {
+    var badges = todBadge(l.timeOfDay);
+    if (l.timeframe === 'reconstruction') badges += '<span class="badge b-recon">reconstruction</span>';
+    if (l.revisit) badges += '<span class="badge b-revisit">revisit</span>';
+    if (l.requiresFlag) badges += '<span class="badge b-locked">gated</span>';
+    if (l.openPeriods) badges += '<span class="badge b-morning" title="open only: ' + esc(l.openPeriods.join(', ')) + '">hours</span>';
+
+    var chars = l.characters.map(function (c) {
+      return '<span class="chip' + (c.masked ? ' masked' : '') + '">' + esc(c.name) +
+        '<span class="role">' + esc(c.role) + '</span>' +
+        (c.masked ? '<span class="role" title="shown as this until introduced">“' + esc(c.masked) + '”</span>' : '') +
+        '</span>';
+    }).join('');
+
+    var exits = l.exits.map(function (e) { return '<span class="tag">' + esc(e.name) + '</span>'; }).join(' ');
+    var docs = l.documents.map(function (d) {
+      return '<details class="intr doc"><summary>📄 ' + esc(d.name) + '</summary><div class="intr-body"><div class="doc-text">' + esc(d.text) + '</div></div></details>';
+    }).join('');
+
+    return '<details class="loc" data-loc="' + l.id + '"><summary>' +
+        '<span class="lname">' + esc(l.name) + '</span>' + badges +
+        '<span style="margin-left:auto" class="tag">' + l.clues.length + ' clue' + (l.clues.length === 1 ? '' : 's') + '</span>' +
+      '</summary>' +
+      '<div class="loc-body">' +
+        '<div class="atmos">' + esc(l.atmosphere) + '</div>' +
+        '<div class="desc">' + esc(l.description) + '</div>' +
+        '<div style="margin:8px 0"><span class="lbl" style="font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:800">Exits</span> ' + (exits || '<span class="empty">none</span>') + '</div>' +
+        '<div class="cols">' +
+          block('Characters', l.characters.length, '<div class="chips">' + chars + '</div>') +
+          block('Clues here', l.clues.length, l.clues.map(clueCard).join('')) +
+          block('Hints &amp; objectives', l.objectives.length, l.objectives.map(objRow).join('')) +
+          block('Puzzles &amp; interactions', l.interactions.length, l.interactions.map(intrRow).join('')) +
+        '</div>' +
+        (docs ? '<div class="block" style="margin-top:14px"><h5>Readable documents <span class="count">' + l.documents.length + '</span></h5>' + docs + '</div>' : '') +
+      '</div></details>';
+  }
+
+  function actSection(a, open) {
+    var gateSteps = a.gate.steps.map(function (s) {
+      return '<li>' + (s.verb ? '<span class="verb v-' + s.verb + '" style="margin-right:2px">' + s.verb + '</span> ' : '') + esc(s.text) + '</li>';
+    }).join('');
+    var meta = [
+      a.dayOfWeek + ' ' + a.date,
+      '☁ ' + a.weather,
+      '⚓ ' + a.anchor,
+      a.gate.advanceTo <= S.meta.actCount ? '→ Act ' + a.gate.advanceTo : 'finale'
+    ].map(function (m) { return '<span>' + esc(m) + '</span>'; }).join('');
+
+    return '<details class="act" id="act-' + a.number + '"' + (open ? ' open' : '') + '><summary>' +
+        '<span class="act-no">' + a.number + '</span>' +
+        '<span class="act-head"><span class="name">' + esc(a.name) + '</span><span class="meta">' + meta + '</span></span>' +
+        '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>' +
+      '</summary>' +
+      '<div class="act-body">' +
+        (a.bridge ? '<div class="bridge">' + esc(a.bridge) + '</div>' : '') +
+        '<div class="gate"><h4>How to advance this act</h4><ol>' + gateSteps + '</ol></div>' +
+        a.locations.map(locCard).join('') +
+      '</div></details>';
+  }
+
+  // ── render walkthrough ──────────────────────────────────
+  $("acts").innerHTML = S.acts.map(function (a, i) { return actSection(a, i === 0); }).join('');
+  $("actjump").innerHTML = S.acts.map(function (a) { return '<button data-act="' + a.number + '">Act ' + a.number + '</button>'; }).join('');
+  $("actjump").addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    var d = $('act-' + b.dataset.act); d.open = true;
+    d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  $("expand-all").addEventListener('click', function () { document.querySelectorAll('#view-walk details').forEach(function (d) { d.open = true; }); });
+  $("collapse-all").addEventListener('click', function () { document.querySelectorAll('#view-walk details.act, #view-walk details.loc').forEach(function (d) { d.open = false; }); });
+
+  // ── search filter ───────────────────────────────────────
+  var search = $("search");
+  search.addEventListener('input', function () {
+    var q = search.value.trim().toLowerCase();
+    document.querySelectorAll('#acts details.act').forEach(function (act) {
+      var anyLoc = false;
+      act.querySelectorAll('details.loc').forEach(function (loc) {
+        var hit = !q || loc.textContent.toLowerCase().indexOf(q) !== -1;
+        loc.classList.toggle('hidden', !hit);
+        if (hit) { anyLoc = true; if (q) loc.open = true; }
+      });
+      // also match on the act header text
+      var actHit = !q || act.querySelector('summary').textContent.toLowerCase().indexOf(q) !== -1 || anyLoc;
+      act.classList.toggle('hidden', !actHit);
+      if (q && actHit) act.open = true;
+    });
+  });
+
+  // ── map ─────────────────────────────────────────────────
+  var actColors = ['#293351', '#8a5a1a', '#3b6ea5', '#6b4aa0', '#a8560f', '#2f7a52', '#b23a3a'];
+  var mapDrawn = false, activeAct = null;
+  function drawMap() {
+    if (mapDrawn) return; mapDrawn = true;
+    var nodes = S.map.nodes, edges = S.map.edges;
+    var byId = {}; nodes.forEach(function (n) { byId[n.id] = n; });
+    // columns by act
+    var acts = {};
+    nodes.forEach(function (n) { (acts[n.act] = acts[n.act] || []).push(n); });
+    var actKeys = Object.keys(acts).map(Number).sort(function (a, b) { return a - b; });
+    var colW = 168, rowH = 74, padX = 70, padY = 56;
+    var maxRows = Math.max.apply(null, actKeys.map(function (k) { return acts[k].length; }));
+    var W = padX * 2 + (actKeys.length - 1) * colW;
+    var H = padY * 2 + (maxRows - 1) * rowH + 40;
+    actKeys.forEach(function (k, ci) {
+      var col = acts[k];
+      var offset = (maxRows - col.length) / 2;
+      col.forEach(function (n, ri) {
+        n._x = padX + ci * colW;
+        n._y = padY + (ri + offset) * rowH;
+      });
+    });
+    var svg = $("map-svg");
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.style.width = Math.max(W, 320) + 'px';
+    svg.style.maxWidth = '100%';
+    svg.style.height = 'auto';
+    var parts = [];
+    // act column labels
+    actKeys.forEach(function (k, ci) {
+      parts.push('<text x="' + (padX + ci * colW) + '" y="24" text-anchor="middle" font-weight="700" font-size="12" fill="' + actColors[k % actColors.length] + '">Act ' + k + '</text>');
+    });
+    edges.forEach(function (e) {
+      var A = byId[e.a], B = byId[e.b]; if (!A || !B) return;
+      parts.push('<line class="edge" data-a="' + e.a + '" data-b="' + e.b + '" x1="' + A._x + '" y1="' + A._y + '" x2="' + B._x + '" y2="' + B._y + '"/>');
+    });
+    nodes.forEach(function (n) {
+      var color = actColors[n.act % actColors.length];
+      var label = esc(n.shortName);
+      parts.push('<g class="node" data-id="' + n.id + '" tabindex="0">' +
+        '<circle cx="' + n._x + '" cy="' + n._y + '" r="9" style="stroke:' + color + '"/>' +
+        (n.requiresFlag ? '<circle cx="' + n._x + '" cy="' + n._y + '" r="4" fill="' + color + '"/>' : '') +
+        '<text x="' + n._x + '" y="' + (n._y + 24) + '" text-anchor="middle">' + label + '</text>' +
+        '</g>');
+    });
+    svg.innerHTML = parts.join('');
+    svg.querySelectorAll('.node').forEach(function (g) {
+      g.addEventListener('click', function () { showLocDetail(g.dataset.id); });
+      g.addEventListener('keydown', function (e) { if (e.key === 'Enter') showLocDetail(g.dataset.id); });
+    });
+
+    // legend = act filter
+    $("map-legend").innerHTML = '<span class="btn" data-act="all" style="cursor:pointer">All acts</span>' +
+      actKeys.map(function (k) {
+        return '<span class="btn" data-act="' + k + '" style="cursor:pointer"><span class="swatch" style="background:' + actColors[k % actColors.length] + '"></span>Act ' + k + '</span>';
+      }).join('');
+    $("map-legend").addEventListener('click', function (e) {
+      var b = e.target.closest('[data-act]'); if (!b) return;
+      activeAct = b.dataset.act === 'all' ? null : Number(b.dataset.act);
+      filterMap();
+    });
+  }
+  function filterMap() {
+    var svg = $("map-svg");
+    svg.querySelectorAll('.node').forEach(function (g) {
+      var n = S.map.nodes.find(function (x) { return x.id === g.dataset.id; });
+      g.classList.toggle('dim', activeAct != null && n.act !== activeAct);
+    });
+    svg.querySelectorAll('.edge').forEach(function (ln) {
+      var a = S.map.nodes.find(function (x) { return x.id === ln.dataset.a; });
+      var b = S.map.nodes.find(function (x) { return x.id === ln.dataset.b; });
+      ln.classList.toggle('dim', activeAct != null && a.act !== activeAct && b.act !== activeAct);
+    });
+  }
+  function showLocDetail(id) {
+    // find the fullest location view across acts (prefer non-revisit / first act)
+    var found = null;
+    S.acts.forEach(function (a) { a.locations.forEach(function (l) { if (l.id === id && (!found || !l.revisit)) found = l; }); });
+    var n = S.map.nodes.find(function (x) { return x.id === id; });
+    if (!found) { $("map-detail").innerHTML = '<h3>' + esc(n.name) + '</h3><p>Appears from Act ' + n.act + '.</p>'; return; }
+    var chars = found.characters.map(function (c) { return esc(c.name); }).join(', ') || '—';
+    var clues = found.clues.map(function (c) { return esc(c.name); }).join(', ') || '—';
+    $("map-detail").innerHTML =
+      '<h3>' + esc(found.name) + '</h3>' +
+      '<div style="font-size:12.5px;margin-bottom:8px">' + todBadge(found.timeOfDay) + (found.timeframe === 'reconstruction' ? ' <span class="badge b-recon">reconstruction</span>' : '') + ' &nbsp; first opens: <b>Act ' + n.act + '</b></div>' +
+      '<p class="atmos" style="margin:6px 0">' + esc(found.atmosphere) + '</p>' +
+      '<p style="font-size:13px"><b>Exits:</b> ' + (found.exits.map(function (e) { return esc(e.name); }).join(', ') || 'none') + '</p>' +
+      '<p style="font-size:13px"><b>Characters:</b> ' + chars + '</p>' +
+      '<p style="font-size:13px"><b>Clues:</b> ' + clues + '</p>' +
+      '<button class="btn" id="goto-loc">Open in walkthrough →</button>';
+    var go = $("goto-loc");
+    if (go) go.addEventListener('click', function () {
+      document.querySelector('nav.tabs button[data-view="walk"]').click();
+      var d = document.querySelector('details.loc[data-loc="' + id + '"]');
+      if (d) { var act = d.closest('details.act'); if (act) act.open = true; d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    });
+  }
+
+  // ── cast + suspects ─────────────────────────────────────
+  $("suspects").innerHTML = S.suspects.map(function (s) {
+    return '<div class="sus-card' + (s.isGuilty ? ' guilty' : '') + '">' +
+      '<h3>' + esc(s.label || s.name) + '<span class="verdict ' + (s.isGuilty ? 'g' : 'h') + '">' + (s.isGuilty ? 'THE ANSWER' : 'red herring') + '</span></h3>' +
+      (s.detail ? '<div class="detail">' + esc(s.detail) + '</div>' : '') +
+      (s.rebuttal ? '<div class="rebut">' + esc(s.rebuttal) + '</div>' : '') +
+      (s.clearedNote ? '<div class="cleared">✓ cleared: ' + esc(s.clearedNote) + '</div>' : '') +
+      '</div>';
+  }).join('');
+
+  $("cast").innerHTML = S.cast.map(function (c) {
+    var sched = c.schedule.map(function (s) { return '<span class="s">A' + s.act + ' · ' + esc(s.location) + '</span>'; }).join('');
+    return '<div class="npc-card">' +
+      '<h3>' + esc(c.name) + '</h3>' +
+      '<div class="role">' + esc(c.role) + (c.masked ? ' · masked as “' + esc(c.masked) + '”' : '') + '</div>' +
+      '<div class="desc">' + esc(c.description) + '</div>' +
+      '<div class="sched">' + sched + '</div>' +
+      '</div>';
+  }).join('');
+})();
+</script>

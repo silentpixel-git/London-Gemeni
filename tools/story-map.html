@@ -1,0 +1,578 @@
+<title>London Bleeds — Story Map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  /* ============================================================
+     London Bleeds — Story Map (author overview)
+     Daytime theme: the "Victorian parchment" light palette
+     (index.css :root). Single, deliberate light look.
+     No external fonts — system serif/sans fallbacks so the page
+     works offline and under a strict CSP.
+     ============================================================ */
+  :root {
+    --bg:      #FDF9F5;   /* warm parchment page   */
+    --paper:   #FFFFFF;   /* white cards           */
+    --ink:     #293351;   /* deep Victorian navy   */
+    --ink-2:   #52597a;   /* softened navy         */
+    --accent:  #CD7B00;   /* aged brass / amber    */
+    --accent-2:#a8650a;   /* darker brass (text)   */
+    --muted:   #929DBF;   /* slate blue-grey       */
+    --border:  #C5CBDD;   /* periwinkle separator  */
+    --border-soft: #e6e9f2;
+    --tint:    #f4f1fb;   /* faint navy wash       */
+    --tint-amber:#fbf1e0;
+    --serif: "Playfair Display", Georgia, "Times New Roman", serif;
+    --sans:  "Lato", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono:  ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --shadow: 0 1px 2px rgba(41,51,81,.06), 0 6px 20px rgba(41,51,81,.06);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { font-family: var(--serif); font-weight: 700; margin: 0; letter-spacing: .2px; }
+  a { color: var(--accent-2); }
+
+  /* ── Top bar ─────────────────────────────────────────── */
+  header.top {
+    position: sticky; top: 0; z-index: 40;
+    background: rgba(253,249,245,.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+  }
+  .top-inner {
+    max-width: 1180px; margin: 0 auto; padding: 14px 22px;
+    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  }
+  .brand { display: flex; flex-direction: column; }
+  .brand h1 { font-size: 22px; line-height: 1.1; }
+  .brand .sub { color: var(--ink-2); font-size: 12.5px; letter-spacing: .4px; text-transform: uppercase; }
+  .stats { margin-left: auto; display: flex; gap: 14px; color: var(--ink-2); font-size: 12.5px; }
+  .stats b { color: var(--accent-2); font-family: var(--serif); font-size: 15px; }
+  nav.tabs { max-width: 1180px; margin: 0 auto; padding: 0 22px 0; display: flex; gap: 4px; }
+  nav.tabs button {
+    appearance: none; border: 1px solid transparent; border-bottom: none;
+    background: transparent; color: var(--ink-2); font-family: var(--sans);
+    font-size: 14px; font-weight: 700; padding: 9px 16px; cursor: pointer;
+    border-radius: 8px 8px 0 0; transition: background .15s, color .15s;
+  }
+  nav.tabs button:hover { color: var(--ink); background: var(--tint); }
+  nav.tabs button[aria-selected="true"] {
+    color: var(--ink); background: var(--paper);
+    border-color: var(--border); box-shadow: 0 -2px 0 var(--accent) inset;
+  }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 22px; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ── Controls (walkthrough) ──────────────────────────── */
+  .controls {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .search {
+    flex: 1 1 240px; min-width: 200px; display: flex; align-items: center; gap: 8px;
+    background: var(--paper); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 12px;
+  }
+  .search input { border: none; outline: none; background: transparent; width: 100%; font-family: var(--sans); font-size: 14px; color: var(--ink); }
+  .actjump { display: flex; gap: 4px; flex-wrap: wrap; }
+  .actjump button, .btn {
+    appearance: none; cursor: pointer; font-family: var(--sans); font-weight: 700; font-size: 12.5px;
+    border: 1px solid var(--border); background: var(--paper); color: var(--ink-2);
+    border-radius: 999px; padding: 6px 12px; transition: all .15s;
+  }
+  .actjump button:hover, .btn:hover { border-color: var(--accent); color: var(--accent-2); }
+
+  /* ── Act section ─────────────────────────────────────── */
+  details.act { margin: 0 0 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--paper); box-shadow: var(--shadow); overflow: hidden; scroll-margin-top: 120px; }
+  details.act > summary {
+    list-style: none; cursor: pointer; padding: 16px 20px;
+    display: flex; align-items: center; gap: 14px;
+    background: linear-gradient(180deg, #fff, #fbfaff);
+    border-bottom: 1px solid transparent;
+  }
+  details.act[open] > summary { border-bottom-color: var(--border-soft); }
+  summary::-webkit-details-marker { display: none; }
+  .act-no {
+    flex: none; width: 46px; height: 46px; border-radius: 12px;
+    display: grid; place-items: center;
+    background: var(--ink); color: #fff; font-family: var(--serif); font-size: 20px; font-weight: 700;
+  }
+  .act-head { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .act-head .name { font-family: var(--serif); font-size: 19px; }
+  .act-head .meta { color: var(--ink-2); font-size: 12.5px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .act-head .meta span { white-space: nowrap; }
+  .chev { margin-left: auto; color: var(--muted); transition: transform .2s; flex: none; }
+  details.act[open] .chev { transform: rotate(90deg); }
+  .act-body { padding: 6px 20px 20px; }
+  .bridge { font-style: italic; color: var(--ink-2); border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; margin: 12px 0 6px; font-size: 14.5px; }
+
+  /* ── Gate panel ──────────────────────────────────────── */
+  .gate { background: var(--tint-amber); border: 1px solid #eaddc4; border-radius: 12px; padding: 12px 16px; margin: 14px 0 20px; }
+  .gate h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--accent-2); font-family: var(--sans); font-weight: 800; margin-bottom: 8px; }
+  .gate ol { margin: 0; padding-left: 4px; list-style: none; counter-reset: step; }
+  .gate li { display: flex; gap: 10px; padding: 4px 0; align-items: baseline; }
+  .gate li::before { counter-increment: step; content: counter(step); flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; font-family: var(--sans); }
+
+  /* ── Location card ───────────────────────────────────── */
+  .loc { border: 1px solid var(--border-soft); border-radius: 12px; margin: 12px 0; overflow: hidden; background: #fff; }
+  .loc > summary { list-style: none; cursor: pointer; padding: 13px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .loc > summary:hover { background: var(--tint); }
+  .loc .lname { font-family: var(--serif); font-size: 16.5px; }
+  .loc-body { padding: 4px 16px 16px; border-top: 1px solid var(--border-soft); }
+  .atmos { font-style: italic; color: var(--ink-2); font-size: 13.5px; margin: 10px 0; }
+  .desc { color: var(--ink); font-size: 13.5px; margin: 8px 0 4px; }
+
+  /* Badges */
+  .badge { font-size: 11px; font-weight: 800; letter-spacing: .3px; padding: 3px 8px; border-radius: 999px; white-space: nowrap; font-family: var(--sans); }
+  .b-morning { background: #fdf0d8; color: #9a6a12; }
+  .b-midday  { background: #eef4ff; color: #395a9a; }
+  .b-afternoon { background: #fbe6d6; color: #a8560f; }
+  .b-night   { background: #e7e9f6; color: #3b4270; }
+  .b-recon   { background: #f0eafb; color: #6b4aa0; border: 1px dashed #c9b6ec; }
+  .b-revisit { background: #eafaf1; color: #2f7a52; }
+  .b-anchor  { background: var(--ink); color: #fff; }
+  .b-locked  { background: #fdeaea; color: #b23a3a; }
+
+  /* Section blocks within a location */
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } }
+  .block h5 { font-family: var(--sans); font-size: 11.5px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); font-weight: 800; margin: 0 0 8px; display: flex; align-items: center; gap: 6px; }
+  .block h5 .count { background: var(--tint); color: var(--ink-2); border-radius: 999px; padding: 1px 7px; font-size: 10.5px; }
+  .empty { color: var(--muted); font-size: 12.5px; font-style: italic; }
+
+  /* Character chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { background: var(--tint); border: 1px solid var(--border-soft); border-radius: 999px; padding: 4px 10px; font-size: 12.5px; display: inline-flex; gap: 6px; align-items: baseline; }
+  .chip .role { color: var(--muted); font-size: 11px; }
+  .chip.masked { border-style: dashed; }
+
+  /* Clue cards */
+  .clue { border: 1px solid var(--border-soft); border-left: 3px solid var(--accent); border-radius: 8px; margin: 8px 0; background: #fffdfa; }
+  .clue > summary { list-style: none; cursor: pointer; padding: 9px 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .clue > summary:hover { background: var(--tint-amber); }
+  .clue .cname { font-weight: 700; font-size: 13.5px; }
+  .clue-meta { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .pts { font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 999px; }
+  .pts.med { background: #eef4ff; color: #395a9a; }
+  .pts.mor { background: #eafaf1; color: #2f7a52; }
+  .tag { font-size: 10.5px; font-weight: 700; color: var(--ink-2); background: var(--tint); border-radius: 999px; padding: 2px 7px; }
+  .tag.syn { background: #f0eafb; color: #6b4aa0; }
+  .clue-body { padding: 2px 12px 12px; font-size: 13px; }
+  .clue-body .lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 800; margin-top: 8px; }
+  .clue-body .records { color: var(--ink); margin: 2px 0; }
+  .clue-body .holmes { color: var(--ink-2); font-style: italic; border-left: 2px solid var(--border); padding-left: 10px; margin: 3px 0; }
+  .conns { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .conns .tag { background: #eef4ff; color: #395a9a; }
+
+  /* Objective / hint list */
+  .obj { display: flex; gap: 8px; align-items: flex-start; padding: 5px 0; border-bottom: 1px dashed var(--border-soft); }
+  .obj:last-child { border-bottom: none; }
+  .verb { flex: none; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; padding: 3px 8px; border-radius: 6px; margin-top: 1px; }
+  .v-examine { background: #eef4ff; color: #395a9a; }
+  .v-talk { background: #eafaf1; color: #2f7a52; }
+  .v-show { background: #fbe6d6; color: #a8560f; }
+  .v-use  { background: #f0eafb; color: #6b4aa0; }
+  .v-deduce { background: var(--ink); color: #fff; }
+  .v-travel, .v-reflect { background: var(--tint); color: var(--ink-2); }
+  .obj-txt { font-size: 13px; }
+  .soln { margin-top: 5px; }
+  .soln > summary { cursor: pointer; list-style: none; font-size: 11.5px; font-weight: 700; color: var(--accent-2); display: inline-flex; gap: 5px; align-items: center; }
+  .soln > summary:hover { text-decoration: underline; }
+  .soln-body { font-size: 12.5px; color: var(--ink-2); background: var(--tint); border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
+  .soln-body .how { color: var(--ink); font-weight: 700; margin-bottom: 4px; }
+  .soln-body .grants { margin-top: 5px; font-size: 11.5px; color: var(--accent-2); font-weight: 700; }
+
+  /* Interactions + documents */
+  .intr { border: 1px solid var(--border-soft); border-radius: 8px; margin: 7px 0; background: #fff; }
+  .intr > summary { list-style: none; cursor: pointer; padding: 8px 11px; font-size: 12.5px; font-weight: 700; display: flex; gap: 8px; align-items: center; }
+  .intr > summary:hover { background: var(--tint); }
+  .intr-body { padding: 0 11px 11px; font-size: 12.5px; color: var(--ink-2); }
+  .doc > summary { font-family: var(--serif); }
+  .doc-text { white-space: pre-wrap; font-family: var(--mono); font-size: 12px; line-height: 1.55; color: var(--ink); background: #fbf8f2; border: 1px solid #efe7d6; border-radius: 8px; padding: 12px 14px; margin-top: 4px; }
+
+  .mono-flag { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  /* ── Map view ────────────────────────────────────────── */
+  .map-wrap { border: 1px solid var(--border); border-radius: 14px; background: var(--paper); box-shadow: var(--shadow); padding: 8px; overflow-x: auto; }
+  .map-legend { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; color: var(--ink-2); font-size: 12.5px; }
+  .map-legend .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 5px; }
+  svg .edge { stroke: var(--border); stroke-width: 1.6; }
+  svg .node circle { fill: #fff; stroke: var(--ink); stroke-width: 2; cursor: pointer; transition: r .15s; }
+  svg .node:hover circle { stroke: var(--accent); }
+  svg .node text { font-family: var(--sans); font-size: 11px; fill: var(--ink); pointer-events: none; }
+  svg .node.dim { opacity: .22; }
+  svg .edge.dim { opacity: .12; }
+  .map-detail { margin-top: 16px; border: 1px dashed var(--border); border-radius: 12px; padding: 16px; min-height: 60px; color: var(--ink-2); }
+  .map-detail h3 { font-size: 17px; color: var(--ink); margin-bottom: 4px; }
+
+  /* ── Cast view ───────────────────────────────────────── */
+  .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .npc-card, .sus-card { border: 1px solid var(--border); border-radius: 12px; background: var(--paper); padding: 14px 16px; box-shadow: var(--shadow); }
+  .npc-card h3 { font-size: 16px; }
+  .npc-card .role { color: var(--accent-2); font-size: 12px; font-weight: 700; }
+  .npc-card .desc { font-size: 12.5px; color: var(--ink-2); margin: 8px 0; }
+  .sched { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .sched .s { font-size: 10.5px; background: var(--tint); border: 1px solid var(--border-soft); border-radius: 6px; padding: 2px 7px; color: var(--ink-2); }
+  .sus-card.guilty { border-color: var(--accent); border-width: 2px; background: #fffaf2; }
+  .sus-card h3 { font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .verdict { font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; }
+  .verdict.g { background: var(--accent); color: #fff; }
+  .verdict.h { background: var(--tint); color: var(--ink-2); }
+  .sus-card .detail { font-size: 12.5px; color: var(--ink); margin: 8px 0; }
+  .sus-card .rebut { font-size: 12px; color: var(--ink-2); font-style: italic; border-left: 2px solid var(--border); padding-left: 10px; margin-top: 6px; }
+  .sus-card .cleared { font-size: 11.5px; color: #2f7a52; margin-top: 6px; }
+
+  .section-lead { color: var(--ink-2); font-size: 13.5px; margin: 2px 0 18px; max-width: 70ch; }
+  h2.view-title { font-size: 22px; margin-bottom: 2px; }
+  .hidden { display: none !important; }
+</style>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <h1 id="m-title">London Bleeds — Story Map</h1>
+      <span class="sub" id="m-sub"></span>
+    </div>
+    <div class="stats" id="m-stats"></div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-view="walk" aria-selected="true">Walkthrough</button>
+    <button role="tab" data-view="map" aria-selected="false">Map</button>
+    <button role="tab" data-view="cast" aria-selected="false">Cast &amp; Suspects</button>
+  </nav>
+</header>
+
+<main>
+  <section class="view active" id="view-walk">
+    <div class="controls">
+      <label class="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#929DBF" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="search" type="search" placeholder="Search clues, characters, locations, puzzles…" />
+      </label>
+      <button class="btn" id="expand-all">Expand all</button>
+      <button class="btn" id="collapse-all">Collapse all</button>
+      <div class="actjump" id="actjump"></div>
+    </div>
+    <div id="acts"></div>
+  </section>
+
+  <section class="view" id="view-map">
+    <h2 class="view-title">The Investigation Map</h2>
+    <p class="section-lead">Every location, wired by its exit graph and arranged left-to-right by the act it first opens. Click a node for its detail; filter by act to trace the route.</p>
+    <div class="map-legend" id="map-legend"></div>
+    <div class="map-wrap"><svg id="map-svg" role="img" aria-label="Location graph"></svg></div>
+    <div class="map-detail" id="map-detail">Select a location above.</div>
+  </section>
+
+  <section class="view" id="view-cast">
+    <h2 class="view-title">Cast &amp; Suspects</h2>
+    <p class="section-lead">The people of Whitechapel — where each is found across the acts — and the moving-spotlight suspect roster: one guilty hand, six fair red herrings.</p>
+    <h3 style="margin:18px 0 10px">Suspect roster</h3>
+    <div class="grid-cards" id="suspects"></div>
+    <h3 style="margin:26px 0 10px">Cast</h3>
+    <div class="grid-cards" id="cast"></div>
+  </section>
+</main>
+
+<script>
+window.STORY = {"meta":{"title":"London Bleeds — Story Map","subtitle":"The Whitechapel Diaries · author overview","generatedAt":"2026-07-22","deductionThreshold":4,"smokingGun":"The Convergence","guiltyName":"Edmund Halward","actCount":7,"locationCount":15,"npcCount":12,"clueCount":19},"acts":[{"number":0,"name":"The Baker Street Vigil","dayOfWeek":"Thursday","date":"8 November 1888","weather":"Cold, Clear","anchor":"221B Baker Street","bridge":"","gate":{"advanceTo":1,"steps":[{"text":"Holmes's case-files wall and the four victims pinned upon it","verb":"examine"},{"text":"Holmes himself, for his reading of the case","verb":"talk"},{"text":"the 'Dear Boss' clipping — Holmes may make something of it","verb":"show"},{"text":"Abberline's telegrams stacked on the side table","verb":"examine"}]},"locations":[{"id":"baker_street","name":"221B Baker Street","shortName":"Baker Street","act":0,"revisit":false,"timeframe":"present","timeOfDay":"night","atmosphere":"Warm lamplight, tobacco smoke, and the familiar disorder of a working mind. Holmes' sitting room in the grip of an urgent case.","description":"The sitting room is barely recognisable. Case files have colonised the mantelpiece, the armchairs, and most of the floor. A large map of Whitechapel is pinned to the wall with coloured threads running between locations. Holmes stands at the window, his back to the room.","exits":[{"id":"dorset_street","name":"Dorset Street"}],"openPeriods":null,"requiresFlag":null,"characters":[{"id":"holmes","name":"Sherlock Holmes","role":"Consulting Detective"}],"clues":[{"id":"clue_00_campaign_timeline","name":"The Silence Since September","group":0,"trigger":"Case Files Wall","synthetic":false,"diaryNote":"Holmes's wall holds four names and then six weeks of silence. He insists the quiet is not an ending but a held breath — and that the man we want is one no witness can ever remember.","description":"Watson reads the case files wall. Four names in chronological order: Nichols. Chapman. Stride. Eddowes. Four murders in five weeks — two of them in a single night — and then nothing: six weeks of silence since the thirtieth of September. Pinned around the cards, the public's suspects: an American doctor taken into custody this week; the 'Leather Apron' the papers conjured; a gentleman of rumour. And one unremarkable note in Holmes's hand: 'Bond — police surgeon — & assistant.' Beside the timeline Holmes has written: 'The silence is data. Such appetites do not retire.'","holmes":"Four murders in five weeks, Watson, and then six weeks of nothing. Not compulsion — calculation. And mark this above all: in the whole campaign, not one reliable witness. The man we want is a man no one remembers. That is the only thing we know of him — and it is a great deal.","medicalPoints":0,"moralPoints":5,"connections":["One Pair of Hands"]}],"objectives":[{"id":"a0_casewall","verb":"examine","subject":"Holmes's case-files wall and the four victims pinned upon it","flag":"examined_baker_street_case_files_wall"},{"id":"a0_holmes","verb":"talk","subject":"Holmes himself, for his reading of the case","flag":"talked_to_holmes_at_baker_street"},{"id":"a0_newspile_examine","verb":"examine","subject":"the newspapers Holmes keeps piled by his chair"},{"id":"a0_newspile_show","verb":"show","subject":"the 'Dear Boss' clipping — Holmes may make something of it","flag":"showed_newspaper_pile_to_holmes","solution":{"kind":"show","itemName":"Newspaper Clipping (the \"Dear Boss\" letter)","targetName":"Sherlock Holmes","result":"SUCCESS — Holmes glances at the clipping of the published letter and hands it back almost at once. 'A journalist's invention, Watson. The hand is theatrical, the menace is rehearsed, and the name — Jack the Ripper — was coined to sell papers, not to sign crimes. Remember it: this case is littered with noise. The genuine article, when we meet it, will not perform for us.' He returns to the window."}},{"id":"a0_telegrams","verb":"examine","subject":"Abberline's telegrams stacked on the side table","flag":"examined_baker_street_telegrams_pile"}],"interactions":[],"documents":[{"name":"Newspaper Pile","text":"*The Star — facsimile reprint, \"Dear Boss\" letter.*\n\nDear Boss,\n\nI keep on hearing the police have caught me but they wont fix me just yet. I have laughed when they look so clever and talk about being on the right track. That joke about Leather Apron gave me real fits. I am down on whores and I shant quit ripping them till I do get buckled. Grand work the last job was. I gave the lady no time to squeal. How can they catch me now. I love my work and want to start again. You will soon hear of me with my funny little games. I saved some of the proper red stuff in a ginger beer bottle over the last job to write with but it went thick like glue and I cant use it. Red ink is fit enough I hope ha. ha. The next job I do I shall clip the ladys ears off and send to the police officers just for jolly wouldnt you. Keep this letter back till I do a bit more work, then give it out straight. My knife's so nice and sharp I want to get to work right away if I get a chance. Good luck.\n\nYours truly\nJack the Ripper\n\nDont mind me giving the trade name"},{"name":"Telegrams from Abberline","text":"*Telegrams received at Baker Street, October–November 1888.*\n\nOct 19 — Abberline to Holmes: Lusk received kidney parcel. Examining. City & Met coordinating.\n\nOct 29 — Abberline to Holmes: Bond confirms kidney human, female, matching Eddowes. Preserved to laboratory standard. No arrest imminent.\n\nNov 7 — Abberline to Holmes: American doctor TUMBLETY taken on indecency charges. Some here fancy him for the murders — specimens, hatred of women. Holding him while we look.\n\nNov 8 — Abberline to Holmes: Warren has resigned. The force is without a head and the press without mercy. Six weeks of quiet and no nearer. Come when you can. The quiet does not feel like an ending."},{"name":"Case Files Wall (Act 0)","text":"*Holmes's summary of the Whitechapel murders — evening, 8 November 1888.*\n\nPolly Nichols — Buck's Row, 31 Aug. Throat cut. Abdominal injuries. No uterus.\nAnnie Chapman — Hanbury St, 8 Sep. Uterus removed. Rings taken.\nElizabeth Stride — Dutfield's Yard, 30 Sep. Throat only — interrupted.\nCatherine Eddowes — Mitre Square, 30 Sep. Kidney and uterus. Message at Goulston St.\n\n*Five weeks of murder. Six weeks of silence. The silence is data.*\n\nPinned at the margin — the public's suspects:\n— Tumblety, American \"doctor\". In custody since the 7th. Specimens; hatred of women. LOUD.\n— \"Leather Apron\" (Pizer). Press invention. Alibied in September. The mob nearly had him.\n— A gentleman of rumour — erratic, lately dismissed. Unverified.\n— Bond — police surgeon — & assistant. (Forensic access, all scenes.)\n\n*Question: access to victims — professional? Social?*\n*Question: in eleven weeks, why has no one once remembered him?*"},{"name":"Case Files Wall","text":"*Holmes's summary of the Whitechapel murders, November 1888.*\n\nPolly Nichols — Buck's Row, 31 Aug. Throat cut. Abdominal injuries. No uterus.\nAnnie Chapman — Hanbury St, 8 Sep. Uterus removed. Rings taken.\nElizabeth Stride — Dutfield's Yard, 30 Sep. Throat only — interrupted.\nCatherine Eddowes — Mitre Square, 30 Sep. Kidney and uterus. Message at Goulston St.\nMary Jane Kelly — Miller's Court, 9 Nov. Most extensive. Several hours.\n\n*Pattern: acceleration. Increasing confidence. Decreasing caution.*\n*Question: access to victims — professional? Social?*\n*Question: present at investigation — same man?*"}]}]},{"number":1,"name":"The Last Murder","dayOfWeek":"Friday","date":"9 November 1888","weather":"Drizzle","anchor":"Dorset Street","bridge":"Our night's vigil had availed nothing. Then, that morning, word came that the killer had struck once more — behind a locked door, this time, in Miller's Court — and a cab bore us east into Whitechapel.","gate":{"advanceTo":2,"steps":[{"text":"the statement, read back to the man who gave it","verb":"show"},{"text":"the burned clothing left in the grate","verb":"examine"},{"text":"the bed, and what was left upon it","verb":"examine"},{"text":"Dr. Bond, who has not yet spoken his mind","verb":"talk"}]},"locations":[{"id":"dorset_street","name":"Dorset Street","shortName":"Dorset Street","act":1,"revisit":false,"timeframe":"present","timeOfDay":"morning","atmosphere":"Foggy mornings, muddy roads, constant noise from vendors and carts. A crowded and impoverished street in Whitechapel.","description":"The air is thick with the smell of coal smoke and the press of humanity. A crowd has gathered outside Miller's Court, their whispers a low hum against the city's noise.","exits":[{"id":"millers_court","name":"13 Miller's Court"},{"id":"baker_street","name":"221B Baker Street"},{"id":"h_division_station","name":"H Division Police Station"}],"openPeriods":null,"requiresFlag":null,"characters":[{"id":"holmes","name":"Sherlock Holmes","role":"Consulting Detective"},{"id":"abberline","name":"Inspector Abberline","role":"Scotland Yard Detective Inspector","masked":"a police inspector"},{"id":"hutchinson","name":"George Hutchinson","role":"Labourer; witness — knew Mary Jane Kelly","masked":"a lingering labourer"}],"clues":[{"id":"clue_11_account_outruns_light","name":"The Account Outruns the Light","group":11,"trigger":"witness_test","synthetic":true,"diaryNote":"I stood where Hutchinson stood and read his statement against the ground itself. The lamp is across the street; the passage is black as a coal cellar; the rain that night would have doused what little glow there was. Spats, a tie-pin, the trim of a coat — no honest glance could have carried so much away. The account is not a lie entire. But it has been dressed.","description":"Watson reads Hutchinson's statement where the man claims to have stood. The gas lamp is across the street; the archway is unlit; the night of the murder was wet. At that distance, in that light, a passing glance yields outline and gait — not spats, not a tie-pin, not a parcel in the left hand. The description has been embroidered after the fact. What remains true is simpler and stranger: a man stood here for three-quarters of an hour, watching.","holmes":"A witness who saw too much, Watson, has usually seen too little and furnished the rest. Strike the astrakhan man's wardrobe and what is left? A figure. Ordinary. Which is to say: our man, if he was here at all, looked like no one — again.","medicalPoints":5,"moralPoints":5,"connections":["A Man of No Fixed Description"]}],"objectives":[{"id":"a1_hutchinson","verb":"talk","subject":"the witness Hutchinson, lingering near the court"},{"id":"a1_account_test","verb":"use","subject":"his account, tried against the archway and the light where he says he stood","flag":"used_hutchinson_account_with_court_archway","solution":{"kind":"use","itemName":"Hutchinson's Account (Watson's note)","targetName":"Miller's Court Archway","result":"SUCCESS — Watson stands opposite the archway, note in hand, and reads the statement against the scene. The lamp across the street; the unlit passage; the remembered rain. One by one the account's fine details fail the light. What survives is the man himself: three-quarters of an hour, watching a doorway in the wet. The description was dressed. The waiting was real.","clueName":"The Account Outruns the Light","requiresLocation":"Dorset Street"}},{"id":"a1_account_confront","verb":"show","subject":"the statement, read back to the man who gave it","flag":"showed_hutchinson_account_to_hutchinson","solution":{"kind":"show","itemName":"Hutchinson's Account (Watson's note)","targetName":"George Hutchinson","result":"SUCCESS — Watson reads the statement back to him, slowly, and then asks — gently, as one asks a patient — how the lamp across the street showed him a tie-pin. Hutchinson's eagerness collapses by degrees. He did see a man, he says. Well-dressed — he thinks. The rest he... filled in, after, so they would take him seriously at the station. But he stood there the three-quarters of an hour, that part is gospel — he knew Mary three years, she'd have let him sleep on the floor, night like that. He looks at the archway rather than at Watson. 'I keep thinking, if I'd only stopped where I was till morning.' He has nothing else. He is not the man. He is only the last of her friends.","requireFlags":["used_hutchinson_account_with_court_archway"]}}],"interactions":[],"documents":[]},{"id":"millers_court","name":"13 Miller's Court","shortName":"Miller's Court","act":1,"revisit":false,"timeframe":"present","timeOfDay":"morning","atmosphere":"Claustrophobic, quiet, and deeply unsettling. The room where Mary Jane Kelly was found on the morning of November 9, 1888.","description":"A small rented room, barely large enough for the bed that dominates it. The fireplace is cold now, but the ash in the grate speaks of a fire that burned for hours. The air is thick with what Watson's medical training tells him not to name aloud.","exits":[{"id":"dorset_street","name":"Dorset Street"}],"openPeriods":null,"requiresFlag":null,"characters":[{"id":"bond","name":"Dr. Thomas Bond","role":"Police Surgeon","masked":"a police surgeon"},{"id":"edmund","name":"Edmund Halward","role":"Dr. Bond's Medical Assistant","masked":"Bond's assistant"}],"clues":[{"id":"clue_01_killer_confidence","name":"The Killer's Patience","group":1,"trigger":"Burned Clothing","synthetic":false,"diaryNote":"The clothes burned in the Miller's Court grate were kindled for light. He stayed in that room for hours, wholly unafraid of discovery. The calm of it unsettles me more than any frenzy could.","description":"The burned clothing in Miller's Court fireplace was used as a light source. The killer remained in the room for an extended period — utterly unafraid of discovery.","holmes":"He is not impulsive. He planned. He knew he would not be disturbed. A man of extraordinary nerve.","medicalPoints":10,"moralPoints":5,"connections":["The Respectable Stranger"]}],"objectives":[{"id":"a1_clothing","verb":"examine","subject":"the burned clothing left in the grate","flag":"examined_millers_court_burned_clothing"},{"id":"a1_bed","verb":"examine","subject":"the bed, and what was left upon it","flag":"examined_millers_court_the_bed"},{"id":"a1_bond","verb":"talk","subject":"Dr. Bond, who has not yet spoken his mind","flag":"talked_to_bond_at_millers_court"}],"interactions":[],"documents":[]}]},{"number":2,"name":"The First Victims","dayOfWeek":"Sunday","date":"11 November 1888","weather":"Overcast","anchor":"Whitechapel Mortuary","bridge":"Two days I spent turning Miller's Court over in my mind. If the killer's hand could be read anywhere, it was in the wounds of those who had gone before — and so, on the Sunday, we sought out Dr. Bond.","gate":{"advanceTo":3,"steps":[{"text":"Dr. Bond's autopsy ledger at the mortuary","verb":"examine"},{"text":"Dr. Phillips, the divisional surgeon, who examined the earliest victims himself","verb":"talk"},{"text":"the spot on Buck’s Row where the earliest body lay","verb":"examine"},{"text":"the yard at Hanbury Street","verb":"examine"},{"text":"the American doctor held at the station","verb":"talk"},{"text":"Holmes, on what he makes of the man in custody","verb":"talk"}]},"locations":[{"id":"whitechapel_mortuary","name":"Whitechapel Mortuary","shortName":"The Mortuary","act":2,"revisit":false,"timeframe":"present","timeOfDay":"midday","atmosphere":"Cold stone, formaldehyde, and the particular silence of a room that has seen too much death. Dr. Bond works here. His assistant is rarely far.","description":"The mortuary on Eagle Street is a plain municipal building that has processed more violent death this autumn than in the previous decade combined. Bond's examination table is spotless. His records are meticulous. On a shelf above his desk, five manila folders — one for each victim — are arranged in chronological order.","exits":[{"id":"dorset_street","name":"Dorset Street"},{"id":"bucks_row","name":"Buck's Row"}],"openPeriods":["morning","afternoon"],"requiresFlag":null,"characters":[{"id":"holmes","name":"Sherlock Holmes","role":"Consulting Detective"},{"id":"bond","name":"Dr. Thomas Bond","role":"Police Surgeon","masked":"a police surgeon"},{"id":"edmund","name":"Edmund Halward","role":"Dr. Bond's Medical Assistant","masked":"Bond's assistant"},{"id":"phillips","name":"Dr. George Bagster Phillips","role":"H Division Police Surgeon"}],"clues":[{"id":"clue_02b_campaign_pattern","name":"One Pair of Hands","group":2,"trigger":"Autopsy Ledger","synthetic":false,"diaryNote":"I read Bond's ledger from end to end — Nichols to Kelly. One approach, one signature, growing surer with each entry. The same hand did all of it, and learned as it went.","description":"Watson reads Bond's autopsy ledger in sequence: Nichols, Chapman, Stride, Eddowes, Kelly. The incision angles are consistent. The approach is consistent. The confidence grows with each entry. One person did this — and improved with practice.","holmes":"Five murders. One signature. The progression from Nichols to Kelly is not chaos — it is a campaign. He was learning.","medicalPoints":10,"moralPoints":5,"connections":["Anatomical Precision","The Removed Kidney"]},{"id":"clue_02c_small_hands","name":"The Hands","group":2,"trigger":"Dr. Bond's Desk","synthetic":false,"diaryNote":"Buried in Bond's notes on Kelly: incisions consistent with small, steady hands, practised in confined spaces. He set it down as a passing remark. I read it twice.","description":"Watson reads Bond's post-mortem note on Kelly. A single clinical observation buried in the anatomical detail: 'Incision patterns consistent with unusually small, steady hands. The contained precision suggests familiarity with restricted anatomical spaces.' Bond wrote it as a passing remark. Watson reads it twice.","holmes":"Small hands. Precise in confined spaces. Bond noticed the signature without understanding what he was signing. This is not the polish of a qualified surgeon — it is the precision of a man who learned anatomy in pieces, by watching and by study. Any of the medical men who pass through this room would fit the frame, Watson. The frame is what matters.","medicalPoints":5,"moralPoints":0,"connections":["Anatomical Precision","The Convergence","The Silent Witness"]}],"objectives":[{"id":"a2_mortuary","verb":"examine","subject":"Dr. Bond's autopsy ledger at the mortuary","flag":"examined_whitechapel_mortuary"},{"id":"a2_phillips","verb":"talk","subject":"Dr. Phillips, the divisional surgeon, who examined the earliest victims himself","flag":"talked_to_phillips_at_whitechapel_mortuary"}],"interactions":[],"documents":[{"name":"Autopsy Ledger","text":"*Whitechapel Mortuary Post-Mortem Ledger — Dr. Thomas Bond, 1888.*\n\nEntry 3 — Annie Chapman, 8 September:\nUterus removed with a single clean incision. Cuts exhibit familiarity with abdominal cavity. No professional qualification evident, but practical anatomical knowledge confirmed. Organ retention: deliberate.\n\nEntry 5 — Catherine Eddowes, 30 September:\nLeft kidney removed within estimated four minutes. Efficiency consistent with prior practice. Spirit of wine fixative observed on tissue fragment (facial). Laboratory concentration, per standing procedure.\n\nEntry 6 — Mary Jane Kelly, 9 November:\n[See supplementary notes. Not reproduced here.]"}]},{"id":"bucks_row","name":"Buck's Row","shortName":"Buck's Row","act":2,"revisit":false,"timeframe":"reconstruction","timeOfDay":"night","atmosphere":"Quiet and industrial. A narrow street lined with warehouses. Ordinary now, but Watson knows what happened here.","description":"The cobblestones are slick with November damp. The warehouses loom like silent sentinels. Nothing marks this spot as different from any other street in Whitechapel — which is, Watson realises, precisely the point.","exits":[{"id":"whitechapel_mortuary","name":"Whitechapel Mortuary"},{"id":"hanbury_street","name":"Hanbury Street"},{"id":"whitechapel_pub","name":"The Ten Bells"}],"openPeriods":null,"requiresFlag":null,"characters":[],"clues":[{"id":"clue_01_respectable_approach","name":"The Respectable Stranger","group":1,"trigger":"Cobblestone Roadway","synthetic":false,"diaryNote":"At Buck's Row the witnesses took Nichols for a drunk, not a victim. Whoever approached her carried no menace at all — he passes for respectable, and that is his armour.","description":"Witnesses at Buck's Row believed Nichols was merely drunk, not attacked. The killer approached calmly — he appeared unthreatening, even respectable.","holmes":"Our man moves among victims without raising alarm. He is not perceived as a threat. He presents well.","medicalPoints":5,"moralPoints":0,"connections":["The Killer's Patience","An Incomplete Education"]}],"objectives":[{"id":"a2_bucks","verb":"examine","subject":"the spot on Buck’s Row where the earliest body lay","flag":"examined_bucks_row"}],"interactions":[],"documents":[]},{"id":"h_division_station","name":"H Division Police Station","shortName":"H Division","act":2,"revisit":false,"timeframe":"present","timeOfDay":"afternoon","atmosphere":"Overcrowded, understaffed, and running on cold tea and exhaustion. The operational heart of the Whitechapel investigation — and a place where failure is felt personally.","description":"The main room of Commercial Street station is papered with witness statements, sketch portraits, and contradictory descriptions. Abberline has a small office at the back. The door is always open. He is rarely sitting down.","exits":[{"id":"dorset_street","name":"Dorset Street"},{"id":"whitechapel_pub","name":"The Ten Bells"}],"openPeriods":null,"requiresFlag":null,"characters":[{"id":"abberline","name":"Inspector Abberline","role":"Scotland Yard Detective Inspector","masked":"a police inspector"},{"id":"tumblety","name":"Francis Tumblety","role":"American \"doctor\" — in police custody"}],"clues":[{"id":"clue_04b_adjustable_appearance","name":"A Man of No Fixed Description","group":4,"trigger":"Witness Description Wall","synthetic":false,"diaryNote":"H Division's witness wall holds dozens of accounts and no two agree — tall, short, fair, dark, rough, respectable. The contradiction is the description: he shows each witness only what he wishes them to see.","description":"The witness description wall at H Division contains dozens of accounts. No two agree on height, build, age, or dress. Tall. Short. Dark. Fair. Respectable. Rough. The contradictions are not failures of observation — the witnesses saw what the killer wanted them to see.","holmes":"He presented differently to each witness. This is not inconsistency in the witnesses — it is consistency in the killer. He is a man of adjustable appearance. Ordinariness is his camouflage.","medicalPoints":5,"moralPoints":0,"connections":["The Respectable Stranger","The Silent Witness","The Account Outruns the Light"]}],"objectives":[{"id":"a2_tumblety","verb":"talk","subject":"the American doctor held at the station","flag":"talked_to_tumblety_at_h_division_station"},{"id":"a2_holmes","verb":"talk","subject":"Holmes, on what he makes of the man in custody","flag":"talked_to_holmes_at_h_division_station"}],"interactions":[],"documents":[]},{"id":"hanbury_street","name":"Hanbury Street","shortName":"Hanbury Street","act":2,"revisit":false,"timeframe":"reconstruction","timeOfDay":"morning","atmosphere":"Crowded working-class neighbourhood. The backyard behind 29 Hanbury Street — a place of ordinary horror.","description":"The yard is small, enclosed by a wooden fence. People pass through it daily now, indifferent or unaware. Watson consults Bond's report: the organ removal was clean, deliberate, and practised. Not the act of a man who had never done this before.","exits":[{"id":"bucks_row","name":"Buck's Row"},{"id":"dutfields_yard","name":"Dutfield's Yard"}],"openPeriods":null,"requiresFlag":null,"characters":[],"clues":[{"id":"clue_02_anatomical_knowledge","name":"Anatomical Precision","group":2,"trigger":"Ground (Body Discovery Site)","synthetic":false,"diaryNote":"Bond's report on Chapman: the uterus taken by a single clean, knowing incision. No butcher's work — these are hands schooled in anatomy, as mine once were.","description":"Dr. Bond's report on Annie Chapman: the uterus was surgically removed. The incision indicates familiarity with abdominal anatomy — not the work of a common butcher.","holmes":"Medical student. Anatomical assistant. Slaughterman. One of these three. The precision narrows the field considerably.","medicalPoints":10,"moralPoints":0,"connections":["The Removed Kidney","An Incomplete Education"]}],"objectives":[{"id":"a2_hanbury","verb":"examine","subject":"the yard at Hanbury Street","flag":"examined_hanbury_street"}],"interactions":[],"documents":[]},{"id":"whitechapel_pub","name":"The Ten Bells","shortName":"The Ten Bells","act":2,"revisit":false,"timeframe":"present","timeOfDay":"night","atmosphere":"Sawdust floors, gas lamps turned low, the smell of cheap gin and wet wool. A public house that has served Spitalfields for a century and has seen everything.","description":"The Ten Bells on Commercial Street stands directly opposite Spitalfields Market. It is the kind of pub that doesn't need a reputation — it simply exists, as it always has, as a place where the people of this neighbourhood come to be warm. Several of the women who worked these streets drank here. Watson is not sure all of them are still alive.","exits":[{"id":"h_division_station","name":"H Division Police Station"},{"id":"bucks_row","name":"Buck's Row"}],"openPeriods":null,"requiresFlag":null,"characters":[{"id":"abberline","name":"Inspector Abberline","role":"Scotland Yard Detective Inspector","masked":"a police inspector"},{"id":"hutchinson","name":"George Hutchinson","role":"Labourer; witness — knew Mary Jane Kelly","masked":"a lingering labourer"},{"id":"phillips","name":"Dr. George Bagster Phillips","role":"H Division Police Surgeon"},{"id":"barmaid","name":"The Barmaid","role":"Barmaid, the Ten Bells"}],"clues":[],"objectives":[],"interactions":[],"documents":[]}]},{"number":3,"name":"The Double Event","dayOfWeek":"Wednesday","date":"14 November 1888","weather":"Foggy","anchor":"Dutfield's Yard","bridge":"The mortuary had given us a method; now we wanted the ground itself. No one had properly walked the night of the double murder — two women killed within the hour, across two jurisdictions — and on the Wednesday we set out to retrace it.","gate":{"advanceTo":4,"steps":[{"text":"Dutfield's Yard, where the night's first body was found","verb":"examine"},{"text":"Pizer, the man the mob named 'Leather Apron'","verb":"talk"},{"text":"the corner of Mitre Square","verb":"examine"},{"text":"the doorway on Goulston Street and the chalked wall","verb":"examine"},{"text":"Holmes, before the erased writing","verb":"talk"}]},"locations":[{"id":"dutfields_yard","name":"Dutfield's Yard","shortName":"Dutfield's Yard","act":3,"revisit":false,"timeframe":"reconstruction","timeOfDay":"night","atmosphere":"Lively due to the nearby club, but quiet within the yard itself. Where Elizabeth Stride was found — and where she was left unfinished.","description":"A small yard beside the International Working Men's Club. The sounds of political discussion drift from the open windows above, as they did on the night of September 30th. Diemschutz's cart entered through the gate. The horse shied. That was all it took.","exits":[{"id":"hanbury_street","name":"Hanbury Street"},{"id":"working_mens_club","name":"International Working Men's Club"},{"id":"mitre_square","name":"Mitre Square"}],"openPeriods":null,"requiresFlag":null,"characters":[{"id":"holmes","name":"Sherlock Holmes","role":"Consulting Detective"}],"clues":[{"id":"clue_03_interrupted_ritual","name":"An Interrupted Man","group":3,"trigger":"Yard Entrance Gate","synthetic":false,"diaryNote":"Stride's throat was cut and nothing more — Diemschutz's cart broke in upon him. Denied his ritual, he went out and found another woman the same night. This is compulsion, not chance.","description":"Stride's wound was a single throat cut — no mutilation followed. Diemschutz's cart interrupted the killer mid-act. He was compelled to seek another victim that same night.","holmes":"The ritual was not completed. This man has a compulsion. The absence of mutilation here is itself the clue.","medicalPoints":5,"moralPoints":5,"connections":["The Removed Kidney"]}],"objectives":[{"id":"a3_dutfields","verb":"examine","subject":"Dutfield's Yard, where the night's first body was found","flag":"examined_dutfields_yard"}],"interactions":[],"documents":[]},{"id":"goulston_street","name":"Goulston Street","shortName":"Goulston Street","act":3,"revisit":false,"timeframe":"reconstruction","timeOfDay":"night","atmosphere":"Busy street with lingering tension. The wall where the graffiti was discovered is just a wall now — Commissioner Warren had it erased before dawn.","description":"The street is bustling, but Watson stands at the precise spot where, on the night of September 30th, a Metropolitan constable found a piece of Eddowes' apron and a chalk inscription on the wall above it. The inscription was wiped away before it could be photographed. Watson finds this inexplicable and infuriating.","exits":[{"id":"mitre_square","name":"Mitre Square"},{"id":"lusk_office","name":"George Lusk's Office"}],"openPeriods":null,"requiresFlag":null,"characters":[],"clues":[{"id":"clue_03b_unremarked_passage","name":"The Unremarked Passage","group":3,"trigger":"Apron Fragment Location","synthetic":false,"diaryNote":"I traced his route from Mitre Square — across the boundary, through the heart of the Jewish quarter, the night's evidence in his hand — and not one soul stopped, challenged, or afterwards recalled him. He walks these streets as though he belongs to them.","description":"The spot where the constable found the piece of Eddowes' apron. Watson traces the route in his mind: from Mitre Square, across the jurisdiction line, through the heart of the Jewish quarter — a man carrying away evidence of the night's second murder, minutes after committing it — and not one soul stopped him, challenged him, or afterwards remembered him.","holmes":"Consider what that walk required, Watson. Not luck — licence. He passed because his presence raised no question; he belongs to these streets the way a lamplighter belongs to them. We hunt no skulking outsider. We hunt a man whose face is a kind of permission.","medicalPoints":0,"moralPoints":10,"connections":["The Respectable Stranger","A Man of No Fixed Description","The Silent Witness"]}],"objectives":[{"id":"a3_goulston","verb":"examine","subject":"the doorway on Goulston Street and the chalked wall","flag":"examined_goulston_street"},{"id":"a3_holmes","verb":"talk","subject":"Holmes, before the erased writing","flag":"talked_to_holmes_at_goulston_street"}],"interactions":[],"documents":[]},{"id":"working_mens_club","name":"International Working Men's Club","shortName":"Working Men's Club","act":3,"revisit":false,"timeframe":"reconstruction","timeOfDay":"night","atmosphere":"Political discussions, cigarette smoke, crowded benches. A meeting hall where ideas about justice and labour fill the air.","description":"The room is filled with the scent of cheap tobacco and the energy of debate. Posters and newspapers line the walls. Diemschutz stands near the bar, a man who discovered a body six weeks ago and has not quite recovered his equilibrium.","exits":[{"id":"dutfields_yard","name":"Dutfield's Yard"}],"openPeriods":null,"requiresFlag":null,"characters":[{"id":"abberline","name":"Inspector Abberline","role":"Scotland Yard Detective Inspector","masked":"a police inspector"},{"id":"diemschutz","name":"Louis Diemschutz","role":"Steward, International Working Men's Club","masked":"the club steward"},{"id":"pizer","name":"John Pizer","role":"Bootmaker — the man the press called \"Leather Apron\""}],"clues":[],"objectives":[{"id":"a3_pizer","verb":"talk","subject":"Pizer, the man the mob named 'Leather Apron'","flag":"talked_to_pizer_at_working_mens_club"}],"interactions":[],"documents":[]},{"id":"mitre_square","name":"Mitre Square","shortName":"Mitre Square","act":3,"revisit":false,"timeframe":"reconstruction","timeOfDay":"night","atmosphere":"Cold and isolated with echoing footsteps. A stone square within the City of London, bounded by dark alleyways.","description":"The dark alleyways provide multiple escape routes across three jurisdictions. Within minutes of the murder here, the killer had left City Police territory entirely. Watson reads from Bond's report: kidney and uterus removed in under four minutes. Holmes says nothing for a long moment.","exits":[{"id":"dutfields_yard","name":"Dutfield's Yard"},{"id":"goulston_street","name":"Goulston Street"}],"openPeriods":null,"requiresFlag":null,"characters":[],"clues":[{"id":"clue_04_kidney_removal","name":"The Removed Kidney","group":4,"trigger":"Square Walls","synthetic":false,"diaryNote":"Eddowes' left kidney was excised within minutes, and cleanly. Such speed is not a first attempt. He has done this before — and not in any back alley.","description":"Eddowes' left kidney was surgically excised within minutes. The speed and precision confirm repeated anatomical familiarity — this was not the first time he had handled such tissue.","holmes":"He has done this before in a clinical setting. The kidney was not taken in panic. It was taken deliberately.","medicalPoints":10,"moralPoints":0,"connections":["Anatomical Precision","The Kidney Parcel","The Other Half"]}],"objectives":[{"id":"a3_mitre","verb":"examine","subject":"the corner of Mitre Square","flag":"examined_mitre_square"}],"interactions":[],"documents":[]}]},{"number":4,"name":"The Letter","dayOfWeek":"Saturday","date":"17 November 1888","weather":"Cold, Clear","anchor":"George Lusk's Office","bridge":"Three days on, a different thread drew us. George Lusk, of the Vigilance Committee, had received through the post a letter and a parcel that no sane man would have sent — and the time had come to see them for ourselves.","gate":{"advanceTo":5,"steps":[{"text":"the parcel and the letter sent to Mr. Lusk","verb":"examine"},{"text":"Inspector Abberline, on where the trail now leads","verb":"talk"},{"text":"Holmes, for his reading of the letter","verb":"talk"}]},"locations":[{"id":"lusk_office","name":"George Lusk's Office","shortName":"Lusk Office","act":4,"revisit":false,"timeframe":"present","timeOfDay":"afternoon","atmosphere":"Cluttered with papers and letters. Meeting room of the Whitechapel Vigilance Committee.","description":"The office is small and cramped, filled with the correspondence of a terrified district. Lusk sits behind a desk that has become a clearing house for public fear.","exits":[{"id":"goulston_street","name":"Goulston Street"},{"id":"bond_office","name":"Dr. Bond's Office"}],"openPeriods":null,"requiresFlag":null,"characters":[{"id":"holmes","name":"Sherlock Holmes","role":"Consulting Detective"},{"id":"abberline","name":"Inspector Abberline","role":"Scotland Yard Detective Inspector","masked":"a police inspector"},{"id":"bond","name":"Dr. Thomas Bond","role":"Police Surgeon","masked":"a police surgeon"},{"id":"edmund","name":"Edmund Halward","role":"Dr. Bond's Medical Assistant","masked":"Bond's assistant"},{"id":"lusk","name":"George Lusk","role":"Chairman, Whitechapel Vigilance Committee"}],"clues":[{"id":"clue_05_from_hell_letter","name":"The From Hell Letter","group":5,"trigger":"The From Hell Letter","synthetic":false,"diaryNote":"I copied the Lusk letter entire — crude in every line, yet the hand steady and unhurried. Genuine ignorance, or a performance of it? I cannot yet say. I keep the transcript close.","description":"The letter sent to George Lusk with the kidney — crudely spelled from its first line to its last, taunting, claiming the deed outright. A dozen errors crowd its few sentences, yet the hand itself is steady and unhurried. Genuine illiteracy, or a performance of it? Watson copies the text into his notebook entire.","holmes":"A man barely lettered, Watson — or one who wishes us to believe it. The hand is steady; the errors are consistent; the cruelty is genuine. Keep your transcript close. Documents have a way of answering one another, given time.","medicalPoints":5,"moralPoints":5,"connections":["The Convergence","The Kidney Parcel","The Letter Knows Too Much"]},{"id":"clue_05_human_kidney","name":"The Kidney Parcel","group":5,"trigger":"The Kidney Parcel","synthetic":false,"diaryNote":"The half-kidney sent to Lusk is unmistakably human, the artery cut clean, and preserved in spirit of wine to laboratory standard — exactly as Bond keeps a specimen. The man who kept this still works at a bench.","description":"Watson examines the preserved half-kidney sent to Lusk. Unmistakably human; the renal artery cut a clean inch from the organ. And the preservation itself arrests him: spirit of wine at a precise laboratory concentration — the standard mortuary method, exactly as a post-mortem specimen would be kept. Bond confirms it without being asked: 'This is how my own laboratory keeps a specimen.'","holmes":"Mark the preservation, Watson, more than the cutting. A showman's curio is crudely kept — this was fixed by laboratory hands, to laboratory standards. The man who kept this kidney keeps specimens for his living. He did not flee, and he did not vanish. He is still at his bench.","medicalPoints":10,"moralPoints":5,"connections":["The Removed Kidney","The Convergence","The Other Half","The Letter Knows Too Much"]},{"id":"clue_12_letter_knows_too_much","name":"The Letter Knows Too Much","group":12,"trigger":"letter_kidney_crossref","synthetic":true,"diaryNote":"I set Bond's notes on the kidney beside the letter that boasted of it. The letter itself says nothing a fairground barker could not invent — half a kidney, fried and eaten. But held against what Bond's own hand recorded, and against what the papers never printed, the boast reads differently. A man who had only read the newspapers could not have written it so carelessly right.","description":"Watson lays the kidney examination notes beside the From Hell letter and reads one against the other. The letter's own words are crude and say little — a boast of taking, preserving, eating. But Bond's notes, in Watson's hand from the examination itself, record what no newspaper ever carried: the organ's condition, the attached inch of renal artery. Nothing in the letter names these details outright, and yet Watson finds himself unable to dismiss the coincidence — a hoaxer, working only from the papers, would have had nothing but the papers to embroider from. Whoever wrote those clumsy lines wrote them with the thing, or the knowledge of it, close at hand.","holmes":"The hoax letters trade only in what the papers printed, Watson — that is how I have discarded a hundred of them without a second reading. This one I cannot discard so easily. Set beside Bond's notes it does not contradict a single particular, and a man inventing from newsprint alone tends to invent wrongly, somewhere, eventually. That is my judgment, not a certainty carved in stone — but I would stake a good deal on it.","medicalPoints":5,"moralPoints":5,"connections":["The From Hell Letter","The Kidney Parcel"]}],"objectives":[{"id":"a4_lusk","verb":"examine","subject":"the parcel and the letter sent to Mr. Lusk","flag":"examined_lusk_office"},{"id":"a4_abberline","verb":"talk","subject":"Inspector Abberline, on where the trail now leads","flag":"talked_to_abberline_at_lusk_office"},{"id":"a4_holmes","verb":"talk","subject":"Holmes, for his reading of the letter","flag":"talked_to_holmes_at_lusk_office"},{"id":"a4_kidney_letter","verb":"use","subject":"Bond's notes on the kidney, set against the letter that boasts of it","flag":"used_kidney_parcel_with_from_hell_letter","solution":{"kind":"use","itemName":"Kidney Examination Notes","targetName":"From Hell Letter (transcript)","result":"SUCCESS — Watson reads the letter's boast against Bond's examination notes, line by line. The papers printed every crude word of the letter, but the notes hold what was never published: the organ's condition, the attached inch of artery. The letter contradicts nothing Bond recorded — and a hoaxer working only from newsprint would have had nothing else to work from. Watson sets the pages down convinced the writer had handled the thing, not merely read about it.","clueName":"The Letter Knows Too Much"}}],"interactions":[{"label":"SHOW From Hell Letter (transcript) TO Dr. Thomas Bond","result":"SUCCESS — Bond reads the letter without expression. He pauses at the passage describing the kidney's condition. 'Whoever preserved this,' he says quietly, 'knew the correct temperature and duration. That is not general knowledge.' He does not look at his assistant. He hands the letter back without comment."},{"label":"SHOW From Hell Letter (transcript) TO Inspector Abberline","result":"SUCCESS — Abberline has seen the letter before, but he reads it again with Watson present. 'The spelling,' he says. 'We noticed it. Could be illiteracy, could be affectation. The press have printed the thing in full — half of London has read it.' He folds it carefully. 'The kidney, though. That detail was never published.'"},{"label":"SHOW From Hell Letter (transcript) TO Sherlock Holmes","result":"SUCCESS — Holmes reads it twice, then holds it to the light. 'The vocabulary is deliberate, Watson. The errors are consistent — not random. This man knows how to spell and is choosing not to. Or he learned spoken English before written English. Either way: educated, but not schooled in the conventional sense.' He sets it down. 'Keep it.'"},{"label":"SHOW Kidney Examination Notes TO Dr. Thomas Bond","result":"SUCCESS — Bond examines the preserved tissue with clinical focus. 'Spirit of wine,' he says. 'Standard fixative. But the concentration is specific — this is not a general formula. This matches the preservation method I use in my own laboratory.' A long pause. 'I document the method in my practice notes. Those notes pass through several hands.'"}],"documents":[{"name":"The From Hell Letter","text":"*From Hell.*\n\nMr Lusk,\nSor\nI send you half the Kidne I took from one woman prasarved it for you tother piece I fried and ate it was very nise. I may send you the bloody knif that took it out if you only wate a whil longer.\n\nsigned Catch me when you can Mishter Lusk"}]}]},{"number":5,"name":"The Suspicion","dayOfWeek":"Tuesday","date":"20 November 1888","weather":"Overcast","anchor":"Dr. Bond's Office","bridge":"The pieces would not sit quietly. Three days I turned them over, and each time they pointed back to the records themselves — and so, on the Tuesday, we made our way to Bond's office, where the whole grim catalogue was kept.","gate":{"advanceTo":6,"steps":[{"text":"Advances ONLY on a correct deduction (needs the convergence clue — see the Act 5 steps)."}]},"locations":[{"id":"bond_office","name":"Dr. Bond's Office","shortName":"Bond Office","act":5,"revisit":false,"timeframe":"present","timeOfDay":"midday","atmosphere":"Clinical and quiet. Contains forensic records and anatomical specimens. Bond's assistant works at a small desk by the window.","description":"The room smells of formaldehyde and old paper. Medical reports are stacked neatly on the desk. Near the window, Bond's assistant sits cataloguing notes — head down, pen moving steadily, apparently unaware of Watson's scrutiny.","exits":[{"id":"lusk_office","name":"George Lusk's Office"},{"id":"private_asylum","name":"The Private Asylum"},{"id":"baker_street","name":"221B Baker Street"}],"openPeriods":["morning","afternoon","evening"],"requiresFlag":null,"characters":[{"id":"holmes","name":"Sherlock Holmes","role":"Consulting Detective"},{"id":"abberline","name":"Inspector Abberline","role":"Scotland Yard Detective Inspector","masked":"a police inspector"},{"id":"bond","name":"Dr. Thomas Bond","role":"Police Surgeon","masked":"a police surgeon"},{"id":"edmund","name":"Edmund Halward","role":"Dr. Bond's Medical Assistant","masked":"Bond's assistant"}],"clues":[{"id":"clue_07_edmunds_presence","name":"The Silent Witness","group":7,"trigger":"Forensic Examination Reports","synthetic":false,"diaryNote":"Reviewing Bond's reports, I see the assistant has been present at every stage — Miller's Court, each post-mortem, the office. It always seemed natural. I realise I have never once heard the man speak.","description":"Watson reviews Bond's forensic reports and notes that the assistant was present at every significant stage of the investigation — Miller's Court, every post-mortem, and now Bond's office. His presence has always seemed natural. It occurs to Watson that he has never heard the man volunteer a single word.","holmes":"He is always there. At first I dismissed it as his function. Now I find I cannot dismiss it at all.","medicalPoints":5,"moralPoints":5,"connections":["The Convergence","An Incomplete Education"]},{"id":"clue_09_medical_background","name":"An Incomplete Education","group":9,"trigger":"Anatomical Textbooks","synthetic":false,"diaryNote":"Holmes's enquiries: Edmund Halward read medicine in London and withdrew before qualifying; his father a respected physician. Anatomical knowledge, medical access, respectability — he answers every line of the profile.","description":"Holmes' enquiries confirm: Edmund Halward studied medicine at a London institution but withdrew unexpectedly before completing his training. His father is a respected physician.","holmes":"Anatomical knowledge. Access to medical settings. Social respectability. He fits every criterion of the profile I constructed.","medicalPoints":5,"moralPoints":0,"connections":["Anatomical Precision","The Silent Witness"]}],"objectives":[{"id":"a5_note","verb":"examine","subject":"the assistant's cataloguing note among Bond's records"}],"interactions":[{"label":"SHOW Assistant's Forensic Note (copy) TO Inspector Abberline","result":"SUCCESS — Abberline examines the forensic note carefully. He notes the precise, unhurried cataloguing style, turns it over once, and hands it back. 'Thorough man, Bond's assistant. Why?' He waits. Whatever Watson is reaching for, it has not yet taken shape enough to say aloud."},{"label":"SHOW Assistant's Forensic Note (copy) TO Sherlock Holmes","result":"SUCCESS — Holmes reads the note once, and something crosses his face — there and gone. 'Not here, Watson.' He folds the copy back into Watson's hand. 'Documents answer one another at a desk, not in another man's office. Bring it home. Bring everything home.' He says nothing further."},{"label":"SHOW From Hell Letter (transcript) TO Dr. Thomas Bond","result":"SUCCESS — Bond reads the letter without expression. He pauses at the passage describing the kidney's condition. 'Whoever preserved this,' he says quietly, 'knew the correct temperature and duration. That is not general knowledge.' He does not look at his assistant. He hands the letter back without comment."},{"label":"SHOW From Hell Letter (transcript) TO Inspector Abberline","result":"SUCCESS — Abberline has seen the letter before, but he reads it again with Watson present. 'The spelling,' he says. 'We noticed it. Could be illiteracy, could be affectation. The press have printed the thing in full — half of London has read it.' He folds it carefully. 'The kidney, though. That detail was never published.'"},{"label":"SHOW From Hell Letter (transcript) TO Sherlock Holmes","result":"SUCCESS — Holmes reads it twice, then holds it to the light. 'The vocabulary is deliberate, Watson. The errors are consistent — not random. This man knows how to spell and is choosing not to. Or he learned spoken English before written English. Either way: educated, but not schooled in the conventional sense.' He sets it down. 'Keep it.'"},{"label":"SHOW Kidney Examination Notes TO Dr. Thomas Bond","result":"SUCCESS — Bond examines the preserved tissue with clinical focus. 'Spirit of wine,' he says. 'Standard fixative. But the concentration is specific — this is not a general formula. This matches the preservation method I use in my own laboratory.' A long pause. 'I document the method in my practice notes. Those notes pass through several hands.'"},{"label":"SHOW Forensic Reports Summary TO Inspector Abberline","result":"SUCCESS — Abberline reads the summary, then lays it on his desk and puts his hand flat on it. 'If this is right,' he says, 'then whoever did this was at every scene in a professional capacity. Not a vagrant. Not a butcher. Someone with a reason to be there.' He does not say who. But his eyes move to the window that faces Bond's office across the courtyard."}],"documents":[{"name":"Assistant's Forensic Note","text":"*Post-mortem cataloguing note — Miller's Court, 9 November 1888.*\n*Transcribed by E. Halward, assistant to Dr. T. Bond.*\n\nInjuries consistent with prior cases. Organ removal: uterus, heart, portions of kidney. Incision depth and angle consistent with Chapman and Eddowes examinations. Tissue prasarved in spirit of wine (standard laboratory concentration, per standing procedure). Fire in grate burned approximately four hours — consistent with witness reports of warmth in the room at time of discovery.\n\n*E. Halward*"}]},{"id":"baker_street","name":"221B Baker Street","shortName":"Baker Street","act":0,"revisit":true,"timeframe":"present","timeOfDay":"night","atmosphere":"Warm lamplight, tobacco smoke, and the familiar disorder of a working mind. Holmes' sitting room in the grip of an urgent case.","description":"The sitting room is barely recognisable. Case files have colonised the mantelpiece, the armchairs, and most of the floor. A large map of Whitechapel is pinned to the wall with coloured threads running between locations. Holmes stands at the window, his back to the room.","exits":[{"id":"dorset_street","name":"Dorset Street"}],"openPeriods":null,"requiresFlag":null,"characters":[],"clues":[{"id":"clue_06_prasarved_spelling","name":"The Convergence","group":6,"trigger":"document_convergence","synthetic":true,"diaryNote":"At Holmes's desk I laid the assistant's note beside the letter, and there it was in both hands, written without hesitation: 'prasarved.' The same misshapen vowel. The note is signed Edmund Halward — and the shapeless thing we have chased for eleven weeks has, at last, a name.","description":"At Holmes's desk, Watson lays the assistant's forensic note beside the From Hell letter. The styles diverge — one clinical, one a performance of ignorance — but there it is, in both hands, written without hesitation: 'prasarved.' The same idiosyncratic vowel in the same uncertain position. Watson's eye goes to the casefiles wall — the assistant present at every scene — and then to the name signed at the foot of the note: Edmund Halward.","holmes":"Two men do not spell 'preserved' as 'prasarved'. The small hands. The laboratory fixative. The man present at every post-mortem whom no one has ever once remarked. It was all there, Watson — from the first morning. So that is his name.","medicalPoints":10,"moralPoints":5,"connections":["The From Hell Letter","The Silent Witness"]}],"objectives":[{"id":"a5_convergence","verb":"use","subject":"the note and the letter, set side by side at Baker Street","flag":"used_edmund_forensic_note_with_from_hell_letter","solution":{"kind":"use","itemName":"Assistant's Forensic Note (copy)","targetName":"From Hell Letter (transcript)","result":"SUCCESS — Watson places the forensic note beside the From Hell letter and reads them in parallel. The style diverges — one is clinical, one is performed illiteracy. But there it is: 'prasarved.' The same idiosyncratic vowel, in the same uncertain position, written without hesitation by the same hand.","clueName":"The Convergence","requiresLocation":"221B Baker Street"}},{"id":"a5_deduce","verb":"deduce","subject":"the conclusion these papers point to"}],"interactions":[],"documents":[{"name":"Newspaper Pile","text":"*The Star — facsimile reprint, \"Dear Boss\" letter.*\n\nDear Boss,\n\nI keep on hearing the police have caught me but they wont fix me just yet. I have laughed when they look so clever and talk about being on the right track. That joke about Leather Apron gave me real fits. I am down on whores and I shant quit ripping them till I do get buckled. Grand work the last job was. I gave the lady no time to squeal. How can they catch me now. I love my work and want to start again. You will soon hear of me with my funny little games. I saved some of the proper red stuff in a ginger beer bottle over the last job to write with but it went thick like glue and I cant use it. Red ink is fit enough I hope ha. ha. The next job I do I shall clip the ladys ears off and send to the police officers just for jolly wouldnt you. Keep this letter back till I do a bit more work, then give it out straight. My knife's so nice and sharp I want to get to work right away if I get a chance. Good luck.\n\nYours truly\nJack the Ripper\n\nDont mind me giving the trade name"},{"name":"Telegrams from Abberline","text":"*Telegrams received at Baker Street, October–November 1888.*\n\nOct 19 — Abberline to Holmes: Lusk received kidney parcel. Examining. City & Met coordinating.\n\nOct 29 — Abberline to Holmes: Bond confirms kidney human, female, matching Eddowes. Preserved to laboratory standard. No arrest imminent.\n\nNov 7 — Abberline to Holmes: American doctor TUMBLETY taken on indecency charges. Some here fancy him for the murders — specimens, hatred of women. Holding him while we look.\n\nNov 8 — Abberline to Holmes: Warren has resigned. The force is without a head and the press without mercy. Six weeks of quiet and no nearer. Come when you can. The quiet does not feel like an ending."},{"name":"Case Files Wall (Act 0)","text":"*Holmes's summary of the Whitechapel murders — evening, 8 November 1888.*\n\nPolly Nichols — Buck's Row, 31 Aug. Throat cut. Abdominal injuries. No uterus.\nAnnie Chapman — Hanbury St, 8 Sep. Uterus removed. Rings taken.\nElizabeth Stride — Dutfield's Yard, 30 Sep. Throat only — interrupted.\nCatherine Eddowes — Mitre Square, 30 Sep. Kidney and uterus. Message at Goulston St.\n\n*Five weeks of murder. Six weeks of silence. The silence is data.*\n\nPinned at the margin — the public's suspects:\n— Tumblety, American \"doctor\". In custody since the 7th. Specimens; hatred of women. LOUD.\n— \"Leather Apron\" (Pizer). Press invention. Alibied in September. The mob nearly had him.\n— A gentleman of rumour — erratic, lately dismissed. Unverified.\n— Bond — police surgeon — & assistant. (Forensic access, all scenes.)\n\n*Question: access to victims — professional? Social?*\n*Question: in eleven weeks, why has no one once remembered him?*"},{"name":"Case Files Wall","text":"*Holmes's summary of the Whitechapel murders, November 1888.*\n\nPolly Nichols — Buck's Row, 31 Aug. Throat cut. Abdominal injuries. No uterus.\nAnnie Chapman — Hanbury St, 8 Sep. Uterus removed. Rings taken.\nElizabeth Stride — Dutfield's Yard, 30 Sep. Throat only — interrupted.\nCatherine Eddowes — Mitre Square, 30 Sep. Kidney and uterus. Message at Goulston St.\nMary Jane Kelly — Miller's Court, 9 Nov. Most extensive. Several hours.\n\n*Pattern: acceleration. Increasing confidence. Decreasing caution.*\n*Question: access to victims — professional? Social?*\n*Question: present at investigation — same man?*"}]},{"id":"lusk_office","name":"George Lusk's Office","shortName":"Lusk Office","act":4,"revisit":true,"timeframe":"present","timeOfDay":"afternoon","atmosphere":"Cluttered with papers and letters. Meeting room of the Whitechapel Vigilance Committee.","description":"The office is small and cramped, filled with the correspondence of a terrified district. Lusk sits behind a desk that has become a clearing house for public fear.","exits":[{"id":"goulston_street","name":"Goulston Street"},{"id":"bond_office","name":"Dr. Bond's Office"}],"openPeriods":null,"requiresFlag":null,"characters":[{"id":"lusk","name":"George Lusk","role":"Chairman, Whitechapel Vigilance Committee"}],"clues":[],"objectives":[{"id":"a5_letter","verb":"examine","subject":"the From Hell letter, so its transcript is to hand"}],"interactions":[],"documents":[{"name":"The From Hell Letter","text":"*From Hell.*\n\nMr Lusk,\nSor\nI send you half the Kidne I took from one woman prasarved it for you tother piece I fried and ate it was very nise. I may send you the bloody knif that took it out if you only wate a whil longer.\n\nsigned Catch me when you can Mishter Lusk"}]}]},{"number":6,"name":"The Confrontation","dayOfWeek":"Thursday","date":"22 November 1888","weather":"Fog Settling","anchor":"Dr. Bond's Office","bridge":"Two days had passed since I had given my conclusion its name. Holmes had been silent through most of them; then, on the Thursday afternoon, he rose without a word, and I knew the waiting was over.","gate":{"advanceTo":7,"steps":[{"text":"the patient records at the asylum","verb":"examine"},{"text":"Edmund Halward, at the last","verb":"talk"}]},"locations":[{"id":"private_asylum","name":"The Private Asylum","shortName":"Private Asylum","act":6,"revisit":false,"timeframe":"present","timeOfDay":"afternoon","atmosphere":"Quiet, sterile, and unsettlingly calm. An institution outside London for those whose families require discretion.","description":"The grounds are well-kept, but the high walls and locked doors speak of a different kind of poverty — the poverty of the mind. The superintendent receives Watson with professional courtesy. He does not ask why Watson has come.","exits":[{"id":"bond_office","name":"Dr. Bond's Office"},{"id":"baker_street","name":"221B Baker Street"}],"openPeriods":null,"requiresFlag":"asylum_unlocked","characters":[{"id":"holmes","name":"Sherlock Holmes","role":"Consulting Detective"},{"id":"abberline","name":"Inspector Abberline","role":"Scotland Yard Detective Inspector","masked":"a police inspector"},{"id":"edmund","name":"Edmund Halward","role":"Dr. Bond's Medical Assistant","masked":"Bond's assistant"},{"id":"superintendent","name":"Asylum Superintendent","role":"Superintendent of the Private Asylum","masked":"the superintendent"}],"clues":[{"id":"clue_08_preserved_kidney","name":"The Other Half","group":8,"trigger":"Patient's Room","synthetic":false,"diaryNote":"The asylum superintendent confirms it: Halward's family found a preserved human organ in his room and had him quietly committed. They never called the police. If Lusk received half a kidney, here was the other.","description":"The asylum superintendent confirms: Edmund Halward's family, upon discovering disturbing evidence in his room — a preserved human organ — arranged his quiet commitment. They did not contact the police.","holmes":"If the letter contained half the kidney, and his family found the other half — there is only one conclusion available to a rational mind.","medicalPoints":10,"moralPoints":10,"connections":["The Kidney Parcel","The Murders Stop"]},{"id":"clue_10_asylum_commitment","name":"The Murders Stop","group":10,"trigger":"Patient Records","synthetic":false,"diaryNote":"Halward was committed within days of the Kelly murder, and from that date the killings simply ceased. Holmes will not call that coincidence — and neither, now, can I.","description":"Edmund Halward was committed to the private asylum shortly after Mary Jane Kelly's murder on 9th November 1888. The Whitechapel murders ceased entirely from that date. The official reason for commitment is a vague reference to violent behaviour.","holmes":"The murders stopped when Edmund was removed from society. That is not coincidence. That is causation.","medicalPoints":5,"moralPoints":10,"connections":["The Other Half","The Silent Witness"]}],"objectives":[{"id":"a6_records","verb":"examine","subject":"the patient records at the asylum","flag":"visited_private_asylum"},{"id":"a6_edmund","verb":"talk","subject":"Edmund Halward, at the last","flag":"talked_to_edmund_at_private_asylum"}],"interactions":[{"label":"SHOW Assistant's Forensic Note (copy) TO Inspector Abberline","result":"SUCCESS — Abberline examines the forensic note carefully. He notes the precise, unhurried cataloguing style, turns it over once, and hands it back. 'Thorough man, Bond's assistant. Why?' He waits. Whatever Watson is reaching for, it has not yet taken shape enough to say aloud."},{"label":"SHOW Assistant's Forensic Note (copy) TO Sherlock Holmes","result":"SUCCESS — Holmes reads the note once, and something crosses his face — there and gone. 'Not here, Watson.' He folds the copy back into Watson's hand. 'Documents answer one another at a desk, not in another man's office. Bring it home. Bring everything home.' He says nothing further."},{"label":"SHOW From Hell Letter (transcript) TO Inspector Abberline","result":"SUCCESS — Abberline has seen the letter before, but he reads it again with Watson present. 'The spelling,' he says. 'We noticed it. Could be illiteracy, could be affectation. The press have printed the thing in full — half of London has read it.' He folds it carefully. 'The kidney, though. That detail was never published.'"},{"label":"SHOW From Hell Letter (transcript) TO Sherlock Holmes","result":"SUCCESS — Holmes reads it twice, then holds it to the light. 'The vocabulary is deliberate, Watson. The errors are consistent — not random. This man knows how to spell and is choosing not to. Or he learned spoken English before written English. Either way: educated, but not schooled in the conventional sense.' He sets it down. 'Keep it.'"},{"label":"SHOW Forensic Reports Summary TO Inspector Abberline","result":"SUCCESS — Abberline reads the summary, then lays it on his desk and puts his hand flat on it. 'If this is right,' he says, 'then whoever did this was at every scene in a professional capacity. Not a vagrant. Not a butcher. Someone with a reason to be there.' He does not say who. But his eyes move to the window that faces Bond's office across the courtyard."}],"documents":[]}]}],"cast":[{"id":"holmes","name":"Sherlock Holmes","role":"Consulting Detective","description":"Holmes investigates the Whitechapel murders unofficially, approaching the Ripper case as an intellectual problem. He follows Watson everywhere.","following":"follows_watson","schedule":[{"act":0,"location":"221B Baker Street"},{"act":1,"location":"Dorset Street"},{"act":2,"location":"Whitechapel Mortuary"},{"act":3,"location":"Dutfield's Yard"},{"act":4,"location":"George Lusk's Office"},{"act":5,"location":"Dr. Bond's Office"},{"act":6,"location":"The Private Asylum"}]},{"id":"abberline","name":"Inspector Abberline","role":"Scotland Yard Detective Inspector","description":"Lead investigator for Scotland Yard. Experienced, honest, and deeply fatigued by the lack of progress. Refers to Mary Kelly as \"Mary\" when he forgets himself.","masked":"a police inspector","following":"location_based","schedule":[{"act":0,"location":"H Division Police Station"},{"act":1,"location":"Dorset Street"},{"act":2,"location":"H Division Police Station"},{"act":3,"location":"International Working Men's Club"},{"act":4,"location":"George Lusk's Office"},{"act":5,"location":"Dr. Bond's Office"},{"act":6,"location":"The Private Asylum"}]},{"id":"bond","name":"Dr. Thomas Bond","role":"Police Surgeon","description":"Responsible for examining all five victims. Clinical, professional, and rarely speculates beyond medical facts. His assistant is always nearby.","masked":"a police surgeon","following":"location_based","schedule":[{"act":0,"location":"Whitechapel Mortuary"},{"act":1,"location":"13 Miller's Court"},{"act":2,"location":"Whitechapel Mortuary"},{"act":3,"location":"Whitechapel Mortuary"},{"act":4,"location":"George Lusk's Office"},{"act":5,"location":"Dr. Bond's Office"},{"act":6,"location":"Dr. Bond's Office"}]},{"id":"edmund","name":"Edmund Halward","role":"Dr. Bond's Medical Assistant","description":"Young, quiet, and outwardly respectable. Son of a physician. Studied medicine but left unexpectedly. Almost invisible. Never speaks unless directly addressed. His ordinariness is not accidental.","masked":"Bond's assistant","following":"follows_bond","schedule":[{"act":0,"location":"Whitechapel Mortuary"},{"act":1,"location":"13 Miller's Court"},{"act":2,"location":"Whitechapel Mortuary"},{"act":3,"location":"Whitechapel Mortuary"},{"act":4,"location":"George Lusk's Office"},{"act":5,"location":"Dr. Bond's Office"},{"act":6,"location":"The Private Asylum"}]},{"id":"lusk","name":"George Lusk","role":"Chairman, Whitechapel Vigilance Committee","description":"Recipient of the From Hell letter and the kidney parcel. Cautious and skeptical of hoaxes. Founding anger at the failure of the official machinery.","following":"fixed","schedule":[{"act":4,"location":"George Lusk's Office"},{"act":5,"location":"George Lusk's Office"},{"act":6,"location":"George Lusk's Office"}]},{"id":"diemschutz","name":"Louis Diemschutz","role":"Steward, International Working Men's Club","description":"Discovered Elizabeth Stride's body. Distressed witness who has told his story to the police a dozen times and is not sure it has helped.","masked":"the club steward","following":"fixed","schedule":[{"act":0,"location":"International Working Men's Club"},{"act":1,"location":"International Working Men's Club"},{"act":2,"location":"International Working Men's Club"},{"act":3,"location":"International Working Men's Club"},{"act":4,"location":"International Working Men's Club"},{"act":5,"location":"International Working Men's Club"},{"act":6,"location":"International Working Men's Club"}]},{"id":"hutchinson","name":"George Hutchinson","role":"Labourer; witness — knew Mary Jane Kelly","description":"A labourer who knew Kelly and saw her with a well-dressed stranger hours before her death. His account is extraordinarily detailed — suspiciously so — and he admits he loitered outside the court that night. A lonely, sad man, not a killer; but the player should wonder.","masked":"a lingering labourer","following":"location_based","schedule":[{"act":1,"location":"Dorset Street"},{"act":2,"location":"The Ten Bells"},{"act":3,"location":"The Ten Bells"}]},{"id":"phillips","name":"Dr. George Bagster Phillips","role":"H Division Police Surgeon","description":"The H Division divisional surgeon who performed the Chapman post-mortem. The second medical voice — he and Bond disagree about the killer's skill, and between them the 'trained surgeon' assumption collapses.","following":"location_based","schedule":[{"act":2,"location":"Whitechapel Mortuary"},{"act":3,"location":"Whitechapel Mortuary"}]},{"id":"tumblety","name":"Francis Tumblety","role":"American \"doctor\" — in police custody","description":"The Mad Doctor: an American quack of theatrical self-importance, arrested 7 November on gross-indecency charges, whom some at the Yard fancy for the murders. He collects anatomical specimens — including uteri — and despises women. He fits gloriously. He is a performance. (He flees the country in Act 4.)","following":"location_based","schedule":[{"act":2,"location":"H Division Police Station"},{"act":3,"location":"H Division Police Station"}]},{"id":"pizer","name":"John Pizer","role":"Bootmaker — the man the press called \"Leather Apron\"","description":"A Jewish bootmaker arrested in September on the strength of a press panic, fully alibied, and released — and still living under the shadow of the accusation. The Foreigner theory made human: a frightened, wronged man.","following":"location_based","schedule":[{"act":3,"location":"International Working Men's Club"}]},{"id":"barmaid","name":"The Barmaid","role":"Barmaid, the Ten Bells","description":"Perhaps forty, with the particular efficiency of someone who has learned not to waste motion. She knew several of the murdered women personally, back when they were regulars — she does not name them and does not need to. Not a witness to anything, not a source of facts about the case; just someone who has watched the regulars disappear, one by one, and kept pouring drinks regardless.","following":"location_based","schedule":[{"act":2,"location":"The Ten Bells"},{"act":3,"location":"The Ten Bells"}]},{"id":"superintendent","name":"Asylum Superintendent","role":"Superintendent of the Private Asylum","description":"Manages a private asylum for those whose families require discretion. Professional but guarded. Believes what he does is humane.","masked":"the superintendent","following":"fixed","schedule":[{"act":0,"location":"The Private Asylum"},{"act":1,"location":"The Private Asylum"},{"act":2,"location":"The Private Asylum"},{"act":3,"location":"The Private Asylum"},{"act":4,"location":"The Private Asylum"},{"act":5,"location":"The Private Asylum"},{"act":6,"location":"The Private Asylum"}]}],"suspects":[{"npcId":"edmund","name":"Edmund Halward","label":"Edmund Halward","isGuilty":true,"detail":"The assistant — present at every scene; self-taught anatomy; laboratory hands; the hand of the letter. The answer."},{"npcId":"bond","name":"Dr. Thomas Bond","label":"Dr. Thomas Bond","isGuilty":false,"detail":"Police surgeon — anatomical knowledge and access to every scene.","clearedNote":"movements on the double-event night fully accounted for (Abberline)","rebuttal":"Holmes hears the theory out: Bond has the anatomical mastery, the access to every scene, the standing to move unquestioned. But Holmes points to what does not fit — Bond's documented presence elsewhere on two of the murder nights, his own written conclusion that the killer lacked true surgical skill, and the absence of the spelling habit that marks the letters. A man is not hanged for being capable."},{"npcId":"abberline","name":"Inspector Abberline","isGuilty":false,"rebuttal":"Holmes is quietly taken aback. Yes, Abberline has access to every scene and every file; yes, a policeman could move through Whitechapel unremarked. But Holmes dismantles it plainly — Abberline's exhaustion is genuine, his investigation sincere to the point of ruining his health, and nothing in the evidence connects him to the anatomical removals or the letters. To accuse the one man labouring hardest to stop the killings is despair, not deduction."},{"npcId":"tumblety","name":"Francis Tumblety","label":"The Mad Doctor (Francis Tumblety)","isGuilty":false,"detail":"American specimen-collector in custody — anatomical curios, hatred of women. He fits gloriously.","clearedNote":"fled the country — the public's chosen culprit; but the preservation does not match his crude curios","rebuttal":"Holmes hears it through, and concedes its appeal: the specimens, the hatred of women, the flight that looked so much like confession. Then he takes it apart — the man's anatomy is a showman's, names and flourish without practice; his curios were bought, and crudely kept, nothing like the laboratory hand that preserved the Lusk kidney; and he fled an indecency charge, not a murder warrant. History will be content to blame the fled American. Holmes is not, and the murders go unanswered."},{"npcId":"pizer","name":"John Pizer","label":"\"Leather Apron\" (John Pizer)","isGuilty":false,"detail":"The press's monster — a bootmaker the mob nearly hanged.","clearedNote":"fully alibied; the panic was prejudice dressed as deduction","rebuttal":"Holmes's reply is cold and immediate: Pizer was alibied within days of his arrest — a dock fire watched beside a constable, a lodging house full of witnesses — and released without charge. To name him now is to repeat what the mob and the newspapers did in September, with better grammar. The easy suspicion of the foreigner is not deduction; it is the very prejudice the killer has hidden behind all autumn."},{"npcId":"hutchinson","name":"George Hutchinson","label":"George Hutchinson","isGuilty":false,"detail":"The witness himself — account suspiciously detailed; admits loitering outside the court that night.","clearedNote":"no medical knowledge of any kind; a lonely man who knew Kelly — watched, then dismissed","rebuttal":"Holmes grants the instinct: the account too detailed, the loitering admitted, the late coming-forward. But the substance dissolves on inspection — the man has no medical knowledge of any kind, his movements on the other nights are accounted for, and his vigil outside the court was the loneliness of a man who half-hoped a friend would shelter him. Suspicion of everyone is not the same as evidence against someone."},{"npcId":"gentleman","name":"gentleman","label":"The Vanishing Gentleman","isGuilty":false,"detail":"A barrister of good family — erratic, dismissed from his post, now not to be found.","rebuttal":"Holmes shakes his head slowly. A troubled barrister of good family, erratic and now missing, makes a satisfying shape — but a shape is all it is. His dismissal was private scandal, not blood; his movements fit none of the murder nights that can be fixed; and a man may vanish for a hundred reasons in this city, most of them sad and none of them murder. \"It is always the respectable one\" is an instinct, Watson, not a proof."}],"map":{"nodes":[{"id":"baker_street","name":"221B Baker Street","shortName":"Baker Street","act":0,"timeframe":"present","timeOfDay":"night","requiresFlag":null},{"id":"dorset_street","name":"Dorset Street","shortName":"Dorset Street","act":1,"timeframe":"present","timeOfDay":"morning","requiresFlag":null},{"id":"millers_court","name":"13 Miller's Court","shortName":"Miller's Court","act":1,"timeframe":"present","timeOfDay":"morning","requiresFlag":null},{"id":"whitechapel_mortuary","name":"Whitechapel Mortuary","shortName":"The Mortuary","act":2,"timeframe":"present","timeOfDay":"midday","requiresFlag":null},{"id":"h_division_station","name":"H Division Police Station","shortName":"H Division","act":2,"timeframe":"present","timeOfDay":"afternoon","requiresFlag":null},{"id":"whitechapel_pub","name":"The Ten Bells","shortName":"The Ten Bells","act":2,"timeframe":"present","timeOfDay":"night","requiresFlag":null},{"id":"lusk_office","name":"George Lusk's Office","shortName":"Lusk Office","act":4,"timeframe":"present","timeOfDay":"afternoon","requiresFlag":null},{"id":"bond_office","name":"Dr. Bond's Office","shortName":"Bond Office","act":5,"timeframe":"present","timeOfDay":"midday","requiresFlag":null},{"id":"private_asylum","name":"The Private Asylum","shortName":"Private Asylum","act":6,"timeframe":"present","timeOfDay":"afternoon","requiresFlag":"asylum_unlocked"},{"id":"bucks_row","name":"Buck's Row","shortName":"Buck's Row","act":2,"timeframe":"reconstruction","timeOfDay":"night","requiresFlag":null},{"id":"hanbury_street","name":"Hanbury Street","shortName":"Hanbury Street","act":2,"timeframe":"reconstruction","timeOfDay":"morning","requiresFlag":null},{"id":"dutfields_yard","name":"Dutfield's Yard","shortName":"Dutfield's Yard","act":3,"timeframe":"reconstruction","timeOfDay":"night","requiresFlag":null},{"id":"working_mens_club","name":"International Working Men's Club","shortName":"Working Men's Club","act":3,"timeframe":"reconstruction","timeOfDay":"night","requiresFlag":null},{"id":"mitre_square","name":"Mitre Square","shortName":"Mitre Square","act":3,"timeframe":"reconstruction","timeOfDay":"night","requiresFlag":null},{"id":"goulston_street","name":"Goulston Street","shortName":"Goulston Street","act":3,"timeframe":"reconstruction","timeOfDay":"night","requiresFlag":null}],"edges":[{"a":"baker_street","b":"dorset_street"},{"a":"dorset_street","b":"millers_court"},{"a":"dorset_street","b":"h_division_station"},{"a":"whitechapel_mortuary","b":"dorset_street"},{"a":"whitechapel_mortuary","b":"bucks_row"},{"a":"h_division_station","b":"whitechapel_pub"},{"a":"whitechapel_pub","b":"bucks_row"},{"a":"lusk_office","b":"goulston_street"},{"a":"lusk_office","b":"bond_office"},{"a":"bond_office","b":"private_asylum"},{"a":"bond_office","b":"baker_street"},{"a":"private_asylum","b":"baker_street"},{"a":"bucks_row","b":"hanbury_street"},{"a":"hanbury_street","b":"dutfields_yard"},{"a":"dutfields_yard","b":"working_mens_club"},{"a":"dutfields_yard","b":"mitre_square"},{"a":"mitre_square","b":"goulston_street"}]}};
+(function () {
+  "use strict";
+  var S = window.STORY;
+  var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var $ = function (id) { return document.getElementById(id); };
+  var el = function (html) { var t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+
+  // ── header ──────────────────────────────────────────────
+  $("m-title").textContent = S.meta.title;
+  $("m-sub").textContent = S.meta.subtitle + " · generated " + S.meta.generatedAt;
+  $("m-stats").innerHTML =
+    '<span><b>' + S.meta.actCount + '</b> acts</span>' +
+    '<span><b>' + S.meta.locationCount + '</b> locations</span>' +
+    '<span><b>' + S.meta.npcCount + '</b> characters</span>' +
+    '<span><b>' + S.meta.clueCount + '</b> clues</span>';
+
+  // ── tabs ────────────────────────────────────────────────
+  var tabs = document.querySelectorAll('nav.tabs button');
+  tabs.forEach(function (b) {
+    b.addEventListener('click', function () {
+      tabs.forEach(function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
+      document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
+      $('view-' + b.dataset.view).classList.add('active');
+      if (b.dataset.view === 'map') drawMap();
+    });
+  });
+
+  // ── badges helpers ──────────────────────────────────────
+  function todBadge(t) { return '<span class="badge b-' + t + '">' + t + '</span>'; }
+
+  function clueCard(c) {
+    var pts = '';
+    if (c.medicalPoints) pts += '<span class="pts med" title="medical points">med +' + c.medicalPoints + '</span>';
+    if (c.moralPoints) pts += '<span class="pts mor" title="moral points">mor +' + c.moralPoints + '</span>';
+    var conns = c.connections.length
+      ? '<div class="conns"><span class="lbl">connects</span>' + c.connections.map(function (x) { return '<span class="tag">' + esc(x) + '</span>'; }).join('') + '</div>'
+      : '';
+    return '<details class="clue"><summary>' +
+      '<span class="cname">' + esc(c.name) + '</span>' +
+      '<span class="clue-meta">' +
+        (c.synthetic ? '<span class="tag syn" title="granted by a USE combination, not a plain examine">synthesis</span>' : '<span class="tag" title="examine trigger">' + esc(c.trigger) + '</span>') +
+        pts +
+      '</span></summary>' +
+      '<div class="clue-body">' +
+        '<div class="lbl">What Watson records</div><div class="records">' + esc(c.description) + '</div>' +
+        '<div class="lbl">Holmes concludes</div><div class="holmes">' + esc(c.holmes) + '</div>' +
+        conns +
+      '</div></details>';
+  }
+
+  function objRow(o) {
+    var soln = '';
+    if (o.solution) {
+      var s = o.solution;
+      var how = s.kind === 'use'
+        ? 'USE <b>' + esc(s.itemName) + '</b> with <b>' + esc(s.targetName) + '</b>'
+        : 'SHOW <b>' + esc(s.itemName) + '</b> to <b>' + esc(s.targetName) + '</b>';
+      var gate = [];
+      if (s.requiresLocation) gate.push('at ' + esc(s.requiresLocation));
+      if (s.requiresAct) gate.push('Act ' + s.requiresAct + '+');
+      if (s.requireFlags && s.requireFlags.length) gate.push('needs a prior step');
+      var grants = s.clueName ? '<div class="grants">↳ grants clue: ' + esc(s.clueName) + '</div>' : '';
+      soln = '<details class="soln"><summary>▸ how to solve</summary><div class="soln-body">' +
+        '<div class="how">' + how + (gate.length ? ' <span class="mono-flag">(' + gate.join(', ') + ')</span>' : '') + '</div>' +
+        esc(s.result) + grants +
+        '</div></details>';
+    }
+    return '<div class="obj"><span class="verb v-' + o.verb + '">' + o.verb + '</span>' +
+      '<div><div class="obj-txt">' + esc(o.subject) + '</div>' + soln + '</div></div>';
+  }
+
+  function intrRow(x) {
+    return '<details class="intr"><summary>' + esc(x.label) +
+      (x.clueName ? ' <span class="tag syn">→ ' + esc(x.clueName) + '</span>' : '') +
+      (x.note ? ' <span class="tag">' + esc(x.note) + '</span>' : '') +
+      '</summary><div class="intr-body">' + esc(x.result) + '</div></details>';
+  }
+
+  function block(title, count, inner) {
+    return '<div class="block"><h5>' + title + ' <span class="count">' + count + '</span></h5>' +
+      (count ? inner : '<div class="empty">none</div>') + '</div>';
+  }
+
+  function locCard(l) {
+    var badges = todBadge(l.timeOfDay);
+    if (l.timeframe === 'reconstruction') badges += '<span class="badge b-recon">reconstruction</span>';
+    if (l.revisit) badges += '<span class="badge b-revisit">revisit</span>';
+    if (l.requiresFlag) badges += '<span class="badge b-locked">gated</span>';
+    if (l.openPeriods) badges += '<span class="badge b-morning" title="open only: ' + esc(l.openPeriods.join(', ')) + '">hours</span>';
+
+    var chars = l.characters.map(function (c) {
+      return '<span class="chip' + (c.masked ? ' masked' : '') + '">' + esc(c.name) +
+        '<span class="role">' + esc(c.role) + '</span>' +
+        (c.masked ? '<span class="role" title="shown as this until introduced">“' + esc(c.masked) + '”</span>' : '') +
+        '</span>';
+    }).join('');
+
+    var exits = l.exits.map(function (e) { return '<span class="tag">' + esc(e.name) + '</span>'; }).join(' ');
+    var docs = l.documents.map(function (d) {
+      return '<details class="intr doc"><summary>📄 ' + esc(d.name) + '</summary><div class="intr-body"><div class="doc-text">' + esc(d.text) + '</div></div></details>';
+    }).join('');
+
+    return '<details class="loc" data-loc="' + l.id + '"><summary>' +
+        '<span class="lname">' + esc(l.name) + '</span>' + badges +
+        '<span style="margin-left:auto" class="tag">' + l.clues.length + ' clue' + (l.clues.length === 1 ? '' : 's') + '</span>' +
+      '</summary>' +
+      '<div class="loc-body">' +
+        '<div class="atmos">' + esc(l.atmosphere) + '</div>' +
+        '<div class="desc">' + esc(l.description) + '</div>' +
+        '<div style="margin:8px 0"><span class="lbl" style="font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:800">Exits</span> ' + (exits || '<span class="empty">none</span>') + '</div>' +
+        '<div class="cols">' +
+          block('Characters', l.characters.length, '<div class="chips">' + chars + '</div>') +
+          block('Clues here', l.clues.length, l.clues.map(clueCard).join('')) +
+          block('Hints &amp; objectives', l.objectives.length, l.objectives.map(objRow).join('')) +
+          block('Puzzles &amp; interactions', l.interactions.length, l.interactions.map(intrRow).join('')) +
+        '</div>' +
+        (docs ? '<div class="block" style="margin-top:14px"><h5>Readable documents <span class="count">' + l.documents.length + '</span></h5>' + docs + '</div>' : '') +
+      '</div></details>';
+  }
+
+  function actSection(a, open) {
+    var gateSteps = a.gate.steps.map(function (s) {
+      return '<li>' + (s.verb ? '<span class="verb v-' + s.verb + '" style="margin-right:2px">' + s.verb + '</span> ' : '') + esc(s.text) + '</li>';
+    }).join('');
+    var meta = [
+      a.dayOfWeek + ' ' + a.date,
+      '☁ ' + a.weather,
+      '⚓ ' + a.anchor,
+      a.gate.advanceTo <= S.meta.actCount ? '→ Act ' + a.gate.advanceTo : 'finale'
+    ].map(function (m) { return '<span>' + esc(m) + '</span>'; }).join('');
+
+    return '<details class="act" id="act-' + a.number + '"' + (open ? ' open' : '') + '><summary>' +
+        '<span class="act-no">' + a.number + '</span>' +
+        '<span class="act-head"><span class="name">' + esc(a.name) + '</span><span class="meta">' + meta + '</span></span>' +
+        '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>' +
+      '</summary>' +
+      '<div class="act-body">' +
+        (a.bridge ? '<div class="bridge">' + esc(a.bridge) + '</div>' : '') +
+        '<div class="gate"><h4>How to advance this act</h4><ol>' + gateSteps + '</ol></div>' +
+        a.locations.map(locCard).join('') +
+      '</div></details>';
+  }
+
+  // ── render walkthrough ──────────────────────────────────
+  $("acts").innerHTML = S.acts.map(function (a, i) { return actSection(a, i === 0); }).join('');
+  $("actjump").innerHTML = S.acts.map(function (a) { return '<button data-act="' + a.number + '">Act ' + a.number + '</button>'; }).join('');
+  $("actjump").addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    var d = $('act-' + b.dataset.act); d.open = true;
+    d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  $("expand-all").addEventListener('click', function () { document.querySelectorAll('#view-walk details').forEach(function (d) { d.open = true; }); });
+  $("collapse-all").addEventListener('click', function () { document.querySelectorAll('#view-walk details.act, #view-walk details.loc').forEach(function (d) { d.open = false; }); });
+
+  // ── search filter ───────────────────────────────────────
+  var search = $("search");
+  search.addEventListener('input', function () {
+    var q = search.value.trim().toLowerCase();
+    document.querySelectorAll('#acts details.act').forEach(function (act) {
+      var anyLoc = false;
+      act.querySelectorAll('details.loc').forEach(function (loc) {
+        var hit = !q || loc.textContent.toLowerCase().indexOf(q) !== -1;
+        loc.classList.toggle('hidden', !hit);
+        if (hit) { anyLoc = true; if (q) loc.open = true; }
+      });
+      // also match on the act header text
+      var actHit = !q || act.querySelector('summary').textContent.toLowerCase().indexOf(q) !== -1 || anyLoc;
+      act.classList.toggle('hidden', !actHit);
+      if (q && actHit) act.open = true;
+    });
+  });
+
+  // ── map ─────────────────────────────────────────────────
+  var actColors = ['#293351', '#8a5a1a', '#3b6ea5', '#6b4aa0', '#a8560f', '#2f7a52', '#b23a3a'];
+  var mapDrawn = false, activeAct = null;
+  function drawMap() {
+    if (mapDrawn) return; mapDrawn = true;
+    var nodes = S.map.nodes, edges = S.map.edges;
+    var byId = {}; nodes.forEach(function (n) { byId[n.id] = n; });
+    // columns by act
+    var acts = {};
+    nodes.forEach(function (n) { (acts[n.act] = acts[n.act] || []).push(n); });
+    var actKeys = Object.keys(acts).map(Number).sort(function (a, b) { return a - b; });
+    var colW = 168, rowH = 74, padX = 70, padY = 56;
+    var maxRows = Math.max.apply(null, actKeys.map(function (k) { return acts[k].length; }));
+    var W = padX * 2 + (actKeys.length - 1) * colW;
+    var H = padY * 2 + (maxRows - 1) * rowH + 40;
+    actKeys.forEach(function (k, ci) {
+      var col = acts[k];
+      var offset = (maxRows - col.length) / 2;
+      col.forEach(function (n, ri) {
+        n._x = padX + ci * colW;
+        n._y = padY + (ri + offset) * rowH;
+      });
+    });
+    var svg = $("map-svg");
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.style.width = Math.max(W, 320) + 'px';
+    svg.style.maxWidth = '100%';
+    svg.style.height = 'auto';
+    var parts = [];
+    // act column labels
+    actKeys.forEach(function (k, ci) {
+      parts.push('<text x="' + (padX + ci * colW) + '" y="24" text-anchor="middle" font-weight="700" font-size="12" fill="' + actColors[k % actColors.length] + '">Act ' + k + '</text>');
+    });
+    edges.forEach(function (e) {
+      var A = byId[e.a], B = byId[e.b]; if (!A || !B) return;
+      parts.push('<line class="edge" data-a="' + e.a + '" data-b="' + e.b + '" x1="' + A._x + '" y1="' + A._y + '" x2="' + B._x + '" y2="' + B._y + '"/>');
+    });
+    nodes.forEach(function (n) {
+      var color = actColors[n.act % actColors.length];
+      var label = esc(n.shortName);
+      parts.push('<g class="node" data-id="' + n.id + '" tabindex="0">' +
+        '<circle cx="' + n._x + '" cy="' + n._y + '" r="9" style="stroke:' + color + '"/>' +
+        (n.requiresFlag ? '<circle cx="' + n._x + '" cy="' + n._y + '" r="4" fill="' + color + '"/>' : '') +
+        '<text x="' + n._x + '" y="' + (n._y + 24) + '" text-anchor="middle">' + label + '</text>' +
+        '</g>');
+    });
+    svg.innerHTML = parts.join('');
+    svg.querySelectorAll('.node').forEach(function (g) {
+      g.addEventListener('click', function () { showLocDetail(g.dataset.id); });
+      g.addEventListener('keydown', function (e) { if (e.key === 'Enter') showLocDetail(g.dataset.id); });
+    });
+
+    // legend = act filter
+    $("map-legend").innerHTML = '<span class="btn" data-act="all" style="cursor:pointer">All acts</span>' +
+      actKeys.map(function (k) {
+        return '<span class="btn" data-act="' + k + '" style="cursor:pointer"><span class="swatch" style="background:' + actColors[k % actColors.length] + '"></span>Act ' + k + '</span>';
+      }).join('');
+    $("map-legend").addEventListener('click', function (e) {
+      var b = e.target.closest('[data-act]'); if (!b) return;
+      activeAct = b.dataset.act === 'all' ? null : Number(b.dataset.act);
+      filterMap();
+    });
+  }
+  function filterMap() {
+    var svg = $("map-svg");
+    svg.querySelectorAll('.node').forEach(function (g) {
+      var n = S.map.nodes.find(function (x) { return x.id === g.dataset.id; });
+      g.classList.toggle('dim', activeAct != null && n.act !== activeAct);
+    });
+    svg.querySelectorAll('.edge').forEach(function (ln) {
+      var a = S.map.nodes.find(function (x) { return x.id === ln.dataset.a; });
+      var b = S.map.nodes.find(function (x) { return x.id === ln.dataset.b; });
+      ln.classList.toggle('dim', activeAct != null && a.act !== activeAct && b.act !== activeAct);
+    });
+  }
+  function showLocDetail(id) {
+    // find the fullest location view across acts (prefer non-revisit / first act)
+    var found = null;
+    S.acts.forEach(function (a) { a.locations.forEach(function (l) { if (l.id === id && (!found || !l.revisit)) found = l; }); });
+    var n = S.map.nodes.find(function (x) { return x.id === id; });
+    if (!found) { $("map-detail").innerHTML = '<h3>' + esc(n.name) + '</h3><p>Appears from Act ' + n.act + '.</p>'; return; }
+    var chars = found.characters.map(function (c) { return esc(c.name); }).join(', ') || '—';
+    var clues = found.clues.map(function (c) { return esc(c.name); }).join(', ') || '—';
+    $("map-detail").innerHTML =
+      '<h3>' + esc(found.name) + '</h3>' +
+      '<div style="font-size:12.5px;margin-bottom:8px">' + todBadge(found.timeOfDay) + (found.timeframe === 'reconstruction' ? ' <span class="badge b-recon">reconstruction</span>' : '') + ' &nbsp; first opens: <b>Act ' + n.act + '</b></div>' +
+      '<p class="atmos" style="margin:6px 0">' + esc(found.atmosphere) + '</p>' +
+      '<p style="font-size:13px"><b>Exits:</b> ' + (found.exits.map(function (e) { return esc(e.name); }).join(', ') || 'none') + '</p>' +
+      '<p style="font-size:13px"><b>Characters:</b> ' + chars + '</p>' +
+      '<p style="font-size:13px"><b>Clues:</b> ' + clues + '</p>' +
+      '<button class="btn" id="goto-loc">Open in walkthrough →</button>';
+    var go = $("goto-loc");
+    if (go) go.addEventListener('click', function () {
+      document.querySelector('nav.tabs button[data-view="walk"]').click();
+      var d = document.querySelector('details.loc[data-loc="' + id + '"]');
+      if (d) { var act = d.closest('details.act'); if (act) act.open = true; d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    });
+  }
+
+  // ── cast + suspects ─────────────────────────────────────
+  $("suspects").innerHTML = S.suspects.map(function (s) {
+    return '<div class="sus-card' + (s.isGuilty ? ' guilty' : '') + '">' +
+      '<h3>' + esc(s.label || s.name) + '<span class="verdict ' + (s.isGuilty ? 'g' : 'h') + '">' + (s.isGuilty ? 'THE ANSWER' : 'red herring') + '</span></h3>' +
+      (s.detail ? '<div class="detail">' + esc(s.detail) + '</div>' : '') +
+      (s.rebuttal ? '<div class="rebut">' + esc(s.rebuttal) + '</div>' : '') +
+      (s.clearedNote ? '<div class="cleared">✓ cleared: ' + esc(s.clearedNote) + '</div>' : '') +
+      '</div>';
+  }).join('');
+
+  $("cast").innerHTML = S.cast.map(function (c) {
+    var sched = c.schedule.map(function (s) { return '<span class="s">A' + s.act + ' · ' + esc(s.location) + '</span>'; }).join('');
+    return '<div class="npc-card">' +
+      '<h3>' + esc(c.name) + '</h3>' +
+      '<div class="role">' + esc(c.role) + (c.masked ? ' · masked as “' + esc(c.masked) + '”' : '') + '</div>' +
+      '<div class="desc">' + esc(c.description) + '</div>' +
+      '<div class="sched">' + sched + '</div>' +
+      '</div>';
+  }).join('');
+})();
+</script>
