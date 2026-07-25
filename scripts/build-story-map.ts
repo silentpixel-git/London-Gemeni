@@ -94,17 +94,26 @@ function solutionForFlag(flag: string | undefined): Solution | undefined {
 }
 
 // Turn a raw gate flag into a readable step, preferring the matching objective's
-// authored subject, else a mechanical fallback parse.
-function gateStep(flag: string): { text: string; verb?: string } {
+// authored subject, else a mechanical fallback parse. Carries the place the step
+// happens — without it the act's checklist can't be followed without hunting.
+function gateStep(flag: string): { text: string; verb?: string; where?: string } {
   if (flag.startsWith('__')) {
-    return { text: 'Advances ONLY on a correct deduction (needs the convergence clue — see the Act 5 steps).' };
+    return {
+      text: 'Advances only on a correct deduction — lay the note beside the letter at Baker Street, then name him. ' +
+        `A deduction needs at least ${M.deductionThreshold} clues in hand.`,
+    };
   }
   const obj = M.hintObjectives.find(o => o.flag === flag);
-  if (obj) return { text: obj.subject, verb: obj.verb };
+  if (obj) return { text: obj.subject, verb: obj.verb, where: locName(obj.locationId) };
   // Fallback: examined_<loc>_<obj>, talked_to_<npc>_at_<loc>, etc.
   let mm = /^talked_to_(.+)_at_(.+)$/.exec(flag);
-  if (mm) return { text: `Talk to ${npcName(mm[1])} at ${locName(mm[2])}`, verb: 'talk' };
+  if (mm) return { text: `Talk to ${npcName(mm[1])}`, verb: 'talk', where: locName(mm[2]) };
   return { text: flag.replace(/_/g, ' ') };
+}
+
+/** An act whose gate is the never-set sentinel advances by deduction instead. */
+function advancesByDeduction(act: number): boolean {
+  return (M.actProgression[act]?.requireFlags ?? []).some(f => String(f).startsWith('__'));
 }
 
 // Reverse index: clue id → the USE combination that grants it (synthetic clues).
@@ -148,7 +157,10 @@ function clueView(id: string) {
     holmes: c.holmesDeduction,
     medicalPoints: c.medicalPoints,
     moralPoints: c.moralPoints,
-    connections: c.connections.map(x => M.clueDefinitions[x]?.name ?? x),
+    // Carry ids so the clue web is walkable, not just readable.
+    connections: c.connections
+      .filter(x => M.clueDefinitions[x])
+      .map(x => ({ id: x, name: M.clueDefinitions[x].name })),
   };
 }
 
@@ -182,6 +194,10 @@ function cluesAt(act: number, locId: string): Clue[] {
 // Objectives (hints) for (act, location), enriched with a solution when the
 // step is a USE/SHOW interaction.
 function objectivesAt(act: number, locId: string) {
+  const gateFlags = new Set<string>((M.actProgression[act]?.requireFlags ?? []).map(String));
+  // Act 5 has no reachable flag gate — it advances on the deduction, so every
+  // step there is on the critical path to it.
+  const allRequired = advancesByDeduction(act);
   return M.hintObjectives
     .filter(o => o.act === act && o.locationId === locId)
     .map(o => {
@@ -191,6 +207,9 @@ function objectivesAt(act: number, locId: string) {
         verb: o.verb,
         subject: o.subject,
         flag,
+        // Required = this step is itself an act-advance gate. Everything else is
+        // supporting: prerequisites that unlock a gate, or optional colour.
+        required: allRequired || (!!o.flag && gateFlags.has(o.flag)),
         solution: solutionForFlag(flag),
       };
     });
@@ -316,6 +335,7 @@ function actView(act: number) {
   const t = M.actTimeConfig[act];
   const w = M.actWeather[act];
   const gate = M.actProgression[act];
+  const locations = locationsForAct(act).map(id => locationView(act, id));
   return {
     number: act,
     name: M.actNames[act],
@@ -326,9 +346,16 @@ function actView(act: number) {
     bridge: (ACT_BRIDGES as Record<number, string>)[act] ?? '',
     gate: {
       advanceTo: gate?.advanceTo,
+      byDeduction: advancesByDeduction(act),
       steps: (gate?.requireFlags ?? []).map(f => gateStep(f)),
     },
-    locations: locationsForAct(act).map(id => locationView(act, id)),
+    // At-a-glance shape of the act, readable while every act is still collapsed.
+    tally: {
+      places: locations.length,
+      clues: locations.reduce((n, l) => n + l.clues.length, 0),
+      required: locations.reduce((n, l) => n + l.objectives.filter(o => o.required).length, 0),
+    },
+    locations,
   };
 }
 
