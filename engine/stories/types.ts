@@ -359,6 +359,9 @@ export interface StoryManifest {
   actNames: Record<number, string>;
   actProgression: Record<number, ActCondition>;
   actAnchors: Record<number, string>;
+  // Act → the location Watson is cut to once that act's field work is done, for
+  // the closing summation (see computeActEpilogue). Omit an act to have no cut.
+  actEpilogues?: Record<number, string>;
   actTimeConfig: Record<number, ActTimeConfig>;
   actWeather: Record<number, ActWeather>;
 

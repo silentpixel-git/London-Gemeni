@@ -17,7 +17,7 @@ import { WHITECHAPEL_MANIFEST } from './stories/whitechapel-1888/manifest';
 import { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor } from './time';
 import { npcLocationAt, returnsPeriodFor, getPresentNpcIds, maturedSpreadsFor } from './presence';
 import type { SessionSnapshot } from './session';
-import { checkActProgression, computeActEntry, computeNpcMovements } from './resolvers/support';
+import { checkActProgression, computeActEntry, computeActEpilogue, computeNpcMovements } from './resolvers/support';
 import { resolveMove } from './resolvers/move';
 import { resolveExamine, resolveRead } from './resolvers/examine';
 import { resolveTalk, resolveShow } from './resolvers/npc';
@@ -117,6 +117,20 @@ export class GameEngine {
       if (anchor && anchor !== (result.newLocation ?? session.location)) {
         result.newLocation = anchor;
         result.npcUpdates = { ...result.npcUpdates, ...npcUpdates };
+      }
+    }
+
+    // Act-epilogue auto-cut: the act's field work is done, so cut Watson to the
+    // summation location rather than making him walk there. Runs only when this
+    // turn is NOT itself an act advance (that cut wins) and the game is not over.
+    if (result.newAct === undefined && !result.gameOver && result.actionSuccess) {
+      const mergedFlags = { ...session.flags, ...(result.flagsUpdate ?? {}) };
+      const epilogue = computeActEpilogue(this.story, session, mergedFlags);
+      if (epilogue) {
+        result.newLocation = epilogue.location;
+        result.npcUpdates = { ...result.npcUpdates, ...epilogue.npcUpdates };
+        result.flagsUpdate = { ...result.flagsUpdate, ...epilogue.flagsUpdate };
+        result.aiContext.actEpilogueCut = true;
       }
     }
 

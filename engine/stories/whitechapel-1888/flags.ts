@@ -65,6 +65,9 @@ type VisitedFlag = `visited_${LocationId}`;
  */
 type WorldEventFlag = `world_event_${string}`;
 
+/** The act-epilogue cut has fired for an act (see computeActEpilogue). */
+type EpilogueCutFlag = `act_${number}_epilogue_cut`;
+
 /**
  * One-off story flags that don't follow a template convention.
  * Add here deliberately — anything else is treated as a typo.
@@ -78,6 +81,7 @@ type LiteralFlag =
 /** Every flag name that may legally appear in authored story data. */
 export type StoryFlag =
   | ExaminedFlag
+  | EpilogueCutFlag
   | TalkedToFlag
   | AskedAboutFlag
   | ShowedFlag

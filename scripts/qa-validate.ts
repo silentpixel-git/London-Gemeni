@@ -173,6 +173,7 @@ function flagUnreachableReason(flag: string): string | null {
 
   if (flag.startsWith('vignette_')) return null;
   if (/^act_\d+_started$/.test(flag)) return null;
+  if (/^act_\d+_epilogue_cut$/.test(flag)) return null;
   if (flag.startsWith('holmes_nudged_at_')) return null;
 
   if (flag.startsWith('world_event_')) {

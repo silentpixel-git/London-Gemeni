@@ -1800,6 +1800,76 @@ function testEnvelopeAndNudge() {
   }
 }
 
+// ── Act-epilogue auto-cut ────────────────────────────────────────────────────
+console.log('\n── Act-epilogue auto-cut ──');
+{
+  // Tested against a synthetic manifest: the production story has no
+  // actEpilogues yet (the chronological rework authors them act by act), and the
+  // mechanic must be proven before any act depends on it.
+  const epiEngine = new GameEngine({
+    ...WHITECHAPEL_MANIFEST,
+    actEpilogues: { 0: 'baker_street', 1: 'baker_street' },
+  });
+  const act1Gate = WHITECHAPEL_MANIFEST.actProgression[1].requireFlags;
+  const fieldWork = act1Gate.slice(0, -1);
+  const closing = act1Gate[act1Gate.length - 1];
+  const allFieldWork = Object.fromEntries(fieldWork.map(f => [f, true]));
+
+  // 1. Field work incomplete → no cut.
+  const partial = Object.fromEntries(fieldWork.slice(0, -1).map(f => [f, true]));
+  let r = epiEngine.resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 1, location: 'millers_court', flags: partial }));
+  !r.newLocation && !(r.aiContext as any).actEpilogueCut
+    ? pass('no epilogue cut while the act still has field work outstanding')
+    : fail('premature epilogue cut', JSON.stringify({ loc: r.newLocation }));
+
+  // 2. Field work complete, closing beat outstanding → cut to the epilogue.
+  r = epiEngine.resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 1, location: 'millers_court', flags: allFieldWork }));
+  r.newLocation === 'baker_street' && (r.aiContext as any).actEpilogueCut &&
+  r.flagsUpdate?.['act_1_epilogue_cut'] && r.newAct === undefined
+    ? pass('epilogue cut fires on the act\'s field work completing, without advancing the act')
+    : fail('epilogue cut', JSON.stringify({ loc: r.newLocation, act: r.newAct, flags: r.flagsUpdate }));
+
+  // 3. Followers are carried, exactly as the act-entry cut does — Holmes must
+  //    not be left at the crime scene while Watson sits at Baker Street. He is
+  //    placed at the scene first: left at his Baker Street default the carry
+  //    would be a no-op and the assertion would prove nothing.
+  const rCarry = epiEngine.resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 1, location: 'millers_court', flags: allFieldWork,
+      npcStates: { holmes: { npcId: 'holmes', disposition: 50, status: 'alive', currentLocation: 'millers_court' } } }));
+  rCarry.npcUpdates?.['holmes']?.currentLocation === 'baker_street'
+    ? pass('epilogue cut carries follows_watson NPCs along')
+    : fail('epilogue follower carry', JSON.stringify(rCarry.npcUpdates?.['holmes']));
+
+  // 4. Fires once. A second eligible turn after the cut must not re-cut, or
+  //    every subsequent action at the epilogue location would re-trigger it.
+  r = epiEngine.resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 1, location: 'baker_street',
+      flags: { ...allFieldWork, act_1_epilogue_cut: true } }));
+  !(r.aiContext as any).actEpilogueCut
+    ? pass('epilogue cut never fires twice for the same act')
+    : fail('epilogue cut repeated');
+
+  // 5. Once the closing beat is done the act advances normally — the cut adds a
+  //    journey, never a state change the gate did not already require.
+  r = epiEngine.resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 1, location: 'baker_street',
+      flags: { ...allFieldWork, act_1_epilogue_cut: true, [closing]: true } }));
+  !(r.aiContext as any).actEpilogueCut
+    ? pass('closing beat set → no further cut (act advance is the gate\'s own job)')
+    : fail('epilogue cut after closing beat');
+
+  // 6. An act with no authored epilogue is untouched — the field is optional, so
+  //    acts the rework has not reached yet must behave exactly as before.
+  const noEpi = new GameEngine({ ...WHITECHAPEL_MANIFEST, actEpilogues: {} });
+  r = noEpi.resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 1, location: 'millers_court', flags: allFieldWork }));
+  !r.newLocation && !(r.aiContext as any).actEpilogueCut
+    ? pass('acts without an authored epilogue are unaffected')
+    : fail('unauthored act cut anyway', JSON.stringify({ loc: r.newLocation }));
+}
+
 // ── Topic-scoped TALK ────────────────────────────────────────────────────────
 console.log('\n── Topic-scoped TALK ──');
 {

@@ -270,6 +270,12 @@ NO Markdown headings. NO blockquote. NO exits listing. NO character roster. NPCs
 
   if (isFull) {
     const isRevisit = ctx.locationVisitCount > 1;
+    // The act-epilogue cut moved Watson here mid-turn. Without this the prose
+    // narrates a fresh arrival at a place he never chose to go, which reads as a
+    // continuity break — the journey is what has to be covered, briefly.
+    const epilogueCutNote = ctx.actEpilogueCut
+      ? `\nEND OF THE DAY'S WORK: Watson's business in the field is finished and he has come here to set the day in order — the cut to this place is deliberate. Open by covering the journey in a clause or two (the cab, the walk, the hour) rather than narrating a fresh arrival as though he had wandered in. The register is exhaustion and the need to think, not discovery.`
+      : '';
     const locationBlock = isRevisit
       ? `Location: ${ctx.locationName} — REVISIT (visit #${ctx.locationVisitCount}). Watson knows this room. HARD RULE: the opening sentence must be about Watson's purpose, the people present, or what is NEW — never the weather, the fog, the fire, the windows, or the furnishings. Do not describe the room's appearance at all unless something in it has physically changed. Readers have already seen this room described; repeating it reads as padding.`
       : `Location: ${ctx.locationName}
@@ -303,12 +309,12 @@ Format EXACTLY as a Markdown blockquote:
     const structure = isRevisit
       ? `Paragraph 1 — RETURN: Watson's purpose in returning, or what is immediately different — NO room description, NO weather opener — ending with one brief clause of his reflection on the case.${act0Note}
 ${ctx.vignette ? `\n${blockquoteBeat}\n` : ''}
-Paragraph 2 — ${noticeBeat}${approachBeat}`
+Paragraph 2 — ${noticeBeat}${approachBeat}${epilogueCutNote}`
       : `Paragraph 1 — ATMOSPHERE: Vivid sensory description (apply the temporal register above), ending with one clause of Watson's reflection on the case or his unease.${act0Note}
 
 Paragraph 2 — ${blockquoteBeat}
 
-Paragraph 3 — ${noticeBeat}${approachBeat}`;
+Paragraph 3 — ${noticeBeat}${approachBeat}${epilogueCutNote}`;
 
     return `=== NARRATION MODE: FULL ===
 ${lengthLine} Do NOT include any Markdown heading (no "###" line) — begin directly with the prose.

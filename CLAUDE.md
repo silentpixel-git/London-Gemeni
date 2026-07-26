@@ -11,6 +11,7 @@ Bias toward caution over speed; use judgment on trivial tasks.
 - **Surgical changes.** Touch only what the task requires. Don't refactor or reformat adjacent code. Match existing style. Remove imports/vars *your* change orphaned; leave pre-existing dead code alone (mention it, don't delete it).
 - **Goal-driven execution.** Turn tasks into verifiable checks ("fix the bug" → reproduce with a test, then make it pass) so multi-step work can be looped on independently.
 - **Never monitor open PRs.** The repo owner is the only developer — there are no reviewers to wait on and no CI feedback loop to babysit. Don't subscribe to PR activity, don't schedule PR check-in reminders, and don't poll PR/CI status. Push the branch, open the draft PR, report it, and stop. Only revisit a PR when explicitly asked.
+- **Solo project — deployed, but not "in production" in any way that constrains design.** The owner is the only player as well as the only developer. Don't hedge for other users, don't write save-migration shims or backward-compatibility layers, don't preserve old flag names for existing saves, and don't stage a breaking change behind a flag to protect a live audience. Breaking saves and rewriting story data wholesale are both fine. Still call out when a change breaks saves — the owner may want to start a fresh investigation — just don't design around avoiding it. This changes only when the owner says other people are playing.
 
 ## Project overview
 

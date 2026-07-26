@@ -345,6 +345,10 @@ export interface NarrationContext {
   // Proactive hint woven into the turn when the player is stuck — chosen by the
   // engine's selectHint, phrased by the AI in Watson's voice.
   watsonHint?: HintTarget;
+  // True on the turn the act-epilogue cut fires: the act's field work is done
+  // and Watson has been moved to the summation location. The narration should
+  // carry him there rather than describe a fresh arrival out of nowhere.
+  actEpilogueCut?: boolean;
   // Scripted NPC presence moments — directorial instructions for the AI.
   // Populated by engine when a present NPC has a scriptedLine that matches
   // the current location (and optional trigger flag).
