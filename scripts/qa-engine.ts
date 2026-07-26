@@ -50,6 +50,7 @@ import {
   INITIAL_NPC_STATES,
   INITIAL_INVENTORY,
 } from '../constants';
+import { ACT_ANCHORS } from '../engine/stories/whitechapel-1888/acts';
 
 // ── Logging helpers ───────────────────────────────────────────────────────────
 
@@ -1803,8 +1804,8 @@ console.log('\n── NPC approaches ──');
   };
 
   // Full-mode turn at the NPC's location: a look-around ("look") is narrationMode full.
-  // dorset_street's authored vignettes are pre-consumed here — an unfired
-  // vignette wins over an approach (case 9 proves that with a fresh snapshot).
+  // dorset_street's authored vignettes are pre-consumed here purely to keep this
+  // fixture minimal; approaches now coexist with an unfired vignette (case 9).
   const base = buildSnapshot({ currentAct: 1, location: 'dorset_street',
     flags: { vignette_dorset_street_0: true, vignette_dorset_street_1: true } });
 
@@ -1915,13 +1916,18 @@ console.log('\n── NPC approaches ──');
     pass('rumor approach delivers the matured statement and acks TALK-based delivery');
   } else fail('rumor approach statement content', JSON.stringify({ apContent, flags: r.flagsUpdate, expected: spread1.statement }));
 
-  // 9. Vignette wins: a location with an unfired vignette shows no approach that turn.
-  //    dorset_street has vignettes; a fresh look-around fires vignette idx 0.
+  // 9. Vignette coexistence (regression guard). The vignette veto used to skip
+  //    the approach entirely on any full-mode turn carrying an unfired vignette
+  //    — and since vignettes fire in exactly the full mode approaches require,
+  //    that starved the system: of the location-anchored authored approaches,
+  //    only the one at the sole vignette-free location ever fired. Full mode now
+  //    has a paragraph slot for each beat, so both may land on the same turn.
   const freshVignetteSnap = buildSnapshot({ currentAct: 1, location: 'dorset_street' });
   const rv = mkEngine([mundane]).resolve(parseIntent('look'), freshVignetteSnap);
-  if ((rv.aiContext as any).vignette ? !(rv.aiContext as any).npcApproach : true) {
-    pass('vignette-wins: no approach on a vignette turn');
-  } else fail('vignette-wins');
+  if ((rv.aiContext as any).vignette && (rv.aiContext as any).npcApproach?.npcId === SELF_INTRO_NPC) {
+    pass('approach fires alongside an unfired vignette (no vignette veto)');
+  } else fail('vignette coexistence',
+    JSON.stringify({ vignette: !!(rv.aiContext as any).vignette, ap: (rv.aiContext as any).npcApproach }));
 
   // 10. Cross-act cooldown (Bug 2 regression guard): canonicalMinutes is a
   // time-of-day value that resets per act — it is NOT a monotonic clock.
@@ -1956,66 +1962,72 @@ console.log('\n── NPC approaches ──');
     pass('approach fires normally at a new act\'s start once lastApproachAtMinutes is cleared');
   } else fail('cross-act cooldown fix', JSON.stringify((r.aiContext as any).npcApproach));
 
-  // 11. TALK-turn widening: a successful TALK to a DIFFERENT NPC (abberline)
-  // still lets a distinct, also-present NPC (hutchinson) approach this same
-  // turn, even though TALK is compact-mode narration.
+  // 11. TALK turns never fire an approach, and — critically — never write the
+  // one-shot flag. This was the silent-burn bug: an approach selected on a talk
+  // turn set approach_<id>, but compact mode's 100-130 word budget was already
+  // committed to the NPC-interview block's own paragraph plan, so the prose
+  // dropped the beat. The flag spent; the player saw nothing. Asserting the
+  // absent flag matters more than the absent context — a beat that fires
+  // invisibly is worse than one that does not fire at all.
   r = mkEngine([mundane]).resolve(parseIntent('talk to abberline'), base);
   const apTalk = (r.aiContext as any).npcApproach;
-  if (r.aiContext.narrationMode === 'compact' && apTalk?.npcId === SELF_INTRO_NPC) {
-    pass('approach fires on a successful TALK turn for a different present NPC');
-  } else fail('talk-turn approach widening', JSON.stringify({ mode: r.aiContext.narrationMode, apTalk }));
+  const talkBurned = Object.keys(r.flagsUpdate ?? {}).filter(k => k.startsWith('approach_'));
+  if (r.aiContext.narrationMode === 'compact' && !apTalk && talkBurned.length === 0) {
+    pass('TALK turn fires no approach and burns no once-flag');
+  } else fail('talk-turn suppression', JSON.stringify({ mode: r.aiContext.narrationMode, apTalk, talkBurned }));
 
-  // 12. Interviewee exclusion: the only eligible approach in scope targets the
-  // NPC Watson is currently talking to (hutchinson) — it must NOT fire for
-  // them, even though every other eligibility condition (location, act,
-  // presence) is satisfied. Proves the exclusion, not a coincidental miss.
-  r = mkEngine([mundane]).resolve(parseIntent(`talk to ${SELF_INTRO_NPC}`), base);
-  const apSelf = (r.aiContext as any).npcApproach;
-  if (!apSelf) {
-    pass('approach does not fire for the NPC Watson is currently talking to');
-  } else fail('interviewee exclusion', JSON.stringify(apSelf));
+  // 12. Act beats take priority over ambient entries regardless of file order:
+  // the ambient entry is listed FIRST and is fully eligible, so first-eligible
+  // ordering alone would pick it. The act's designed moment must win.
+  const ambientFirst = { id: 'test_ambient_first', npcId: SELF_INTRO_NPC,
+    locationId: 'dorset_street', acts: [1], kind: 'mundane', text: 'TEST AMBIENT' };
+  const beatSecond = { id: 'test_beat_second', npcId: SELF_INTRO_NPC,
+    locationId: 'dorset_street', acts: [1], actBeat: true, kind: 'mundane', text: 'TEST ACT BEAT' };
+  r = mkEngine([ambientFirst, beatSecond]).resolve(parseIntent('look'), base);
+  if ((r.aiContext as any).npcApproach?.text === 'TEST ACT BEAT') {
+    pass('act beat selected ahead of an earlier-listed eligible ambient approach');
+  } else fail('act beat priority', JSON.stringify((r.aiContext as any).npcApproach));
 
-  // 13/14. Double-hearsay guard: a rumor-kind approach must not land in the
-  // same beat as the interviewee's OWN matured hearsay (targetNpcInterview
-  // .recentlyHeard) — two independent secondhand-gossip deliveries in one
-  // compact-mode reply reads as narration overload. Reuses rumor0's real
-  // fixture pair (phillips + abberline), who share whitechapel_pub during
-  // act 2's evening period per their authored schedules.
-  const cfg2 = WHITECHAPEL_MANIFEST.actTimeConfig[2];
-  const dhElapsed = 500; // 540 (act2 canonical) + 500 = 1040 → 'evening'
-  const dhPeriod = timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, 2, dhElapsed);
-  const abberlineLoc2 = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, 'abberline', 2, dhPeriod, {});
-  const phillipsLoc2 = npcLocationAt(WHITECHAPEL_MANIFEST.npcs, 'phillips', 2, dhPeriod, {});
-  if (abberlineLoc2 !== 'offstage' && abberlineLoc2 === phillipsLoc2) {
-    const dhRumorApproach = {
-      id: 'test_dh_rumor', npcId: 'phillips', locationId: 'any', kind: 'rumor',
-      rumorId: rumor0.id, text: 'TEST DH RUMOR FRAME',
-    };
-    const dhSnap = buildSnapshot({ currentAct: 2, location: abberlineLoc2, elapsedMinutes: dhElapsed,
-      flags: { [rumor0.triggerFlag]: true },
-      rumorEvents: { [rumor0.id]: { act: 0, atMinutes: 0 } } });
-    r = mkEngine([dhRumorApproach]).resolve(parseIntent('talk to abberline'), dhSnap);
-    const dhRecentlyHeard = (r.aiContext as any).targetNpcInterview?.recentlyHeard;
-    const dhApRumor = (r.aiContext as any).npcApproach;
-    if (dhRecentlyHeard?.length > 0 && !dhApRumor) {
-      pass('rumor-kind approach suppressed when the interviewee independently delivers matured hearsay this turn');
-    } else fail('double-hearsay guard', JSON.stringify({ dhRecentlyHeard, dhApRumor }));
+  // 13. Act beats ignore the cooldown; ambient entries still respect it. An act
+  // whose beat could be swallowed by a texture entry firing minutes earlier
+  // would not be guaranteed, which is the entire point of the flag.
+  const coolingSnap = buildSnapshot({ currentAct: 1, location: 'dorset_street',
+    flags: { vignette_dorset_street_0: true, vignette_dorset_street_1: true },
+    lastApproachAtMinutes: cfg1.canonicalMinutes });
+  r = mkEngine([ambientFirst]).resolve(parseIntent('look'), coolingSnap);
+  const coolAmbient = (r.aiContext as any).npcApproach;
+  r = mkEngine([beatSecond]).resolve(parseIntent('look'), coolingSnap);
+  const coolBeat = (r.aiContext as any).npcApproach;
+  if (!coolAmbient && coolBeat?.text === 'TEST ACT BEAT') {
+    pass('cooldown suppresses ambient approaches but exempts act beats');
+  } else fail('act beat cooldown exemption', JSON.stringify({ coolAmbient, coolBeat }));
 
-    // 14. Companion assertion: a MUNDANE approach for the SAME npc, in the
-    // exact same double-hearsay scenario, is unaffected — the guard is
-    // scoped to rumor-kind approaches only.
-    const dhMundaneApproach = {
-      id: 'test_dh_mundane', npcId: 'phillips', locationId: 'any', acts: [2],
-      kind: 'mundane', text: 'TEST DH MUNDANE',
-    };
-    r = mkEngine([dhMundaneApproach]).resolve(parseIntent('talk to abberline'), dhSnap);
-    const dhApMundane = (r.aiContext as any).npcApproach;
-    if (dhApMundane?.npcId === 'phillips' && dhApMundane?.kind === 'mundane') {
-      pass('mundane approach still fires alongside interviewee hearsay — guard scoped to rumor-kind only');
-    } else fail('mundane unaffected by double-hearsay guard', JSON.stringify(dhApMundane));
-  } else {
-    warn('double-hearsay guard cases skipped',
-      `abberline/phillips do not share a location in act 2's ${dhPeriod} — schedule changed, pick new fixtures`);
+  // 14. Every act in the production manifest has exactly one act beat, and it
+  // fires on a fresh look-around at that act's anchor — the guarantee the
+  // authored data is supposed to provide, checked against the real approach set
+  // rather than fixtures. qa-validate.ts enforces the authoring invariants;
+  // this proves the engine actually delivers them in play.
+  {
+    const missing: string[] = [];
+    for (const act of Object.keys(WHITECHAPEL_MANIFEST.actTimeConfig).map(Number)) {
+      const anchor = ACT_ANCHORS[act];
+      if (!anchor) continue;
+      const beat = WHITECHAPEL_MANIFEST.approaches.find(a => a.actBeat && a.acts?.includes(act));
+      if (!beat) { missing.push(`act ${act}: no beat authored`); continue; }
+      // Followers ride Watson's location; place them with him as live play would.
+      const npcStates = WHITECHAPEL_MANIFEST.npcs[beat.npcId]?.followingRule === 'follows_watson'
+        ? { [beat.npcId]: { npcId: beat.npcId, disposition: 50, status: 'alive' as const, currentLocation: anchor } }
+        : {};
+      const rb = gameEngine.resolve(parseIntent('look'),
+        buildSnapshot({ currentAct: act, location: anchor, npcStates: npcStates as any }));
+      const fired = (rb.aiContext as any).npcApproach;
+      if (fired?.npcId !== beat.npcId) {
+        missing.push(`act ${act}: expected ${beat.id} (${beat.npcId}), got ${fired?.npcId ?? 'nothing'}`);
+      }
+    }
+    if (missing.length === 0) {
+      pass('every act\'s authored beat fires on a fresh look-around at its anchor');
+    } else fail('authored act beat delivery', missing.join('; '));
   }
 
   // 15. Holmes authored approach (production data, not a synthetic fixture):

@@ -92,7 +92,7 @@ ABSOLUTE RULES:
 11. TYPOS IN WATSON'S SPEECH — if Watson's quoted words contain a near-miss of an established name (a victim, suspect, or NPC already in context), treat it as that established name in the reply; never invent a new person or nickname to explain the mismatch.
 
 OUTPUT — return a JSON object:
-- "markdownOutput": the narrative text (Markdown, real line breaks — never a literal "\\n"). Full mode max 160 words (110 on a revisit); compact mode max 130.
+- "markdownOutput": the narrative text (Markdown, real line breaks — never a literal "\\n"). Each prompt states its own paragraph count and word limit — follow that line exactly; it is the authority (a turn carrying an extra required beat raises it).
 - "npcMemoryUpdate": optional ~10-word interaction summary keyed by npcId (e.g. {"holmes": "Watson and Holmes discussed the burned clothing."}).
 - "stimUpdate": optional array of NEW sensory first-observations to remember, each {"key": snake_case id, "summary": "10-15 words", "scope": "npc"|"object"|"environment"} (e.g. {"key":"holmes_coat","summary":"...","scope":"npc"}). Only when the result note asks for it and the subject is not already in SESSION OBSERVATIONS.
 NpcIds: holmes, abberline, bond, edmund, lusk, diemschutz, superintendent, hutchinson, phillips, tumblety, pizer, barmaid.`;
@@ -229,8 +229,12 @@ export function buildNarrationPrompt(ctx: NarrationContext): string {
   // targetNpcInterview's introducingThisTurn contract. For kind: 'rumor',
   // `statement` carries the actual matured gossip content — `text` alone is
   // just the delivery framing and has nothing in it to disclose.
-  const approachBlock = ctx.npcApproach ? `
-NPC APPROACH — after the main action is narrated, ${ctx.npcApproach.label} approaches Watson unprompted, as their own short beat (2–3 sentences):
+  // Full mode only, and always as its own required paragraph (see the
+  // `structure` assembly below). It is never appended to the compact prompt:
+  // compact's 100–130 word budget is committed to the interview block's own
+  // paragraph plan, which silently swallowed this beat while the engine burned
+  // its one-shot flag. engine/approaches.ts now fires on full-mode turns only.
+  const approachDirective = ctx.npcApproach ? `${ctx.npcApproach.label} approaches Watson unprompted — their own short beat, 2–3 sentences, narrated in full and not compressed into a clause:
 ${ctx.npcApproach.text}${ctx.npcApproach.statement
   ? `\nWhat they actually pass on (hearsay register, hedged sourcing — "word is…", "they say…" — never as if witnessed firsthand): ${ctx.npcApproach.statement}`
   : ''}
@@ -285,21 +289,26 @@ Description: ${ctx.locationDescription}`;
 Format EXACTLY as a Markdown blockquote:
 > *Your world event sentence here.*`;
 
+    // An approach adds a paragraph and its own word allowance — folding it into
+    // the existing budget is what let it get dropped.
     const lengthLine = isRevisit
-      ? 'Write 2 short paragraphs (max 110 words).'
-      : 'Write 3 short paragraphs (max 160 words).';
+      ? `Write ${approachDirective ? 3 : 2} short paragraphs (max ${approachDirective ? 150 : 110} words).`
+      : `Write ${approachDirective ? 4 : 3} short paragraphs (max ${approachDirective ? 200 : 160} words).`;
+    const approachBeat = approachDirective
+      ? `\n\nParagraph ${isRevisit ? 3 : 4} — NPC APPROACH (required — do not omit or merge into another paragraph): ${approachDirective}`
+      : '';
 
     // Revisit keeps the authored vignette as an extra quoted beat when present,
     // but never invents an atmospheric-seed blockquote (keeps look-arounds tight).
     const structure = isRevisit
       ? `Paragraph 1 — RETURN: Watson's purpose in returning, or what is immediately different — NO room description, NO weather opener — ending with one brief clause of his reflection on the case.${act0Note}
 ${ctx.vignette ? `\n${blockquoteBeat}\n` : ''}
-Paragraph 2 — ${noticeBeat}`
+Paragraph 2 — ${noticeBeat}${approachBeat}`
       : `Paragraph 1 — ATMOSPHERE: Vivid sensory description (apply the temporal register above), ending with one clause of Watson's reflection on the case or his unease.${act0Note}
 
 Paragraph 2 — ${blockquoteBeat}
 
-Paragraph 3 — ${noticeBeat}`;
+Paragraph 3 — ${noticeBeat}${approachBeat}`;
 
     return `=== NARRATION MODE: FULL ===
 ${lengthLine} Do NOT include any Markdown heading (no "###" line) — begin directly with the prose.
@@ -317,7 +326,7 @@ ${memorySection}
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
-${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${ambientExtraSection}${clueSection}${synthesisSection}${approachBlock}
+${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${ambientExtraSection}${clueSection}${synthesisSection}
 Narrate Watson's arrival / survey of this location using exactly this structure:
 
 ${structure}`;
@@ -337,7 +346,7 @@ ${memorySection}${atmosphericNoteSection}
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
-${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${clueSection}${synthesisSection}${approachBlock}`;
+${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${clueSection}${synthesisSection}`;
 
   if (ctx.targetNpcInterview) {
     const { label, isIntroduced, introducingThisTurn, realName, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion, recentlyHeard } = ctx.targetNpcInterview;

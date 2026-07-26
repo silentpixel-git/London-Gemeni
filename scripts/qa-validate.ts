@@ -26,7 +26,7 @@ import {
   USE_COMBINATIONS,
   DOCUMENT_TEXT,
 } from '../engine/stories/whitechapel-1888/clues';
-import { ACT_PROGRESSION, ACT_TIME_CONFIG } from '../engine/stories/whitechapel-1888/acts';
+import { ACT_PROGRESSION, ACT_TIME_CONFIG, ACT_ANCHORS } from '../engine/stories/whitechapel-1888/acts';
 import { computeTimePeriod, npcLocationAt, PERIOD_ORDER } from '../engine/GameEngine';
 import { WORLD_EVENTS } from '../engine/stories/whitechapel-1888/events';
 import { SUSPECT_PROFILES } from '../engine/stories/whitechapel-1888/suspects';
@@ -706,6 +706,59 @@ section('NPC approaches (Phase 5)');
 
   const edmundCount = APPROACHES.filter(a => a.npcId === 'edmund' && a.kind === 'mundane').length;
   if (edmundCount < 2) warn('Edmund has fewer than 2 mundane approaches', 'recession rule — the murderer must initiate contact like everyone else');
+
+  // Act beats: exactly one guaranteed beat per act, and nothing about it may be
+  // conditional. An act beat that can be gated off, mis-pinned, or crowded by a
+  // second beat is not guaranteed, which is the whole point of the flag.
+  const beatFailsBefore = fails;
+  const actNumbers = Object.keys(ACT_TIME_CONFIG).map(Number).sort((x, y) => x - y);
+  const beats = APPROACHES.filter(a => a.actBeat);
+  for (const a of beats) {
+    const label = `act beat ${a.id}`;
+    if (a.kind !== 'mundane') {
+      fail(`${label}: kind is "${a.kind}"`,
+        'a rumor beat depends on maturation and so cannot be guaranteed — act beats must be mundane');
+    }
+    if (!a.acts || a.acts.length !== 1) {
+      fail(`${label}: acts is ${a.acts ? `[${a.acts.join(', ')}]` : 'unset'}`,
+        'an act beat must be pinned to exactly one act');
+    }
+    if (a.requireFlags?.length || a.forbidFlags?.length) {
+      fail(`${label}: carries ${a.requireFlags?.length ? 'requireFlags' : 'forbidFlags'}`,
+        'a guaranteed beat must not depend on a flag that could withhold or permanently disable it');
+    }
+    if (a.timePeriods?.length) {
+      fail(`${label}: restricted to periods [${a.timePeriods.join(', ')}]`,
+        'a guaranteed beat must be reachable in any time period Watson could arrive in');
+    }
+  }
+  for (const act of actNumbers) {
+    const forAct = beats.filter(a => a.acts?.includes(act));
+    if (forAct.length === 0) {
+      fail(`act ${act} has no act beat`, 'every act needs exactly one approach marked actBeat: true');
+    } else if (forAct.length > 1) {
+      fail(`act ${act} has ${forAct.length} act beats`,
+        `[${forAct.map(a => a.id).join(', ')}] — only one may be guaranteed per act`);
+    } else {
+      // The beat must sit where the act's spine actually takes Watson. 'any'
+      // rides a follower's live position and is reachable by construction.
+      const a = forAct[0];
+      if (a.locationId !== 'any') {
+        const anchor = ACT_ANCHORS[act];
+        const present = PERIOD_ORDER.some(p =>
+          npcLocationAt(NPCS, a.npcId, act, p, {}) === a.locationId);
+        if (!present) {
+          fail(`act beat ${a.id}: ${a.npcId} is never at ${a.locationId} in act ${act}`);
+        } else if (anchor && a.locationId !== anchor) {
+          warn(`act beat ${a.id} is at ${a.locationId}, not act ${act}'s anchor (${anchor})`,
+            'reachable, but a player who never visits this location will miss the act\'s designed beat');
+        }
+      }
+    }
+  }
+  if (fails === beatFailsBefore) {
+    pass(`${beats.length} act beats: one per act, mundane, single-act, unconditional, NPC present`);
+  }
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────

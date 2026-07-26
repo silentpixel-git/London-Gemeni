@@ -174,6 +174,12 @@ export interface ApproachDefinition<F extends string = string> {
   // delivery framing around the matured statement.
   text: string;
   rumorId?: string;                // required iff kind === 'rumor'
+  // Act beat: a designed story moment rather than ambient texture. Exactly one
+  // per act (qa:validate enforces). Selected ahead of ambient entries and
+  // exempt from the approach cooldown, so the act's authored beat cannot be
+  // crowded out by a texture entry that happened to fire first. Must be
+  // 'mundane' — a rumor beat depends on maturation and so cannot be guaranteed.
+  actBeat?: boolean;
 }
 
 export interface SuspectProfile<F extends string = string> {

@@ -26,7 +26,18 @@ export interface SelectedApproach {
  * Returns the first eligible approach for this turn, or null if none fires —
  * either because every authored approach is ineligible/exhausted, or because
  * the turn itself is suppressed (failed action, act transition, ending, clue
- * discovery, deduction, non-full narration, vignette turn, cooldown).
+ * discovery, deduction, non-full narration, cooldown).
+ *
+ * Full-mode turns only (a successful move, or a bare LOOK). Earlier revisions
+ * also fired on TALK turns, which was the bug that made this whole system
+ * invisible: an approach selected on a talk turn set its one-shot
+ * `approach_<id>` flag, but compact mode's 100–130 word budget was already
+ * committed to the NPC-interview block's own paragraph plan, so the prose
+ * almost always dropped the beat. The flag burned; the player saw nothing.
+ * Full mode has an authored paragraph slot for the beat (see server/aiCore.ts).
+ *
+ * Act beats (`actBeat: true`) are selected ahead of ambient entries and ignore
+ * the cooldown, so an act's designed moment cannot be crowded out by texture.
  */
 export function selectApproach(
   story: StoryManifest,
@@ -34,39 +45,31 @@ export function selectApproach(
   result: EngineResult,
 ): SelectedApproach | null {
   // Dramatic-turn suppression (spec): failed actions, act transitions,
-  // endings, clue discoveries, deductions, non-full narration (except a
-  // successful TALK turn — see below), vignette turns.
+  // endings, clue discoveries, deductions, non-full narration.
   if (!result.actionSuccess) return null;
   if (result.newAct !== undefined || result.gameOver) return null;
   if (result.discoveredClueIds && result.discoveredClueIds.length > 0) return null;
   if (result.actionType === 'deduce') return null;
-  const isFullMode = result.aiContext.narrationMode === 'full';
-  const isTalkTurn = result.actionType === 'talk';
-  if (!isFullMode && !isTalkTurn) return null;
-  if (result.aiContext.vignette) return null;
+  if (result.aiContext.narrationMode !== 'full') return null;
 
   const locationId = result.newLocation ?? session.location;
   if (!story.locations[locationId]) return null;
 
   const cfg = story.actTimeConfig[session.currentAct] ?? story.actTimeConfig[1];
   const now = cfg.canonicalMinutes + session.elapsedMinutes + (result.minutesAdvanced ?? 0);
-  if (session.lastApproachAtMinutes !== undefined &&
-      now - session.lastApproachAtMinutes < APPROACH_COOLDOWN_MINUTES) return null;
+  const cooling = session.lastApproachAtMinutes !== undefined &&
+    now - session.lastApproachAtMinutes < APPROACH_COOLDOWN_MINUTES;
   const period = computeTimePeriod(now);
 
-  for (const a of story.approaches) {
+  // Act beats first, then ambient — file order within each group. A cooling
+  // turn still admits the act beat; ambient entries wait for the cooldown.
+  const candidates = [
+    ...story.approaches.filter(a => a.actBeat),
+    ...(cooling ? [] : story.approaches.filter(a => !a.actBeat)),
+  ];
+
+  for (const a of candidates) {
     if (session.flags[`approach_${a.id}`]) continue;
-    // A TALK turn's interviewee can never also be the one who "approaches" —
-    // that would read as them redundantly initiating contact with themselves
-    // mid-conversation. Only a different, also-present NPC may fire.
-    if (isTalkTurn && a.npcId === result.aiContext.targetNpcInterview?.npcId) continue;
-    // A rumor-kind approach must not land in the same beat as the
-    // interviewee's own matured hearsay (targetNpcInterview.recentlyHeard) —
-    // two independent secondhand-gossip deliveries in one compact-mode reply
-    // reads as narration overload and blows the word budget. Mundane
-    // approaches are unaffected — a brief unrelated action from someone else
-    // is fine alongside an interview.
-    if (isTalkTurn && a.kind === 'rumor' && result.aiContext.targetNpcInterview?.recentlyHeard?.length) continue;
     if (a.locationId !== 'any' && a.locationId !== locationId) continue;
     if (a.acts && !a.acts.includes(session.currentAct)) continue;
     if (a.timePeriods && !a.timePeriods.includes(period)) continue;
