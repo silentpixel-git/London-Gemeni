@@ -129,9 +129,22 @@ see §9.8). Holmes is in the post-case
 trough Watson knows well: restless, contemptuous of the holiday's noise, complaining
 that crime has grown dull and small.
 
-**Tutorial beats (flag sketch):** examine the concluded case's file (EXAMINE), talk to
-Holmes (TALK — he delivers the "crime has grown dull" irony), take the evening paper
-(TAKE), show Holmes something in it (SHOW). Mrs. Hudson supper beat optional.
+**The hook (added after review — the act was dull as first specced):** a caller Holmes
+turns away. Mrs. Kemp is already in the room when the game opens, come about her sister
+Nell, missing nine days — no body, no crime, only an unredeemed pawn ticket for a pair of
+boots. Holmes declines: no case is disclosed. She leaves; Watson keeps the ticket. Nell is
+never found, never named again, and never confirmed connected to anything. The act opens on
+the exact mistake the game spends seven acts paying for. See the slice spec §2.
+
+**Tutorial beats (flag sketch):** every verb motivated by her visit — examine the pawn
+ticket (EXAMINE), ask her about her sister (TALK), take the ticket when she goes (TAKE),
+show it to Holmes and watch him wave it away (SHOW). The closing beat is asking Holmes
+about crime having grown dull.
+
+**Act beat:** after she has gone, Holmes at the open window on the holiday crowd — a
+hundred thousand in the streets, and a man might pass through all of them unremembered. He
+means it as a complaint about scale. It is the killer's thesis, stated before the killer
+exists.
 
 **Dramatic irony to plant, gently:** Holmes's boredom. The audience knows what tomorrow
 brings; Watson does not. The act's last line of narration should let the warm night feel

@@ -135,63 +135,105 @@ October lull is a month of documents. Building it here is the slice earning its 
 **Mon 6 August 1888, evening, 221B.** `canonicalMinutes: 1230` (8:30 PM), warm and clear,
 windows open to the holiday noise.
 
-No murder has happened. This is the calm before, and the only act in the game that is
-purely safe. Its last line of narration should let the warm night feel briefly,
-unrepeatably safe — the audience knows what tomorrow is; Watson does not.
+No murder has happened, and none may be hinted at. But "the calm before" is a *theme*, not
+a scene — an act built only on Holmes being bored is a tutorial wearing a story's clothes.
+The act opens on an event instead.
 
-**Situation.** Holmes is concluding another case — **unnamed, and with no treasure and no
-wronged lady** (revised from bible §9.8; see below). A matter referred to only in the
-abstract: papers returned, a client satisfied, the thing already boring him. He is in the
-post-case trough: restless, contemptuous of the holiday's noise, complaining that crime
-has grown dull and small.
+### The hook — a caller Holmes turns away
 
-**Why not the *Sign of Four* allusion** (historian finding, overriding §9.8): that story
-is canonically **September 1888**, a month *after* this act — and, more damagingly,
-concluding it leaves Watson newly engaged to Mary Morstan and on the point of leaving
-Baker Street. The whole premise of Act 0 and of Reid's pre-dawn message is that Watson is
-resident and available. The case was always scenery; making it unnamed costs nothing
-dramatically and removes both problems. *The Cardboard Box* (canonically August 1888) was
-considered and rejected — its parcel of human remains pre-echoes the Lusk kidney and would
-show the game's hand five acts early.
+**Mrs. Kemp is already in the sitting room when the game begins.** She has come about her
+sister Nell, who has not been seen for nine days. No body, no crime, no evidence of
+anything but a woman who has gone somewhere without saying. She has brought the only thing
+she has: Nell's pawn ticket for a pair of boots, left behind and unredeemed — a woman who
+pawns her boots means to come back for them.
+
+Holmes hears her out with visible impatience and declines. There is no case here. People
+in the East End move without notice; a pawn ticket is not a crime. She leaves. Watson
+notices the refusal rather more than Holmes does, and keeps the ticket.
+
+Why this shape:
+
+- **The player arrives mid-scene**, in a room with a person in it and something at stake,
+  rather than an empty parlour waiting to be inventoried.
+- **The tutorial hides inside the scene.** Every verb is motivated by her visit: examine
+  the ticket she has laid on the table, ask her about her sister, take the ticket when she
+  goes, show it to Holmes and watch him wave it away.
+- **The act opens on the mistake the game spends seven acts paying for.** Small East End
+  trouble, dismissed as beneath notice. Before dawn tomorrow, Reid sends about a woman on a
+  landing with 39 wounds in her.
+- **Holmes's contempt is canon-true, not a character assassination.** Doyle's Holmes
+  refuses cases beneath him routinely. Watson's discomfort is the emotional register, and
+  Act 7's "I was slower about this business than I care to admit" is its distant answer.
+
+**Nell is never found, never named again, and never confirmed connected to anything.** No
+clue points at her; no later act resolves her. She is not Tabram, and the game never
+implies she is. She is the first of the ones nobody remembers, and the pawn ticket stays in
+Watson's inventory doing nothing for the entire game.
+
+*Risk, accepted:* a player may expect a literal payoff and feel cheated when none comes.
+The ambiguity is the point, and the blind playthrough should be asked whether the
+unresolved thread reads as haunting or as a loose end.
+
+### Holmes at the window
+
+After she has gone, Holmes crosses to the open window and observes the holiday crowd — a
+hundred thousand people in the streets tonight, and a man might be perfectly invisible
+among them. He means it as a complaint about the tedium of scale. It is the killer's entire
+thesis, stated before the killer exists.
+
+Authored as **Act 0's `actBeat` approach** (unprompted, guaranteed, one-shot). This
+displaces the existing `holmes_watson_revolver` beat, which moves to Act 1 as an ambient
+approach — it fits the pre-dawn departure better than the drawing room anyway.
 
 ### Location: `baker_street` (revised, act 0)
 
-Existing location, re-dressed. The reweave's case-files wall — four victims and a suspect
-landscape — **cannot exist in August**; nothing has happened yet. It is replaced for the
-slice:
-
 | Object | Purpose |
 |---|---|
-| `concluded_case_file` | The unnamed concluded matter. EXAMINE tutorial. Document text, no clue — deliberately dull reading, which is the joke. |
-| `evening_paper` | TAKE tutorial. Bank Holiday copy — crowds, heat, a dull column of petty crime. |
+| `pawn_ticket` | Nell's, for a pair of boots. EXAMINE + TAKE + SHOW tutorial chain. Takeable, keeps document text, never resolves. |
+| `concluded_case_file` | The unnamed matter Holmes has just finished. Scenery and a joke — deliberately dull reading. |
 | `holmes_chemistry_table` | Existing. Idle texture, no gate. |
 | `violin_case` | Existing. Holmes's boredom made physical. |
 
 The case-files wall, telegrams pile and newspaper-clipping chain belong to the November
-material and are **retired from Act 0**, not re-homed — under the reworked chronology
-there is no campaign to pin to a wall until Act 3 at the earliest.
+material and are **retired from Act 0**, not re-homed — under the reworked chronology there
+is no campaign to pin to a wall until Act 3 at the earliest.
+
+### NPC (new)
+
+| id | display | rule | schedule (act 0) | role |
+|---|---|---|---|---|
+| `mrs_kemp` | Mrs. Kemp | `fixed` | `baker_street` | The caller. Appears in Act 0 only; offstage every act after. Plain, tired, not pitiable — she has come a long way on an omnibus and expects to be dismissed. |
+
+She remains mechanically present for the whole act after Holmes's refusal, which needs no
+new mechanic and reads correctly: she lingers, and then the act ends and she is gone.
 
 ### Gate
 
 ```
 0: requireFlags: [
-     'examined_baker_street_concluded_case_file',   // EXAMINE tutorial
-     'showed_evening_paper_to_holmes',              // TAKE + SHOW tutorial chain
-     'asked_holmes_about_holmes_crime_grown_dull',  // TALK tutorial — and the closing beat
+     'asked_mrs_kemp_about_kemp_sister_missing',    // TALK — the hook
+     'examined_baker_street_pawn_ticket',           // EXAMINE
+     'showed_pawn_ticket_to_holmes',                // TAKE + SHOW chain — the refusal
+     'asked_holmes_about_holmes_crime_grown_dull',  // TALK — the closing beat
    ],
    advanceTo: 1
 ```
 
-Three flags, teaching four verbs (TAKE is implied by the SHOW chain, exactly as the
-current Act 0 teaches it). **No `actEpilogues` entry** — the act *is* Baker Street, so
-there is nowhere to cut to. The bridge to Act 1 is the knock before dawn.
+Four flags, four verbs, every one motivated by the scene rather than announced as a lesson.
+**No `actEpilogues` entry** — the act *is* Baker Street, so there is nowhere to cut to. The
+bridge to Act 1 is the knock before dawn.
 
 ### New facts
 
-| id | act | topics | substance |
-|---|---|---|---|
-| `holmes_crime_grown_dull` | 0 | `the criminal classes`, `crime`, `your boredom` | The great cases are done; what remains is squalid and small. The irony the act is built on. |
-| `holmes_concluded_case` | 0 | `the case you have just closed`, `your last case` | Concluded, unremarkable, already forgotten. Names nothing and no one; deflects if pressed. |
+| id | act | knownBy | topics | substance |
+|---|---|---|---|---|
+| `kemp_sister_missing` | 0 | mrs_kemp | `your sister`, `nell`, `why you have come` | Nine days. She would not go without saying, whatever the gentleman thinks. |
+| `kemp_pawn_ticket` | 0 | mrs_kemp | `the ticket`, `the boots`, `the pawnbroker` | Her boots are still with the pawnbroker. A woman means to come back for her boots. |
+| `kemp_police_wont_look` | 0 | mrs_kemp | `the police`, `what they said` | They took the name down. That was the whole of it. |
+| `holmes_crime_grown_dull` | 0 | holmes | `the criminal classes`, `crime`, `your boredom` | The great cases are done; what remains is squalid, small, and explains itself. The irony the act is built on, and the closing beat. |
+| `holmes_no_case_here` | 0 | holmes | `mrs kemp`, `the woman who called`, `her sister` | No crime is disclosed. A missing woman in the East End is an address change, not a case. Flat, reasonable, and wrong. |
+| `holmes_concluded_case` | 0 | holmes | `the case you have just closed`, `your last case` | Concluded, unremarkable, already forgotten. Names nothing and no one. |
+| `holmes_invisible_in_a_crowd` | 0 | holmes | `the crowd`, `the holiday`, `the window` | A hundred thousand in the streets, and a man might pass through all of them unremembered. Delivered unprompted as the act beat; askable afterwards. |
 
 ---
 
@@ -229,9 +271,10 @@ answer, even when the evidence for it is sound.*
 | `h_division_station` | 1 | Existing, re-dated. Reid's ground. |
 | `baker_street` | 0 | Existing. The act's epilogue location. |
 
-### NPCs (new — three, not four)
+### NPCs (new — four in this act, five across the slice)
 
-Llewellyn attends Nichols and belongs to **Act 2**, not this slice.
+Llewellyn attends Nichols and belongs to **Act 2**, not this slice. `mrs_kemp` (Act 0) is
+the fifth.
 
 | id | display | rule | schedule (act 1) | role |
 |---|---|---|---|---|
@@ -241,7 +284,9 @@ Llewellyn attends Nichols and belongs to **Act 2**, not this slice.
 | `killeen` | Dr. Killeen | `fixed` | `old_montague_street_mortuary` | The two-blade finding. Young, careful, out of his depth and honest about it. |
 
 `edmund` gains an act-1 schedule entry: `old_montague_street_mortuary`. `holmes` follows
-Watson as ever. Every other NPC has **no act-1 entry** and is therefore offstage — which
+Watson as ever, and inherits `holmes_watson_revolver` as an **ambient** act-1 approach
+(displaced from Act 0 by the window beat) — it fits Watson arming himself before a pre-dawn
+cab to Whitechapel better than it ever fitted the drawing room. Every other NPC has **no act-1 entry** and is therefore offstage — which
 is correct, and is the mechanism that keeps November's cast out of August.
 
 ### The spotlight — the soldier (three beats, on-screen)
@@ -270,7 +315,7 @@ The staircase gaslight is **atmosphere, not a clue** (bible §4: "first, *invisi
 planting"). Making it a clue would announce the motif on its first appearance and spend
 the Act 7 payoff five acts early.
 
-### Edmund's presence — first sounding
+### Edmund's presence — first sounding (Act 1's `actBeat`)
 
 At the mortuary, taking notes for the divisional surgeon. No name, no alias beyond "the
 clerk". Watson barely registers him. He remarks, to nobody, that the staircase gaslight
@@ -349,6 +394,9 @@ each item is either fixed in the slice or explicitly deferred.
 | Act 1's `actBeat` is `hutchinson_dorset_weather` | **Fixed now.** Replaced by Edmund's first sounding at the mortuary. |
 | `clue_01_killer_confidence` (Miller's Court burned clothing), `clue_11_account_outruns_light` (the witness test) | **Deferred** with their locations. Both are Act 6 material chronologically. |
 | `clue_00_campaign_timeline` (the case-files wall) | **Retired from Act 0.** Re-authored for a later act when a campaign exists to chart. |
+| Act 0's `actBeat` is `holmes_watson_revolver` | **Fixed now.** Replaced by the window beat; the revolver line moves to Act 1 as ambient. |
+| `mrs_kemp` is onstage in Act 0 only and offstage for acts 1–6 | **Intended.** An NPC with no `scheduleByAct` entry for an act is offstage by construction — no special handling. |
+| The pawn ticket persists in inventory for the whole game with no use | **Intended.** It is a memento, not a puzzle piece. `qa:validate` will not flag it; no `USE_COMBINATIONS` entry exists for it and none should. |
 | `clue_06_prasarved_spelling` lives at `baker_street` — the crown puzzle | **Untouched.** It is act-gated by the convergence flag, not by Act 0's dressing. |
 | World events `act0_midnight_bells`, `act1_lord_mayors_show` | **Re-dated or retired.** The Lord Mayor's Show is 9 November and cannot fire in August. |
 | Hint objectives `a0_*` (5) and `a1_*` (6) | **Rewritten now** against the new gates. |
