@@ -61,9 +61,17 @@ Holiday. Act 0 is a warm night with the windows open; nothing in the union says 
 Bank Holiday night; `close` (humid, oppressive) for August nights and again for the
 murder-free October lull. A one-line union change plus labels in `ACT_WEATHER`.
 
-Note the condition string drives more than the sidebar label — `pickAtmosphericSeed`
-reads it — so `ATMOSPHERIC_SEEDS` needs entries for both new conditions, or August will
-silently draw on November's cold-night imagery. That is part of the slice's work.
+**Correction after implementation:** this section originally warned that
+`pickAtmosphericSeed` reads the condition and that August would silently inherit
+November's cold imagery. That was overstated. The seed picker reads the condition only for
+`requiresFog`, and the three fog-locked seeds are already correctly gated; every other seed
+is season-neutral. Seven August seeds scoped to acts 0–1 were added anyway, for texture
+rather than repair.
+
+The condition *is* consumed elsewhere and both new values had to be handled: `Sidebar`'s
+`WEATHER_ICON` is an exhaustive `Record<WeatherCondition, …>` (omitting them is a type
+error), and `WEATHER_LAYERS` gained a bed for `close`. `clear-warm` deliberately has no
+audio layer — a wind bed contradicts a still, warm night.
 
 ### 1.3 The five light soundings — SETTLED: each is its act's `actBeat`
 
@@ -97,25 +105,39 @@ cannot contain its own spotlight — the theory is raised on day one and tested 
 **Decision: Act 1 covers 7–15 August as one investigative episode**, with the barracks
 parade late in it.
 
-This is a **second engine delta**, beyond the epilogue cut — the bible's §8 called that
-"the only one", and that is no longer true. `ActTimeConfig` carries a single
-`displayDate`, so an act cannot currently change date. Two things are needed:
+This was a **second engine delta**, beyond the epilogue cut — the bible's §8 called that
+"the only one", and that is no longer true. **Shipped in `ff4b985`**; the interface as built:
 
 ```ts
 interface ActTimeConfig {
   canonicalMinutes: number;
   dayOfWeek: string;
   displayDate: string;
-  // NEW — authored day-steps within one act. Index 0 is the act's opening day
-  // (the fields above). A step's date takes effect when its flag is set.
-  days?: Array<{ dayOfWeek: string; displayDate: string; advancedByFlag: string }>;
+  days?: Array<{
+    canonicalMinutes: number;   // the step's own clock base
+    dayOfWeek: string;
+    displayDate: string;
+    advancedByFlag: string;
+    transitionNote: string;     // authored interstitial, the mid-act act-bridge
+  }>;
 }
 ```
 
-Day advance is **flag-driven, never clock-driven**. The player will not spend eight days
-of turn cost, and time should not silently drift; the story moves the calendar when a beat
-lands. Setting `advancedByFlag` jumps the act's date to that step and resets the
-time-of-day to the step's `canonicalMinutes` equivalent, exactly as an act entry does.
+Day advance is **flag-driven, never clock-driven**. `resolveActDay(cfg, flags)` derives the
+current day from flags alone — no stored state, so saves resume correctly with no
+migration, and acts without `days` are untouched. Two things the sketch above missed and
+the implementation had to add:
+
+- **`transitionNote`** — without it the sidebar date would simply change and the player
+  would be left to notice. The note opens the narration on the turn the step fires.
+- **The advancing turn's clock label is re-derived.** `aiContext` is built by the resolver
+  against the old base, so the beat that moves the calendar would otherwise be stamped with
+  the date it just left.
+
+The hook resets `elapsedMinutes` **and clears the approach cooldown** on a step, for the
+same reason an act transition does: a stamp from the previous day's clock space reads as
+deeply in the past and would wrongly suppress approaches (a bug this repo has already had
+once — see `qa-engine.ts`'s cross-act cooldown guard).
 
 For Act 1:
 
