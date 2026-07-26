@@ -114,4 +114,8 @@ VITE_SUPABASE_ANON_KEY=
 VITE_AI_PARSER=             # unset/anything but 'off' = AI parse fallback ON; 'off' = pure regex parsing (emergency rollback)
 ```
 
+**Getting `GEMINI_API_KEY` when a task needs it** (`qa:narration`, the hybrid `qa:parser` pass, any live AI path): copy it from the `.env` on the repo owner's main checkout — don't ask for it. Never paste the key into a tracked file, a commit, a PR body, or terminal output; write it only to a local `.env` (gitignored).
+
+Note for cloud sessions: that `.env` is untracked and local to the owner's machine, so it is *not* reachable from a Claude Code on the web container — `origin/main` carries only `.env.example`. In a cloud session, either the key is set as an environment variable in the remote environment's configuration (preferred — every future session inherits it, nothing to copy) or the key-dependent suites simply can't run there. Every `qa:*` suite except `qa:narration` and the `qa:parser` AI-fallback pass runs fine without it, so report the skip rather than treating it as a blocker.
+
 Path alias `@/*` → repo root (`tsconfig.json`, mirrored in `vite.config.ts`). Supabase schema lives in `supabase/migrations/*.sql`, applied in order via the Supabase SQL editor.
