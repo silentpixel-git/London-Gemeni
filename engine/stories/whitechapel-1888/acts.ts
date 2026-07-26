@@ -114,7 +114,7 @@ export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
     name: 'The Baker Street Vigil',
     requireFlags: [
       'examined_baker_street_case_files_wall', // the case map — four victims, the suspect landscape
-      'talked_to_holmes_at_baker_street',       // Holmes's briefing — "a man no one remembers"
+      'asked_holmes_about_holmes_man_no_one_remembers', // his briefing — the player must ask what sort of man
       'showed_newspaper_pile_to_holmes',        // the clipping — Holmes calls the letters a press hoax
       'examined_baker_street_telegrams_pile',   // Tumblety's arrest; Warren's resignation
     ],
@@ -130,7 +130,7 @@ export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
       'showed_hutchinson_account_to_hutchinson', // the witness tested + cleared (implies the talk/take/use chain)
       'examined_millers_court_burned_clothing',  // the grate — the killer's use of light
       'examined_millers_court_the_bed',          // the central horror (arms Bond's aftermath beat)
-      'talked_to_bond_at_millers_court',         // the emotional capstone — the surgeon's burden
+      'asked_bond_about_bond_kelly_findings',    // the emotional capstone — Kelly, asked for directly
     ],
     advanceTo: 2,
   },
@@ -140,11 +140,11 @@ export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
     name: 'The First Victims',
     requireFlags: [
       'examined_whitechapel_mortuary',
-      'talked_to_phillips_at_whitechapel_mortuary', // the second medical voice — "watched and studied, not qualified"
+      'asked_phillips_about_phillips_watched_not_qualified', // the second medical voice — watched, not qualified
       'examined_bucks_row',
       'examined_hanbury_street',
-      'talked_to_tumblety_at_h_division_station', // the Mad Doctor blazes
-      'talked_to_holmes_at_h_division_station',   // capstone — "this man is a performance"
+      'asked_tumblety_about_tumblety_theatrical_denial', // the Mad Doctor blazes — put the accusation to him
+      'asked_holmes_about_holmes_tumblety_performance', // capstone — "this man is a performance"
     ],
     advanceTo: 3,
   },
@@ -154,10 +154,10 @@ export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
     name: 'The Double Event',
     requireFlags: [
       'examined_dutfields_yard',
-      'talked_to_pizer_at_working_mens_club',   // the scapegoat, made human
+      'asked_pizer_about_pizer_community_fears_mob', // the scapegoat, made human
       'examined_mitre_square',
       'examined_goulston_street',               // the apron trail + the erased graffiti
-      'talked_to_holmes_at_goulston_street',    // capstone — "our man is not even noticed"
+      'asked_holmes_about_holmes_no_reliable_witness', // capstone — "our man is not even noticed"
     ],
     advanceTo: 4,
   },
@@ -167,8 +167,8 @@ export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
     name: 'The Letter',
     requireFlags: [
       'examined_lusk_office',
-      'talked_to_abberline_at_lusk_office',     // Tumblety has fled + the Gentleman file-lead
-      'talked_to_holmes_at_lusk_office',        // capstone — "the preserving hand is still here"
+      'asked_abberline_about_abberline_barrister_file', // the Gentleman file-lead, asked for by name
+      'asked_holmes_about_holmes_preserving_hand', // capstone — "the preserving hand is still here"
     ],
     advanceTo: 5,
   },
@@ -192,7 +192,7 @@ export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
     name: 'The Confrontation',
     requireFlags: [
       'visited_private_asylum',                 // the patient records — the extraction, documented
-      'talked_to_edmund_at_private_asylum',     // "I have always had an eye for light."
+      'asked_edmund_about_edmund_eye_for_light', // "I have always had an eye for light."
     ],
     advanceTo: 7, // triggers game-over assessment
   },

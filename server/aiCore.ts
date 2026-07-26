@@ -333,7 +333,10 @@ ${structure}`;
   }
 
   // COMPACT MODE — examine, talk, take, use, inventory, deduce, blocked action
-  const compactWordLimit = ctx.blockquoteHint !== 'none' ? 130 : 100;
+  // A topic-scoped answer IS the turn — it has a specific fact to convey in
+  // character, which does not fit the budget sized for a general exchange.
+  const compactWordLimit = (ctx.blockquoteHint !== 'none' ? 130 : 100) +
+    (ctx.targetNpcInterview?.topic ? 50 : 0);
   let compactPrompt = `=== NARRATION MODE: COMPACT ===
 Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line. Do NOT include any Markdown heading. NO act header. NO location description. NO exits listing.
 ${temporalSection}
@@ -349,7 +352,7 @@ Result: ${ctx.actionResultNote}
 ${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${clueSection}${synthesisSection}`;
 
   if (ctx.targetNpcInterview) {
-    const { label, isIntroduced, introducingThisTurn, realName, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion, recentlyHeard } = ctx.targetNpcInterview;
+    const { label, isIntroduced, introducingThisTurn, realName, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion, recentlyHeard, topic, topicMissed, suggestedTopics } = ctx.targetNpcInterview;
     const nameInstruction = isIntroduced
       ? `Watson is speaking with: ${label} (${role})`
       : introducingThisTurn
@@ -392,6 +395,30 @@ Structure the reply as 2–3 short paragraphs separated by blank lines, for legi
 - If the question touches something in the knowledge list, answer directly in character.
 - If asked something outside their knowledge, deflect naturally — stay in character.
 - Express personality through HOW they answer. Do NOT invent clues or facts not listed above.`;
+
+    // Three shapes of TALK. The engine has already decided which one applies —
+    // whether the named subject landed, missed, or was never given — so the
+    // model is told what to deliver, never left to choose.
+    if (topic) {
+      compactPrompt += `
+
+WATSON HAS ASKED ABOUT A SPECIFIC SUBJECT: ${topic.label}
+This is the answer, and this turn belongs to it — deliver it in ${label}'s own voice, at length enough to satisfy the asking:
+${topic.statement}
+Do not wander to other subjects, and do not append a list of what else Watson might ask. Their manner may colour the answer — reluctance, pride, weariness — but the substance above must come across.`;
+    } else if (topicMissed) {
+      compactPrompt += `
+
+WATSON HAS ASKED ABOUT: "${topicMissed}" — a subject this character has nothing to offer on.
+Have them say so in character: a shrug, an apology, a deflection to what they do know, or plain ignorance, according to their manner. They must NOT invent an answer, and must NOT pretend the subject is forbidden or significant — it is simply outside what they know. Watson takes the refusal without pressing.`;
+    } else if (suggestedTopics && suggestedTopics.length > 0) {
+      compactPrompt += `
+
+THIS IS AN OPENING EXCHANGE — Watson has greeted ${label} without asking anything in particular.
+Have them respond in character and, in the natural course of speaking, let these subjects surface as things on their mind — mentioned in passing, NOT offered as a list or a menu, and NOT explained:
+${suggestedTopics.map(t => `• ${t}`).join('\n')}
+Reveal nothing of substance about any of them — a subject named is not a subject answered. Watson must ask directly to learn anything. Do not have the character invite questions or say what they could tell him.`;
+    }
 
     if (ctx.blockquoteHint === 'inner_thought') {
       compactPrompt += `

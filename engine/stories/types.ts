@@ -121,6 +121,17 @@ export interface StoryFact {
   knownBy: string[];      // NPC ids that can voice this fact
   visibleFromAct: number; // earliest act (0-6) this fact may surface; 0 = always
   relatedClues?: string[]; // clue ids this fact supports (validator-checked)
+  // TALK topics: lowercase phrases the player might type after "about" to raise
+  // this fact ("the graffiti", "warren", "the writing on the wall"). A fact with
+  // topics is ASKABLE — `ask abberline about the graffiti` matches it and gets
+  // that fact as the answer, setting `asked_<npcId>_about_<factId>`. A fact with
+  // no topics still sits in the NPC's knowledge envelope as background they may
+  // draw on; it simply cannot be requested by name.
+  //
+  // The first entry doubles as the fact's display label — it is what the opening
+  // exchange offers as a subject Watson might raise, so write it as a noun
+  // phrase a player would plausibly type, not a sentence.
+  topics?: string[];
 }
 
 // ── World events (Phase 4a) ──────────────────────────────────────────────────

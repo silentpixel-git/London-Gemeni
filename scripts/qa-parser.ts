@@ -341,7 +341,10 @@ interface IntentFixture {
   scene: { location: string; act: number; inventory?: string[] };
   input: string;
   expect:
-    | { type: 'move' | 'examine' | 'talk' | 'take' | 'read' | 'drop'; targetId: string }
+    // `topicRaw` applies to talk only: the subject text the parser must peel off
+    // an "ask X about Y" command for the TALK resolver to match against the fact
+    // graph. Asserting it here keeps the split independent of the story data.
+    | { type: 'move' | 'examine' | 'talk' | 'take' | 'read' | 'drop'; targetId: string; topicRaw?: string }
     | { type: 'show'; targetId: string; showTargetNpcId: string }
     | { type: 'deduce' }
     | { type: 'wait' }
@@ -362,6 +365,21 @@ const INTENT_FIXTURES: IntentFixture[] = [
     expect: { type: 'read', targetId: 'telegrams_pile' } },
   { scene: { location: 'millers_court', act: 4 }, input: 'crouch down and look under the sleeping pallet',
     expect: { type: 'examine', targetId: 'the_bed' } },
+  // topic-scoped talk — all offline (the split is pure string work). Covers each
+  // supported preposition and the guard that a bare talk carries no topic at
+  // all. The no-subject form ("ask about X") is covered in qa-engine instead:
+  // with no NPC named the regex parse is a miss and routes to the AI tier, so a
+  // fixture here would assert nothing without a key.
+  { scene: { location: 'dorset_street', act: 1 }, input: 'ask hutchinson about the man you saw',
+    expect: { type: 'talk', targetId: 'hutchinson', topicRaw: 'the man you saw' } },
+  { scene: { location: 'dorset_street', act: 1 }, input: 'talk to abberline regarding the graffiti',
+    expect: { type: 'talk', targetId: 'abberline', topicRaw: 'the graffiti' } },
+  { scene: { location: 'dorset_street', act: 1 }, input: 'question hutchinson concerning his description',
+    expect: { type: 'talk', targetId: 'hutchinson', topicRaw: 'his description' } },
+  { scene: { location: 'dorset_street', act: 1 }, input: 'speak to abberline on the subject of the press',
+    expect: { type: 'talk', targetId: 'abberline', topicRaw: 'the press' } },
+  { scene: { location: 'dorset_street', act: 1 }, input: 'talk to hutchinson',
+    expect: { type: 'talk', targetId: 'hutchinson', topicRaw: undefined } },
   // talk via AI
   { scene: { location: 'dorset_street', act: 1 }, input: 'speak with the man who watched mary kelly that night',
     expect: { type: 'talk', targetId: 'hutchinson' } },
@@ -418,6 +436,7 @@ function intentMatches(got: ParsedIntentResult, exp: IntentFixture['expect']): b
   if (got.type !== exp.type) return false;
   if (got.targetId !== exp.targetId) return false;
   if (exp.type === 'show' && got.showTargetNpcId !== exp.showTargetNpcId) return false;
+  if ('topicRaw' in exp && got.topicRaw !== exp.topicRaw) return false;
   return true;
 }
 type ParsedIntentResult = ReturnType<typeof parseIntent> | null;

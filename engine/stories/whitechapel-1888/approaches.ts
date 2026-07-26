@@ -107,7 +107,7 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
   // his live position from the follower's stored location — see presence.ts).
   //
   // His scriptedLines fire at h_division_station/act2 (triggerFlag
-  // talked_to_tumblety_at_h_division_station), goulston_street/act3
+  // asked_tumblety_about_tumblety_theatrical_denial), goulston_street/act3
   // (triggerFlag examined_goulston_street), lusk_office/act4, and
   // bond_office+baker_street/act5. Three entries below (acts 0, 1, 6) sidestep
   // collision entirely by using acts where Holmes has no scriptedLines at
@@ -146,7 +146,7 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
     acts: [2],
     // Dodges only his h_division_station scriptedLine, not the whole act —
     // see the section note above.
-    forbidFlags: ['talked_to_tumblety_at_h_division_station'],
+    forbidFlags: ['asked_tumblety_about_tumblety_theatrical_denial'],
     kind: 'mundane',
     text: 'Holmes studies Watson a moment longer than the conversation requires, then observes, unprompted, that Watson has slept badly for three nights running and eaten less than that — he offers no remedy, only the observation, and lets the subject drop.',
   },
@@ -197,7 +197,7 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
     text: 'Lusk waits until the door has swung shut behind them before repeating something recently passed to him.',
   },
   {
-    // rumorId 'bond_was_broken_by_kelly' (trigger 'talked_to_bond_at_millers_court',
+    // rumorId 'bond_was_broken_by_kelly' (trigger 'asked_bond_about_bond_kelly_findings',
     // Act 1) → spread entry for 'phillips', delayPeriods 1. Matured well before
     // Phillips comes onstage in Act 2.
     id: 'rumor_delivery_phillips_bond_broken',

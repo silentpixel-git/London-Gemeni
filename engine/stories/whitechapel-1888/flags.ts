@@ -26,8 +26,23 @@ type ExaminedFlag =
   | `examined_${LocationId}`
   | `examined_${LocationId}_${ObjectId}`;
 
-/** Spoke to an NPC at a specific location. */
+/**
+ * Spoke to an NPC at a specific location. Records that a conversation happened
+ * — it is NOT an interview. Act progression hangs on AskedAboutFlag instead, so
+ * that walking up to a witness and saying nothing in particular cannot satisfy
+ * a gate. Still read by hints and rumor acks.
+ */
 type TalkedToFlag = `talked_to_${NpcId}_at_${LocationId}`;
+
+/**
+ * Asked an NPC about a specific subject and got the answer: `ask bond about the
+ * mutilations` resolved to a fact in the graph (see engine/stories/knowledge.ts
+ * matchTopic). The suffix is the StoryFact id, loosely typed because fact ids
+ * aren't preserved as literals in facts.ts — qa:validate's
+ * flagUnreachableReason cross-checks the npc/fact pair against FACTS, including
+ * that the NPC actually knows the fact and that it carries topics to match on.
+ */
+type AskedAboutFlag = `asked_${NpcId}_about_${string}`;
 
 /** Showed an inventory item/object to an NPC. */
 type ShowedFlag = `showed_${ObjectId}_to_${NpcId}`;
@@ -64,6 +79,7 @@ type LiteralFlag =
 export type StoryFlag =
   | ExaminedFlag
   | TalkedToFlag
+  | AskedAboutFlag
   | ShowedFlag
   | UsedFlag
   | VisitedFlag

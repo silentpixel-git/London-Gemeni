@@ -468,7 +468,8 @@ single rehearsal.
    (`talked_to_holmes_at_baker_street_act_N` as each act's final flag). Story-agnostic,
    manifest-configured — platform-clean per the game direction's scope rule.
    `consultHolmesMultiClue` already synthesizes gathered evidence and is the natural
-   engine for each summation's content.
+   engine for each summation's content. Note the epilogue talk must be a *topic* ask
+   (below), not a bare `talked_to_*` — pick the fact each summation turns on.
 2. **Act count 0–7.** Pure data; verify nothing hardcodes six acts (walkthroughs, QA
    scripts, and `isFinalAct` logic read from the records — audit, not rewrite).
 3. **Calendar span.** `ACT_TIME_CONFIG.displayDate` already carries arbitrary dates;
@@ -477,6 +478,50 @@ single rehearsal.
 
 Everything else — placement, rumors, facts, introductions, endings — is existing
 machinery pointed at new data.
+
+### 8b. Two mechanics that landed before this rework (author against them)
+
+Both shipped ahead of the vertical slice and change how acts must be authored.
+
+**TALK is topic-scoped.** A bare `talk to bond` is an opening exchange — it succeeds,
+records `talked_to_<npc>_at_<loc>`, lets two or three subjects surface in the reply, and
+gates *nothing*. Act progression, suspect clearing, scripted-line triggers and rumor
+triggers all want `asked_<npc>_about_<factId>`, set only when the player names a subject:
+`ask bond about mary kelly`. Subjects are the `topics` array on each `StoryFact`, so an NPC
+can be asked only about what they know (`knownBy`) and what the act has opened
+(`visibleFromAct`) — spoiler gating stays mechanical, and a fact sealed until Act 6 cannot
+be asked for in Act 2.
+
+Consequences for authoring each act:
+- Every act gate that used to be "talk to X" now needs a **specific fact** to hang on, with
+  `topics` written as noun phrases a player would actually type. Where no existing fact
+  carries the act's turning thought, author one and gate it with `visibleFromAct` — that is
+  how the three capstone facts (`holmes_tumblety_performance`, `holmes_preserving_hand`,
+  `edmund_eye_for_light`) came to exist.
+- The matching hint objective's `subject` must name the topic, or the player is told to
+  talk to someone without being told what to raise.
+- `qa:validate` fails an act gate whose fact is sealed past that act, has no topics, or
+  isn't known by the NPC — and fails two facts sharing a topic phrase within one NPC's
+  askable set.
+- **Edmund's asylum confrontation is now the payoff of the light motif in the most literal
+  way**: the Act 7 gate is `asked_edmund_about_edmund_eye_for_light`. The player must put
+  the subject of light to him. The five peripheral soundings (§5) are what teach them to,
+  which makes the motif load-bearing rather than decorative.
+
+**NPC approaches now fire, and each act owes one designed beat.** Approaches were
+invisible in play for two compounding reasons (a vignette veto that starved every
+full-mode turn, and compact-mode turns that burned the one-shot flag without rendering the
+prose). They now fire on full-mode turns only — a successful move or a look-around — with
+their own required paragraph. For authoring:
+- Exactly one approach per act carries `actBeat: true`: a designed story moment, selected
+  ahead of ambient texture and exempt from the 30-minute cooldown. It must be pinned to one
+  act, be `mundane`, carry no `requireFlags`/`forbidFlags`/`timePeriods` (a guaranteed beat
+  may not be disableable), and sit at a location the act's spine requires — the anchor, in
+  practice. `qa:validate` enforces all of it; `qa:engine` proves each one actually fires at
+  its anchor.
+- Ambient approaches keep working underneath as texture, cooldown-limited.
+- The recession rule still holds and now matters more: Edmund must have mundane act beats
+  like everyone else. An approach system where only the innocent initiate contact is a tell.
 
 ---
 

@@ -17,6 +17,16 @@ is never set). On each act advance the engine performs a hard cut
 
 `show X to holmes` and the dative form `show holmes X` both work.
 
+**TALK is topic-scoped.** A bare `talk to bond` is an opening exchange: it
+succeeds, sets `talked_to_<npc>_at_<loc>`, and lets a few subjects surface in the
+reply — but it satisfies no act gate. The gates want
+`asked_<npc>_about_<factId>`, set only by naming a subject: `ask bond about mary
+kelly`. Subjects come from the `topics` on each `StoryFact`
+(`engine/stories/whitechapel-1888/facts.ts`), so an NPC can only be asked about
+what they know and what the act has opened. `about`, `regarding`, `concerning`
+and `on the subject of` all parse; with one NPC in the room the subject may be
+dropped entirely (`ask about the kidney`).
+
 ---
 
 ## Act 0 — The Baker Street Vigil (Thu 8 Nov 1888, 8:00 PM)
@@ -24,7 +34,7 @@ is never set). On each act advance the engine performs a hard cut
 **Goal:** Tutorial at 221B — talk, examine, take, show. Four murders so far;
 Kelly dies tonight.
 
-1. `talk to holmes` — sets `talked_to_holmes_at_baker_street`
+1. `ask holmes about the man we are looking for` — sets `asked_holmes_about_holmes_man_no_one_remembers`
 2. `examine case files wall` — sets `examined_baker_street_case_files_wall`;
    yields **clue_00_campaign_timeline**
 3. `examine newspaper pile` — no gate flag, but adds
@@ -48,7 +58,7 @@ theory via Hutchinson; close on Bond's aftermath beat.
 3. `examine burned clothing` — sets `examined_millers_court_burned_clothing`;
    yields **clue_01_killer_confidence**
 4. `examine the bed` — sets `examined_millers_court_the_bed`
-5. `talk to bond` — sets `talked_to_bond_at_millers_court`
+5. `ask bond about mary kelly` — sets `asked_bond_about_bond_kelly_findings`
    → **Act 2; auto-move to `whitechapel_mortuary`**
 
 ---
@@ -70,8 +80,8 @@ custody; close on Holmes's first crack in the "Mad Doctor" theory.
    to the station)
 7. `go to whitechapel pub`
 8. `go to h division station`
-9. `talk to tumblety` — sets `talked_to_tumblety_at_h_division_station`
-10. `talk to holmes` — sets `talked_to_holmes_at_h_division_station`
+9. `ask tumblety about the murders` — sets `asked_tumblety_about_tumblety_theatrical_denial`
+10. `ask holmes about the american` — sets `asked_holmes_about_holmes_tumblety_performance`
     → **Act 3; auto-move to `dutfields_yard`**
 
 ---
@@ -85,7 +95,7 @@ Goulston Street wall.
 1. `examine yard entrance gate` — sets `examined_dutfields_yard`;
    yields **clue_03_interrupted_ritual**
 2. `go to working mens club`
-3. `talk to pizer` — sets `talked_to_pizer_at_working_mens_club`
+3. `ask pizer about the neighbourhood` — sets `asked_pizer_about_pizer_community_fears_mob`
 4. `go to dutfields yard` (routing)
 5. `go to mitre square`
 6. `examine square walls` — sets `examined_mitre_square`;
@@ -93,7 +103,7 @@ Goulston Street wall.
 7. `go to goulston street`
 8. `examine apron fragment location` — sets `examined_goulston_street`;
    yields **clue_03b_unremarked_passage**
-9. `talk to holmes` — sets `talked_to_holmes_at_goulston_street`
+9. `ask holmes about the witnesses` — sets `asked_holmes_about_holmes_no_reliable_witness`
    → **Act 4; auto-move to `lusk_office`**
 
 ---
@@ -110,8 +120,8 @@ close on Holmes's synthesis.
 2. *(Recommended, optional)* `examine kidney parcel` — yields
    **clue_05_human_kidney** and **Kidney Examination Notes** (takeable;
    used with the autopsy ledger in Act 6 for clue_08, an alternate path)
-3. `talk to abberline` — sets `talked_to_abberline_at_lusk_office`
-4. `talk to holmes` — sets `talked_to_holmes_at_lusk_office`
+3. `ask abberline about the barrister` — sets `asked_abberline_about_abberline_barrister_file`
+4. `ask holmes about the preserving hand` — sets `asked_holmes_about_holmes_preserving_hand`
    → **Act 5; auto-move to `bond_office`**
 
 ---
@@ -150,7 +160,7 @@ convergence).
 extraction. Both beats are mandatory; completing them ends the game.
 
 1. `go to private asylum` (unlocked by the correct deduction)
-2. `talk to edmund` — sets `talked_to_edmund_at_private_asylum`
+2. `ask edmund about light` — sets `asked_edmund_about_edmund_eye_for_light`
    ("I have always had an eye for light.")
 3. `examine patient records` — sets `visited_private_asylum`;
    yields **clue_10_asylum_commitment**

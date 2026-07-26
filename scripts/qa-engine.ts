@@ -37,7 +37,7 @@
  * Exit code 1 if any FAIL.
  */
 
-import { gameEngine, GameEngine, SessionSnapshot, npcLocationAt, timePeriodFor, PERIOD_ORDER, minutesToNextPeriodBoundary, nextOpenPeriod, returnsPeriodFor, periodBoundariesCrossed, maturedSpreadsFor } from '../engine/GameEngine';
+import { gameEngine, GameEngine, SessionSnapshot, npcLocationAt, getPresentNpcIds, timePeriodFor, PERIOD_ORDER, minutesToNextPeriodBoundary, nextOpenPeriod, returnsPeriodFor, periodBoundariesCrossed, maturedSpreadsFor } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
 import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
 import type { StoryFact, RumorDefinition } from '../engine/stories/types';
@@ -184,7 +184,7 @@ function runWinningPath() {
 
   // Act 0 — the vigil. Tutorial: talk, examine, take, show.
   let s = buildSnapshot();
-  s = step('Act0', s, 'talk to holmes',          { expectSuccess: true, expectFlag: 'talked_to_holmes_at_baker_street' });
+  s = step('Act0', s, 'ask holmes about the man we are looking for', { expectSuccess: true, expectFlag: 'asked_holmes_about_holmes_man_no_one_remembers' });
   s = step('Act0', s, 'examine case files wall', { expectSuccess: true, expectFlag: 'examined_baker_street_case_files_wall', expectClue: 'clue_00_campaign_timeline' });
   s = step('Act0', s, 'examine newspaper pile',  { expectSuccess: true }); // yields the clipping (takeable)
   if (s.inventory.includes('Newspaper Clipping (the "Dear Boss" letter)')) {
@@ -228,16 +228,16 @@ function runWinningPath() {
   s = step('Act1', s, 'go to millers court',     { expectSuccess: true, expectLocation: 'millers_court' });
   s = step('Act1', s, 'examine burned clothing', { expectSuccess: true, expectFlag: 'examined_millers_court_burned_clothing', expectClue: 'clue_01_killer_confidence' });
   s = step('Act1', s, 'examine the bed',         { expectSuccess: true, expectFlag: 'examined_millers_court_the_bed' });
-  s = step('Act1', s, 'talk to bond', {
+  s = step('Act1', s, 'ask bond about mary kelly', {
     expectSuccess: true,
-    expectFlag: 'talked_to_bond_at_millers_court',
+    expectFlag: 'asked_bond_about_bond_kelly_findings',
     expectAct: 2,                            // ← talk-gated advance (the capstone)
     expectLocation: 'whitechapel_mortuary',  // ← anchor auto-move
   });
 
   // Act 2 — "The Mad Doctor". Mortuary + cold scenes, then Tumblety in custody.
   s = step('Act2', s, 'examine bonds desk',          { expectSuccess: true, expectFlag: 'examined_whitechapel_mortuary', expectClue: 'clue_02c_small_hands' });
-  s = step('Act2', s, 'talk to phillips',            { expectSuccess: true, expectFlag: 'talked_to_phillips_at_whitechapel_mortuary' });
+  s = step('Act2', s, 'ask phillips about the training',  { expectSuccess: true, expectFlag: 'asked_phillips_about_phillips_watched_not_qualified' });
   s = step('Act2', s, 'go to bucks row',             { expectSuccess: true, expectLocation: 'bucks_row' });
   s = step('Act2', s, 'examine cobblestone roadway', { expectSuccess: true, expectFlag: 'examined_bucks_row', expectClue: 'clue_01_respectable_approach' });
   s = step('Act2', s, 'go to hanbury street',        { expectSuccess: true, expectLocation: 'hanbury_street' });
@@ -246,10 +246,10 @@ function runWinningPath() {
   s = step('Act2', s, 'go to bucks row',             { expectSuccess: true });
   s = step('Act2', s, 'go to whitechapel pub',       { expectSuccess: true, expectLocation: 'whitechapel_pub' });
   s = step('Act2', s, 'go to h division station',    { expectSuccess: true, expectLocation: 'h_division_station' });
-  s = step('Act2', s, 'talk to tumblety',            { expectSuccess: true, expectFlag: 'talked_to_tumblety_at_h_division_station' });
-  s = step('Act2', s, 'talk to holmes', {
+  s = step('Act2', s, 'ask tumblety about the murders', { expectSuccess: true, expectFlag: 'asked_tumblety_about_tumblety_theatrical_denial' });
+  s = step('Act2', s, 'ask holmes about the american', {
     expectSuccess: true,
-    expectFlag: 'talked_to_holmes_at_h_division_station',
+    expectFlag: 'asked_holmes_about_holmes_tumblety_performance',
     expectAct: 3,                       // ← capstone talk advance
     expectLocation: 'dutfields_yard',   // ← anchor auto-move
   });
@@ -257,15 +257,15 @@ function runWinningPath() {
   // Act 3 — "The Foreigner". The double event, Pizer, the erased wall.
   s = step('Act3', s, 'examine yard entrance gate', { expectSuccess: true, expectFlag: 'examined_dutfields_yard', expectClue: 'clue_03_interrupted_ritual' });
   s = step('Act3', s, 'go to working mens club',    { expectSuccess: true, expectLocation: 'working_mens_club' });
-  s = step('Act3', s, 'talk to pizer',              { expectSuccess: true, expectFlag: 'talked_to_pizer_at_working_mens_club' });
+  s = step('Act3', s, 'ask pizer about the neighbourhood', { expectSuccess: true, expectFlag: 'asked_pizer_about_pizer_community_fears_mob' });
   s = step('Act3', s, 'go to dutfields yard',       { expectSuccess: true });
   s = step('Act3', s, 'go to mitre square',         { expectSuccess: true, expectLocation: 'mitre_square' });
   s = step('Act3', s, 'examine square walls',       { expectSuccess: true, expectFlag: 'examined_mitre_square', expectClue: 'clue_04_kidney_removal' });
   s = step('Act3', s, 'go to goulston street',      { expectSuccess: true, expectLocation: 'goulston_street' }); // act 3 now
   s = step('Act3', s, 'examine apron fragment location', { expectSuccess: true, expectFlag: 'examined_goulston_street', expectClue: 'clue_03b_unremarked_passage' });
-  s = step('Act3', s, 'talk to holmes', {
+  s = step('Act3', s, 'ask holmes about the witnesses', {
     expectSuccess: true,
-    expectFlag: 'talked_to_holmes_at_goulston_street',
+    expectFlag: 'asked_holmes_about_holmes_no_reliable_witness',
     expectAct: 4,                   // ← capstone at the erased wall
     expectLocation: 'lusk_office',  // ← anchor auto-move
   });
@@ -288,10 +288,10 @@ function runWinningPath() {
     expectFlag: 'used_kidney_parcel_with_from_hell_letter',
     expectClue: 'clue_12_letter_knows_too_much',
   });
-  s = step('Act4', s, 'talk to abberline',        { expectSuccess: true, expectFlag: 'talked_to_abberline_at_lusk_office' });
-  s = step('Act4', s, 'talk to holmes', {
+  s = step('Act4', s, 'ask abberline about the barrister', { expectSuccess: true, expectFlag: 'asked_abberline_about_abberline_barrister_file' });
+  s = step('Act4', s, 'ask holmes about the preserving hand', {
     expectSuccess: true,
-    expectFlag: 'talked_to_holmes_at_lusk_office',
+    expectFlag: 'asked_holmes_about_holmes_preserving_hand',
     expectAct: 5,                   // ← capstone synthesis
     expectLocation: 'bond_office',  // ← anchor auto-move
   });
@@ -329,7 +329,7 @@ function runWinningPath() {
 
   // Act 6 — the confrontation and the extraction.
   s = step('Act6', s, 'go to private asylum', { expectSuccess: true, expectLocation: 'private_asylum' });
-  s = step('Act6', s, 'talk to edmund',       { expectSuccess: true, expectFlag: 'talked_to_edmund_at_private_asylum' });
+  s = step('Act6', s, 'ask edmund about light', { expectSuccess: true, expectFlag: 'asked_edmund_about_edmund_eye_for_light' });
   s = step('Act6', s, 'examine patient records', {
     expectSuccess: true,
     expectFlag: 'visited_private_asylum',
@@ -416,7 +416,7 @@ function runActGateBoundary() {
   const r0 = gameEngine.resolve(parseIntent('examine watson armchair'), s0);
   r0.newAct === undefined || r0.newAct <= 0
     ? pass('Act0 gate — held with 2/3 flags (expected)')
-    : fail('Act0 gate — advanced with 2/3 flags (missing talk to holmes)');
+    : fail('Act0 gate — advanced with 2/3 flags (missing the ask to holmes)');
 
   // Act 2: partial flags (mortuary + bucks_row only; missing phillips talk,
   // hanbury, tumblety, holmes) — examine at baker_street → gate holds
@@ -806,8 +806,10 @@ function runDropMechanic() {
 function runTalkGatedAdvance() {
   console.log('\n=== SCENARIO: talk-gated-advance ===');
 
-  // Act 0 with all other gate flags already set — the TALK is the last gate
+  // Act 0 with all other gate flags already set — the ASK is the last gate
   // action. Pre-fix this soft-locked (talk never fired act progression).
+  // Topic-scoped since the gate now wants a subject raised, not mere presence:
+  // a bare 'talk to holmes' deliberately no longer completes it (asserted below).
   const s = buildSnapshot({
     flags: {
       examined_baker_street_case_files_wall: true,
@@ -815,7 +817,13 @@ function runTalkGatedAdvance() {
       showed_newspaper_pile_to_holmes: true,
     },
   });
-  const result = gameEngine.resolve(parseIntent('talk to holmes'), s);
+  const result = gameEngine.resolve(parseIntent('ask holmes about the man we are looking for'), s);
+
+  // The point of the migration: presence alone is not an interview.
+  const bare = gameEngine.resolve(parseIntent('talk to holmes'), s);
+  bare.actionSuccess && bare.newAct === undefined
+    ? pass('TalkGated: a bare TALK succeeds but does NOT complete the gate')
+    : fail(`TalkGated: bare talk should not advance — newAct=${bare.newAct}`);
 
   result.newAct === 1
     ? pass('TalkGated: act advances when a TALK completes the gate')
@@ -1790,6 +1798,85 @@ function testEnvelopeAndNudge() {
     ? pass('envelope+nudge: matured rumor triggered earlier fires both')
     : fail('envelope+nudge: matured spread not delivered', JSON.stringify({ envelope: envelope5?.[0], nudge: nudge5 }));
   }
+}
+
+// ── Topic-scoped TALK ────────────────────────────────────────────────────────
+console.log('\n── Topic-scoped TALK ──');
+{
+  // Act 1 at dorset_street: hutchinson (askable) and holmes are both present.
+  const at = (extra: Partial<SessionSnapshot> = {}) =>
+    buildSnapshot({ currentAct: 1, location: 'dorset_street', ...extra });
+
+  // 1. A landed ask sets asked_<npc>_about_<factId> and hands the AI that one
+  //    fact as the answer — the engine decides it, the model does not choose.
+  let r = gameEngine.resolve(parseIntent('ask hutchinson about the man you saw'), at());
+  const ti = r.aiContext.targetNpcInterview;
+  if (r.actionSuccess && r.flagsUpdate?.['asked_hutchinson_about_hutchinson_saw_stranger'] &&
+      ti?.topic?.statement.includes('astrakhan')) {
+    pass('topic ask sets its fact flag and carries the fact as the answer');
+  } else fail('topic ask', JSON.stringify({ flags: r.flagsUpdate, topic: ti?.topic }));
+
+  // 2. A bare TALK sets only the conversation flag — no fact flag, and it offers
+  //    subjects instead of answering. This is the whole point of the migration.
+  r = gameEngine.resolve(parseIntent('talk to hutchinson'), at());
+  const bareI = r.aiContext.targetNpcInterview;
+  const askedFlags = Object.keys(r.flagsUpdate ?? {}).filter(k => k.startsWith('asked_'));
+  if (askedFlags.length === 0 && r.flagsUpdate?.['talked_to_hutchinson_at_dorset_street'] &&
+      !bareI?.topic && (bareI?.suggestedTopics?.length ?? 0) > 0) {
+    pass('bare TALK sets no fact flag and offers subjects instead');
+  } else fail('bare talk', JSON.stringify({ askedFlags, suggested: bareI?.suggestedTopics }));
+
+  // 3. A subject this NPC has nothing on: reported as a miss, and nothing spent.
+  r = gameEngine.resolve(parseIntent('ask hutchinson about the goulston street graffiti'), at());
+  const missI = r.aiContext.targetNpcInterview;
+  if (r.actionSuccess && missI?.topicMissed && !missI.topic &&
+      Object.keys(r.flagsUpdate ?? {}).every(k => !k.startsWith('asked_'))) {
+    pass('unmatched topic reports a miss and sets no flag');
+  } else fail('topic miss', JSON.stringify({ missed: missI?.topicMissed, flags: r.flagsUpdate }));
+
+  // 4. Act gating is inherited from the fact graph, so a sealed fact cannot be
+  //    asked for early. holmes_preserving_hand opens at act 4.
+  // Holmes follows Watson, so his live position comes from npcStates — placed
+  // explicitly on both halves so the assertion is about the act gate, not presence.
+  const withHolmes = (act: number, location: string) => buildSnapshot({ currentAct: act, location,
+    npcStates: { holmes: { npcId: 'holmes', disposition: 50, status: 'alive', currentLocation: location } } });
+  r = gameEngine.resolve(parseIntent('ask holmes about the preserving hand'),
+    withHolmes(1, 'dorset_street'));
+  const earlyI = r.aiContext.targetNpcInterview;
+  r = gameEngine.resolve(parseIntent('ask holmes about the preserving hand'),
+    withHolmes(4, 'lusk_office'));
+  const lateI = r.aiContext.targetNpcInterview;
+  if (earlyI?.topicMissed && !earlyI.topic && lateI?.topic) {
+    pass('a fact sealed by visibleFromAct cannot be asked for before its act');
+  } else fail('topic act gate', JSON.stringify({
+    earlyTopic: earlyI?.topic, earlyMissed: earlyI?.topicMissed,
+    lateTopic: lateI?.topic, lateMissed: lateI?.topicMissed }));
+
+  // 5. "ask about X" with nobody named addresses the only NPC present. Covered
+  //    here rather than in qa-parser: the regex parse has no targetId, so that
+  //    suite would route it to the AI tier and assert nothing offline.
+  const soloLoc = 'bond_office';
+  const soloAct = 6;
+  const soloPresent = getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, soloLoc, {}, soloAct,
+    timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, soloAct, 0));
+  if (soloPresent.length === 1) {
+    r = gameEngine.resolve(parseIntent('ask about your profile'),
+      buildSnapshot({ currentAct: soloAct, location: soloLoc }));
+    r.actionSuccess && r.aiContext.targetNpcInterview?.npcId === soloPresent[0] &&
+    r.flagsUpdate?.[`asked_${soloPresent[0]}_about_bond_profile_anderson`]
+      ? pass('subject-less ask addresses the only NPC present')
+      : fail('solo-npc ask', JSON.stringify({ npc: r.aiContext.targetNpcInterview?.npcId, flags: r.flagsUpdate }));
+  } else {
+    warn('subject-less ask case skipped', `${soloLoc} act ${soloAct} has ${soloPresent.length} NPCs, need exactly 1`);
+  }
+
+  // 6. Suggested subjects never repeat what Watson has already raised.
+  r = gameEngine.resolve(parseIntent('talk to hutchinson'),
+    at({ flags: { asked_hutchinson_about_hutchinson_saw_stranger: true } }));
+  const sugg = r.aiContext.targetNpcInterview?.suggestedTopics ?? [];
+  !sugg.includes('the man you saw')
+    ? pass('already-asked subjects drop out of the offered list')
+    : fail('suggested topics repeat a spent subject', sugg.join(', '));
 }
 
 // ── NPC approaches ───────────────────────────────────────────────────────────

@@ -32,7 +32,7 @@ function fail(l: string, d?: string) { console.error(`[FAIL] ${l}${d ? ` — ${d
 {
   const generated = resolveDiaryEntry({
     kind: 'decision',
-    refId: 'talked_to_holmes_at_baker_street',
+    refId: 'asked_holmes_about_holmes_man_no_one_remembers',
     text: 'A Word with Holmes\nHe would not be drawn beyond what the wall already told us.',
   });
   (generated?.title === 'A Word with Holmes'
@@ -72,7 +72,7 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
 // 5) isRequiredFlag: true only for real gate flags of the given act; excludes
 //    the Act 5 sentinel and flags belonging to other acts.
 {
-  isRequiredFlag(0, 'talked_to_holmes_at_baker_street')
+  isRequiredFlag(0, 'asked_holmes_about_holmes_man_no_one_remembers')
     ? pass('isRequiredFlag: true for a real Prologue gate flag')
     : fail('isRequiredFlag should be true for a real Prologue gate flag');
   isRequiredFlag(5, SENTINEL)
@@ -99,7 +99,7 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
     actNumber: 0,
     flagsUpdate: {
       examined_baker_street_case_files_wall: true,
-      talked_to_holmes_at_baker_street: true,
+      asked_holmes_about_holmes_man_no_one_remembers: true,
       showed_newspaper_pile_to_holmes: true,
       examined_baker_street_telegrams_pile: true,
     },
@@ -108,7 +108,7 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
   });
   const set = new Set(silent);
   (set.size === 2
-    && set.has('talked_to_holmes_at_baker_street')
+    && set.has('asked_holmes_about_holmes_man_no_one_remembers')
     && set.has('examined_baker_street_telegrams_pile'))
     ? pass('detectSilentLeadFlags: Prologue turn returns exactly the 2 uncovered leads')
     : fail('detectSilentLeadFlags returned the wrong set', silent.join(','));
@@ -118,8 +118,8 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
 {
   const silent = detectSilentLeadFlags({
     actNumber: 0,
-    flagsUpdate: { talked_to_holmes_at_baker_street: true },
-    priorFlags: { talked_to_holmes_at_baker_street: true },
+    flagsUpdate: { asked_holmes_about_holmes_man_no_one_remembers: true },
+    priorFlags: { asked_holmes_about_holmes_man_no_one_remembers: true },
     discoveredClueIds: [],
   });
   silent.length === 0

@@ -26,7 +26,7 @@ const NPCS_DATA = {
       {
         locationId: 'h_division_station',
         act: 2,
-        triggerFlag: 'talked_to_tumblety_at_h_division_station',
+        triggerFlag: 'asked_tumblety_about_tumblety_theatrical_denial',
         instruction: 'Holmes, having observed the American in his cell, delivers his first crack in the Mad Doctor theory — quietly, to Watson: the man is everything London wishes the murderer to be — loud, foreign, mad — but the hand that did this work was quiet, patient, and practised. This man is a performance. Holmes does not raise his voice.',
       },
       {
@@ -38,7 +38,7 @@ const NPCS_DATA = {
       {
         locationId: 'lusk_office',
         act: 4,
-        triggerFlag: 'talked_to_abberline_at_lusk_office',
+        triggerFlag: 'asked_abberline_about_abberline_barrister_file',
         instruction: 'Holmes, weighing the fled American and the vanished gentleman, observes that two men have obligingly removed themselves from view, and the public will pick whichever culprit it prefers. But the hand that preserved that kidney did not flee and did not vanish — it is still here, keeping its specimens, exactly as it always has.',
       },
       {

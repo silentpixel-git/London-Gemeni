@@ -125,6 +125,26 @@ function flagUnreachableReason(flag: string): string | null {
     return 'no known npc id matches this talked_to_ flag';
   }
 
+  // asked_<npcId>_about_<factId> — the topic-scoped TALK gate. Both halves must
+  // resolve, the NPC must actually know the fact, and the fact must carry topics
+  // (a fact with none can never be named by a player, so a gate on it is a dead
+  // end). npcId is matched by prefix because both ids contain underscores.
+  if (flag.startsWith('asked_')) {
+    for (const npcId of npcIds) {
+      const prefix = `asked_${npcId}_about_`;
+      if (!flag.startsWith(prefix)) continue;
+      const factId = flag.slice(prefix.length);
+      const fact = FACTS.find(f => f.id === factId);
+      if (!fact) return `no fact with id "${factId}"`;
+      if (!fact.knownBy.includes(npcId)) return `${npcId} does not know fact "${factId}"`;
+      if (!fact.topics?.length) {
+        return `fact "${factId}" has no topics — a player can never name it, so this gate cannot open`;
+      }
+      return null;
+    }
+    return 'no known npc id matches this asked_ flag';
+  }
+
   if (flag.startsWith('showed_')) {
     const rest = flag.slice('showed_'.length);
     const sep = rest.lastIndexOf('_to_');
@@ -398,6 +418,78 @@ section('Facts');
       warn(`npc ${npcId}: empty knowledge envelope even at Act 6`, 'talking to them gives the AI nothing — confirm intentional');
     }
   }
+
+  // ── TALK topics ────────────────────────────────────────────────────────────
+  // Topics are what the player types after "about". They must be matchable, and
+  // they must not collide WITHIN one NPC's askable set — two facts the same
+  // person can be asked about, sharing a topic phrase, make one unreachable.
+  let topicsOk = true;
+  for (const f of FACTS) {
+    for (const t of f.topics ?? []) {
+      if (t !== t.toLowerCase()) {
+        fail(`fact "${f.id}": topic "${t}" is not lowercase`, 'matchTopic lowercases the player input; authored topics must match');
+        topicsOk = false;
+      }
+      if (t.trim() !== t || !t.trim()) {
+        fail(`fact "${f.id}": topic "${t}" has stray or empty whitespace`); topicsOk = false;
+      }
+      // matchTopic strips a leading article from both sides before comparing, so
+      // a topic that is *only* an article can never match anything meaningful.
+      if (/^(the|a|an)$/.test(t.trim())) {
+        fail(`fact "${f.id}": topic "${t}" is a bare article`); topicsOk = false;
+      }
+    }
+  }
+  // Per-NPC, per-act collision check: same normalised topic on two facts the
+  // same NPC can be asked about at the same point in the story.
+  for (const npcId of npcIds) {
+    for (const act of Object.keys(ACT_TIME_CONFIG).map(Number)) {
+      const seen = new Map<string, string>();
+      for (const f of FACTS) {
+        if (!f.knownBy.includes(npcId) || f.visibleFromAct > act || !f.topics?.length) continue;
+        for (const t of f.topics) {
+          const norm = t.toLowerCase().replace(/^(the|a|an)\s+/, '').trim();
+          const prior = seen.get(norm);
+          if (prior && prior !== f.id) {
+            fail(`npc ${npcId} act ${act}: topic "${t}" is shared by facts "${prior}" and "${f.id}"`,
+              'the later fact can never be reached by that phrase — give one of them a distinct topic');
+            topicsOk = false;
+          } else if (!prior) {
+            seen.set(norm, f.id);
+          }
+        }
+      }
+    }
+  }
+  if (topicsOk) {
+    const askable = FACTS.filter(f => f.topics?.length).length;
+    pass(`${askable}/${FACTS.length} facts are askable: topics lowercase, non-trivial, no per-NPC collisions`);
+  }
+
+  // Act gates that ask for a topic must be answerable in the act that gates on
+  // them: if the fact's own visibleFromAct is later than the gating act, the
+  // gate can never open. This is the silent break the flag grammar can't see.
+  {
+    let gateOk = true;
+    for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
+      const act = Number(actStr);
+      for (const flag of cond.requireFlags ?? []) {
+        if (!flag.startsWith('asked_')) continue;
+        for (const npcId of npcIds) {
+          const prefix = `asked_${npcId}_about_`;
+          if (!flag.startsWith(prefix)) continue;
+          const fact = FACTS.find(f => f.id === flag.slice(prefix.length));
+          if (fact && fact.visibleFromAct > act) {
+            fail(`act ${act} gate "${flag}": fact is sealed until act ${fact.visibleFromAct}`,
+              'the gate can never open — lower visibleFromAct or move the gate');
+            gateOk = false;
+          }
+          break;
+        }
+      }
+    }
+    if (gateOk) pass('every asked_ act gate is answerable in the act that requires it');
+  }
 }
 
 // ── 5. Spoiler guard ─────────────────────────────────────────────────────────
@@ -589,17 +681,34 @@ section('Schedule guard rail: gate NPCs findable at act start (Phase 4a)');
     const act = Number(actStr);
     const startPeriod = computeTimePeriod(ACT_TIME_CONFIG[act].canonicalMinutes);
     for (const flag of cond.requireFlags) {
-      if (!flag.startsWith('talked_to_')) continue;
-      // Disambiguate npc id vs location id by prefix-matching known npc ids.
-      const npcId = [...npcIds].find(id => flag.startsWith(`talked_to_${id}_at_`));
+      // talked_to_<npc>_at_<loc> names the location the gate needs; the
+      // topic-scoped asked_<npc>_about_<fact> does not, so it is checked for
+      // onstage-ness instead. Both must be covered: when the gates migrated to
+      // topics this loop silently matched nothing and passed on zero
+      // placements, which is a guard rail that has stopped guarding.
+      const talkNpc = [...npcIds].find(id => flag.startsWith(`talked_to_${id}_at_`));
+      const askNpc = [...npcIds].find(id => flag.startsWith(`asked_${id}_about_`));
+      const npcId = talkNpc ?? askNpc;
       if (!npcId) continue; // unreachable-flag check already covers this
-      const locId = flag.slice(`talked_to_${npcId}_at_`.length);
       const npc = NPCS[npcId];
       if (npc.followsNpcId && (npc.followsUntilAct === undefined || act <= npc.followsUntilAct)) continue;
       const atStart = npcLocationAt(NPCS, npcId, act, startPeriod, {});
       checked++;
-      if (atStart !== locId) {
-        fail(`gate NPC ${npcId} (act ${act}): scheduled at "${atStart}" during the act's start period (${startPeriod}), but the gate needs them at "${locId}"`);
+      if (talkNpc) {
+        const locId = flag.slice(`talked_to_${npcId}_at_`.length);
+        if (atStart !== locId) {
+          fail(`gate NPC ${npcId} (act ${act}): scheduled at "${atStart}" during the act's start period (${startPeriod}), but the gate needs them at "${locId}"`);
+        }
+      } else if (!atStart || atStart === 'offstage') {
+        // A topic gate can be satisfied anywhere the NPC stands, but if they are
+        // offstage for the whole act there is nowhere to put the question.
+        const anyPeriod = PERIOD_ORDER.some(p => {
+          const at = npcLocationAt(NPCS, npcId, act, p, {});
+          return at && at !== 'offstage';
+        });
+        if (!anyPeriod) {
+          fail(`gate NPC ${npcId} (act ${act}): offstage all act, but the gate "${flag}" needs them askable`);
+        }
       }
     }
   }

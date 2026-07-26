@@ -19,6 +19,12 @@ export interface ParsedIntent {
   deductionText?: string;    // For 'deduce' type: the player's theory text
   showTargetNpcId?: string;  // For 'show' type: the NPC to show the item to
   useWithTargetId?: string;  // For 'use' type: the second item/object in "USE X WITH Y"
+  // For 'talk' type: the subject the player asked about, verbatim, from
+  // "ask bond about the mutilations". Resolved to a fact id by the TALK resolver
+  // (engine/resolvers/npc.ts) rather than here — topics live in the story
+  // manifest's fact graph, and the parser must stay story-agnostic about them.
+  // Absent means a bare TALK: an opening exchange, which gates nothing.
+  topicRaw?: string;
   raw: string;               // Original input
 }
 
@@ -189,6 +195,41 @@ const NPC_ALIASES: Record<string, string> = {
 /**
  * Try to match a raw target string to a known NPC ID.
  */
+// Topic prepositions for TALK: "ask bond about the mutilations", "question
+// abberline regarding the graffiti". Longest-first so "on the subject of" wins
+// over a bare "on". Split on the FIRST occurrence — a topic may itself contain
+// "about" ("about the letter about the kidney") and the leftmost split keeps the
+// subject correct, which is what the NPC match depends on.
+const TOPIC_PREPOSITIONS = [
+  'on the subject of', 'with regard to', 'in regard to', 'as regards',
+  'regarding', 'concerning', 'about', 'anent',
+];
+
+/**
+ * Splits a TALK target into who is addressed and what was asked about.
+ * "holmes about the letter" → { subject: 'holmes', topicRaw: 'the letter' }
+ * "about the letter"        → { subject: '',       topicRaw: 'the letter' }
+ * "holmes"                  → { subject: 'holmes', topicRaw: undefined }
+ */
+function splitTopic(raw: string): { subject: string; topicRaw?: string } {
+  const norm = normalise(raw);
+  let best: { idx: number; len: number } | undefined;
+  for (const prep of TOPIC_PREPOSITIONS) {
+    // Word-boundary match so "aboutface" or a name containing "on" can't split.
+    const m = new RegExp(`(?:^|\\s)${prep}(?:\\s|$)`).exec(norm);
+    if (m) {
+      const idx = m.index + (m[0].startsWith(' ') ? 1 : 0);
+      if (!best || idx < best.idx) best = { idx, len: prep.length };
+    }
+  }
+  if (!best) return { subject: raw.trim() };
+  const topicRaw = norm.slice(best.idx + best.len).trim();
+  return {
+    subject: norm.slice(0, best.idx).trim(),
+    topicRaw: topicRaw || undefined,
+  };
+}
+
 function matchNpcId(raw: string): string | undefined {
   const norm = normalise(raw);
   for (const [id, npc] of Object.entries(NPCS)) {
@@ -561,12 +602,16 @@ export function parseIntent(rawInput: string): ParsedIntent {
   // 4. Talk
   for (const verb of TALK_VERBS.sort((a, b) => b.length - a.length)) {
     if (norm.startsWith(verb + ' ') || norm === verb) {
-      const targetRaw = stripVerb(rawInput, TALK_VERBS);
-      const targetId = matchNpcId(targetRaw) || matchObjectId(targetRaw);
+      const rest = stripVerb(rawInput, TALK_VERBS);
+      const { subject, topicRaw } = splitTopic(rest);
+      // "ask about the graffiti" names no one — the resolver addresses the only
+      // NPC present, the same courtesy SHOW already extends.
+      const targetId = subject ? (matchNpcId(subject) || matchObjectId(subject)) : undefined;
       return {
         type: 'talk',
         targetId,
-        targetRaw,
+        targetRaw: subject || rest,
+        topicRaw,
         raw: rawInput,
       };
     }

@@ -329,6 +329,18 @@ export interface NarrationContext {
     // unprompted, in character.
     recentlyHeard?: string[];
     playerQuestion: string;      // intent.raw
+    // Topic-scoped TALK ("ask bond about the mutilations"). The engine resolves
+    // the typed subject against the NPC's askable facts before the AI is called,
+    // so the answer is decided, not chosen by the model.
+    // - `topic` set: the ask landed. `statement` is the fact to deliver.
+    // - `topicMissed` set: the player named a subject this NPC has nothing on.
+    //   The AI deflects in character; no flag is set, nothing is spent.
+    // - neither set: a bare TALK. `suggestedTopics` carries subjects the reply
+    //   should let surface naturally, so free-text discovery stays possible
+    //   without a menu. A bare TALK gates nothing on its own.
+    topic?: { label: string; statement: string };
+    topicMissed?: string;
+    suggestedTopics?: string[];
   };
   // Proactive hint woven into the turn when the player is stuck — chosen by the
   // engine's selectHint, phrased by the AI in Watson's voice.

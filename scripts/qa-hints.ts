@@ -63,9 +63,11 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
 // 4) selectHint never returns a done/unavailable step; returns FALLBACK when empty.
 {
   const allDone = state({ currentAct: 2, location: 'whitechapel_mortuary', flags: {
-    examined_whitechapel_mortuary: true, talked_to_phillips_at_whitechapel_mortuary: true,
+    examined_whitechapel_mortuary: true,
+    asked_phillips_about_phillips_watched_not_qualified: true,
     examined_bucks_row: true, examined_hanbury_street: true,
-    talked_to_tumblety_at_h_division_station: true, talked_to_holmes_at_h_division_station: true } });
+    asked_tumblety_about_tumblety_theatrical_denial: true,
+    asked_holmes_about_holmes_tumblety_performance: true } });
   const t = selectHint(allDone);
   t.verb === 'reflect' ? pass('empty pool → reflect fallback')
                        : fail('expected reflect fallback', t.verb);

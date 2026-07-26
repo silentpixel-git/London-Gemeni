@@ -10,7 +10,7 @@
 import { EngineResult, NarrationContext, NPCState } from '../types';
 import { ParsedIntent } from './intentParser';
 import type { StoryManifest, NPCDefinition } from './stories/types';
-import { deriveKnowledgeEnvelope } from './stories/knowledge';
+import { deriveKnowledgeEnvelope, suggestTopics } from './stories/knowledge';
 import { computeTimePeriod, formatTimeLabel } from './time';
 import { getPresentNpcIds, maturedSpreadsFor, npcLocationAt, returnsPeriodFor } from './presence';
 import type { SessionSnapshot } from './session';
@@ -29,6 +29,11 @@ export interface NarrationOutcome {
   isDeduction?: boolean;
   deductionCorrect?: boolean;
   extraMinutes?: number;
+  // Topic-scoped TALK: resolved by the TALK resolver against the story's fact
+  // graph before narration is built. Exactly one of these is set on a TALK turn
+  // that named a subject; a bare TALK sets neither and gets suggestedTopics.
+  topicFact?: { label: string; statement: string };
+  topicMissed?: string;
 }
 
 /** An NPC's introduction mode; absent = self-introduces on first TALK. */
@@ -234,6 +239,14 @@ export function buildNarrationContext(
       ],
       recentlyHeard,
       playerQuestion: intent.raw,
+      topic: outcome.topicFact,
+      topicMissed: outcome.topicMissed,
+      // Only a bare TALK offers subjects. Once the player has named one, the
+      // reply belongs to that subject alone — trailing a list of alternatives
+      // after an answer reads as a menu and undoes the free-text illusion.
+      suggestedTopics: !outcome.topicFact && !outcome.topicMissed && intent.type === 'talk'
+        ? suggestTopics(story.facts, outcome.targetNpcId, session.currentAct, session.flags)
+        : undefined,
     };
   }
 
