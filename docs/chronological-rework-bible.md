@@ -1,9 +1,10 @@
-# The Whitechapel Diaries — Chronological Rework Bible (DRAFT)
+# The Whitechapel Diaries — Chronological Rework Bible
 
-**Status: draft for review — nothing here is committed design until approved.**
-Open decisions are marked `DECISION NEEDED`. Deliberate departures from history are
-collected in the [Historical Bends Register](#11-historical-bends-register) — if a bend
-isn't listed there, it's an error, not a choice.
+**Status: approved design.** All nine open decisions were settled in review on 26 July
+2026 and are recorded in [§9](#9-settled-design-decisions); the acts in §4 are written to
+match. Deliberate departures from history are collected in the
+[Historical Bends Register](#11-historical-bends-register) — if a bend isn't listed there,
+it's an error, not a choice.
 
 This document supersedes the "reweave calendar" (8–22 November 1888, retrospective
 structure) described in `engine/stories/whitechapel-1888/acts.ts` and
@@ -144,18 +145,20 @@ before dawn.
 Buildings, found 4:45 AM by John Reeves. 39 stab wounds; Dr. Timothy Killeen's examination
 suggests two blades — one consistent with a dagger or bayonet.
 
-**The hook — how Holmes gets in (DECISION NEEDED, recommendation below):** the user's
-brief says Holmes and Watson are "called upon because of the nature of the murder." For
-Tabram, realistic options:
+**The hook — how Holmes gets in (SETTLED: Reid, informally):** the user's brief says
+Holmes and Watson are "called upon because of the nature of the murder." H Division's
+Inspector Edmund Reid knows Holmes by reputation; with a frenzied-attack case and no
+witnesses, he sends to Baker Street for a quiet, unofficial opinion before dawn. The
+request is explicitly off the books — Reid wants a reading, not a consultant of record.
 
-- **(a) Inspector Reid, informally.** H Division's Edmund Reid knows Holmes by
-  reputation; with a frenzied-attack case and no witnesses, he asks for a quiet,
-  unofficial opinion. *Recommended* — it keeps the police relationship warm from Act 1,
-  gives the game its Lestrade-shaped door into every later scene, and defers the grand
-  "never seen before" declaration to Act 2, where escalation earns it.
-- **(b) A private client** — a relative of Tabram's, or Pearly Poll herself, distrusting
-  the police. More Doyle-shaped, but harder to sustain across six murders.
-- **(c) Holmes goes himself,** drawn by the inquest reports. Cheapest, least dramatic.
+This keeps the police relationship warm from Act 1 and gives the game its Lestrade-shaped
+door into every later crime scene: Reid vouches for Watson and Holmes in Acts 1–2 and
+hands them on to Abberline when the Yard takes the case over in September. It also defers
+the grand "never seen before" declaration to Act 2, where escalation earns it (§4, Act 2).
+
+Reid must therefore be authored as a full NPC with an Act 1–2 schedule, not a one-scene
+voice, and his handover to Abberline is an authored beat in Act 2's opening rather than a
+silent substitution.
 
 **Investigation content:** the landing (light from the staircase — first, invisible
 planting of the light motif); the wound count and the two-blade question; Pearly Poll
@@ -199,7 +202,9 @@ that the cuts are not a trade's cuts — deliberate, exploratory, *learning*. Cl
 the campaign-pattern and anatomical-curiosity threads open.
 
 **Edmund's presence:** the clerk again, at the second mortuary. Two scenes, same
-invisible man. (The engine's NPC schedule places him; no prose ever counts him.)
+invisible man. (The engine's NPC schedule places him; no prose ever counts him.) Second
+sounding of the light motif: he observes, to nobody, that Buck's Row carries a single lamp
+at its far end — and that a man's eyes adjust.
 
 **Finale at Baker Street:** Holmes names the pattern for the first time — one hand, an
 appetite growing. The word "campaign" enters Watson's diary. Bridge: eight days.
@@ -229,7 +234,9 @@ correct home.
 look — and nothing prompts them to — the record shows the same clerk's initials on all
 three surgeons' paperwork. Never highlighted. (Fair-play: the evidence of his presence
 exists from Act 3 onward for a player who rereads documents; the current
-`clue_07_edmunds_presence` becomes reachable late-game by cross-reading.)
+`clue_07_edmunds_presence` becomes reachable late-game by cross-reading.) Third sounding:
+he notes that the work in the yard was finished before dawn came up — that whoever it was
+did not wait for the light.
 
 **Finale at Baker Street:** the act closes on the organ question. Holmes, at the fire:
 the killer is no longer only killing — he is *collecting*. Against Baxter's £20 American
@@ -263,11 +270,12 @@ part-glimpsed men give the act its witness texture — descriptions that contrad
 other, teaching the player to distrust description itself (armament for the Hutchinson
 test in Act 6).
 
-**Edmund's presence:** DECISION NEEDED — the night scenes are crowded and fast; the
-clean option is Edmund at the Golden Lane mortuary aftermath (Eddowes), fourth set of
-notes, remarking on how well the square's single lamp served the work. The bolder option
-puts him physically in the Berner Street crowd for one unremarked sentence. Recommend
-the mortuary — the crowd cameo risks spotlighting.
+**Edmund's presence (SETTLED: mortuary aftermath only):** Edmund appears at the Golden
+Lane mortuary after Eddowes is brought in — his fourth set of notes — and remarks, to
+nobody, on how well the square's single lamp served the work. He does **not** appear at
+Berner Street: the night scenes are crowded and fast, and a cameo in that crowd risks
+spotlighting him at the worst possible moment. Fourth sounding of "an eye for light,"
+and the most specific one before Act 6.
 
 **Finale at Baker Street:** dawn, both exhausted. Holmes lays out the night's terrible
 arithmetic — two murders, two jurisdictions, forty-five minutes — and the profile
@@ -327,7 +335,10 @@ the current design. Tumblety texture: arrested the 7th, in custody as Kelly died
 the fact that will clear him of *this* murder even as the public convicts him of all.
 
 **Edmund's presence:** with Bond at the scene and the post-mortem, fully in role. The
-player has almost certainly stopped seeing him. That is the design.
+player has almost certainly stopped seeing him. That is the design. Fifth and final
+sounding, the only one spoken indoors: the fire in Kelly's grate had burned fierce enough
+to melt a kettle's spout, and he remarks — to nobody, over his notes — that this time
+there was light enough to work by. Nobody answers. Act 7 does.
 
 **Finale at Baker Street:** Bond's completed profile is read at the fire — the killer
 had *no* surgical skill, cutting against Phillips, and Holmes for the first time agrees
@@ -379,9 +390,12 @@ onward, keeping the existing Act 6–7 mechanics untouched.
 - Mechanical cost: `scheduleByAct` entries for Acts 1–4 (mortuary placements) and an
   alias change ("the clerk" → "Bond's assistant") at Act 5; `followingRule` gains
   nothing new — fixed placements until the follow rule starts.
-- Design dividend: the motif discipline. Edmund gets **exactly one light remark per
-  act**, always peripheral, never answered. Five soundings before the asylum resolves
-  the chord. A replaying player should feel ill.
+- Design dividend: the motif discipline. Edmund gets **exactly one light remark per act he
+  appears in** — Acts 1, 2, 3, 4 and 6 — always peripheral, never answered, and never
+  escalating in explicitness. Act 5 is the exception: his regularization as "Bond's
+  assistant" *is* that act's Edmund beat, and a remark on top of it would crowd the
+  reveal-in-plain-sight. Five soundings before the asylum resolves the chord. A replaying
+  player should feel ill.
 
 **Rejected alternatives:** bending Bond into the case from August (a large, visible
 historical bend that any Ripper-literate player will catch, and it damages Bond's
@@ -466,30 +480,37 @@ machinery pointed at new data.
 
 ---
 
-## 9. Open design decisions (DECISION NEEDED)
+## 9. Settled design decisions
 
-1. **Tabram: in or out?** Recommend **in** — the user's 7 August start requires her, the
-   contemporary police *did* treat her as part of the series, and "39 stab wounds, no
-   pattern yet" is the perfect overture: the story starts before anyone knows it has
-   started. Cost: Ripper-canon purists note she's outside the canonical five; the
-   fiction's position (Holmes counts her; the file stays open) should be stated once,
-   in Act 2.
-2. **The Act 1 hook:** Reid-informal (recommended), private client, or Holmes uninvited
-   (§4, Act 1).
-3. **"Never seen before" placement:** Act 2 as recommended, or Act 1 per the original
-   brief? (Recommend Act 2 — escalation earns it; Act 1's frenzy reads as a different,
-   lesser horror until Nichols connects them.)
-4. **Edmund at the double event:** mortuary-only (recommended) or the one-sentence crowd
-   cameo at Berner Street (§4, Act 4)?
-5. **Eight stages OK?** (0–7). The alternative — folding the convergence into Act 6's
-   back half — saves a stage but crowds the Kelly act, which needs its air.
-6. **Fate of the reweave content:** archive `docs/reweave-*.md` and the current act
-   walkthroughs as historical design docs, or delete? (Recommend archive under
-   `docs/archive/` — the reweave's beat-craft is the quarry this bible keeps borrowing
-   from.)
-7. **Interstitial October texture:** does Act 5 include a Vigilance Committee patrol
-   scene (playable night-walk, strong atmosphere, no murder), or stay document-focused?
-   (Recommend yes if budget allows — it is the one act with room for pure world.)
+All nine open questions were resolved in review on 26 July 2026. They are recorded here
+as the decisions of record; the acts in §4 are written to match.
+
+1. **Tabram is in, and opens Act 1.** The 7 August start requires her, and the
+   contemporary police *did* treat her as part of the series. "39 stab wounds, no pattern
+   yet" is the overture: the story starts before anyone knows it has started. Ripper-canon
+   purists will note she sits outside the canonical five, so the fiction states its
+   position exactly once, in Act 2 — Holmes counts her, and the file stays open.
+2. **The Act 1 hook is Inspector Reid, informally** (§4, Act 1). Reid is a full NPC across
+   Acts 1–2 and hands the pair on to Abberline in Act 2's opening.
+3. **"This is something we have never seen before" lands in Act 2**, at the mortuary,
+   spoken over the Nichols mutilation. Act 1's frenzy reads as a different, lesser horror
+   until Nichols connects them.
+4. **Edmund appears only at the Golden Lane mortuary on double-event night** (§4, Act 4).
+   No Berner Street crowd cameo — the risk of spotlighting him outweighs the replay value.
+5. **Eight stages, Act 0–7.** The finale act carries the convergence, the deduction and
+   the asylum, so the Kelly act keeps its air.
+6. **The reweave content is archived, not deleted** — `docs/reweave-*.md` and the current
+   act walkthroughs move to `docs/archive/` as historical design docs. Their beat-craft is
+   the quarry this bible keeps borrowing from.
+7. **Act 5 includes the Vigilance Committee patrol** — a playable night-walk, strong
+   atmosphere, no murder. It is the one act with room for pure world, and it makes the
+   October lull read as held breath rather than a gap.
+8. **Act 0's concluding case is a *Sign of Four* allusion** — a matter of a treasure and a
+   wronged lady, gestured at and never named outright (§4, Act 0). It grounds the prologue
+   in real Doyle chronology without requiring canon knowledge of the player.
+9. **Edmund's light motif sounds once per act he appears in — five soundings** before the
+   asylum resolves it (§5). Each is peripheral, addressed to nobody, and never answered.
+   Acts 1, 2, 3, 4 and 6 carry one apiece; none escalates in explicitness.
 
 ---
 
