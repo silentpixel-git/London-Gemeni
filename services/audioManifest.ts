@@ -46,4 +46,8 @@ export const WEATHER_LAYERS: Record<string, { file: string; volume: number }> = 
   pouring:  { file: `${BASE}/weather/rain.mp3`,     volume: 0.55 },
   foggy:    { file: `${BASE}/weather/fog-wind.mp3`, volume: 0.30 },
   overcast: { file: `${BASE}/weather/fog-wind.mp3`, volume: 0.15 },
+  // 'close' is still air — barely a bed at all, just enough not to feel muted.
+  close:    { file: `${BASE}/weather/fog-wind.mp3`, volume: 0.08 },
+  // 'clear-warm' gets no layer: a warm clear night is carried by the location
+  // ambience alone, and a wind bed would contradict it.
 };

@@ -15,7 +15,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
 import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
-import { gameEngine, SessionSnapshot, computeTimePeriod } from '../engine/GameEngine';
+import { gameEngine, SessionSnapshot, computeTimePeriod, resolveActDay } from '../engine/GameEngine';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { audioManager } from '../services/AudioManager';
 import { parseIntent } from '../engine/intentParser';
@@ -200,9 +200,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const actualLastUserIdx = lastUserMsgIdx === -1 ? -1 : history.length - 1 - lastUserMsgIdx;
 
   // In-game time-of-day phase — drives atmospheric theming and (later) audio.
-  const currentTimePeriod = computeTimePeriod(
-    (ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1]).canonicalMinutes + elapsedMinutes,
-  );
+  // resolveActDay: a multi-day act's clock base moves with its authored
+  // day-steps (see engine/time.ts), so the base is derived from flags, never
+  // read straight off the act config.
+  const actDay = resolveActDay(ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1], flags);
+  const currentTimePeriod = computeTimePeriod(actDay.canonicalMinutes + elapsedMinutes);
 
   const { themeMode, setThemeMode, soundEffects, setSoundEffects, ambientAudio, setAmbientAudio } =
     useAppearance({ user, userProfile, currentTimePeriod });
@@ -473,6 +475,15 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       if (result.approachAtMinutes !== undefined) {
         setLastApproachAtMinutes(result.approachAtMinutes);
       }
+      // A multi-day act stepped to a later day: the new day carries its own
+      // clock base, so elapsed time resets exactly as it does on an act change.
+      // The approach cooldown is cleared for the same reason it is cleared on an
+      // act transition — a stamp from the previous day's clock space would read
+      // as deeply in the past and wrongly suppress.
+      if (result.dayStepAdvanced !== undefined) {
+        setElapsedMinutes(0);
+        setLastApproachAtMinutes(undefined);
+      }
 
       if (result.npcUpdates && !advancingAct) {
         setNpcStates(prev => {
@@ -516,11 +527,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // Clock label for any diary entries captured this turn. Use the held clock
       // (current act + this action's time), not the next act's reset — entries
       // captured this turn belong to the current act even on an advancing turn.
-      const captureTimeLabel = formatGameClock(currentAct, elapsedMinutes + actionMinutes);
+      const captureTimeLabel = formatGameClock(currentAct, elapsedMinutes + actionMinutes, flags);
       setTurnCount(t => t + 1);
 
       // Hour-bell clock event — fires when the turn crosses an hour boundary
-      const actStartMinutes = (ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1]).canonicalMinutes;
+      const actStartMinutes = actDay.canonicalMinutes;
       const prevHour = Math.floor((actStartMinutes + elapsedMinutes) / 60);
       const newHour  = Math.floor((actStartMinutes + newElapsedMinutes) / 60);
       const clockEvent = !result.newAct && newHour > prevHour
@@ -931,9 +942,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     activeInvestigation,
     slots,
 
-    displayTime: formatGameClock(currentAct, elapsedMinutes),
+    displayTime: formatGameClock(currentAct, elapsedMinutes, flags),
 
-    displayDate: (ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1]).displayDate,
+    displayDate: actDay.displayDate,
 
     weather: ACT_WEATHER[currentAct] ?? ACT_WEATHER[1],
 

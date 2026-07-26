@@ -218,6 +218,10 @@ export interface EngineResult {
   // Set when an approach fired this turn: the in-game clock value used for
   // the cooldown. The hook stores it into session.lastApproachAtMinutes.
   approachAtMinutes?: number;
+  // Set when a multi-day act stepped to a later day this turn (see
+  // resolveActDay). The hook resets elapsedMinutes to 0, exactly as it does on
+  // an act transition — the new day carries its own clock base.
+  dayStepAdvanced?: number;
   newAct?: number;
   gameOver?: boolean;
   // Which ending fired (set by the engine whenever gameOver is true):
@@ -345,6 +349,10 @@ export interface NarrationContext {
   // Proactive hint woven into the turn when the player is stuck — chosen by the
   // engine's selectHint, phrased by the AI in Watson's voice.
   watsonHint?: HintTarget;
+  // Authored interstitial for the turn a multi-act day step fires — "Two days
+  // later…". The narration opens with it so the jump in the calendar is stated
+  // rather than left for the player to spot in the sidebar.
+  dayStepNote?: string;
   // True on the turn the act-epilogue cut fires: the act's field work is done
   // and Watson has been moved to the summation location. The narration should
   // carry him there rather than describe a fresh arrival out of nowhere.

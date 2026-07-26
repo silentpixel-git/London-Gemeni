@@ -193,6 +193,15 @@ export function buildNarrationPrompt(ctx: NarrationContext): string {
   const bakerStreetNote = ctx.locationName.toLowerCase().includes('baker street')
     ? `\nREGISTER: 221B is sanctuary — domestic warmth, the familiar chaos of Holmes's method, the intellectual urgency of two men who trust each other. Not another grim location.\n`
     : '';
+  // A multi-day act stepped to a later day this turn. This is the mid-act
+  // equivalent of an act bridge and must open the reply — the player needs to
+  // be told days have passed before anything else in the scene makes sense.
+  const dayStepSection = ctx.dayStepNote ? `
+=== TIME HAS PASSED ===
+${ctx.dayStepNote}
+Open the reply by carrying this interval in one or two sentences, in Watson's voice, before the action below. Do not narrate the intervening days in detail — name the gap and move on.
+` : '';
+
   const temporalSection = (ctx.locationTimeframe === 'reconstruction'
     ? `\nTEMPORAL FRAMING: RECONSTRUCTION — Watson revisits this cold crime scene weeks/months after the murder, working from Abberline's notes and Bond's written reports ("According to Abberline's report…"). Register: professional composure, retrospective sadness — observed, not flinched at; NOT live-investigation shock. Any blockquote must be a reconstructed memory or report detail, never a live ambient event.${ctx.locationReconstitutionNote ? `\nContext: ${ctx.locationReconstitutionNote}` : ''}\n`
     : `\nTEMPORAL FRAMING: PRESENT — Watson is here now, November 1888. Apply immediate, live-investigation register.\n`) + bakerStreetNote + timeSection;
@@ -318,7 +327,7 @@ Paragraph 3 — ${noticeBeat}${approachBeat}${epilogueCutNote}`;
 
     return `=== NARRATION MODE: FULL ===
 ${lengthLine} Do NOT include any Markdown heading (no "###" line) — begin directly with the prose.
-${temporalSection}
+${dayStepSection}${temporalSection}
 === VERIFIED LOCATION ===
 ${locationBlock}
 
@@ -345,7 +354,7 @@ ${structure}`;
     (ctx.targetNpcInterview?.topic ? 50 : 0);
   let compactPrompt = `=== NARRATION MODE: COMPACT ===
 Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line. Do NOT include any Markdown heading. NO act header. NO location description. NO exits listing.
-${temporalSection}
+${dayStepSection}${temporalSection}
 === VERIFIED CONTEXT ===
 Location: ${ctx.locationName} (Act ${ctx.act}: ${ctx.actName})
 NPCs present (use labels exactly): ${npcLabelList}

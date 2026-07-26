@@ -15,7 +15,7 @@ import type { SessionSnapshot } from '../session';
 
 /** The current TimePeriod for this session's act + elapsed clock. */
 export function periodOf(story: StoryManifest, session: SessionSnapshot, extraMinutes = 0): TimePeriod {
-  return timePeriodFor(story.actTimeConfig, session.currentAct, session.elapsedMinutes + extraMinutes);
+  return timePeriodFor(story.actTimeConfig, session.currentAct, session.elapsedMinutes + extraMinutes, session.flags);
 }
 
 /**

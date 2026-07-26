@@ -37,7 +37,7 @@
  * Exit code 1 if any FAIL.
  */
 
-import { gameEngine, GameEngine, SessionSnapshot, npcLocationAt, getPresentNpcIds, timePeriodFor, PERIOD_ORDER, minutesToNextPeriodBoundary, nextOpenPeriod, returnsPeriodFor, periodBoundariesCrossed, maturedSpreadsFor } from '../engine/GameEngine';
+import { gameEngine, GameEngine, SessionSnapshot, npcLocationAt, getPresentNpcIds, timePeriodFor, resolveActDay, PERIOD_ORDER, minutesToNextPeriodBoundary, nextOpenPeriod, returnsPeriodFor, periodBoundariesCrossed, maturedSpreadsFor } from '../engine/GameEngine';
 import { parseIntent } from '../engine/intentParser';
 import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
 import type { StoryFact, RumorDefinition } from '../engine/stories/types';
@@ -1798,6 +1798,74 @@ function testEnvelopeAndNudge() {
     ? pass('envelope+nudge: matured rumor triggered earlier fires both')
     : fail('envelope+nudge: matured spread not delivered', JSON.stringify({ envelope: envelope5?.[0], nudge: nudge5 }));
   }
+}
+
+// ── Multi-day acts (day steps) ───────────────────────────────────────────────
+console.log('\n── Multi-day acts ──');
+{
+  // Synthetic, like the epilogue cut: no production act authors day steps yet.
+  const STEP_FLAG = 'examined_baker_street_case_files_wall';
+  const dayCfg = {
+    ...WHITECHAPEL_MANIFEST.actTimeConfig,
+    1: {
+      ...WHITECHAPEL_MANIFEST.actTimeConfig[1],
+      days: [{
+        canonicalMinutes: 1230, dayOfWeek: 'Thursday', displayDate: '9 August 1888',
+        advancedByFlag: STEP_FLAG, transitionNote: 'TEST — two days later.',
+      }],
+    },
+  };
+  const dayEngine = new GameEngine({ ...WHITECHAPEL_MANIFEST, actTimeConfig: dayCfg as any });
+  const base1 = WHITECHAPEL_MANIFEST.actTimeConfig[1];
+
+  // 1. resolveActDay is derived from flags — no stored state, so a save resumes
+  //    on the right day with no migration.
+  const day0 = resolveActDay(dayCfg[1] as any, {});
+  const day1 = resolveActDay(dayCfg[1] as any, { [STEP_FLAG]: true });
+  day0.stepIndex === -1 && day0.displayDate === base1.displayDate &&
+  day1.stepIndex === 0 && day1.displayDate === '9 August 1888' && day1.canonicalMinutes === 1230
+    ? pass('resolveActDay derives the act day from flags alone')
+    : fail('resolveActDay', JSON.stringify({ day0, day1 }));
+
+  // 2. An act with no authored days is unaffected — every existing act.
+  const plain = resolveActDay(WHITECHAPEL_MANIFEST.actTimeConfig[2], { [STEP_FLAG]: true });
+  plain.stepIndex === -1 && plain.canonicalMinutes === WHITECHAPEL_MANIFEST.actTimeConfig[2].canonicalMinutes
+    ? pass('acts without authored day steps are untouched')
+    : fail('plain act changed', JSON.stringify(plain));
+
+  // 3. The turn that sets the step flag carries the interstitial and reports the
+  //    advance, so the hook can reset elapsed time to the new day's base.
+  let r = dayEngine.resolve(parseIntent('examine case files wall'),
+    buildSnapshot({ currentAct: 1, location: 'baker_street' }));
+  r.dayStepAdvanced === 0 && (r.aiContext as any).dayStepNote === 'TEST — two days later.'
+    ? pass('day step reports the advance and carries its authored interstitial')
+    : fail('day step advance', JSON.stringify({ adv: r.dayStepAdvanced, note: (r.aiContext as any).dayStepNote }));
+
+  // 4. The advancing turn's own clock label belongs to the NEW day. The context
+  //    was built by the resolver against the old base, so this is re-derived —
+  //    without it the beat that moves the calendar would be stamped with the
+  //    date it just left.
+  /9 August 1888/.test((r.aiContext as any).timeLabel ?? '')
+    ? pass('the advancing turn is labelled with the new day')
+    : fail('day step time label', (r.aiContext as any).timeLabel);
+
+  // 5. It reports once. A later turn with the flag already set is an ordinary
+  //    turn — otherwise every subsequent action would re-announce the jump.
+  r = dayEngine.resolve(parseIntent('look'),
+    buildSnapshot({ currentAct: 1, location: 'baker_street', flags: { [STEP_FLAG]: true } }));
+  r.dayStepAdvanced === undefined && !(r.aiContext as any).dayStepNote
+    ? pass('day step never re-announces once its flag is set')
+    : fail('day step repeated', JSON.stringify({ adv: r.dayStepAdvanced }));
+
+  // 6. The clock base really moves: the same elapsed minutes resolve to a
+  //    different period once the step has fired. (The step is authored at an
+  //    evening hour precisely so this is observable — act 1's own 10:45 AM and a
+  //    10:00 AM step are both 'morning', which would prove nothing.)
+  const beforePeriod = timePeriodFor(dayCfg as any, 1, 0, {});
+  const afterPeriod  = timePeriodFor(dayCfg as any, 1, 0, { [STEP_FLAG]: true });
+  beforePeriod !== afterPeriod
+    ? pass(`day step moves the clock base (${beforePeriod} → ${afterPeriod})`)
+    : fail('day step did not move the clock', beforePeriod);
 }
 
 // ── Act-epilogue auto-cut ────────────────────────────────────────────────────

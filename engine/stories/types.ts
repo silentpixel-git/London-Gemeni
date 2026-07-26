@@ -207,10 +207,34 @@ export interface ActTimeConfig {
   canonicalMinutes: number; // Minutes from midnight at act start
   dayOfWeek: string;
   displayDate: string;      // e.g. "9 November 1888"
+  // Multi-day acts. The real investigations do not fit inside one day — Tabram's
+  // identification parades are nine days after the murder — so an act may carry
+  // authored day-steps. The fields above are day 0; each entry here is a later
+  // day that takes effect when its flag is set.
+  //
+  // Advance is FLAG-DRIVEN, never clock-driven: the player will not spend eight
+  // days of turn cost, and time must not drift silently. The story moves the
+  // calendar when a beat lands. Steps must be authored in chronological order —
+  // resolveActDay takes the LAST one whose flag is set.
+  days?: Array<{
+    canonicalMinutes: number;
+    dayOfWeek: string;
+    displayDate: string;
+    advancedByFlag: string;
+    // Authored interstitial for the turn the step fires — the mid-act
+    // equivalent of an act bridge. Without one the sidebar date would simply
+    // change and the player would be left to notice; this names the interval
+    // plainly, in Watson's register.
+    transitionNote: string;
+  }>;
 }
 
 export type WeatherCondition =
-  | 'foggy' | 'drizzle' | 'pouring' | 'overcast' | 'clear-night' | 'clear-cold';
+  | 'foggy' | 'drizzle' | 'pouring' | 'overcast' | 'clear-night' | 'clear-cold'
+  // Summer states, added for the chronological rework: the original six were
+  // authored when the game spanned 8-22 November only.
+  | 'clear-warm'   // a warm, clear night — the August Bank Holiday
+  | 'close';       // humid and oppressive, air that will not move
 
 export interface ActWeather {
   condition: WeatherCondition;

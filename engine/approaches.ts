@@ -11,7 +11,7 @@ import type { EngineResult, NarrationContext } from '../types';
 import type { StoryManifest } from './stories/types';
 import type { SessionSnapshot } from './session';
 import { npcLocationAt, maturedSpreadsFor } from './presence';
-import { computeTimePeriod } from './time';
+import { computeTimePeriod, resolveActDay } from './time';
 
 export const APPROACH_COOLDOWN_MINUTES = 30;
 
@@ -55,7 +55,7 @@ export function selectApproach(
   const locationId = result.newLocation ?? session.location;
   if (!story.locations[locationId]) return null;
 
-  const cfg = story.actTimeConfig[session.currentAct] ?? story.actTimeConfig[1];
+  const cfg = resolveActDay(story.actTimeConfig[session.currentAct] ?? story.actTimeConfig[1], session.flags);
   const now = cfg.canonicalMinutes + session.elapsedMinutes + (result.minutesAdvanced ?? 0);
   const cooling = session.lastApproachAtMinutes !== undefined &&
     now - session.lastApproachAtMinutes < APPROACH_COOLDOWN_MINUTES;

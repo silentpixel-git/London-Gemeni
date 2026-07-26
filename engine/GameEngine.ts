@@ -14,7 +14,7 @@ import { EngineResult, NarrationContext, RumorEvents, NPCState } from '../types'
 import { ParsedIntent } from './intentParser';
 import type { StoryManifest } from './stories/types';
 import { WHITECHAPEL_MANIFEST } from './stories/whitechapel-1888/manifest';
-import { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor } from './time';
+import { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor, resolveActDay, formatTimeLabel } from './time';
 import { npcLocationAt, returnsPeriodFor, getPresentNpcIds, maturedSpreadsFor } from './presence';
 import type { SessionSnapshot } from './session';
 import { checkActProgression, computeActEntry, computeActEpilogue, computeNpcMovements } from './resolvers/support';
@@ -27,7 +27,7 @@ import { resolveWait, resolveHelp, resolveQuery, resolveUnresolvedTarget, resolv
 import { selectApproach } from './approaches';
 
 // Re-export for existing consumers (useGameState, parseFallback, qa scripts).
-export { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor };
+export { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor, resolveActDay };
 export { npcLocationAt, returnsPeriodFor, getPresentNpcIds, maturedSpreadsFor };
 export type { SessionSnapshot };
 
@@ -134,6 +134,26 @@ export class GameEngine {
       }
     }
 
+    // Multi-day act day-step. Detected last, once every flag this turn is
+    // merged: if the act's resolved day moved, the turn carries the authored
+    // interstitial and the hook resets elapsedMinutes to the new day's base.
+    // Never fires on an act transition — that already resets the clock itself.
+    if (result.newAct === undefined && !result.gameOver) {
+      const cfg = this.story.actTimeConfig[session.currentAct] ?? this.story.actTimeConfig[1];
+      const before = resolveActDay(cfg, session.flags).stepIndex;
+      const merged = { ...session.flags, ...(result.flagsUpdate ?? {}) };
+      const after = resolveActDay(cfg, merged);
+      if (after.stepIndex > before) {
+        result.dayStepAdvanced = after.stepIndex;
+        result.aiContext.dayStepNote = cfg.days![after.stepIndex].transitionNote;
+        // The turn belongs to the new day, so its clock label must say so —
+        // aiContext was built by the resolver against the old base.
+        result.aiContext.timeLabel = formatTimeLabel(
+          after.canonicalMinutes, after.dayOfWeek, after.displayDate);
+        result.aiContext.timePeriod = computeTimePeriod(after.canonicalMinutes);
+      }
+    }
+
     // Ending classification — every gameOver carries its ending type.
     if (result.gameOver) {
       result.endingType =
@@ -205,7 +225,7 @@ export class GameEngine {
         const cfg = this.story.actTimeConfig[session.currentAct] ?? this.story.actTimeConfig[1];
         (rumorEventsUpdate ??= {})[rumor.id] = {
           act: session.currentAct,
-          atMinutes: cfg.canonicalMinutes + session.elapsedMinutes,
+          atMinutes: resolveActDay(cfg, session.flags).canonicalMinutes + session.elapsedMinutes,
         };
       }
     }

@@ -11,7 +11,7 @@ import { EngineResult, NarrationContext, NPCState } from '../types';
 import { ParsedIntent } from './intentParser';
 import type { StoryManifest, NPCDefinition } from './stories/types';
 import { deriveKnowledgeEnvelope, suggestTopics } from './stories/knowledge';
-import { computeTimePeriod, formatTimeLabel } from './time';
+import { computeTimePeriod, formatTimeLabel, resolveActDay } from './time';
 import { getPresentNpcIds, maturedSpreadsFor, npcLocationAt, returnsPeriodFor } from './presence';
 import type { SessionSnapshot } from './session';
 import { periodOf } from './resolvers/support';
@@ -187,7 +187,7 @@ export function buildNarrationContext(
   // Compute current in-game time — anchored to the act's canonical start,
   // advanced by the minutes elapsed this act (tracked in the hook).
   const act = session.currentAct;
-  const actTimeCfg   = story.actTimeConfig[act] ?? story.actTimeConfig[1];
+  const actTimeCfg   = resolveActDay(story.actTimeConfig[act] ?? story.actTimeConfig[1], session.flags);
   const totalMinutes = actTimeCfg.canonicalMinutes + session.elapsedMinutes + (outcome.extraMinutes ?? 0);
 
   // Dynamic Witness Interrogation — include NPC knowledge envelope for talk actions

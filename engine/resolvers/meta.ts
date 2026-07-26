@@ -3,7 +3,7 @@ import { ParsedIntent } from '../intentParser';
 import type { StoryManifest } from '../stories/types';
 import type { SessionSnapshot } from '../session';
 import { buildNarrationContext } from '../narrationContext';
-import { computeTimePeriod, minutesToNextPeriodBoundary } from '../time';
+import { computeTimePeriod, minutesToNextPeriodBoundary, resolveActDay } from '../time';
 
 // --------------------------------------------------------
 // WAIT (Phase 4a: advances the clock to the next time period)
@@ -11,7 +11,7 @@ import { computeTimePeriod, minutesToNextPeriodBoundary } from '../time';
 
 export function resolveWait(story: StoryManifest, intent: ParsedIntent, session: SessionSnapshot): EngineResult {
   const cfg = story.actTimeConfig[session.currentAct] ?? story.actTimeConfig[1];
-  const total = cfg.canonicalMinutes + session.elapsedMinutes;
+  const total = resolveActDay(cfg, session.flags).canonicalMinutes + session.elapsedMinutes;
   const from = computeTimePeriod(total);
   const minutesAdvanced = minutesToNextPeriodBoundary(total);
   const to = computeTimePeriod(total + minutesAdvanced);

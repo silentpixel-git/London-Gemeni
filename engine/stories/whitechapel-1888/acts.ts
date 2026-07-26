@@ -1,4 +1,5 @@
 import type { ActCondition, ActTimeConfig, WeatherCondition, ActWeather } from '../types';
+import { resolveActDay } from '../../time';
 import type { StoryFlag } from './flags';
 
 export type { ActTimeConfig, WeatherCondition, ActWeather } from '../types';
@@ -30,8 +31,15 @@ export const ACT_TIME_CONFIG: Record<number, ActTimeConfig> = {
  * 12-hour label (e.g. "10:41 PM"). Shared by the sidebar clock and diary
  * timestamps so both read identically.
  */
-export function formatGameClock(actNumber: number, elapsedMinutes: number): string {
-  const cfg = ACT_TIME_CONFIG[actNumber] ?? ACT_TIME_CONFIG[1];
+export function formatGameClock(
+  actNumber: number,
+  elapsedMinutes: number,
+  // Multi-day acts move their own clock base; pass the session flags so the
+  // label follows the act's current day. Omitted = day 0, which is correct for
+  // every single-day act.
+  flags: Record<string, boolean> = {},
+): string {
+  const cfg = resolveActDay(ACT_TIME_CONFIG[actNumber] ?? ACT_TIME_CONFIG[1], flags);
   const m = (cfg.canonicalMinutes + elapsedMinutes) % 1440;
   const h24 = Math.floor(m / 60);
   const mins = m % 60;

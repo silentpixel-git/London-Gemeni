@@ -65,13 +65,42 @@ export function nextOpenPeriod(openPeriods: TimePeriod[], from: TimePeriod): Tim
   return null;
 }
 
+/**
+ * The effective day of a (possibly multi-day) act, derived from flags — the
+ * last authored step whose `advancedByFlag` is set, or day 0.
+ *
+ * Derived rather than stored: flags already persist, so a save resumes on the
+ * right day with no new state and no migration. Returns an ActTimeConfig-shaped
+ * object so every existing helper that takes a cfg keeps working unchanged.
+ */
+export function resolveActDay(
+  cfg: ActTimeConfig,
+  flags: Record<string, boolean>,
+): ActTimeConfig & { stepIndex: number } {
+  const steps = cfg.days ?? [];
+  let stepIndex = -1;
+  for (let i = 0; i < steps.length; i++) {
+    if (flags[steps[i].advancedByFlag]) stepIndex = i;
+  }
+  if (stepIndex === -1) return { ...cfg, stepIndex: -1 };
+  const step = steps[stepIndex];
+  return {
+    ...cfg,
+    canonicalMinutes: step.canonicalMinutes,
+    dayOfWeek: step.dayOfWeek,
+    displayDate: step.displayDate,
+    stepIndex,
+  };
+}
+
 /** The TimePeriod at a given act + minutes elapsed since its canonical start. */
 export function timePeriodFor(
   actTimeConfig: Record<number, ActTimeConfig>,
   act: number,
   elapsedMinutes: number,
+  flags: Record<string, boolean> = {},
 ): TimePeriod {
-  const cfg = actTimeConfig[act] ?? actTimeConfig[1];
+  const cfg = resolveActDay(actTimeConfig[act] ?? actTimeConfig[1], flags);
   return computeTimePeriod(cfg.canonicalMinutes + elapsedMinutes);
 }
 

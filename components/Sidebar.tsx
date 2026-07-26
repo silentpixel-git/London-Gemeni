@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { MapPin, Briefcase, DoorOpen, User, Search, X, CloudFog, CloudDrizzle, CloudRain, Cloudy, Moon, type LucideIcon } from 'lucide-react';
+import { MapPin, Briefcase, DoorOpen, User, Search, X, CloudFog, CloudDrizzle, CloudRain, Cloudy, Moon, Haze, type LucideIcon } from 'lucide-react';
 import { LOCATIONS, NPCS, NPC_ALIASES, OBJECT_DISPLAY_NAMES } from '../engine/gameData';
 import type { ActWeather, WeatherCondition } from '../engine/gameData';
 import { INITIAL_NPC_STATES, NPC_DISPLAY_NAMES } from '../constants';
@@ -21,6 +21,8 @@ const WEATHER_ICON: Record<WeatherCondition, LucideIcon> = {
   overcast: Cloudy,
   'clear-night': Moon,
   'clear-cold': Moon,
+  'clear-warm': Moon,
+  close: Haze,
 };
 
 interface SidebarProps {
