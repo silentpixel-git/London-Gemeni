@@ -34,8 +34,9 @@ These are inherited from the game direction and are not reopened by this rework:
 3. **Red herrings are raised fairly and cleared on-screen** — the moving-spotlight
    pattern (three beats: meet the theory, test it, clear the man) is kept and
    redistributed across the new timeline.
-4. **The engine/AI contract is untouched.** This is a story-data rework. The one small
-   engine addition is the act-epilogue auto-cut (§8).
+4. **The engine/AI contract is untouched.** This is a story-data rework; the few engine
+   additions it needs are small and listed in §8 (the act-epilogue auto-cut, multi-day
+   acts, and the weather vocabulary).
 5. **The historical facts are the difficulty.** Real victims, real dates, real locations,
    real investigators. The fiction bends only where the invented culprit requires it,
    and every bend is registered in §11.
@@ -122,9 +123,9 @@ and colder act by act.
 character establishment, and the calm before. No murder has happened. London is loud with
 holiday crowds; the windows of 221B are open to a warm night.
 
-**Situation:** Holmes is concluding another case — canonically, the summer of 1888 sits
-in *The Sign of Four* territory, so the closing case is alluded to in that key (a matter
-of a treasure and a wronged lady, never named outright). Holmes is in the post-case
+**Situation:** Holmes is concluding another case, unnamed and referred to only in the
+abstract — papers returned, a client satisfied (revised by the Acts 0–1 historian pass;
+see §9.8). Holmes is in the post-case
 trough Watson knows well: restless, contemptuous of the holiday's noise, complaining
 that crime has grown dull and small.
 
@@ -457,7 +458,7 @@ single rehearsal.
 
 ---
 
-## 8. Engine deltas (small, and the only ones)
+## 8. Engine deltas (small)
 
 1. **Act-epilogue auto-cut (new, small).** Each act's field flags completing triggers an
    authored hard cut back to 221B for the fireside summation, instead of forcing a manual
@@ -474,7 +475,16 @@ single rehearsal.
    scripts, and `isFinalAct` logic read from the records — audit, not rewrite).
 3. **Calendar span.** `ACT_TIME_CONFIG.displayDate` already carries arbitrary dates;
    August sunsets vs November sunsets should be reflected in each act's time-of-day
-   periods and `ACT_WEATHER`. No clock-engine change.
+   periods and `ACT_WEATHER`.
+4. **Multi-day acts (new — found by the Acts 0–1 historian pass).** An act cannot
+   currently change date, and the real investigations do not fit inside one day: Tabram's
+   identification parades are nine days after the murder. `ActTimeConfig` gains authored,
+   flag-driven `days` steps. Every act wants this — the murders are three weeks apart and
+   Act 5's lull is a month. Specified in the slice spec §1.4.
+5. **Weather vocabulary.** `WeatherCondition` was authored for November and has no warm
+   state; the rework opens in August. Adds `clear-warm` and `close`, plus matching
+   `ATMOSPHERIC_SEEDS` entries (the condition string drives seed selection, not just the
+   sidebar label).
 
 Everything else — placement, rumors, facts, introductions, endings — is existing
 machinery pointed at new data.
@@ -550,9 +560,12 @@ as the decisions of record; the acts in §4 are written to match.
 7. **Act 5 includes the Vigilance Committee patrol** — a playable night-walk, strong
    atmosphere, no murder. It is the one act with room for pure world, and it makes the
    October lull read as held breath rather than a gap.
-8. **Act 0's concluding case is a *Sign of Four* allusion** — a matter of a treasure and a
-   wronged lady, gestured at and never named outright (§4, Act 0). It grounds the prologue
-   in real Doyle chronology without requiring canon knowledge of the player.
+8. **Act 0's concluding case is unnamed** — a matter referred to only in the abstract
+   (§4, Act 0). *Superseded the original decision:* this was settled as a *Sign of Four*
+   allusion, which the Acts 0–1 historian pass overturned. That story is canonically
+   September 1888, a month after Act 0, and concluding it leaves Watson engaged to Mary
+   Morstan and leaving Baker Street — which contradicts the premise that he is resident
+   and available when the pre-dawn message arrives. See the slice spec §2.
 9. **Edmund's light motif sounds once per act he appears in — five soundings** before the
    asylum resolves it (§5). Each is peripheral, addressed to nobody, and never answered.
    Acts 1, 2, 3, 4 and 6 carry one apiece; none escalates in explicitness.

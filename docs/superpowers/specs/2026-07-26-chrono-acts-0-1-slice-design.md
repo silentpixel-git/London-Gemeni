@@ -26,9 +26,11 @@ If any of the three is wrong, it is far cheaper to learn it here than in Act 6.
 
 ---
 
-## 1. Three things to settle before authoring
+## 1. Three things settled before authoring
 
-### 1.1 Two Edmunds (needs a decision)
+All three resolved in review on 26 July 2026. Recorded here as decisions of record.
+
+### 1.1 Two Edmunds — SETTLED: Reid is surname-only
 
 The murderer is **Edmund Halward**, and his given name is the reveal the whole game is
 built toward. H Division's real inspector was **Edmund Reid**. Putting Reid on stage from
@@ -39,27 +41,31 @@ and Halward is only ever "the clerk" until Act 7 — but it lands exactly where 
 a player who has picked up Reid's forename anywhere meets the name Edmund at the
 confrontation with the wrong association already attached.
 
-- **(a) Reid is surname-only, forename never written** *(recommended)*. He is "Inspector
-  Reid" in prose, `displayName: 'Inspector Reid'`, and the forename appears in no fact,
-  clue, document or approach text. Costs nothing, and `qa:validate` can enforce it with a
-  guard identical to the existing Halward spoiler check.
-- **(b) Rename the murderer.** Removes the collision at the root, but touches every act,
-  the convergence puzzle, `suspects.ts`, `endings.ts` and the skills docs — and the name
-  is load-bearing in prose already written.
-- **(c) Use a different H Division officer.** Historically weaker: Reid genuinely ran
-  H Division CID and genuinely handled Tabram.
+**Decision: Reid is surname-only; his forename is never written.** `displayName:
+'Inspector Reid'`, and "Edmund" appears in no fact, clue, document, approach text or idle
+beat belonging to him. `qa:validate` gains a guard mirroring the existing Halward spoiler
+check: any Reid-owned authored string containing his forename fails.
 
-### 1.2 The weather vocabulary has no summer
+Rejected: renaming the murderer (load-bearing in prose already written, and touches every
+act, the convergence puzzle, `suspects.ts`, `endings.ts` and both skills docs), and
+substituting a different H Division officer (Reid genuinely ran H Division CID and
+genuinely handled Tabram — a factual bend traded for a naming inconvenience).
+
+### 1.2 Weather vocabulary — SETTLED: add `clear-warm` and `close`
 
 `WeatherCondition` is `foggy | drizzle | pouring | overcast | clear-night | clear-cold` —
 authored when the game spanned 8–22 November. The rework opens on the August Bank
 Holiday. Act 0 is a warm night with the windows open; nothing in the union says that.
 
-**Proposal:** add `'clear-warm'` and `'close'` (humid, oppressive — useful for August
-nights and for the Act 5 October lull). One-line union change plus a label in
-`ACT_WEATHER`; the UI reads the label string, so nothing downstream needs teaching.
+**Decision: add `'clear-warm'` and `'close'`** to the union. `clear-warm` for the Act 0
+Bank Holiday night; `close` (humid, oppressive) for August nights and again for the
+murder-free October lull. A one-line union change plus labels in `ACT_WEATHER`.
 
-### 1.3 How the five light soundings are guaranteed
+Note the condition string drives more than the sidebar label — `pickAtmosphericSeed`
+reads it — so `ATMOSPHERIC_SEEDS` needs entries for both new conditions, or August will
+silently draw on November's cold-night imagery. That is part of the slice's work.
+
+### 1.3 The five light soundings — SETTLED: each is its act's `actBeat`
 
 This is the slice's most consequential structural question, and it reaches forward to the
 endgame. The Act 7 gate is `asked_edmund_about_edmund_eye_for_light` — **the player must
@@ -67,23 +73,60 @@ think to ask Edmund about light.** They will only think of it if the five periph
 soundings actually reached them. Under the old ambient-approach behaviour, a sounding
 could be missed entirely, which would leave the confrontation unaskable in practice.
 
-Options:
+**Decision: each sounding is that act's `actBeat`** — guaranteed, one-shot,
+cooldown-exempt, already enforced by `qa:validate`. The motif becomes reliable enough for
+the Act 7 gate to rest on it.
 
-- **(a) Each sounding is that act's `actBeat`** *(recommended)*. Guaranteed, one-shot,
-  and already enforced by `qa:validate`. Cost: in every act where Edmund is present, the
-  act's designed beat is Edmund's. Ambient approaches from the rest of the cast still fire
-  underneath, so he is not the only voice — but he is reliably one of them.
-- **(b) Soundings as `scriptedLines`.** Rejected on inspection: scripted lines fire on
-  *every* turn at their location once their conditions hold, so a motif meant to be
-  glancing would repeat until the player left the room.
-- **(c) Relax `actBeat` to allow two per act** — one Edmund sounding, one other NPC, at
-  different locations. Keeps the cast visible in the guaranteed slot at the cost of the
-  invariant I just enforced, and of a busier act.
+Rejected: `scriptedLines` (they fire on *every* turn at their location once their
+conditions hold, so a glancing motif would repeat until the player left the room), and
+relaxing `actBeat` to two per act (keeps the cast visible in the guaranteed slot, at the
+cost of the invariant and a busier act).
 
-The recession rule survives (a): the rule is that Edmund must *not* be excluded from
-initiating contact. Worth watching in playtest, though — an approach system where the
-murderer is always the designed beat is its own kind of tell, and the blind playthrough
-should be asked whether he stands out.
+**Accepted cost, to be watched:** in every act where Edmund is present, the act's designed
+beat is his. The recession rule survives — it says he must not be *excluded* from
+initiating contact — but an approach system where the murderer is always the designed beat
+is its own kind of tell. Ambient approaches from the rest of the cast still fire underneath.
+The blind playthrough must be asked directly whether the clerk stood out.
+
+### 1.4 Multi-day acts — SETTLED: Act 1 spans 7–15 August
+
+Historian finding: the identification parades were **13 and 15 August**, nine days after
+the murder. Poll came forward on the **9th**. An Act 1 confined to the dawn of the 7th
+cannot contain its own spotlight — the theory is raised on day one and tested on day nine.
+
+**Decision: Act 1 covers 7–15 August as one investigative episode**, with the barracks
+parade late in it.
+
+This is a **second engine delta**, beyond the epilogue cut — the bible's §8 called that
+"the only one", and that is no longer true. `ActTimeConfig` carries a single
+`displayDate`, so an act cannot currently change date. Two things are needed:
+
+```ts
+interface ActTimeConfig {
+  canonicalMinutes: number;
+  dayOfWeek: string;
+  displayDate: string;
+  // NEW — authored day-steps within one act. Index 0 is the act's opening day
+  // (the fields above). A step's date takes effect when its flag is set.
+  days?: Array<{ dayOfWeek: string; displayDate: string; advancedByFlag: string }>;
+}
+```
+
+Day advance is **flag-driven, never clock-driven**. The player will not spend eight days
+of turn cost, and time should not silently drift; the story moves the calendar when a beat
+lands. Setting `advancedByFlag` jumps the act's date to that step and resets the
+time-of-day to the step's `canonicalMinutes` equivalent, exactly as an act entry does.
+
+For Act 1:
+
+| Step | Date | Advanced by |
+|---|---|---|
+| 0 | Tue 7 Aug, 5:30 AM | act entry |
+| 1 | Thu 9 Aug | `asked_pearly_poll_about_poll_the_soldiers` — Poll comes forward |
+| 2 | Wed 15 Aug | `examined_wellington_barracks_identification_parade` |
+
+Every later act wants this too — the rework's murders are three weeks apart, and Act 5's
+October lull is a month of documents. Building it here is the slice earning its keep.
 
 ---
 
@@ -96,10 +139,20 @@ No murder has happened. This is the calm before, and the only act in the game th
 purely safe. Its last line of narration should let the warm night feel briefly,
 unrepeatably safe — the audience knows what tomorrow is; Watson does not.
 
-**Situation.** Holmes is concluding another case, alluded to in *Sign of Four* key — a
-matter of a treasure and a wronged lady, never named outright (§9.8). He is in the
+**Situation.** Holmes is concluding another case — **unnamed, and with no treasure and no
+wronged lady** (revised from bible §9.8; see below). A matter referred to only in the
+abstract: papers returned, a client satisfied, the thing already boring him. He is in the
 post-case trough: restless, contemptuous of the holiday's noise, complaining that crime
 has grown dull and small.
+
+**Why not the *Sign of Four* allusion** (historian finding, overriding §9.8): that story
+is canonically **September 1888**, a month *after* this act — and, more damagingly,
+concluding it leaves Watson newly engaged to Mary Morstan and on the point of leaving
+Baker Street. The whole premise of Act 0 and of Reid's pre-dawn message is that Watson is
+resident and available. The case was always scenery; making it unnamed costs nothing
+dramatically and removes both problems. *The Cardboard Box* (canonically August 1888) was
+considered and rejected — its parcel of human remains pre-echoes the Lusk kidney and would
+show the game's hand five acts early.
 
 ### Location: `baker_street` (revised, act 0)
 
@@ -109,7 +162,7 @@ slice:
 
 | Object | Purpose |
 |---|---|
-| `concluded_case_file` | The *Sign of Four* allusion. EXAMINE tutorial. Document text, no clue. |
+| `concluded_case_file` | The unnamed concluded matter. EXAMINE tutorial. Document text, no clue — deliberately dull reading, which is the joke. |
 | `evening_paper` | TAKE tutorial. Bank Holiday copy — crowds, heat, a dull column of petty crime. |
 | `holmes_chemistry_table` | Existing. Idle texture, no gate. |
 | `violin_case` | Existing. Holmes's boredom made physical. |
@@ -138,14 +191,15 @@ there is nowhere to cut to. The bridge to Act 1 is the knock before dawn.
 | id | act | topics | substance |
 |---|---|---|---|
 | `holmes_crime_grown_dull` | 0 | `the criminal classes`, `crime`, `your boredom` | The great cases are done; what remains is squalid and small. The irony the act is built on. |
-| `holmes_concluded_case` | 0 | `the case you have just closed`, `the treasure` | The Agra matter, gestured at, never named. Deflects if pressed. |
+| `holmes_concluded_case` | 0 | `the case you have just closed`, `your last case` | Concluded, unremarkable, already forgotten. Names nothing and no one; deflects if pressed. |
 
 ---
 
 ## 3. Act 1 — The Soldier
 
-**Tue 7 August 1888, before dawn.** `canonicalMinutes: 330` (5:30 AM) — Reid's message
-reaches Baker Street after the body is found at 4:45 AM. Period resolves to `dawn`.
+**Tue 7 – Wed 15 August 1888.** Opens `canonicalMinutes: 330` (5:30 AM, period `dawn`) —
+Reid's message reaches Baker Street after the body is found at 4:45 AM. The act then
+steps to 9 and 15 August on its authored day-flags (§1.4).
 
 **The murder.** Martha Tabram, killed ~2:30 AM on the first-floor landing of George Yard
 Buildings, found 4:45 AM by John Reeves. 39 stab wounds. Dr. Timothy Killeen's examination
@@ -155,6 +209,15 @@ frenzy, not yet the thing the case becomes.
 **The hook (§9.2).** Inspector Reid sends to Baker Street for a quiet, unofficial opinion:
 a frenzied attack, no witnesses, a building full of people who heard nothing. Explicitly
 off the books — Reid wants a reading, not a consultant of record.
+
+**PC Thomas Barrett** (historian finding, added to the spec): Barrett saw a grenadier
+loitering in George Yard at about 2 AM and attended a parade himself, identifying a man
+who was then alibied. He is an *independent* second source for the soldier theory. This
+matters dramatically as well as factually — resting the loud theory solely on Poll makes
+its collapse read as "the drunk witness was unreliable", which is both unkind and the
+wrong lesson. With a constable's own sighting behind it too, the theory is genuinely
+reasonable, and its failure teaches what the act is for: *the loud theory is not the
+answer, even when the evidence for it is sound.*
 
 ### Locations
 
@@ -173,7 +236,8 @@ Llewellyn attends Nichols and belongs to **Act 2**, not this slice.
 | id | display | rule | schedule (act 1) | role |
 |---|---|---|---|---|
 | `reid` | Inspector Reid | `location_based` | `h_division_station`, `byPeriod: { dawn: 'george_yard_buildings' }` | The door into the case. Onstage acts 1–2, hands over to Abberline in Act 2. |
-| `pearly_poll` | Pearly Poll | `location_based` | `george_yard_buildings` dawn → `whitechapel_pub` later | Mary Ann Connelly. Witness; raises the soldier theory; fails to identify anyone. |
+| `pearly_poll` | Pearly Poll | `location_based` | `whitechapel_pub`; `wellington_barracks` on day-step 2 | Mary Ann Connelly. Comes forward on the 9th (day-step 1), raises the soldier theory, then fails to identify anyone at the parade. |
+| `pc_barrett` | PC Barrett | `location_based` | `george_yard_buildings` dawn → `h_division_station` | The constable who saw a grenadier in George Yard at ~2 AM. Second, independent source for the theory. |
 | `killeen` | Dr. Killeen | `fixed` | `old_montague_street_mortuary` | The two-blade finding. Young, careful, out of his depth and honest about it. |
 
 `edmund` gains an act-1 schedule entry: `old_montague_street_mortuary`. `holmes` follows
@@ -184,10 +248,13 @@ is correct, and is the mechanism that keeps November's cast out of August.
 
 The act teaches the game's grammar: *the loud theory is not the answer.*
 
-1. **Raised.** Poll's testimony — Tabram was last seen with a grenadier.
-   `asked_pearly_poll_about_poll_the_soldiers`
-2. **Tested.** The identification parade at Wellington Barracks collapses: Poll picks
-   nobody, then the wrong men. `examined_wellington_barracks_identification_parade`
+1. **Raised** (7 Aug, then 9 Aug). PC Barrett's sighting of a grenadier at ~2 AM, and
+   then Poll coming forward on the 9th with the night's account.
+   `asked_pc_barrett_about_barrett_saw_a_soldier` → `asked_pearly_poll_about_poll_the_soldiers`
+   *(the second flag is Act 1's day-step 1 trigger)*
+2. **Tested** (15 Aug). The Wellington Barracks parade collapses — Poll picks nobody, then
+   the wrong men; Barrett's man is alibied.
+   `examined_wellington_barracks_identification_parade` *(day-step 2 trigger)*
 3. **Cleared.** Holmes reads the wounds against a bayonet's geometry and finds the theory
    wanting — at the mortuary, against Killeen's finding.
    `asked_killeen_about_killeen_two_blades`
@@ -216,17 +283,18 @@ Authored as Act 1's `actBeat` approach (per §1.3(a)), so it cannot be missed.
 ```
 1: requireFlags: [
      'examined_george_yard_buildings_the_landing',
-     'asked_pearly_poll_about_poll_the_soldiers',       // raise
-     'examined_wellington_barracks_identification_parade', // test
-     'asked_killeen_about_killeen_two_blades',           // clear
-     'asked_holmes_about_holmes_frenzy_no_pattern',      // ← closing beat, at the epilogue
+     'asked_pc_barrett_about_barrett_saw_a_soldier',       // raise (a)
+     'asked_pearly_poll_about_poll_the_soldiers',          // raise (b) — day-step 1
+     'examined_wellington_barracks_identification_parade', // test    — day-step 2
+     'asked_killeen_about_killeen_two_blades',             // clear
+     'asked_holmes_about_holmes_frenzy_no_pattern',        // ← closing beat, at the epilogue
    ],
    advanceTo: 2
 
 ACT_EPILOGUES: { 1: 'baker_street' }
 ```
 
-The first four are field work. When all four are set, `computeActEpilogue` cuts Watson to
+The first five are field work. When all four are set, `computeActEpilogue` cuts Watson to
 Baker Street with Holmes carried along, and the summation is the fifth flag: Holmes at the
 fire, dissatisfied — the frenzy is real but the pattern is not visible yet. He files it.
 Bridge to Act 2: three quiet weeks, then Buck's Row.
@@ -242,6 +310,8 @@ Bridge to Act 2: three quiet weeks, then Buck's Row.
 | `poll_the_soldiers` | 1 | pearly_poll | `the soldiers`, `the grenadier`, `who she was with` | Two soldiers, the four of them, and they parted. |
 | `poll_last_saw_tabram` | 1 | pearly_poll | `martha`, `that night`, `when you last saw her` | The last hour, told plainly and with grief under it. |
 | `poll_cannot_identify` | 1 | pearly_poll | `the parade`, `identifying him` | She could not pick a man out and will not pretend otherwise. |
+| `barrett_saw_a_soldier` | 1 | pc_barrett | `the soldier you saw`, `your sighting`, `what you saw` | A grenadier loitering in George Yard about 2 AM, waiting for someone. |
+| `barrett_his_man_alibied` | 1 | pc_barrett | `the man you picked out`, `the parade` | He identified a man at the parade; the man's account held. Barrett does not enjoy saying so. |
 | `killeen_39_wounds` | 1 | killeen | `the wounds`, `how many` | 39, distributed without pattern. |
 | `killeen_two_blades` | 1 | killeen | `the blades`, `two weapons`, `the bayonet` | One wound differs from the other thirty-eight. |
 | `killeen_no_mutilation` | 1 | killeen | `mutilation`, `what was not done` | Nothing was taken, nothing arranged. |
@@ -305,14 +375,39 @@ migration — but you may want a fresh investigation after the slice lands.
   deterministic QA cannot see.
 - `qa:narration` if a key is available in the session; otherwise reported as skipped.
 
-## 7. For the historian pass (after structure is agreed)
+## 7. Historian pass — findings of record
 
-- Bank Holiday Monday weather, 6 August 1888 — warm is asserted from the bible, unverified.
-- Exact George Yard Buildings layout: which landing, the gaslight's real position, tenant count.
-- Killeen's inquest testimony wording on the two weapons, and whether "bayonet" is his word
-  or the press's.
-- The parade sequence: the Tower first, then Wellington Barracks, and what Poll actually did
-  at each.
-- Reid's real movements on 7 August, and whether H Division CID would plausibly have been
-  at the scene by dawn.
-- Whether Tabram's body went to the Old Montague Street workhouse mortuary specifically.
+Run 26 July 2026, after structure was agreed.
+
+**Confirmed, no change needed:**
+
+- Bank Holiday Monday was 6 August 1888.
+- Tabram found ~4:45 AM, 7 August, first-floor landing of George Yard Buildings, by John
+  Saunders Reeves on his way to work. Killeen examined her around 5:30 and put death near
+  2:30 AM. 39 wounds.
+- **"Bayonet" is Killeen's own word**, not the press's — his inquest testimony held that 38
+  wounds were consistent with a penknife while one, to the breastbone, suggested a dagger
+  or bayonet. The spec's "two blades" is a fair reading of a real finding, and Holmes's
+  clearing beat can argue against Killeen's own stated alternative rather than a straw man.
+- Tabram's body went to the Old Montague Street workhouse mortuary — the same mortuary
+  that later received Nichols.
+- Reid ran H Division CID and handled the Tabram inquiry.
+- A building of poor families where nobody admitted hearing 39 blows is well attested.
+
+**Corrected in this spec:**
+
+- The parade timeline (§1.4) — Poll came forward on the 9th; Tower parade the 13th, where
+  she identified nobody; Wellington Barracks the 15th, where she picked two men who were
+  alibied. Act 1 now spans 7–15 August.
+- PC Thomas Barrett added (§3) as an independent second source for the soldier theory.
+- The Act 0 concluded case is now unnamed (§2), overriding bible §9.8.
+
+**Deliberately not modelled:** the 13 August Tower parade. Two collapsing parades is one
+beat twice; Wellington Barracks is the one where she actually picked men out, so it is the
+dramatic version of the same fact. Registered as a compression bend.
+
+**Skill gap to close as part of this slice:** `.claude/skills/historian` has no August 1888
+material — no Tabram, Reid, Poll, Killeen, Barrett, George Yard Buildings, or Old Montague
+Street mortuary. It was written for the November game. Every act of this rework will hit
+that gap, so the skill needs an August–October section covering the earlier murders and
+their investigators before Act 2 is authored.
