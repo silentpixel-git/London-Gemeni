@@ -110,7 +110,7 @@ const LINE = 'A bridge sentence.';
 // ── formatActHeading (feed chrome string — CSS uppercases it) ─────────────────
 {
   check('formatActHeading: prologue',
-    formatActHeading(0) === 'Prologue: The Baker Street Vigil');
+    formatActHeading(0) === 'Prologue: The Bank Holiday');
   check('formatActHeading: act 3 roman numeral',
     formatActHeading(3) === 'Act III: The Double Event');
   check('formatActHeading: unknown act degrades gracefully',

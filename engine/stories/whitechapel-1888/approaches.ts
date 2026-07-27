@@ -120,14 +120,29 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
   // carry a disabling flag at all; it pins its location away from
   // goulston_street instead, which removes the collision at the source.
   {
-    // ACT 0 BEAT — Baker Street is the whole act, and Holmes is the only NPC
-    // present. locationId 'any' resolves to wherever Watson is, which in Act 0
-    // can only be Baker Street (its exits are act-1-gated).
-    id: 'holmes_watson_revolver',
+    // ACT 0 BEAT — Holmes at the open window, watching the holiday crowd.
+    // He means it as a complaint about the tedium of scale; it is the killer's
+    // entire thesis, stated before the killer exists. Guaranteed and one-shot
+    // so the irony cannot be missed. locationId 'any' resolves to wherever
+    // Watson is, which in Act 0 can only be Baker Street (exits are act-gated).
+    // Displaces holmes_watson_revolver, which moves to Act 1 as ambient below.
+    id: 'holmes_invisible_in_a_crowd',
     npcId: 'holmes',
     locationId: 'any',
     acts: [0],
     actBeat: true,
+    kind: 'mundane',
+    text: 'Holmes crosses to the open window and stands looking down at the holiday crowd. The whole city is turned out of doors tonight, he says, a hundred thousand of them at the least, and a man might walk through the whole of that and not one soul afterwards able to say he had passed. He says it as a complaint against the tedium of scale, and turns back into the room without waiting to be answered.',
+  },
+  {
+    // Displaced from Act 0 by the window beat, and the better for it: arming
+    // himself before a pre-dawn cab into Whitechapel fits the line far better
+    // than the drawing room ever did. Ambient, not the act beat — Act 1's
+    // designed beat belongs to Edmund at the mortuary.
+    id: 'holmes_watson_revolver',
+    npcId: 'holmes',
+    locationId: 'any',
+    acts: [1],
     kind: 'mundane',
     text: 'Holmes glances up from his own preparations to observe, with the faint approval he rarely troubles to voice, that Watson has remembered the revolver, and not merely the intention of bringing it.',
   },

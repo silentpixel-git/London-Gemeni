@@ -28,28 +28,35 @@ import {
 
 function makeCtx(overrides: Partial<NarrationContext>): NarrationContext {
   return {
+    // Defaults are Act 0 as reworked: the August Bank Holiday, 6 Aug 1888.
+    // No case, no campaign, no fog. Every non-act-0 fixture below overrides
+    // availableObjects/availableExits/npcsPresent explicitly, so these defaults
+    // only shape the act-0 scenarios.
     locationName: 'Baker Street',
-    locationAtmosphere: 'Warm and intellectual — the familiar chaos of Holmes\'s working method.',
-    locationDescription: 'The sitting room of 221B, lined with case notes and chemical apparatus.',
+    locationAtmosphere: 'Warm lamplight and warmer air, both windows thrown up to the street. Holmes\' sitting room on a holiday evening, with nothing in it that wants solving.',
+    locationDescription: 'The sitting room of 221B on a warm night, the windows open to the noise of the holiday below.',
     locationTimeframe: 'present',
     act: 0,
-    actName: 'The Baker Street Vigil',
-    npcsPresent: [{ label: 'Sherlock Holmes', npcId: 'holmes', isIntroduced: true }],
-    availableObjects: ['Case Files Wall', 'Telegrams Pile'],
-    availableExits: ['Dorset Street'],
+    actName: 'The Bank Holiday',
+    npcsPresent: [
+      { label: 'Sherlock Holmes', npcId: 'holmes', isIntroduced: true },
+      { label: 'Mrs. Kemp', npcId: 'mrs_kemp', isIntroduced: true },
+    ],
+    availableObjects: ["Nell's Pawn Ticket", 'The Concluded Case', "Holmes' Chemistry Table", 'The Violin Case'],
+    availableExits: [],
     inventory: ["Watson's Diary", 'Pocket Watch'],
     watsonStats: { medicalPoints: 0, moralPoints: 0 },
     actionType: 'move',
     actionSuccess: true,
     actionDescription: 'Watson surveys the room.',
-    actionResultNote: 'Watson takes stock of the investigation.',
+    actionResultNote: 'Watson takes stock of the room and the caller waiting in it.',
     narrationMode: 'full',
     newCluesDiscovered: [],
     npcRecentMemory: {},
     blockquoteHint: 'world_event',
-    timeLabel: '10:45 PM — Friday, 9 November 1888',
+    timeLabel: '8:30 PM — Monday, 6 August 1888',
     timePeriod: 'night',
-    weather: { condition: 'foggy', label: 'Foggy' },
+    weather: { condition: 'clear-warm', label: 'Warm, Clear' },
     locationVisitCount: 1,
     ...overrides,
   };
@@ -250,10 +257,10 @@ const fixtures: Array<{ label: string; rubric: string; ctx: NarrationContext }> 
     ctx: makeCtx({
       narrationMode: 'opening',
       act: 0,
-      actName: 'The Baker Street Vigil',
+      actName: 'The Bank Holiday',
       actionDescription: "Watson arrives at Baker Street.",
-      actionResultNote: "Watson enters 221B for the first time in this investigation.",
-      timeLabel: '10:00 PM — Thursday, 8 November 1888',
+      actionResultNote: "Watson comes up to 221B on the evening of the Bank Holiday, with no case in prospect.",
+      timeLabel: '8:30 PM — Monday, 6 August 1888',
       timePeriod: 'night',
     }),
   },

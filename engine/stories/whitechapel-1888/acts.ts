@@ -17,7 +17,9 @@ export type { ActTimeConfig, WeatherCondition, ActWeather } from '../types';
 // ============================================================
 
 export const ACT_TIME_CONFIG: Record<number, ActTimeConfig> = {
-  0: { canonicalMinutes: 1200, dayOfWeek: 'Thursday',  displayDate: '8 November 1888' },  // 8:00 PM  — the vigil; Warren resigned today; Kelly dies tonight
+  // CHRONOLOGICAL REWORK: Act 0 is the August Bank Holiday, three weeks before
+  // the first murder. Bank Holiday Monday was 6 August 1888.
+  0: { canonicalMinutes: 1230, dayOfWeek: 'Monday',    displayDate: '6 August 1888' },    // 8:30 PM  — the holiday evening; no murder has happened yet
   1: { canonicalMinutes: 645,  dayOfWeek: 'Friday',    displayDate: '9 November 1888' },  // 10:45 AM — Bowyer finds Kelly; the fresh murder
   2: { canonicalMinutes: 540,  dayOfWeek: 'Sunday',    displayDate: '11 November 1888' }, // 9:00 AM  — the medical world; Tumblety in custody
   3: { canonicalMinutes: 600,  dayOfWeek: 'Wednesday', displayDate: '14 November 1888' }, // 10:00 AM — the double-event reconstruction
@@ -58,8 +60,9 @@ export function formatGameClock(
 // ============================================================
 
 export const ACT_WEATHER: Record<number, ActWeather> = {
-  0: { condition: 'clear-night', label: 'Cold, Clear',     // Thu 8 Nov, 8:00 PM  — Baker Street evening
-       lateShift: { afterMinutes: 120, condition: 'foggy', label: 'Fog Rising' } },
+  // Mon 6 Aug, 8:30 PM — high summer, windows open to the holiday. No fog
+  // lateShift: the November vigil's rising fog cannot happen in August.
+  0: { condition: 'clear-warm',  label: 'Warm, Clear' },
   1: { condition: 'drizzle',     label: 'Drizzle',          // Fri 9 Nov, 10:45 AM — wet morning, body discovered
        lateShift: { afterMinutes: 150, condition: 'overcast', label: 'Grey, Clearing' } },
   2: { condition: 'overcast',    label: 'Overcast' },      // Sun 11 Nov, 9:00 AM — damp grey morning
@@ -84,7 +87,7 @@ export const ACT_ANCHORS: Record<number, string> = {
 };
 
 export const ACT_NAMES: Record<number, string> = {
-  0: 'The Baker Street Vigil',
+  0: 'The Bank Holiday',
   1: 'The Last Murder',
   2: 'The First Victims',
   3: 'The Double Event',
@@ -116,15 +119,19 @@ export const ACT_BRIDGES: Record<number, string> = {
 // REWEAVE: each act's gate now includes its suspect-theory beats —
 // the moving spotlight is mandatory, not optional.
 export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
-  // Prologue — the vigil. Four murders so far; Kelly is still alive tonight.
-  // Tutorialises EXAMINE, TALK, TAKE, and SHOW in the safety of 221B.
+  // Act 0 — the Bank Holiday. NO murder has happened and none may be hinted at.
+  // Four flags, four verbs, every one motivated by the caller's visit rather
+  // than announced as a lesson: TALK to her, EXAMINE the ticket she has laid on
+  // the table, TAKE it and SHOW it to Holmes, then TALK to Holmes as he closes
+  // the subject. No actEpilogues entry — the act IS Baker Street, so there is
+  // nowhere to cut to; the bridge to Act 1 is the knock before dawn.
   0: {
-    name: 'The Baker Street Vigil',
+    name: 'The Bank Holiday',
     requireFlags: [
-      'examined_baker_street_case_files_wall', // the case map — four victims, the suspect landscape
-      'asked_holmes_about_holmes_man_no_one_remembers', // his briefing — the player must ask what sort of man
-      'showed_newspaper_pile_to_holmes',        // the clipping — Holmes calls the letters a press hoax
-      'examined_baker_street_telegrams_pile',   // Tumblety's arrest; Warren's resignation
+      'asked_mrs_kemp_about_kemp_sister_missing',    // TALK  — the hook
+      'examined_baker_street_pawn_ticket',           // EXAMINE (also grants the ticket)
+      'showed_pawn_ticket_to_holmes',                // TAKE + SHOW — the refusal
+      'asked_holmes_about_holmes_crime_grown_dull',  // TALK  — the closing beat
     ],
     advanceTo: 1,
   },

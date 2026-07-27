@@ -16,18 +16,20 @@ export interface DecisionDiaryEntry {
 }
 
 export const DECISION_DIARY: Record<string, DecisionDiaryEntry> = {
-  // The prologue tutorial beat — Watson reads the pile before he shows Holmes
-  // anything from it.
-  read_newspaper_pile: {
-    flag: 'examined_baker_street_newspaper_pile',
-    name: 'The Newspaper Pile',
-    diaryNote: "I went through the stack by Holmes's chair — weeks of headlines growing more hysterical by the day. Near the top, the Star had printed a facsimile of a letter, signed 'Jack the Ripper.' I set it aside to show Holmes.",
+  // Act 0 tutorial beat — Watson reads the ticket the caller has left on the
+  // table. Nell is never found and never named again: this line must not
+  // promise a payoff the game deliberately withholds.
+  read_pawn_ticket: {
+    flag: 'examined_baker_street_pawn_ticket',
+    name: 'The Pawn Ticket',
+    diaryNote: "The ticket she left on the table is for a pair of boots, pledged in July for two shillings and never redeemed. I have known women in that quarter to pawn a great deal before they would pawn what they walk in.",
   },
-  // The prologue tutorial choice — Watson lays the press hoax before Holmes.
-  showed_dear_boss_to_holmes: {
-    flag: 'showed_newspaper_pile_to_holmes',
-    name: 'The Press Hoax',
-    diaryNote: "I showed Holmes the published letter. He dismissed it at once as a journalist's invention — a name coined to sell papers, not to sign crimes. The case, he warned, is littered with such noise.",
+  // Act 0 tutorial choice — Watson lays the ticket before Holmes, and Holmes
+  // declines. The refusal is the act, and Watson keeps the ticket regardless.
+  showed_pawn_ticket_to_holmes: {
+    flag: 'showed_pawn_ticket_to_holmes',
+    name: 'The Refusal',
+    diaryNote: "I put the ticket into Holmes's hand and he gave it back inside of a minute. No case, he said; not even a crime. He was very likely right, and I find I have kept the ticket all the same.",
   },
 };
 

@@ -4,21 +4,26 @@ const LOCATIONS_DATA = {
 
   // ── PRESENT-DAY LOCATIONS ─────────────────────────────────────────────────
 
+  // CHRONOLOGICAL REWORK: dressed for the Bank Holiday evening of 6 August 1888.
+  // The case-files wall, Whitechapel map, telegrams pile and newspaper clipping
+  // were November furniture — there is no campaign to chart in August, so they
+  // are retired rather than re-homed (slice spec §2 / §5). They will be
+  // re-authored for a later act once there is a campaign to pin to a wall.
   baker_street: {
     id: 'baker_street',
     name: '221B Baker Street',
     shortName: 'Baker Street',
     act: 0,
     timeframe: 'present',
-    atmosphere: 'Warm lamplight, tobacco smoke, and the familiar disorder of a working mind. Holmes\' sitting room in the grip of an urgent case.',
-    description: 'The sitting room is barely recognisable. Case files have colonised the mantelpiece, the armchairs, and most of the floor. A large map of Whitechapel is pinned to the wall with coloured threads running between locations. Holmes stands at the window, his back to the room.',
+    atmosphere: 'Warm lamplight and warmer air, both windows thrown up to the street. Holmes\' sitting room on a holiday evening, with nothing in it that wants solving.',
+    description: 'Both windows stand open to the Bank Holiday noise, and the sound of the crowds carries all the way up from the pavement. The room is tidier than Watson has seen it in months: a concluded case bundled on the side table, the violin shut in its case, the chemistry bench wiped down and abandoned. Holmes has the particular restlessness of a man with nothing whatever to occupy him.',
     exits: ['dorset_street'],
-    interactables: ['whitechapel_map', 'holmes_chemistry_table', 'telegrams_pile', 'newspaper_pile', 'case_files_wall'],
+    interactables: ['pawn_ticket', 'concluded_case_file', 'holmes_chemistry_table', 'violin_case'],
     locationExaminedFlag: 'examined_baker_street',
     timeOfDay: 'night',
     vignettes: [
-      { text: 'Mrs Hudson leaves a supper tray outside the door without knocking — she has learned the rhythm of a case. The tea goes cold where she left it.', act: 0 },
-      { text: 'A telegraph boy hammers at the street door, hands up a wire, and is gone before it can be signed for. Holmes reads it once and feeds it to the fire.' },
+      { text: 'Mrs Hudson looks in to ask whether the gentlemen will want anything further tonight, and takes the answer as she finds it. She leaves the landing door ajar on her way out, for the air.', act: 0 },
+      { text: 'A telegraph boy hammers at the street door, hands up a wire, and is gone before it can be signed for. Holmes reads it once and puts it aside without comment.' },
     ],
   },
 
@@ -333,12 +338,11 @@ export type LocationId = keyof typeof LOCATIONS_DATA;
 export const LOCATIONS: Record<string, LocationDefinition> = LOCATIONS_DATA;
 
 const OBJECT_DISPLAY_NAMES_DATA = {
-  // Baker Street
-  case_files_wall: 'Case Files Wall',
-  whitechapel_map: 'Whitechapel Map',
+  // Baker Street (Act 0 — the Bank Holiday)
+  pawn_ticket: "Nell's Pawn Ticket",
+  concluded_case_file: 'The Concluded Case',
   holmes_chemistry_table: "Holmes' Chemistry Table",
-  telegrams_pile: 'Telegrams from Abberline',
-  newspaper_pile: 'Newspaper Pile',
+  violin_case: 'The Violin Case',
   // Dorset Street
   police_barricade: 'Police Barricade',
   street_lamps: 'Street Lamps',

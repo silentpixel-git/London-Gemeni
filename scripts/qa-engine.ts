@@ -1804,7 +1804,9 @@ function testEnvelopeAndNudge() {
 console.log('\n── Multi-day acts ──');
 {
   // Synthetic, like the epilogue cut: no production act authors day steps yet.
-  const STEP_FLAG = 'examined_baker_street_case_files_wall';
+  // Any settable flag will do; the violin case is a plain Baker Street examine
+  // with no clue and no inventory grant, so it isolates the day-step mechanic.
+  const STEP_FLAG = 'examined_baker_street_violin_case';
   const dayCfg = {
     ...WHITECHAPEL_MANIFEST.actTimeConfig,
     1: {
@@ -1835,7 +1837,7 @@ console.log('\n── Multi-day acts ──');
 
   // 3. The turn that sets the step flag carries the interstitial and reports the
   //    advance, so the hook can reset elapsed time to the new day's base.
-  let r = dayEngine.resolve(parseIntent('examine case files wall'),
+  let r = dayEngine.resolve(parseIntent('examine violin case'),
     buildSnapshot({ currentAct: 1, location: 'baker_street' }));
   r.dayStepAdvanced === 0 && (r.aiContext as any).dayStepNote === 'TEST — two days later.'
     ? pass('day step reports the advance and carries its authored interstitial')
@@ -2256,8 +2258,8 @@ console.log('\n── NPC approaches ──');
   }
 
   // 15. Holmes authored approach (production data, not a synthetic fixture):
-  // 'holmes_watson_revolver' (acts: [0], locationId: 'any') should fire on a
-  // fresh Act 0 look-around at Baker Street — Holmes is a follows_watson NPC
+  // 'holmes_invisible_in_a_crowd' (acts: [0], locationId: 'any') should fire on
+  // a fresh Act 0 look-around at Baker Street — Holmes is a follows_watson NPC
   // stored at baker_street from game start (see INITIAL_NPC_STATES).
   // Pre-consume baker_street's 2 authored vignettes so an unfired vignette
   // doesn't win over the approach this turn (case 9's concern, not this one).
@@ -2267,9 +2269,9 @@ console.log('\n── NPC approaches ──');
   });
   r = gameEngine.resolve(parseIntent('look'), holmesApproachSnap);
   const apHolmes = (r.aiContext as any).npcApproach;
-  if (apHolmes?.npcId === 'holmes' && apHolmes.text?.includes('revolver') &&
-      r.flagsUpdate?.['approach_holmes_watson_revolver']) {
-    pass('authored Holmes approach (holmes_watson_revolver) fires on a fresh Act 0 look-around');
+  if (apHolmes?.npcId === 'holmes' && apHolmes.text?.includes('holiday crowd') &&
+      r.flagsUpdate?.['approach_holmes_invisible_in_a_crowd']) {
+    pass('authored Holmes approach (holmes_invisible_in_a_crowd) fires on a fresh Act 0 look-around');
   } else fail('Holmes approach fires', JSON.stringify({ apHolmes, flags: r.flagsUpdate }));
 
   // 16. Holmes authored approach in the acts-2/3 forbidFlags band:

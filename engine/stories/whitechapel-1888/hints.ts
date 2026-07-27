@@ -7,7 +7,7 @@ import { NPCS } from './npcs';
 export type { HintState, HintObjective } from '../types';
 
 // ── Inventory display names (must match TAKEABLE_OBJECTS values in clues.ts) ──
-const CLIPPING = 'Newspaper Clipping (the "Dear Boss" letter)';
+const PAWN_TICKET = "Nell's Pawn Ticket";
 const FROM_HELL = 'From Hell Letter (transcript)';
 const FORENSIC_NOTE = "Assistant's Forensic Note (copy)";
 const HUTCH_ACCOUNT = "Hutchinson's Account (Watson's note)";
@@ -40,31 +40,29 @@ function npcStep(s: HintState, locId: string, npcId: string): boolean {
 // ── The objective table — one entry per ACT_PROGRESSION gate flag, plus the
 //    prerequisite steps that unlock show/use gates. Subjects stay neutral. ──────
 export const OBJECTIVES: HintObjective<StoryFlag>[] = [
-  // ----- Act 0: The Baker Street Vigil -----
-  { id: 'a0_casewall', act: 0, locationId: 'baker_street', verb: 'examine',
-    subject: "Holmes's case-files wall and the four victims pinned upon it",
-    flag: 'examined_baker_street_case_files_wall',
-    done: s => flag(s, 'examined_baker_street_case_files_wall'),
+  // ----- Act 0: The Bank Holiday -----
+  // Subjects must stay neutral AND must not promise a payoff: the caller's
+  // sister is never found and the ticket never resolves.
+  { id: 'a0_kemp', act: 0, locationId: 'baker_street', verb: 'talk',
+    subject: 'the woman waiting in the sitting room, about why she has come',
+    flag: 'asked_mrs_kemp_about_kemp_sister_missing',
+    done: s => flag(s, 'asked_mrs_kemp_about_kemp_sister_missing'),
+    available: s => npcStep(s, 'baker_street', 'mrs_kemp') },
+  { id: 'a0_ticket_examine', act: 0, locationId: 'baker_street', verb: 'examine',
+    subject: 'the ticket she has laid on the table',
+    flag: 'examined_baker_street_pawn_ticket',
+    done: s => hasItem(s, PAWN_TICKET) || flag(s, 'examined_baker_street_pawn_ticket'),
     available: s => locationReachable(s, 'baker_street') },
+  { id: 'a0_ticket_show', act: 0, locationId: 'baker_street', verb: 'show',
+    subject: 'the ticket, put in front of Holmes to see what he makes of it',
+    flag: 'showed_pawn_ticket_to_holmes',
+    done: s => flag(s, 'showed_pawn_ticket_to_holmes'),
+    available: s => hasItem(s, PAWN_TICKET) && npcStep(s, 'baker_street', 'holmes') },
   { id: 'a0_holmes', act: 0, locationId: 'baker_street', verb: 'talk',
-    subject: "Holmes about the man we are looking for",
-    flag: 'asked_holmes_about_holmes_man_no_one_remembers',
-    done: s => flag(s, 'asked_holmes_about_holmes_man_no_one_remembers'),
+    subject: 'Holmes about his complaint that crime has grown dull',
+    flag: 'asked_holmes_about_holmes_crime_grown_dull',
+    done: s => flag(s, 'asked_holmes_about_holmes_crime_grown_dull'),
     available: s => npcStep(s, 'baker_street', 'holmes') },
-  { id: 'a0_newspile_examine', act: 0, locationId: 'baker_street', verb: 'examine',
-    subject: 'the newspapers Holmes keeps piled by his chair',
-    done: s => hasItem(s, CLIPPING) || flag(s, 'examined_baker_street_newspaper_pile'),
-    available: s => locationReachable(s, 'baker_street') },
-  { id: 'a0_newspile_show', act: 0, locationId: 'baker_street', verb: 'show',
-    subject: "the 'Dear Boss' clipping — Holmes may make something of it",
-    flag: 'showed_newspaper_pile_to_holmes',
-    done: s => flag(s, 'showed_newspaper_pile_to_holmes'),
-    available: s => hasItem(s, CLIPPING) && npcStep(s, 'baker_street', 'holmes') },
-  { id: 'a0_telegrams', act: 0, locationId: 'baker_street', verb: 'examine',
-    subject: "Abberline's telegrams stacked on the side table",
-    flag: 'examined_baker_street_telegrams_pile',
-    done: s => flag(s, 'examined_baker_street_telegrams_pile'),
-    available: s => locationReachable(s, 'baker_street') },
 
   // ----- Act 1: The Last Murder -----
   { id: 'a1_hutchinson', act: 1, locationId: 'dorset_street', verb: 'talk',

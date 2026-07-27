@@ -122,7 +122,12 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
         return next;
       });
 
-      const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 - three months after the Jack the Ripper murders had begun, and the day before it concluded.\n\n";
+      // The game's authored first sentence, injected after the act heading (see
+      // injectAfterHeading / qa-narration-inject). Retrospective frame, but it
+      // withholds everything: on 6 August nothing has happened, and the closing
+      // clause must read as ordinary on a first play and as dread on a second.
+      // Do NOT reintroduce a date, a victim, or the word Ripper here.
+      const OPENING_FIXED_LINE = "I called at Baker Street on the evening of the sixth of August, 1888. It was the Bank Holiday, half of London was out of doors, and nothing whatever had happened yet.\n\n";
       let lastText = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening', blockquoteHint: 'none' })) {
         if (update.narrative) {

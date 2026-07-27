@@ -384,9 +384,14 @@ function matchObjectId(raw: string): string | undefined {
     'box': 'parcel_box',
     'reports': 'medical_reports',
     'forensic reports': 'medical_reports',
-    'clipping': 'newspaper_pile',
-    'newspaper clipping': 'newspaper_pile',
-    'dear boss': 'newspaper_pile',
+    'ticket': 'pawn_ticket',
+    'pawn ticket': 'pawn_ticket',
+    'pawnbroker\'s ticket': 'pawn_ticket',
+    'pledge': 'pawn_ticket',
+    'boots': 'pawn_ticket',
+    'case file': 'concluded_case_file',
+    'concluded case': 'concluded_case_file',
+    'last case': 'concluded_case_file',
     'notes': 'edmund_forensic_note',
     "edmund's note": 'edmund_forensic_note',
     "halward's note": 'edmund_forensic_note',
@@ -396,7 +401,11 @@ function matchObjectId(raw: string): string | undefined {
     'specimens': 'specimen_jars',
     'records': 'patient_records',
     'diary': 'watson_diary',
-    'violin': 'holmes_violin',
+    // Repointed from a dangling 'holmes_violin' when Act 0 gained a real
+    // violin_case object. ('watson_diary' above is likewise not an object id —
+    // pre-existing, left alone.)
+    'violin': 'violin_case',
+    'violin case': 'violin_case',
     'alley': 'alleyways',
     'escape routes': 'alleyways',
     'lantern': 'police_lanterns',
@@ -424,8 +433,8 @@ function matchObjectId(raw: string): string | undefined {
     "hutchinson's statement": 'hutchinson_account',
     'witness statement': 'hutchinson_account',
   };
-  // Longest alias wins — "dear boss letter" must match 'dear boss'
-  // (newspaper_pile), not the shorter 'letter' (from_hell_letter).
+  // Longest alias wins — "pawnbroker's ticket" must match that alias, not the
+  // shorter 'ticket'; "hutchinson's statement" not the shorter 'statement'.
   let bestId: string | undefined;
   let bestLen = 0;
   for (const [alias, id] of Object.entries(objectAliases)) {

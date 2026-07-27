@@ -79,9 +79,10 @@ function logPromptSize(label: string, system: string, prompt: string): void {
 const NARRATION_SYSTEM_PROMPT = `You narrate "London Bleeds: The Whitechapel Diaries" — a Victorian detective mystery, London, 1888. You write solely as Dr. John H. Watson in Arthur Conan Doyle's style: first-person past tense, analytical, restrained, quietly emotional. You are a narrator, not a game engine.
 
 ABSOLUTE RULES:
-1. VERIFIED STATE ONLY — never invent exits, items, characters, locations, or scenery/props (furniture, fixtures, objects, apparatus) beyond what the context lists. Holmes's case-map and its coloured threads exist only at Baker Street — never place that map, those threads, or any other unlisted prop in a location where it is not given. The reverse also holds: never narrate that Watson cannot leave, has no exits, or that "departure is out of the question" when the verified exits list is non-empty.
+1. VERIFIED STATE ONLY — never invent exits, items, characters, locations, or scenery/props (furniture, fixtures, objects, apparatus) beyond what the context lists. Dr. Bond's autopsy ledger and specimen cabinet exist only at the mortuary — never place them, or any other unlisted prop, in a location where the context does not give them. The reverse also holds: never narrate that Watson cannot leave, has no exits, or that "departure is out of the question" when the verified exits list is non-empty.
 2. TIME — match the verified time of day exactly (no morning bustle at night; no gas-lit darkness at noon).
 3. VOICE — first-person PAST TENSE, always, in every mode. Military doctor: medical and forensic specificity, measured authority, never melodramatic. State an emotion or sensation once; do not amplify or explain it — end the sentence before the elaboration. Occasionally dry; not every moment is dark. VARY YOUR OPENINGS — do not begin with fog, weather, or windows more than rarely; open instead on people, actions, objects, sounds, or Watson's thoughts. NEVER open with "I returned to…". OVER-USED IMAGERY (each may appear at most once per act): fire crackling in the grate/hearth, dancing or flickering shadows, fog pressing at the panes, "wreathed in smoke", "silhouetted against". BANNED PHRASE: "a profound sense of [emotion]" — show feeling through observed physical detail, never a labeled abstraction. Prefer fresh sensory channels — sound, smell, touch, small human details.
+3b. PUNCTUATION AND CADENCE — the em dash is the single clearest marker of machine-written prose. Use AT MOST ONE in a reply, and never a pair bracketing an aside. Reach instead for a full stop, a comma, a colon, or a semicolon; Victorian prose has all four and Watson is not breathless. Likewise do not fall into the three-beat list ("squalid, small, and explains itself") as a default cadence — use three items only when the content genuinely has three, not to round out a rhythm. Vary sentence length: a short flat sentence after a long one is worth more than another subordinate clause.
 4. ALIASES (critical) — each NPC carries a label and an isIntroduced flag. If isIntroduced is false, use ONLY the label; never the real name, even in Watson's private thoughts. Bond's assistant is never introduced by anyone and never introduces himself — his name appears only via the forensic note. Until then: "Bond's assistant" or "the quiet young man", background only, never initiating.
 5. HOLMES — at most one brief, cryptic observation per FULL turn. He never accuses the assistant before Act VI.
 6. NO RAW LISTS — weave exits, objects, and people into prose.
@@ -95,7 +96,7 @@ OUTPUT — return a JSON object:
 - "markdownOutput": the narrative text (Markdown, real line breaks — never a literal "\\n"). Each prompt states its own paragraph count and word limit — follow that line exactly; it is the authority (a turn carrying an extra required beat raises it).
 - "npcMemoryUpdate": optional ~10-word interaction summary keyed by npcId (e.g. {"holmes": "Watson and Holmes discussed the burned clothing."}).
 - "stimUpdate": optional array of NEW sensory first-observations to remember, each {"key": snake_case id, "summary": "10-15 words", "scope": "npc"|"object"|"environment"} (e.g. {"key":"holmes_coat","summary":"...","scope":"npc"}). Only when the result note asks for it and the subject is not already in SESSION OBSERVATIONS.
-NpcIds: holmes, abberline, bond, edmund, lusk, diemschutz, superintendent, hutchinson, phillips, tumblety, pizer, barmaid.`;
+NpcIds: holmes, abberline, bond, edmund, lusk, diemschutz, superintendent, hutchinson, phillips, tumblety, pizer, barmaid, mrs_kemp.`;
 
 // ============================================================
 // NARRATION RESPONSE SCHEMA (minimal — no state mutations)
@@ -204,7 +205,11 @@ Open the reply by carrying this interval in one or two sentences, in Watson's vo
 
   const temporalSection = (ctx.locationTimeframe === 'reconstruction'
     ? `\nTEMPORAL FRAMING: RECONSTRUCTION — Watson revisits this cold crime scene weeks/months after the murder, working from Abberline's notes and Bond's written reports ("According to Abberline's report…"). Register: professional composure, retrospective sadness — observed, not flinched at; NOT live-investigation shock. Any blockquote must be a reconstructed memory or report detail, never a live ambient event.${ctx.locationReconstitutionNote ? `\nContext: ${ctx.locationReconstitutionNote}` : ''}\n`
-    : `\nTEMPORAL FRAMING: PRESENT — Watson is here now, November 1888. Apply immediate, live-investigation register.\n`) + bakerStreetNote + timeSection;
+    // The date is NOT hardcoded here: the chronological rework spans August to
+    // November, and CURRENT TIME below already carries the verified day from
+    // ACT_TIME_CONFIG (including a multi-day act's current step). Naming a month
+    // here would contradict it for every act outside November.
+    : `\nTEMPORAL FRAMING: PRESENT — Watson is here now, on the date and at the hour given under CURRENT TIME below. Apply immediate, live-investigation register.\n`) + bakerStreetNote + timeSection;
 
   const atmosphericNoteSection = ctx.atmosphericNote
     ? `\n=== ATMOSPHERIC NOTE (use as basis for this examination — expand in Watson's voice) ===\n${ctx.atmosphericNote}\n`
@@ -272,7 +277,9 @@ Result: ${ctx.actionResultNote}
 
 Paragraph 1 — ATMOSPHERE: 2–3 tight sentences. Vivid sensory hook. Apply correct temporal register. Do NOT list NPCs, objects, or exits.
 
-Paragraph 2 — MYSTERY HOOK: One sentence that raises a question or creates dread. Leave the player wanting to look around.
+${ctx.act === 0
+  ? `Paragraph 2 — HOOK: One sentence. Act 0 opens BEFORE there is any case at all, so do NOT raise dread, menace, or a sense of something coming: nothing has happened, and a manufactured shiver here is exactly the foreshadow this act must not carry. Hook instead on Holmes having nothing whatever to occupy him, and on the fact that somebody has called this evening on a matter he does not want. Curiosity, not dread.`
+  : `Paragraph 2 — MYSTERY HOOK: One sentence that raises a question or creates dread. Leave the player wanting to look around.`}
 
 NO Markdown headings. NO blockquote. NO exits listing. NO character roster. NPCs, objects, and exits will be appended separately.`;
   }
@@ -295,7 +302,7 @@ Description: ${ctx.locationDescription}`;
     // Revisit (look-around in a known room): 2 paragraphs, no re-description; a
     // blockquote only when an authored vignette is present (no atmospheric seed).
     const act0Note = ctx.act === 0
-      ? '\nACT 0 PROLOGUE NOTE: This is Baker Street. Watson cannot leave yet — the exits list is empty because Holmes has not yet briefed him on where to begin. Do NOT invent exits or imply Watson is free to leave. Instead, let Holmes\'s presence and the case files naturally draw Watson\'s attention. The prose should make the player feel that examining the case files wall is the natural first action.'
+      ? '\nACT 0 PROLOGUE NOTE: Baker Street on the evening of the August Bank Holiday. NO murder has happened and none may be hinted at, foreshadowed, or darkly anticipated; the holiday is simply a holiday. Watson is not going anywhere tonight: the exits list is empty because there is nowhere to go at this hour, not because he is being kept in. Do NOT invent exits or imply Watson is free to leave. A caller is in the room on her own small business. Let her, and the pawn ticket she has laid on the table, draw Watson\'s attention naturally — the prose should make speaking to her, or looking at what she has brought, feel like the obvious first thing to do.'
       : '';
     const noticeBeat = `WHAT WATSON NOTICES: In prose (not a list), mention who is present (using their exact labels), what objects catch his eye, and which directions he could go — using ONLY the verified data above.${ctx.availableExits.length === 0 ? '\nNo exits are available yet. Do NOT invent exits or directions. Omit the "directions" sentence entirely — focus only on who and what is present.' : ''}`;
     const blockquoteBeat = `BLOCKQUOTE: ${ctx.vignette

@@ -34,7 +34,10 @@ export const PERSONS_OF_INTEREST: PersonOfInterest<StoryFlag>[] = [
     id: 'poi_tumblety',
     label: 'The Mad Doctor (Francis Tumblety)',
     detail: 'American specimen-collector in custody — anatomical curios, hatred of women. He fits gloriously.',
-    requiresFlag: 'examined_baker_street_telegrams_pile',
+    // Was gated on the Baker Street telegrams pile, retired with the Act 0
+    // rework. Re-gated onto Abberline's own account of the custody, which is
+    // askable from Act 2 — the first act he is onstage under the reweave.
+    requiresFlag: 'asked_abberline_about_abberline_tumblety_custody',
     clearedByFlag: 'asked_abberline_about_abberline_barrister_file',
     clearedNote: 'fled the country — the public\'s chosen culprit; but the preservation does not match his crude curios',
   },

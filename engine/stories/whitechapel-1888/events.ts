@@ -14,8 +14,11 @@ export const WORLD_EVENTS: WorldEventDefinition[] = [
   {
     id: 'act0_midnight_bells',
     act: 0,
-    atClockMinutes: 0, // midnight of the vigil — earlier than the 8:00 PM start, so it fires past midnight
-    text: 'Midnight comes over London in a slow relay of church bells, each parish a half-beat behind the last, until the count dies away east over Whitechapel.',
+    atClockMinutes: 0, // midnight — earlier than the 8:30 PM start, so it fires past midnight
+    // Re-dressed for the Bank Holiday (6 Aug 1888): the bells have to compete
+    // with a city still out of doors. No hint of anything to come — nothing has
+    // happened, and the holiday is simply a holiday.
+    text: 'Midnight comes over London in a slow relay of church bells, each parish a half-beat behind the last. Tonight not one of them can make itself heard over the holiday, which shows no sign whatever of going home.',
   },
   {
     id: 'act2_church_bells',

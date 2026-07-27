@@ -58,15 +58,47 @@ const NPCS_DATA = {
     ],
     idleBeats: [
       // 221B props — only fire at Baker Street (Holmes follows Watson everywhere,
-      // so unscoped these would put the violin in the mortuary).
+      // so unscoped these would put the violin in the mortuary). The case-map
+      // beat was retired with the wall itself (Act 0 rework); its replacement
+      // is prop-neutral and works in every act the room appears in.
       { locationId: 'baker_street', text: 'Holmes draws a single long note from the violin, then sets it down unfinished' },
-      { locationId: 'baker_street', text: 'Holmes re-pins a thread on the case map a quarter-inch to the left, studies it, moves it back' },
+      { locationId: 'baker_street', text: 'Holmes takes a book down from the shelf, reads half a page standing up, and puts it back in the wrong place' },
       { locationId: 'baker_street', text: 'Holmes stands at the window with his hands behind his back, perfectly still' },
       { locationId: 'baker_street', text: 'Holmes leafs through his index of criminal records, not appearing to read it' },
       // Portable — pocket props and habits that travel with him.
       { text: 'Holmes turns his lens over in his fingers without raising it to anything' },
       { text: 'Holmes fills his pipe from his pouch with great care, then does not light it' },
       { text: 'Holmes closes his eyes for the space of three breaths — cataloguing, not resting' },
+    ],
+  },
+
+  // ── CHRONOLOGICAL REWORK: Act 0, the Bank Holiday ─────────────────────────
+  // The caller Holmes turns away. She is onstage for Act 0 only and offstage
+  // every act after — an NPC with no scheduleByAct entry for an act is offstage
+  // by construction, so her disappearance needs no mechanic. She stays in the
+  // room for the whole act after the refusal, which reads correctly: she
+  // lingers, and then the act ends and she is gone.
+  //
+  // Her sister Nell is NEVER found, never named again, and never confirmed
+  // connected to anything. No clue points at her; no later act resolves her.
+  // She is not Martha Tabram and the game must never imply she is.
+  mrs_kemp: {
+    id: 'mrs_kemp',
+    displayName: 'Mrs. Kemp',
+    alias: 'Mrs. Kemp',
+    requiresIntroduction: false, // she gave her name at the door
+    role: 'A caller from Bethnal Green',
+    description: 'A woman of perhaps forty-five who has come across London on an omnibus to ask a favour she does not expect to be granted. Her sister Ellen, called Nell, has not been seen in nine days. She is plain and tired and entirely without self-pity. She states her business, answers what she is asked, and does not plead.',
+    speakingStyle: 'Plain and unhurried. Answers the question put to her and stops. She does not embroider and she does not weep, and if she is conscious of taking up the gentlemen\'s evening she does not apologise for it.',
+    personality: ['Plain-spoken', 'Tired', 'Not pitiable', 'Expects to be dismissed', 'Certain about her sister'],
+    followingRule: 'fixed',
+    scheduleByAct: {
+      0: { default: 'baker_street' },
+    },
+    idleBeats: [
+      { text: 'Mrs. Kemp sits forward on the edge of the chair, as though she has not been asked to sit in it' },
+      { text: 'Mrs. Kemp turns her gloves over in her lap, once, and then leaves them alone' },
+      { text: 'Mrs. Kemp glances at the open window and the noise coming up from the street, and says nothing about it' },
     ],
   },
 
@@ -82,8 +114,9 @@ const NPCS_DATA = {
     personality: ['Practical', 'Honest', 'Determined', 'Fatigued', 'Privately broken by this case'],
     followingRule: 'location_based',
     scheduleByAct: {
+      // No act-0 entry: Act 0 is the Bank Holiday evening at Baker Street, and
+      // nobody but Holmes and the caller is onstage (chronological rework).
       // A policeman's day ends at the pub across from the station.
-      0: { default: 'h_division_station', byPeriod: { night: 'whitechapel_pub', lateNight: 'whitechapel_pub' } },
       1: { default: 'dorset_street' },
       2: { default: 'h_division_station', byPeriod: { evening: 'whitechapel_pub' } },
       3: { default: 'working_mens_club' },
@@ -118,8 +151,8 @@ const NPCS_DATA = {
     personality: ['Clinical', 'Professional', 'Reserved', 'Thorough'],
     followingRule: 'location_based',
     scheduleByAct: {
-      // Acts 0-3: Bond is at the mortuary — his proper domain
-      0: { default: 'whitechapel_mortuary' },
+      // No act-0 entry (chronological rework — see mrs_kemp).
+      // Acts 1-3: Bond is at the mortuary — his proper domain
       1: { default: 'millers_court' },
       // The mortuary keeps visiting hours; evenings he retreats to his office.
       2: { default: 'whitechapel_mortuary', byPeriod: { evening: 'bond_office', night: 'bond_office', lateNight: 'bond_office' } },
@@ -184,8 +217,8 @@ const NPCS_DATA = {
     followsUntilAct: 5,
     scheduleByAct: {
       // Edmund follows Bond. Where Bond is not present at reconstruction
-      // locations (Acts 2-3), Edmund is also absent.
-      0: { default: 'whitechapel_mortuary' },
+      // locations (Acts 2-3), Edmund is also absent. No act-0 entry
+      // (chronological rework — see mrs_kemp).
       1: { default: 'millers_court' },
       2: { default: 'whitechapel_mortuary' },
       3: { default: 'whitechapel_mortuary' },
@@ -437,6 +470,7 @@ export const NPC_DISPLAY_NAMES: Record<string, string> = {
   edmund: 'Edmund Halward',
   lusk: 'George Lusk',
   diemschutz: 'Louis Diemschutz',
+  mrs_kemp: 'Mrs. Kemp',
   superintendent: 'Asylum Superintendent',
   hutchinson: 'George Hutchinson',
   phillips: 'Dr. George Bagster Phillips',

@@ -7,18 +7,39 @@
 import type { StoryFact } from '../types';
 
 export const FACTS: StoryFact[] = [
+  // ── mrs_kemp (Act 0 only) ───────────────────────────────────────────────────
+  // The caller Holmes turns away. Nothing here may hint at any murder — none
+  // has happened on 6 August — and nothing anywhere may connect Nell to the
+  // case. She is the first of the ones nobody remembers, and she stays unfound.
+  { id: 'kemp_sister_missing', statement: 'Her sister Ellen, called Nell, has not been seen for nine days. Nell would not go off without saying, whatever the gentleman may think of women in that quarter; the two of them have never gone a week without a word', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['your sister', 'nell', 'why you have come'] },
+  { id: 'kemp_pawn_ticket', statement: 'The only thing she has to show is Nell\'s ticket for a pair of boots, pledged in July and still with the pawnbroker. A woman means to come back for her boots', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['the ticket', 'the boots', 'the pawnbroker'] },
+  { id: 'kemp_police_wont_look', statement: 'She went to the police. They took the name down in a book. That was the whole of it, and she has heard nothing since', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['the police', 'what they said'] },
+
   // ── holmes ──────────────────────────────────────────────────────────────────
-  // Spoiler-safe and timeline-neutral: Holmes's envelope must hold from the
-  // prologue (four victims, Kelly alive) through Act 6. The prasarved match
-  // and "murders stopped" are DISCOVERIES, not knowledge — never listed here.
-  { id: 'holmes_studied_files', statement: 'Has studied the police files on every murder and visits each scene to conduct independent analysis', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the police files', 'the files', 'your analysis'] },
-  { id: 'holmes_killer_nonthreatening', statement: 'The killer appeared non-threatening to victims — respectable-looking or known to them', knownBy: ['holmes'], visibleFromAct: 0, topics: ['how he approaches them', 'the approach', 'why they did not run'] },
-  { id: 'holmes_student_not_surgeon', statement: 'Anatomical removals required knowledge of organ location, not surgical mastery — the knowledge of a student, not a surgeon', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the anatomy', 'surgical skill', 'the removals'] },
-  { id: 'holmes_not_panicked_stride', statement: "Not panicked by Stride's interruption — completed a second murder the same night within 45 minutes", knownBy: ['holmes'], visibleFromAct: 0, topics: ['the double event', 'the interruption', 'that night'] },
-  { id: 'holmes_no_reliable_witness', statement: 'The killer moves through Whitechapel without raising alarm — no reliable witness in the entire campaign', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the witnesses', 'why no one remembers him', 'the descriptions'] },
-  { id: 'holmes_man_no_one_remembers', statement: 'His working certainty: the killer is a man no one remembers — unremarkable, patient, calculating', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the man we are looking for', 'your theory', 'the killer'] },
-  { id: 'holmes_dear_boss_hoax', statement: 'Considers the published "Dear Boss" letters a journalist\'s invention — misdirection, like much else in this case', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the letters', 'dear boss', 'the press letters'] },
+  // Spoiler-safe: the prasarved match and "murders stopped" are DISCOVERIES,
+  // not knowledge — never listed here.
+  //
+  // CHRONOLOGICAL REWORK: the campaign facts below are sealed to Act 2. Acts 0
+  // and 1 are August 1888 — on the Bank Holiday no murder has happened at all,
+  // and after Tabram there is one killing and nothing yet connected. Holmes
+  // cannot hold a view about "the whole campaign", the double event, or the
+  // Dear Boss letters (September) at a point in the story where none of them
+  // exist. Act 3's gate asks for holmes_no_reliable_witness, which 2 satisfies.
+  { id: 'holmes_studied_files', statement: 'Has studied the police files on every murder and visits each scene to conduct independent analysis', knownBy: ['holmes'], visibleFromAct: 2, topics: ['the police files', 'the files', 'your analysis'] },
+  { id: 'holmes_killer_nonthreatening', statement: 'The killer appeared non-threatening to victims — respectable-looking or known to them', knownBy: ['holmes'], visibleFromAct: 2, topics: ['how he approaches them', 'the approach', 'why they did not run'] },
+  { id: 'holmes_student_not_surgeon', statement: 'Anatomical removals required knowledge of organ location, not surgical mastery — the knowledge of a student, not a surgeon', knownBy: ['holmes'], visibleFromAct: 2, topics: ['the anatomy', 'surgical skill', 'the removals'] },
+  { id: 'holmes_not_panicked_stride', statement: "Not panicked by Stride's interruption — completed a second murder the same night within 45 minutes", knownBy: ['holmes'], visibleFromAct: 2, topics: ['the double event', 'the interruption', 'that night'] },
+  { id: 'holmes_no_reliable_witness', statement: 'The killer moves through Whitechapel without raising alarm — no reliable witness in the entire campaign', knownBy: ['holmes'], visibleFromAct: 2, topics: ['the witnesses', 'why no one remembers him', 'the descriptions'] },
+  { id: 'holmes_man_no_one_remembers', statement: 'His working certainty: the killer is a man no one remembers — unremarkable, patient, calculating', knownBy: ['holmes'], visibleFromAct: 2, topics: ['the man we are looking for', 'your theory', 'the killer'] },
+  { id: 'holmes_dear_boss_hoax', statement: 'Considers the published "Dear Boss" letters a journalist\'s invention — misdirection, like much else in this case', knownBy: ['holmes'], visibleFromAct: 2, topics: ['the letters', 'dear boss', 'the press letters'] },
+  // Timeless character, not campaign knowledge — safe from Act 0.
   { id: 'holmes_knowing_vs_proving', statement: 'Refuses to name a suspect without evidence that would satisfy a court — "knowing and proving are not the same act"', knownBy: ['holmes'], visibleFromAct: 0, topics: ['proof', 'the evidence', 'knowing and proving'] },
+  // Act 0 — the Bank Holiday. The irony the act is built on: Holmes declares
+  // crime finished, hours before Tabram. None of these may hint at a murder.
+  { id: 'holmes_crime_grown_dull', statement: 'His complaint of the season: the great cases are done. What remains to the criminal classes is squalid stuff that explains itself before a man can get his coat on. He says it as settled fact rather than as melancholy. This is the closing beat of the act', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the criminal classes', 'crime', 'your boredom'] },
+  { id: 'holmes_no_case_here', statement: 'On the woman who called: no crime has been disclosed to him. A missing woman in the East End is a change of address rather than a case. People there move without notice, and a pawn ticket is not evidence of anything. His tone is flat and perfectly reasonable, and he is wrong', knownBy: ['holmes'], visibleFromAct: 0, topics: ['mrs kemp', 'the woman who called', 'her sister'] },
+  { id: 'holmes_concluded_case', statement: 'The matter he has just finished is concluded and already forgotten. He names nothing and no one about it and declines to be drawn; it was solved in an afternoon and was not worth the afternoon', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the case you have just closed', 'your last case'] },
+  { id: 'holmes_invisible_in_a_crowd', statement: 'At the open window, watching the holiday crowd: the whole city is turned out of doors tonight, a hundred thousand of them at the least, and a man might pass through the whole of that and be remembered by none. He means it as a complaint about the tedium of scale', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the crowd', 'the holiday', 'the window'] },
   // Act-gated capstones. These carry the act's turning thought and are what the
   // ACT_PROGRESSION gate asks for — the player must raise the subject with
   // Holmes, not merely stand near him. visibleFromAct keeps each sealed until

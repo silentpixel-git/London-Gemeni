@@ -29,23 +29,23 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
   }
 }
 
-// 2) Act 0 prerequisite chain: clipping not yet in hand → examine pile, not show.
+// 2) Act 0 prerequisite chain: ticket not yet in hand → examine it, not show it.
 {
   const before = state({ currentAct: 0, location: 'baker_street',
     npcStates: { holmes: { currentLocation: 'baker_street', status: 'alive' } } });
   const pool = OBJECTIVES.filter(o => o.act === 0 && !o.done(before) && o.available(before));
   const ids = pool.map(o => o.id);
-  ids.includes('a0_newspile_examine') && !ids.includes('a0_newspile_show')
-    ? pass('act0: examine-pile available, show-clipping not (no clipping yet)')
+  ids.includes('a0_ticket_examine') && !ids.includes('a0_ticket_show')
+    ? pass('act0: examine-ticket available, show-ticket not (no ticket yet)')
     : fail('act0 prereq gating wrong', ids.join(','));
 
   const after = state({ currentAct: 0, location: 'baker_street',
-    inventory: ['Newspaper Clipping (the "Dear Boss" letter)'],
-    flags: { examined_baker_street_newspaper_pile: true },
+    inventory: ["Nell's Pawn Ticket"],
+    flags: { examined_baker_street_pawn_ticket: true },
     npcStates: { holmes: { currentLocation: 'baker_street', status: 'alive' } } });
   const ids2 = OBJECTIVES.filter(o => o.act === 0 && !o.done(after) && o.available(after)).map(o => o.id);
-  ids2.includes('a0_newspile_show') && !ids2.includes('a0_newspile_examine')
-    ? pass('act0: with clipping in hand, show-clipping available, examine done')
+  ids2.includes('a0_ticket_show') && !ids2.includes('a0_ticket_examine')
+    ? pass('act0: with ticket in hand, show-ticket available, examine done')
     : fail('act0 show gating wrong', ids2.join(','));
 }
 
