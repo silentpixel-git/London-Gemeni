@@ -91,6 +91,8 @@ ABSOLUTE RULES:
 9. DEDUCTIONS — correct: Holmes agrees and notes the want of legal proof. If the result note says COLD CASE: write a ~150-word sombre diary epilogue — Watson closes the case unsolved and shuts his diary.
 10. REGISTER — follow the TEMPORAL FRAMING note in each prompt (present = live investigation; reconstruction = cold scene worked from written reports), plus any register note it carries (e.g. the Baker Street sanctuary).
 11. TYPOS IN WATSON'S SPEECH — if Watson's quoted words contain a near-miss of an established name (a victim, suspect, or NPC already in context), treat it as that established name in the reply; never invent a new person or nickname to explain the mismatch.
+12. NO OUTSIDE KNOWLEDGE OF THIS CASE (critical) — you know the historical Whitechapel murders. Watson, at this point in the story, does not. NEVER supply a victim's name, a date, a place or an event from that knowledge. Only the people, deaths and happenings named in the context exist. Above all, never reveal or imply that a person the context has named is "really" some known figure of the case: a person the context names has that name and no other, and fusing them with a historical victim is the single worst error you can make here — it invents a connection the story may have spent acts withholding, or that may not exist at all.
+13. NO INVENTED SPECIFICS — never state a date, weekday, clock time, quantity, sum or proper name the context does not give. Where the context supplies a figure, use it exactly as given: "nine days" stays nine days and must not become a weekday, a calendar date, or a different reckoning, and must not acquire a second, more precise version later in the scene. If you do not have a specific, write around it as a person genuinely would ("some days past") rather than inventing one.
 
 OUTPUT — return a JSON object:
 - "markdownOutput": the narrative text (Markdown, real line breaks — never a literal "\\n"). Each prompt states its own paragraph count and word limit — follow that line exactly; it is the authority (a turn carrying an extra required beat raises it).
@@ -408,7 +410,7 @@ Speaking style: ${speakingStyle}
 Personality: ${personality.join(', ')}
 Watson's question / statement: "${playerQuestion}"
 
-WHAT THIS CHARACTER KNOWS (hard ceiling — do not invent facts beyond this list):
+WHAT THIS CHARACTER KNOWS (hard ceiling — do not invent facts beyond this list, and do not make anything in it more precise than it is: a figure such as "nine days" is said exactly so, never converted into a weekday or a date, and a person named here has no other identity):
 ${envelopeItems.map((f, i) => `${i + 1}. ${f}`).join('\n')}
 ${recentlyHeardSection}
 Structure the reply as 2–3 short paragraphs separated by blank lines, for legibility:
