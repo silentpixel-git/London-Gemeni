@@ -58,14 +58,32 @@ const NPCS_DATA = {
     ],
     idleBeats: [
       // 221B props — only fire at Baker Street (Holmes follows Watson everywhere,
-      // so unscoped these would put the violin in the mortuary). The case-map
-      // beat was retired with the wall itself (Act 0 rework); its replacement
-      // is prop-neutral and works in every act the room appears in.
-      { locationId: 'baker_street', text: 'Holmes draws a single long note from the violin, then sets it down unfinished' },
+      // so unscoped these would put the violin in the mortuary).
+      //
+      // POOL SIZE MATTERS HERE. When any location-scoped beat applies, the
+      // portable beats below are excluded outright (see narrationContext), so
+      // this list alone carries every turn Watson spends at 221B. Act 0 never
+      // leaves the room, and a blind playtest of twenty turns saw the same two
+      // beats six and five times each. Keep this list long, and season-neutral:
+      // it also serves the November acts.
       { locationId: 'baker_street', text: 'Holmes takes a book down from the shelf, reads half a page standing up, and puts it back in the wrong place' },
       { locationId: 'baker_street', text: 'Holmes stands at the window with his hands behind his back, perfectly still' },
       { locationId: 'baker_street', text: 'Holmes leafs through his index of criminal records, not appearing to read it' },
-      // Portable — pocket props and habits that travel with him.
+      { locationId: 'baker_street', text: 'Holmes straightens a picture on the wall by a fraction, considers it, and leaves it crooked' },
+      { locationId: 'baker_street', text: 'Holmes checks his watch against the clock on the mantel and appears dissatisfied with both' },
+      { locationId: 'baker_street', text: 'Holmes begins a remark, thinks better of it, and does not finish' },
+      { locationId: 'baker_street', text: 'Holmes moves a chair a couple of inches and sits in it as though it were now correct' },
+      // The violin is act-split. Act 0's authored object note has it shut in its
+      // case ("left in the case, as it is tonight, there is nothing whatever to
+      // think about"), and a beat that has him playing contradicted that inside
+      // a single turn — the playtest caught the case described as occupied and
+      // empty in the same breath. He touches it and leaves it in August; he
+      // plays it in the November acts, where the note does not apply.
+      { locationId: 'baker_street', act: 0, text: 'Holmes rests two fingers on the closed violin case as he passes it, and does not open it' },
+      { locationId: 'baker_street', act: 5, text: 'Holmes draws a single long note from the violin, then sets it down unfinished' },
+      { locationId: 'baker_street', act: 6, text: 'Holmes draws a single long note from the violin, then sets it down unfinished' },
+      // Portable — pocket props and habits that travel with him. These fire
+      // only where no location-scoped beat applies, i.e. everywhere but 221B.
       { text: 'Holmes turns his lens over in his fingers without raising it to anything' },
       { text: 'Holmes fills his pipe from his pouch with great care, then does not light it' },
       { text: 'Holmes closes his eyes for the space of three breaths — cataloguing, not resting' },
@@ -102,10 +120,18 @@ const NPCS_DATA = {
     scheduleByAct: {
       0: { default: 'baker_street' },
     },
+    // She is onstage for the whole of a single-room act, so this pool carries
+    // every turn she is not being interviewed. Three was far too few. Every beat
+    // is a seated caller's: nothing that touches the room or its furniture, or
+    // she reads as the housekeeper rather than a guest.
     idleBeats: [
       { text: 'Mrs. Kemp sits forward on the edge of the chair, as though she has not been asked to sit in it' },
       { text: 'Mrs. Kemp turns her gloves over in her lap, once, and then leaves them alone' },
       { text: 'Mrs. Kemp glances at the open window and the noise coming up from the street, and says nothing about it' },
+      { text: 'Mrs. Kemp looks at the clock on the mantel, works something out about the last omnibus, and does not mention it' },
+      { text: 'Mrs. Kemp keeps her reticule closed on her knee with both hands, as though it might be asked for' },
+      { text: 'Mrs. Kemp follows Holmes with her eyes when he crosses the room, and looks away before he turns' },
+      { text: 'Mrs. Kemp starts to say something further, decides it will not help her, and stops' },
     ],
   },
 

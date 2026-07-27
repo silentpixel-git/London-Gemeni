@@ -47,6 +47,14 @@ const COMPANION_DEMEANORS: CompanionDemeanor[] = [
         text: 'Holmes is grim and certain now — coiled, economical, already three moves ahead. The chase has replaced the puzzle.',
       },
       {
+        // Act 0 has no case, and so no data to want: the catch-all below reads
+        // as an investigator between leads, which is the wrong man entirely on
+        // the Bank Holiday. Its wording also deliberately avoids the catch-all's
+        // ("restless", "want of data"), which the model was echoing every turn.
+        when: s => s.currentAct === 0,
+        text: 'Holmes is bored past civility. It is the boredom of a man with nothing whatever to solve, which in him runs like a low fever: he is short with interruption and does not trouble to conceal it.',
+      },
+      {
         when: s => s.discoveredClueIds.length >= 3,
         text: 'Holmes is absorbed — the abstracted intensity of a mind cross-referencing everything it sees. He answers a beat late.',
       },

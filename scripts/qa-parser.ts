@@ -163,7 +163,11 @@ const FIXTURES: Fixture[] = [
   { objectId: 'edmund_room_furnishings', phrasings: [
     { text: "edmund's room", category: 'alias' },
     { text: 'furnishings', category: 'alias' },
-    { text: 'the room', category: 'partial' },
+    // "the room" is deliberately NO LONGER an alias here: it now reads as a
+    // look-around everywhere (BARE_LOOK_REMAINDERS), which is worth more than
+    // one asylum alias — it stopped "look around" resolving to a body-discovery
+    // site in every room in the game.
+    { text: 'the furnishings', category: 'partial' },
     { text: "the patient's quarters", category: 'paraphrase' },
   ]},
 ];

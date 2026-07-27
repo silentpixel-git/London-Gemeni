@@ -42,6 +42,25 @@ const EXAMINE_VERBS = [
   'investigate', 'analyse', 'analyze', 'survey', 'peruse', 'open', 'smell',
 ];
 
+/**
+ * Phrases that modify a LOOK rather than name a target: "look around", "search
+ * here", "examine the room". These must resolve to a bare look-around.
+ *
+ * Without this, "look around" left "around" as the target phrase, which is one
+ * edit from "ground" — the fuzzy object matcher duly resolved it to
+ * ground_where_body_was_discovered, so EVERY "look around" in the game told the
+ * narrator that Watson had just tried and failed to examine a body discovery
+ * site. The prose that came back had him searching the carpet for bloodstains
+ * in a drawing room, which looked like a narration fault and was not one.
+ */
+// NOTE: stripVerb drops a leading article, so entries are listed bare as well
+// ("room", not only "the room").
+const BARE_LOOK_REMAINDERS = new Set([
+  'around', 'about', 'round', 'here', 'about here', 'around here', 'round here',
+  'room', 'the room', 'this room', 'around the room', 'about the room',
+  'place', 'the place', 'surroundings', 'the surroundings', 'everything',
+]);
+
 // Talk trigger words
 const TALK_VERBS = [
   'talk to', 'talk with', 'speak to', 'speak with', 'ask', 'question',
@@ -785,7 +804,9 @@ export function parseIntent(rawInput: string): ParsedIntent {
   // 7. Examine (check last, broad)
   for (const verb of EXAMINE_VERBS.sort((a, b) => b.length - a.length)) {
     if (norm.startsWith(verb + ' ') || norm === verb) {
-      const targetRaw = stripVerb(rawInput, EXAMINE_VERBS);
+      const strippedTarget = stripVerb(rawInput, EXAMINE_VERBS);
+      // "look around" and friends name no target — see BARE_LOOK_REMAINDERS.
+      const targetRaw = BARE_LOOK_REMAINDERS.has(normalise(strippedTarget)) ? '' : strippedTarget;
       // Only attempt to match a target if the verb had something after it.
       // A bare "look" / "examine" / "survey" with no target is a look-around (targetId = undefined),
       // which triggers full narration mode. An empty string passed to the matchers

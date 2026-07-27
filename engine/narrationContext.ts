@@ -127,7 +127,10 @@ export function buildNarrationContext(
       const beatIndex = Math.floor(session.turnCount / eligible.length) % beats.length;
       npcScriptedLines.push({
         npcId, label,
-        instruction: `Background only, no emphasis: ${beats[beatIndex].text}`,
+        // "Once" is explicit because the model was restating the same piece of
+        // business two and three times within a single reply, which made a
+        // rotating pool look far smaller than it is.
+        instruction: `Background only, no emphasis. Give it one clause and do not restate it later in the reply: ${beats[beatIndex].text}`,
       });
     }
   }
@@ -140,7 +143,16 @@ export function buildNarrationContext(
     if (!present) continue;
     const variant = cd.variants.find(v => v.when(session));
     if (variant) {
-      npcScriptedLines.push({ npcId: cd.npcId, label: present.label, instruction: `Demeanor note: ${variant.text}` });
+      // This fires on EVERY turn the companion is present and not interviewed,
+      // so its wording reaches the model more often than anything else in the
+      // prompt. Without the caveat the model echoes its vocabulary back turn
+      // after turn — a playtest found "restless" in 12 of 20 replies, traced to
+      // the single word in the Act 0 catch-all variant below.
+      npcScriptedLines.push({
+        npcId: cd.npcId,
+        label: present.label,
+        instruction: `Demeanor note (a register for how to play him this scene, NOT a line to render — never reuse its wording, and vary how it shows from turn to turn): ${variant.text}`,
+      });
     }
   }
 
