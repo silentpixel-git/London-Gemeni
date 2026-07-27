@@ -230,6 +230,54 @@ function splitTopic(raw: string): { subject: string; topicRaw?: string } {
   };
 }
 
+/**
+ * Remainders that name the addressee and nothing else — "talk to holmes again".
+ * Treating these as a topic would turn an ordinary second conversation into a
+ * "he has nothing to say on that", which is worse than the bare exchange.
+ */
+const NON_TOPIC_REMAINDERS = new Set([
+  'again', 'once more', 'once again', 'some more', 'more', 'please', 'now',
+  'further', 'briefly', 'a moment', 'a bit', 'for a moment',
+]);
+
+/**
+ * A TALK whose subject carries more than the addressee:
+ * "holmes why he finds modern crime so dull" → { holmes, "why he finds…" }.
+ *
+ * Players ask questions far more often than they write "about X". Without this
+ * the remainder is silently dropped, the turn degrades to a bare opening
+ * exchange, and no topic is ever credited — which is how an act's asked_ gates
+ * become unreachable in practice even though every topic is authored correctly.
+ *
+ * Only the exact-name paths are sliced; fuzzy NPC matching is far too loose to
+ * cut a string on. Returns undefined when nothing but the name is left, so a
+ * plain "talk to holmes" stays a plain opening exchange.
+ */
+function splitAddresseeFromQuestion(subject: string): { id: string; topicRaw: string } | undefined {
+  const norm = normalise(subject);
+  const candidates: Array<{ id: string; phrase: string }> = [];
+  for (const [id, npc] of Object.entries(NPCS)) {
+    const displayName = normalise(npc.displayName);
+    if (displayName && norm.includes(displayName)) candidates.push({ id, phrase: displayName });
+    const idPhrase = id.replace(/_/g, ' ');
+    if (norm.includes(idPhrase)) candidates.push({ id, phrase: idPhrase });
+  }
+  for (const [alias, id] of Object.entries(NPC_ALIASES)) {
+    if (norm.includes(alias)) candidates.push({ id, phrase: alias });
+  }
+  if (candidates.length === 0) return undefined;
+  // Longest phrase wins, so "mrs kemp" is cut rather than a bare "kemp".
+  candidates.sort((a, b) => b.phrase.length - a.phrase.length);
+  const { id, phrase } = candidates[0];
+  const idx = norm.indexOf(phrase);
+  const remainder = `${norm.slice(0, idx)} ${norm.slice(idx + phrase.length)}`
+    .replace(/\s+/g, ' ')
+    .replace(/^(?:to|with|for|about)\s+/, '')
+    .trim();
+  if (!remainder || NON_TOPIC_REMAINDERS.has(remainder)) return undefined;
+  return { id, topicRaw: remainder };
+}
+
 function matchNpcId(raw: string): string | undefined {
   const norm = normalise(raw);
   for (const [id, npc] of Object.entries(NPCS)) {
@@ -615,12 +663,23 @@ export function parseIntent(rawInput: string): ParsedIntent {
       const { subject, topicRaw } = splitTopic(rest);
       // "ask about the graffiti" names no one — the resolver addresses the only
       // NPC present, the same courtesy SHOW already extends.
-      const targetId = subject ? (matchNpcId(subject) || matchObjectId(subject)) : undefined;
+      let targetId = subject ? (matchNpcId(subject) || matchObjectId(subject)) : undefined;
+      let topic = topicRaw;
+      // No "about" clause, but the subject carries a question as well as the
+      // addressee ("ask holmes why he finds modern crime so dull"). Recover the
+      // topic rather than discarding it — see splitAddresseeFromQuestion.
+      if (!topic && subject) {
+        const asQuestion = splitAddresseeFromQuestion(subject);
+        if (asQuestion) {
+          targetId ??= asQuestion.id;
+          topic = asQuestion.topicRaw;
+        }
+      }
       return {
         type: 'talk',
         targetId,
         targetRaw: subject || rest,
-        topicRaw,
+        topicRaw: topic,
         raw: rawInput,
       };
     }

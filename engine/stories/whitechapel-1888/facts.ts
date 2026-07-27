@@ -15,7 +15,7 @@ export const FACTS: StoryFact[] = [
   // front of the player: the ticket names Thrawl Street and "E. Ward", and the
   // statements below name Ellen and the nine days. A player who reads one of
   // those and asks about it must not hit silence.
-  { id: 'kemp_sister_missing', statement: 'Her sister Ellen, called Nell, has not been seen for nine days. Nell would not go off without saying, whatever the gentleman may think of women in that quarter; the two of them have never gone a week without a word', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['your sister', 'nell', 'ellen', 'ward', 'nine days', 'when you last saw her', 'why you have come'] },
+  { id: 'kemp_sister_missing', statement: 'Her sister Ellen, called Nell, has not been seen for nine days. Nell would not go off without saying, whatever the gentleman may think of women in that quarter; the two of them have never gone a week without a word', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['your sister', 'nell', 'ellen', 'ward', 'nine days', 'when you last saw her', 'why you have come', 'what brings you here'] },
   { id: 'kemp_pawn_ticket', statement: 'The only thing she has to show is Nell\'s ticket for a pair of boots, pledged in July and still with the pawnbroker. A woman means to come back for her boots', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['the ticket', 'the boots', 'the pawnbroker', 'thrawl street', 'the pawnshop'] },
   { id: 'kemp_police_wont_look', statement: 'She went to the police. They took the name down in a book. That was the whole of it, and she has heard nothing since', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['the police', 'what they said'] },
 

@@ -46,13 +46,16 @@ const OBJECT_LOCATION: Record<string, string> = (() => {
 // Categories: exact (display name), alias (known synonym), typo (1–2 char slip),
 // partial (subset of the name), paraphrase (natural language — AI territory).
 const FIXTURES: Fixture[] = [
-  { objectId: 'case_files_wall', phrasings: [
-    { text: 'case files wall', category: 'exact' },
-    { text: 'case wall', category: 'partial' },
-    { text: 'case fles wall', category: 'typo' },
-    { text: 'case files wal', category: 'typo' },
-    { text: 'wall of case papers', category: 'paraphrase' },
-    { text: "Holmes's board of cases", category: 'paraphrase' },
+  // Act 0's key object, replacing the retired case_files_wall fixture. Bears no
+  // clue (Act 0 yields none) but it is the object the act's tutorial chain turns
+  // on, so its vocabulary matters more than most.
+  { objectId: 'pawn_ticket', phrasings: [
+    { text: 'pawn ticket', category: 'exact' },
+    { text: 'ticket', category: 'alias' },
+    { text: 'pledge', category: 'alias' },
+    { text: 'boots', category: 'alias' },
+    { text: 'pawn tickt', category: 'typo' },
+    { text: 'pwan ticket', category: 'typo' },
   ]},
   { objectId: 'burned_clothing', phrasings: [
     { text: 'burned clothing', category: 'exact' },
@@ -361,8 +364,8 @@ const INTENT_FIXTURES: IntentFixture[] = [
   // examine via AI. Gateway tier: the model reads this as 'read' rather than
   // 'examine' (both are semantically defensible for a pile of documents) —
   // matched to the observed, equally-valid outcome rather than treated as a miss.
-  { scene: { location: 'baker_street', act: 1 }, input: 'pore over the stack of telegrams',
-    expect: { type: 'read', targetId: 'telegrams_pile' } },
+  { scene: { location: 'whitechapel_mortuary', act: 2 }, input: 'pore over the post-mortem record book',
+    expect: { type: 'read', targetId: 'autopsy_ledger' } },
   { scene: { location: 'millers_court', act: 4 }, input: 'crouch down and look under the sleeping pallet',
     expect: { type: 'examine', targetId: 'the_bed' } },
   // topic-scoped talk — all offline (the split is pure string work). Covers each
@@ -380,6 +383,21 @@ const INTENT_FIXTURES: IntentFixture[] = [
     expect: { type: 'talk', targetId: 'abberline', topicRaw: 'the press' } },
   { scene: { location: 'dorset_street', act: 1 }, input: 'talk to hutchinson',
     expect: { type: 'talk', targetId: 'hutchinson', topicRaw: undefined } },
+  // QUESTION-FORM TALK — no "about" clause, which is how players actually ask.
+  // Before splitAddresseeFromQuestion these parsed as a bare talk with the
+  // question silently discarded, so no topic was ever credited and an act's
+  // asked_ gates were unreachable in play while every topic was authored
+  // correctly. A blind playtest found this; no deterministic suite could.
+  { scene: { location: 'baker_street', act: 0 }, input: 'ask holmes why he finds modern crime so dull',
+    expect: { type: 'talk', targetId: 'holmes', topicRaw: 'why he finds modern crime so dull' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'ask mrs kemp what brings her here tonight',
+    expect: { type: 'talk', targetId: 'mrs_kemp', topicRaw: 'what brings her here tonight' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'ask mrs kemp when she last saw her sister',
+    expect: { type: 'talk', targetId: 'mrs_kemp', topicRaw: 'when she last saw her sister' } },
+  // The guard: a trailing pleasantry is NOT a topic. Without this the ordinary
+  // second conversation degrades into "he has nothing to say on that".
+  { scene: { location: 'baker_street', act: 0 }, input: 'talk to mrs kemp again',
+    expect: { type: 'talk', targetId: 'mrs_kemp', topicRaw: undefined } },
   // talk via AI
   { scene: { location: 'dorset_street', act: 1 }, input: 'speak with the man who watched mary kelly that night',
     expect: { type: 'talk', targetId: 'hutchinson' } },
@@ -390,8 +408,8 @@ const INTENT_FIXTURES: IntentFixture[] = [
   { scene: { location: 'lusk_office', act: 4 }, input: 'gather up that vile correspondence',
     expect: { type: 'take', targetId: 'from_hell_letter' } },
   // read via AI
-  { scene: { location: 'baker_street', act: 1 }, input: 'read whatever the papers have printed about the murders',
-    expect: { type: 'read', targetId: 'newspaper_pile' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'read the slip the woman left on the table',
+    expect: { type: 'read', targetId: 'pawn_ticket' } },
   // show — offline ("present … to …" verb form) and via AI
   // Holmes only canonically stands at Baker Street in Act 0 (scheduleByAct);
   // Act 3/5 place him elsewhere, which would drop him from the AI candidate list.
@@ -411,9 +429,9 @@ const INTENT_FIXTURES: IntentFixture[] = [
   { scene: { location: 'whitechapel_mortuary', act: 2 }, input: 'i think we should tarry here a moment longer',
     expect: { type: 'wait' } },
   // drop via AI
-  { scene: { location: 'dorset_street', act: 1, inventory: ['Newspaper Clipping (the "Dear Boss" letter)'] },
-    input: 'rid myself of that wretched cutting',
-    expect: { type: 'drop', targetId: 'newspaper_pile' } },
+  { scene: { location: 'baker_street', act: 0, inventory: ["Nell's Pawn Ticket"] },
+    input: 'rid myself of that wretched slip of paper',
+    expect: { type: 'drop', targetId: 'pawn_ticket' } },
   // deduce (robust to being caught offline by DEDUCTION_KEYWORDS)
   { scene: { location: 'baker_street', act: 5 }, input: 'it must have been the quiet young assistant all along',
     expect: { type: 'deduce' } },

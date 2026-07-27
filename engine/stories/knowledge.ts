@@ -69,13 +69,33 @@ export function suggestTopics(
  * Returns undefined when nothing matches, which the resolver renders as the NPC
  * having nothing to say on the subject — never as a parse failure.
  */
+/**
+ * Topics are authored in the second person, as Watson would put the question:
+ * "when you last saw her", "your sister". Players routinely ask in the third,
+ * about the person rather than to them: "when she last saw her sister", "why he
+ * finds modern crime so dull". Canonicalising the persons on BOTH sides is what
+ * stops those missing each other; the result need not be grammatical, only
+ * consistent, since the same transform is applied to query and topic alike.
+ */
+function canonicalisePersons(s: string): string {
+  // Every person collapses to ONE token rather than second-person forms,
+  // because "her" is possessive in "her sister" and objective in "brings her
+  // here", and no single rewrite serves both. Collapsing sidesteps the
+  // ambiguity entirely: only consistency between the two sides matters.
+  return s
+    .replace(/\b(?:he|she|they|him|her|them|his|their|hers|theirs|you|your|yours)\b/g, '_p_')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function matchTopic(
   facts: StoryFact[],
   npcId: string,
   currentAct: number,
   topicRaw: string,
 ): StoryFact | undefined {
-  const q = topicRaw.toLowerCase().replace(/^(the|a|an|his|her|their|that|this)\s+/, '').trim();
+  const q = canonicalisePersons(
+    topicRaw.toLowerCase().replace(/^(the|a|an|his|her|their|that|this)\s+/, '').trim());
   if (!q) return undefined;
   const candidates = askableFacts(facts, npcId, currentAct);
 
@@ -84,7 +104,7 @@ export function matchTopic(
 
   for (const f of candidates) {
     for (const raw of f.topics!) {
-      const t = raw.toLowerCase().replace(/^(the|a|an)\s+/, '').trim();
+      const t = canonicalisePersons(raw.toLowerCase().replace(/^(the|a|an)\s+/, '').trim());
       if (!t) continue;
       if (t === q) { exact ??= f; continue; }
       // Either direction: the player may type less than the authored topic
