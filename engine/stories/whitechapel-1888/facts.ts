@@ -11,8 +11,12 @@ export const FACTS: StoryFact[] = [
   // The caller Holmes turns away. Nothing here may hint at any murder — none
   // has happened on 6 August — and nothing anywhere may connect Nell to the
   // case. She is the first of the ones nobody remembers, and she stays unfound.
-  { id: 'kemp_sister_missing', statement: 'Her sister Ellen, called Nell, has not been seen for nine days. Nell would not go off without saying, whatever the gentleman may think of women in that quarter; the two of them have never gone a week without a word', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['your sister', 'nell', 'why you have come'] },
-  { id: 'kemp_pawn_ticket', statement: 'The only thing she has to show is Nell\'s ticket for a pair of boots, pledged in July and still with the pawnbroker. A woman means to come back for her boots', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['the ticket', 'the boots', 'the pawnbroker'] },
+  // Topics must cover every proper noun and figure the act's own prose puts in
+  // front of the player: the ticket names Thrawl Street and "E. Ward", and the
+  // statements below name Ellen and the nine days. A player who reads one of
+  // those and asks about it must not hit silence.
+  { id: 'kemp_sister_missing', statement: 'Her sister Ellen, called Nell, has not been seen for nine days. Nell would not go off without saying, whatever the gentleman may think of women in that quarter; the two of them have never gone a week without a word', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['your sister', 'nell', 'ellen', 'ward', 'nine days', 'when you last saw her', 'why you have come'] },
+  { id: 'kemp_pawn_ticket', statement: 'The only thing she has to show is Nell\'s ticket for a pair of boots, pledged in July and still with the pawnbroker. A woman means to come back for her boots', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['the ticket', 'the boots', 'the pawnbroker', 'thrawl street', 'the pawnshop'] },
   { id: 'kemp_police_wont_look', statement: 'She went to the police. They took the name down in a book. That was the whole of it, and she has heard nothing since', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['the police', 'what they said'] },
 
   // ── holmes ──────────────────────────────────────────────────────────────────
@@ -37,7 +41,7 @@ export const FACTS: StoryFact[] = [
   // Act 0 — the Bank Holiday. The irony the act is built on: Holmes declares
   // crime finished, hours before Tabram. None of these may hint at a murder.
   { id: 'holmes_crime_grown_dull', statement: 'His complaint of the season: the great cases are done. What remains to the criminal classes is squalid stuff that explains itself before a man can get his coat on. He says it as settled fact rather than as melancholy. This is the closing beat of the act', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the criminal classes', 'crime', 'your boredom'] },
-  { id: 'holmes_no_case_here', statement: 'On the woman who called: no crime has been disclosed to him. A missing woman in the East End is a change of address rather than a case. People there move without notice, and a pawn ticket is not evidence of anything. His tone is flat and perfectly reasonable, and he is wrong', knownBy: ['holmes'], visibleFromAct: 0, topics: ['mrs kemp', 'the woman who called', 'her sister'] },
+  { id: 'holmes_no_case_here', statement: 'On the woman who called: no crime has been disclosed to him. A missing woman in the East End is a change of address rather than a case. People there move without notice, and a pawn ticket is not evidence of anything. His tone is flat and perfectly reasonable, and he is wrong', knownBy: ['holmes'], visibleFromAct: 0, topics: ['mrs kemp', 'the woman who called', 'her sister', 'the ticket', 'the pawn ticket', 'why you refused'] },
   { id: 'holmes_concluded_case', statement: 'The matter he has just finished is concluded and already forgotten. He names nothing and no one about it and declines to be drawn; it was solved in an afternoon and was not worth the afternoon', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the case you have just closed', 'your last case'] },
   { id: 'holmes_invisible_in_a_crowd', statement: 'At the open window, watching the holiday crowd: the whole city is turned out of doors tonight, a hundred thousand of them at the least, and a man might pass through the whole of that and be remembered by none. He means it as a complaint about the tedium of scale', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the crowd', 'the holiday', 'the window'] },
   // Act-gated capstones. These carry the act's turning thought and are what the

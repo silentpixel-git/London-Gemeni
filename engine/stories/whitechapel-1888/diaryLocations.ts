@@ -16,9 +16,12 @@ export interface LocationDiaryEntry {
 }
 
 export const LOCATION_DIARY: Record<string, LocationDiaryEntry> = {
+  // Seeded at game start, so this is the first thing a player reads in the
+  // casebook. Act 0 is the August Bank Holiday: no murder has happened, there is
+  // no case and no wall to pin one to, and nothing here may anticipate either.
   baker_street: {
     name: '221B Baker Street',
-    diaryNote: "I returned to Baker Street to find Holmes among his papers, the Whitechapel murders pinned across the wall like the map of a battle already lost. Four women dead since August, the police no nearer, and my friend convinced the quiet since September is no ending at all. The case begins here.",
+    diaryNote: "I came round to Baker Street on the evening of the Bank Holiday, and found the windows standing open on the noise of the crowds and Holmes with nothing in the world to occupy him. A woman was waiting in the chair by the door. She had come a long way by the look of her, and did not appear to expect that anyone would listen.",
   },
   dorset_street: {
     name: 'Dorset Street',

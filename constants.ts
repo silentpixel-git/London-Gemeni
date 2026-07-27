@@ -28,6 +28,10 @@ export const INITIAL_JOURNAL = "";
 export const INITIAL_NPC_STATES: Record<string, any> = {
   // Act 0 Prologue — Holmes is at Baker Street; Abberline is at H Division (telegram contact only)
   holmes: { npcId: 'holmes', currentLocation: 'baker_street', status: 'alive', memory: [] },
+  // The Act 0 caller. The Sidebar builds its "present in location" list from
+  // this map, not from scheduleByAct, so an NPC omitted here is invisible in the
+  // UI even while the engine correctly places her and lets Watson talk to her.
+  mrs_kemp: { npcId: 'mrs_kemp', currentLocation: 'baker_street', status: 'alive', memory: [] },
   abberline: { npcId: 'abberline', currentLocation: 'h_division_station', status: 'alive', memory: [] },
   bond: { npcId: 'bond', currentLocation: 'whitechapel_mortuary', status: 'alive', memory: [] },
   edmund: { npcId: 'edmund', currentLocation: 'whitechapel_mortuary', status: 'alive', memory: [] },
@@ -52,6 +56,7 @@ export const NPC_DISPLAY_NAMES: Record<string, string> = {
   lusk: 'George Lusk',
   diemschutz: 'Louis Diemschutz',
   holmes: 'Sherlock Holmes',
+  mrs_kemp: 'Mrs. Kemp',
   superintendent: 'Asylum Superintendent',
   hutchinson: 'George Hutchinson',
   phillips: 'Dr. George Bagster Phillips',
