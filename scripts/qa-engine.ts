@@ -2490,6 +2490,50 @@ function runPresenceGating() {
   }
 }
 
+function runSafetyNetLadder() {
+  console.log('\n=== Escalating safety nets ===');
+
+  const laddered = new GameEngine({
+    ...WHITECHAPEL_MANIFEST,
+    actSafetyNets: [{
+      act: 0,
+      requiresNpcPresent: 'holmes',
+      when: () => true,
+      instruction: ['RUNG ZERO', 'RUNG ONE', 'RUNG TWO'],
+    }],
+  });
+
+  const rungFor = (turns: number): string | undefined => {
+    const snap = buildSnapshot({
+      location: 'baker_street', currentAct: 0, turnsAtLocationWithoutProgress: turns,
+    });
+    const r = laddered.resolve(parseIntent('look'), snap);
+    const lines = (r.aiContext as any).npcScriptedLines as Array<{ instruction: string }> | undefined;
+    return lines?.find(l => l.instruction.startsWith('RUNG'))?.instruction;
+  };
+
+  const cases: Array<[number, string]> = [
+    [0, 'RUNG ZERO'], [1, 'RUNG ZERO'],
+    [2, 'RUNG ONE'],  [3, 'RUNG ONE'],
+    [4, 'RUNG TWO'],  [9, 'RUNG TWO'],
+  ];
+  for (const [turns, expected] of cases) {
+    const got = rungFor(turns);
+    if (got === expected) pass(`${turns} stalled turns selects ${expected}`);
+    else fail(`${turns} stalled turns selects ${expected}`, `got ${got}`);
+  }
+
+  // A single-string instruction still works unchanged.
+  const single = new GameEngine({
+    ...WHITECHAPEL_MANIFEST,
+    actSafetyNets: [{ act: 0, requiresNpcPresent: 'holmes', when: () => true, instruction: 'FLAT' }],
+  });
+  const flatSnap = buildSnapshot({ location: 'baker_street', currentAct: 0, turnsAtLocationWithoutProgress: 8 });
+  const flatLines = (single.resolve(parseIntent('look'), flatSnap).aiContext as any).npcScriptedLines as Array<{ instruction: string }>;
+  if (flatLines?.some(l => l.instruction === 'FLAT')) pass('a string instruction still fires unchanged');
+  else fail('a string instruction still fires unchanged', JSON.stringify(flatLines));
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -2515,6 +2559,7 @@ try {
   runObjectVisibility();
   runOpenVerb();
   runPresenceGating();
+  runSafetyNetLadder();
   runInventoryAwareness();
   runLivingWorld();
   runShowDative();

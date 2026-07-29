@@ -335,12 +335,15 @@ export interface CompanionDemeanor {
   variants: Array<{ when: (s: SessionView) => boolean; text: string }>;
 }
 
-/** Directorial nudge injected when an act's failure-path condition holds. */
+/** Directorial nudge injected when an act's failure-path condition holds.
+ *  An array escalates: the rung advances every two stalled turns and holds on
+ *  the last entry, so an infinitely patient Holmes gets drier rather than
+ *  repeating himself. */
 export interface ActSafetyNet {
   act: number;
   requiresNpcPresent: string;
   when: (s: SessionView) => boolean;
-  instruction: string;
+  instruction: string | string[];
 }
 
 export interface DiaryLeadHelpers {

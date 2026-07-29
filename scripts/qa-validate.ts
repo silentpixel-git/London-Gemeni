@@ -659,6 +659,12 @@ for (const net of WHITECHAPEL_MANIFEST.actSafetyNets) {
   } else {
     fail(`actSafetyNets: act ${net.act} is out of range (1-6)`);
   }
+  const rungs = Array.isArray(net.instruction) ? net.instruction : [net.instruction];
+  if (rungs.length > 0 && rungs.every(r => typeof r === 'string' && r.trim().length > 0)) {
+    pass(`actSafetyNets: act ${net.act} instruction has ${rungs.length} usable rung(s)`);
+  } else {
+    fail(`actSafetyNets: act ${net.act} has an empty or blank instruction rung`);
+  }
 }
 
 // Manifest story constants resolve.

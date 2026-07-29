@@ -95,13 +95,20 @@ export function buildNarrationContext(
   }
 
   // Act safety nets — story-authored failure-path nudges. Fire when the
-  // act matches, the named NPC is present, and the condition holds.
+  // act matches, the named NPC is present, and the condition holds. An array
+  // instruction escalates with how long the player has been stalled here.
+  const TURNS_PER_RUNG = 2;
   for (const net of story.actSafetyNets) {
     if (net.act !== session.currentAct) continue;
     if (!net.when(session)) continue;
     const present = npcsPresent.find(n => n.npcId === net.requiresNpcPresent);
     if (!present) continue;
-    npcScriptedLines.push({ npcId: present.npcId, label: present.label, instruction: net.instruction });
+    const rungs = Array.isArray(net.instruction) ? net.instruction : [net.instruction];
+    const rung = Math.min(
+      Math.floor(session.turnsAtLocationWithoutProgress / TURNS_PER_RUNG),
+      rungs.length - 1,
+    );
+    npcScriptedLines.push({ npcId: present.npcId, label: present.label, instruction: rungs[rung] });
   }
 
   // Idle beat — at most ONE flat ambient beat per turn across ALL present
