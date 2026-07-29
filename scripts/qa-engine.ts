@@ -2297,6 +2297,42 @@ console.log('\n── NPC approaches ──');
   } else fail('Holmes Act 2 approach fires', JSON.stringify({ apHolmesAct2, flags: r.flagsUpdate }));
 }
 
+function runTakeSetsFlag() {
+  console.log('\n=== TAKE sets a took_<loc>_<obj> flag ===');
+
+  // pawn_ticket is takeable at baker_street in Act 0 (see TAKEABLE_OBJECTS).
+  const snap = buildSnapshot({ location: 'baker_street', currentAct: 0 });
+  const r = gameEngine.resolve(parseIntent('take the pawn ticket'), snap);
+
+  if (r.actionSuccess && r.flagsUpdate?.['took_baker_street_pawn_ticket'] === true) {
+    pass('TAKE sets took_baker_street_pawn_ticket');
+  } else {
+    fail('TAKE sets took_baker_street_pawn_ticket', JSON.stringify(r.flagsUpdate));
+  }
+
+  // A blocked take must NOT set the flag.
+  const blockedSnap = buildSnapshot({ location: 'baker_street', currentAct: 0 });
+  const blockedResult = gameEngine.resolve(parseIntent('take the violin case'), blockedSnap);
+  if (!blockedResult.actionSuccess && !blockedResult.flagsUpdate?.['took_baker_street_violin_case']) {
+    pass('blocked TAKE sets no took_ flag');
+  } else {
+    fail('blocked TAKE sets no took_ flag', JSON.stringify(blockedResult.flagsUpdate));
+  }
+
+  // Taking something already held must not re-fire progression.
+  const heldSnap = buildSnapshot({
+    location: 'baker_street',
+    currentAct: 0,
+    inventory: ["Nell's Pawn Ticket"],
+  });
+  const heldResult = gameEngine.resolve(parseIntent('take the pawn ticket'), heldSnap);
+  if (heldResult.actionSuccess && heldResult.newAct === undefined) {
+    pass('re-taking a held item does not advance the act');
+  } else {
+    fail('re-taking a held item does not advance the act', JSON.stringify(heldResult.newAct));
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -2318,6 +2354,7 @@ try {
   runTypoCorrection();
   runUseCombinationActGate();
   runItemsGained();
+  runTakeSetsFlag();
   runInventoryAwareness();
   runLivingWorld();
   runShowDative();

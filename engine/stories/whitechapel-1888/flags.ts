@@ -47,6 +47,9 @@ type AskedAboutFlag = `asked_${NpcId}_about_${string}`;
 /** Showed an inventory item/object to an NPC. */
 type ShowedFlag = `showed_${ObjectId}_to_${NpcId}`;
 
+/** Took an object into inventory from a location. */
+type TookFlag = `took_${LocationId}_${ObjectId}`;
+
 /** Used one item with another (USE combination). */
 type UsedFlag = `used_${ObjectId}_with_${ObjectId}`;
 
@@ -85,6 +88,7 @@ export type StoryFlag =
   | TalkedToFlag
   | AskedAboutFlag
   | ShowedFlag
+  | TookFlag
   | UsedFlag
   | VisitedFlag
   | WorldEventFlag

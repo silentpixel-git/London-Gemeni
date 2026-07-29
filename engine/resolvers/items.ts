@@ -63,10 +63,17 @@ export function resolveTake(story: StoryManifest, intent: ParsedIntent, session:
   const { newClueIds, newClueDefs, medicalDelta, moralDelta } =
     triggerClues(story, session.location, targetId, false, session.discoveredClueIds);
 
+  const tookFlag = `took_${session.location}_${targetId}`;
+  const flagsUpdate: Record<string, boolean> = { [tookFlag]: true };
+  const actCheck = checkActProgression(story, session, { ...session.flags, ...flagsUpdate });
+
   return {
     actionSuccess: true,
     actionType: 'take',
     inventoryAdd: [inventoryItem],
+    flagsUpdate: { ...flagsUpdate, ...(actCheck.flagsUpdate || {}) },
+    newAct: actCheck.newAct,
+    gameOver: actCheck.gameOver,
     discoveredClueIds: newClueIds,
     medicalPointsDelta: medicalDelta || undefined,
     moralPointsDelta: moralDelta || undefined,
