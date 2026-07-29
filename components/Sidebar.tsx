@@ -36,6 +36,7 @@ interface SidebarProps {
   displayTime: string;
   displayDate: string;
   weather: ActWeather;
+  flags: Record<string, boolean>;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -49,10 +50,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   displayTime,
   displayDate,
   weather,
+  flags,
 }) => {
   const WeatherIcon = WEATHER_ICON[weather.condition];
   // NPCs visible in the current location
   const presentNpcs = Object.values(npcStates).filter(s => {
+    const npc = NPCS[s.npcId];
+    if (npc?.presenceRequiresFlag && flags[npc.presenceRequiresFlag] !== true) return false;
     const npcLoc = s.currentLocation || (INITIAL_NPC_STATES[s.npcId]?.currentLocation);
     return npcLoc === location && s.status !== 'deceased';
   });

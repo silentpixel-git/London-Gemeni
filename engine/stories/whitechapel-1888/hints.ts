@@ -28,8 +28,10 @@ function locationReachable(s: HintState, locId: string): boolean {
   return true;
 }
 function npcAt(s: HintState, npcId: string, locId: string): boolean {
+  const npc = NPCS[npcId] as any;
+  if (npc?.presenceRequiresFlag && s.flags[npc.presenceRequiresFlag] !== true) return false;
   const st = s.npcStates[npcId];
-  const loc = st?.currentLocation ?? (NPCS[npcId] as any)?.scheduleByAct?.[s.currentAct]?.default;
+  const loc = st?.currentLocation ?? npc?.scheduleByAct?.[s.currentAct]?.default;
   return loc === locId && st?.status !== 'deceased';
 }
 /** A talk/show step is available only if its location is reachable AND the NPC is there. */

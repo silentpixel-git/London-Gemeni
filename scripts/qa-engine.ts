@@ -51,6 +51,7 @@ import {
   INITIAL_INVENTORY,
 } from '../constants';
 import { ACT_ANCHORS } from '../engine/stories/whitechapel-1888/acts';
+import { computeNpcMovements } from '../engine/resolvers/support';
 
 // ── Logging helpers ───────────────────────────────────────────────────────────
 
@@ -2463,6 +2464,20 @@ function runPresenceGating() {
   const holmesPresent = getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, 'baker_street', after.npcStates, 0, 'night', after.flags);
   if (holmesPresent.includes('holmes')) pass('ungated NPCs are unaffected');
   else fail('ungated NPCs are unaffected', JSON.stringify(holmesPresent));
+
+  // computeNpcMovements must also honor the gate — a move into her room must
+  // not snap a gated NPC into it via schedule-derived placement.
+  const movementSnap = buildSnapshot({ location: 'dorset_street', currentAct: 0 });
+  const movementUpdates = computeNpcMovements(
+    { ...WHITECHAPEL_MANIFEST, npcs: gatedNpcs },
+    'baker_street',
+    movementSnap,
+  );
+  if (movementUpdates['mrs_kemp']?.currentLocation !== 'baker_street') {
+    pass('computeNpcMovements does not snap a gated NPC into the room');
+  } else {
+    fail('computeNpcMovements does not snap a gated NPC into the room', JSON.stringify(movementUpdates['mrs_kemp']));
+  }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

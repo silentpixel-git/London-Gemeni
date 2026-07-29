@@ -185,6 +185,7 @@ const AppContent: React.FC = () => {
         displayTime={gs.displayTime}
         displayDate={gs.displayDate}
         weather={gs.weather}
+        flags={gs.flags}
       />
 
       <div className="flex-1 flex flex-col h-full relative w-full transition-[width] duration-300 ease-out-expo">
