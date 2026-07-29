@@ -344,8 +344,17 @@ const OBJECT_DISPLAY_NAMES_DATA = {
   // Baker Street (Act 0 — the Bank Holiday)
   pawn_ticket: "Nell's Pawn Ticket",
   nells_boots: "Nell's Boots",
-  nells_workbox: "Nell's Workbox",
-  nells_letters: "Nell's Letters",
+  // Display names deliberately avoid "box" / "letter(s)" as raw substrings —
+  // engine/intentParser.ts's matchObjectId does an unanchored substring scan
+  // over OBJECT_DISPLAY_NAMES in insertion order, ahead of its hardcoded
+  // single-word aliases ('box' → parcel_box, 'letter' → from_hell_letter).
+  // "Nell's Workbox" would shadow parcel_box (Lusk Office, Act 4/5) and
+  // "Nell's Letters" would shadow from_hell_letter (the signature clue) for
+  // any player typing "the box" / "the letter". Object id, CONTAINER_CONTENTS,
+  // OBJECT_VISIBILITY and ATMOSPHERIC_NOTES prose are unaffected — only these
+  // two short labels changed.
+  nells_workbox: "Nell's Workbasket",
+  nells_letters: "Nell's Correspondence",
   charity_card: "A Subscriber's Card",
   concluded_case_file: 'The Concluded Case',
   holmes_chemistry_table: "Holmes' Chemistry Table",
