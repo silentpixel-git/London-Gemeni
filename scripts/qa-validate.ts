@@ -670,10 +670,10 @@ for (const net of WHITECHAPEL_MANIFEST.actSafetyNets) {
   } else {
     fail(`actSafetyNets: act ${net.act} references unknown NPC '${net.requiresNpcPresent}'`);
   }
-  if (net.act >= 1 && net.act <= 6) {
+  if (net.act >= 0 && net.act <= 6) {
     pass(`actSafetyNets: act ${net.act} is a valid act number`);
   } else {
-    fail(`actSafetyNets: act ${net.act} is out of range (1-6)`);
+    fail(`actSafetyNets: act ${net.act} is out of range (0-6)`);
   }
   const rungs = Array.isArray(net.instruction) ? net.instruction : [net.instruction];
   if (rungs.length > 0 && rungs.every(r => typeof r === 'string' && r.trim().length > 0)) {

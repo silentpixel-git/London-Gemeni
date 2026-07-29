@@ -76,6 +76,21 @@ const ACT_SAFETY_NETS: ActSafetyNet[] = [
     when: s => !s.inventory.includes(TAKEABLE_OBJECTS['from_hell_letter']),
     instruction: 'Watson never copied the From Hell letter. Holmes notes, with mild impatience, that a comparison wants both documents — and the letter still sits in Lusk\'s office. He suggests Watson return there and take the text down word for word. Do not say what the comparison will reveal.',
   },
+  // Act 0's consequential choice: Mrs. Kemp must not leave before Watson has
+  // resolved the card one way or another (gave it, asked first, or withheld it).
+  {
+    act: 0,
+    requiresNpcPresent: 'mrs_kemp',
+    when: s => s.flags['showed_charity_card_to_holmes'] === true
+      && !s.flags['showed_charity_card_to_mrs_kemp']
+      && !s.flags['asked_mrs_kemp_about_kemp_why_she_hid']
+      && !s.flags['withheld_address'],
+    instruction: [
+      'Mrs. Kemp is at the door and has not gone. Watson is holding the card. Do not resolve this for him.',
+      'She is still at the door. The card is still in Watson\'s hand.',
+      'She waits. Watson has the card, and Holmes has given her the district but not the address.',
+    ],
+  },
 ];
 
 export const WHITECHAPEL_MANIFEST: StoryManifest = {

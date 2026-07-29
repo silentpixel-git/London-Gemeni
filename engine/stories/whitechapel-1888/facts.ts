@@ -20,6 +20,9 @@ export const FACTS: StoryFact[] = [
   { id: 'kemp_police_wont_look', statement: 'She went to the police. They took the name down in a book. That was the whole of it, and she has heard nothing since', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['the police', 'what they said'] },
   { id: 'kemp_sister_sickly_spring', statement: 'Nell was poorly in the mornings through the spring. She told her at the time it was the fish', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['her health', 'the spring', 'she was poorly', 'the sickness'] },
   { id: 'kemp_landlady', statement: 'The landlady saw Nell go at six in the morning with a bag. The rent lapsed on the Saturday; the room was cleared by Sunday. Nothing in it worth keeping', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['the landlady', 'mrs pring', 'the room'] },
+  { id: 'kemp_why_she_hid', knownBy: ['mrs_kemp'], visibleFromAct: 0,
+    topics: ['why she hid', 'why she hid herself', 'why she did not tell you', 'whether you know why'],
+    statement: 'She does not answer. Watson has asked Madam, if she has hidden herself from you, do you know why, and she has no answer to give him' },
 
   // ── holmes ──────────────────────────────────────────────────────────────────
   // Spoiler-safe: the prasarved match and "murders stopped" are DISCOVERIES,

@@ -82,6 +82,8 @@ type LiteralFlag =
   | 'asylum_unlocked'    // set on correct deduction; gates travel to the asylum
   | 'deduction_correct'  // set via Edmund's successFlags; read by the Act 6 hint objective
   | 'true_ending'        // deduction outcome recorded by the endings flow
+  | 'withheld_address'   // Act 0 choice: Watson keeps the card. The other two
+                         // branches are recorded by their own SHOW/TALK flags.
   | '__advance_via_correct_deduction_only__'; // Act 5 sentinel (excluded from lead pips)
 
 /** Every flag name that may legally appear in authored story data. */

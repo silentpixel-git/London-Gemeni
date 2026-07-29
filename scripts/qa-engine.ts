@@ -2540,6 +2540,54 @@ function runSafetyNetLadder() {
   else fail('a string instruction still fires unchanged', JSON.stringify(flatLines));
 }
 
+function runKempChoice() {
+  console.log('\n=== Act 0 consequential choice ===');
+
+  const base = {
+    location: 'baker_street',
+    currentAct: 0,
+    inventory: ["A Subscriber's Card"],
+    flags: {
+      world_event_kemp_arrives: true,
+      opened_baker_street_nells_workbox: true,
+      showed_charity_card_to_holmes: true,
+    },
+  };
+
+  const gave = gameEngine.resolve(parseIntent('give the card to mrs kemp'), buildSnapshot(base));
+  if (gave.actionSuccess && gave.flagsUpdate?.['showed_charity_card_to_mrs_kemp']) {
+    pass('giving the card resolves');
+  } else {
+    fail('giving the card resolves', JSON.stringify(gave.flagsUpdate));
+  }
+
+  const asked = gameEngine.resolve(parseIntent('ask mrs kemp why she hid'), buildSnapshot(base));
+  if (asked.actionSuccess && asked.flagsUpdate?.['asked_mrs_kemp_about_kemp_why_she_hid']) {
+    pass('asking her first resolves');
+  } else {
+    fail('asking her first resolves', JSON.stringify(asked.flagsUpdate));
+  }
+
+  for (const phrase of ['keep the card', 'say nothing']) {
+    const kept = gameEngine.resolve(parseIntent(phrase), buildSnapshot(base));
+    if (kept.flagsUpdate?.['withheld_address'] === true) {
+      pass(`"${phrase}" records the withhold`);
+    } else {
+      fail(`"${phrase}" records the withhold`, JSON.stringify(kept.flagsUpdate));
+    }
+  }
+
+  // The withhold must NOT fire before the choice is live.
+  const tooEarly = gameEngine.resolve(parseIntent('keep the card'), buildSnapshot({
+    location: 'baker_street', currentAct: 0, flags: { world_event_kemp_arrives: true },
+  }));
+  if (!tooEarly.flagsUpdate?.['withheld_address']) {
+    pass('the withhold does not fire before the reconstruction');
+  } else {
+    fail('the withhold does not fire before the reconstruction', 'fired early');
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -2566,6 +2614,7 @@ try {
   runOpenVerb();
   runPresenceGating();
   runSafetyNetLadder();
+  runKempChoice();
   runInventoryAwareness();
   runLivingWorld();
   runShowDative();
