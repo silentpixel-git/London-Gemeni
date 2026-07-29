@@ -54,9 +54,17 @@ const FIXTURES: Fixture[] = [
     { text: 'pawn ticket', category: 'exact' },
     { text: 'ticket', category: 'alias' },
     { text: 'pledge', category: 'alias' },
-    { text: 'boots', category: 'alias' },
     { text: 'pawn tickt', category: 'typo' },
     { text: 'pwan ticket', category: 'typo' },
+  ]},
+  // Nell's boots are their own object (Task 6) — "boots" used to be a stale
+  // alias for pawn_ticket from before this object existed; it correctly
+  // resolves here now, via the display name "Nell's Boots" itself rather than
+  // any hardcoded alias.
+  { objectId: 'nells_boots', phrasings: [
+    { text: "nell's boots", category: 'exact' },
+    { text: 'boots', category: 'alias' },
+    { text: 'nells bootss', category: 'typo' },
   ]},
   { objectId: 'burned_clothing', phrasings: [
     { text: 'burned clothing', category: 'exact' },
