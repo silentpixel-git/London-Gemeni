@@ -56,6 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // NPCs visible in the current location
   const presentNpcs = Object.values(npcStates).filter(s => {
     const npc = NPCS[s.npcId];
+    // Mirrors npcLocationAt's gate check in engine/presence.ts — keep in sync.
     if (npc?.presenceRequiresFlag && flags[npc.presenceRequiresFlag] !== true) return false;
     const npcLoc = s.currentLocation || (INITIAL_NPC_STATES[s.npcId]?.currentLocation);
     return npcLoc === location && s.status !== 'deceased';

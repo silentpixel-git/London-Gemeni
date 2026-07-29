@@ -29,6 +29,7 @@ function locationReachable(s: HintState, locId: string): boolean {
 }
 function npcAt(s: HintState, npcId: string, locId: string): boolean {
   const npc = NPCS[npcId] as any;
+  // Mirrors npcLocationAt's gate check in engine/presence.ts — keep in sync.
   if (npc?.presenceRequiresFlag && s.flags[npc.presenceRequiresFlag] !== true) return false;
   const st = s.npcStates[npcId];
   const loc = st?.currentLocation ?? npc?.scheduleByAct?.[s.currentAct]?.default;

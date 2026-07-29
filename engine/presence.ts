@@ -66,6 +66,11 @@ export function returnsPeriodFor(
  * keep their stored currentLocation; everyone else derives from the schedule,
  * so stored positions can never mask a time-of-day move. 'offstage' never
  * matches a real location id.
+ *
+ * Note: components/Sidebar.tsx and engine/stories/whitechapel-1888/hints.ts
+ * each duplicate this function's presenceRequiresFlag check locally, since
+ * neither has a timePeriod value available to call this function directly.
+ * If the gating logic here ever changes, update both.
  */
 export function npcLocationAt(
   npcs: Record<string, NPCDefinition>,
