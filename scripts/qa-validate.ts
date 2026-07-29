@@ -730,7 +730,19 @@ section('Schedule guard rail: gate NPCs findable at act start (Phase 4a)');
       if (!npcId) continue; // unreachable-flag check already covers this
       const npc = NPCS[npcId];
       if (npc.followsNpcId && (npc.followsUntilAct === undefined || act <= npc.followsUntilAct)) continue;
-      const atStart = npcLocationAt(NPCS, npcId, act, startPeriod, {});
+      const gateFlags: Record<string, boolean> = {};
+      if (npc.presenceRequiresFlag?.startsWith('world_event_')) {
+        const eventId = npc.presenceRequiresFlag.slice('world_event_'.length);
+        const event = WORLD_EVENTS.find(e => e.id === eventId);
+        // A presence gate tied to a guaranteed world event for this act (no
+        // further conditions beyond act + time) will definitely be satisfied
+        // at some point during the act — simulate it as already true so this
+        // reachability check reflects that, rather than reading a mid-scene
+        // arrival as "never onstage." An unmatched or cross-act event leaves
+        // gateFlags empty, so a genuinely unreachable NPC still fails below.
+        if (event && event.act === act) gateFlags[npc.presenceRequiresFlag] = true;
+      }
+      const atStart = npcLocationAt(NPCS, npcId, act, startPeriod, {}, gateFlags);
       checked++;
       if (talkNpc) {
         const locId = flag.slice(`talked_to_${npcId}_at_`.length);
@@ -741,7 +753,7 @@ section('Schedule guard rail: gate NPCs findable at act start (Phase 4a)');
         // A topic gate can be satisfied anywhere the NPC stands, but if they are
         // offstage for the whole act there is nowhere to put the question.
         const anyPeriod = PERIOD_ORDER.some(p => {
-          const at = npcLocationAt(NPCS, npcId, act, p, {});
+          const at = npcLocationAt(NPCS, npcId, act, p, {}, gateFlags);
           return at && at !== 'offstage';
         });
         if (!anyPeriod) {
