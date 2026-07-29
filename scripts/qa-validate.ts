@@ -157,6 +157,21 @@ function flagUnreachableReason(flag: string): string | null {
     return null;
   }
 
+  // opened_<locationId>_<objectId> — set by the OPEN resolver (engine/resolvers/open.ts)
+  // when a container at that location is opened.
+  if (flag.startsWith('opened_')) {
+    for (const locId of locationIds) {
+      const prefix = `opened_${locId}_`;
+      if (flag.startsWith(prefix)) {
+        const objId = flag.slice(prefix.length);
+        if (CONTAINER_CONTENTS[objId]?.length) return null;
+        if (allObjectIds.has(objId)) return `object "${objId}" exists but has no CONTAINER_CONTENTS entry (not a container)`;
+        return `no object "${objId}" at ${locId}`;
+      }
+    }
+    return 'no known location id matches this opened_ flag';
+  }
+
   if (flag.startsWith('used_')) {
     const rest = flag.slice('used_'.length);
     const sep = rest.indexOf('_with_');
