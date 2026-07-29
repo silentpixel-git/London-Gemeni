@@ -569,7 +569,7 @@ export const USE_INTERACTIONS: Record<string, Record<string, string>> = {
   },
   baker_street: {
     pawn_ticket:
-      "Watson reads the ticket again, more slowly. Two shillings, a Pentonville shop, a date three weeks old, and this morning's redemption stamp over it. He finds himself doing the arithmetic a doctor does without being asked: a woman who pawns her boots means to be rid of them, not to want money for them, and a woman who then buys them back the same morning her sister goes missing has not thought about the boots at all.",
+      "Watson reads the ticket again, more slowly. Two shillings, a Pentonville shop, a date a week old, and a fresh redemption stamp laid over it. He finds himself doing the arithmetic a doctor does without being asked: a woman does not fetch back a pair of boots she meant to be rid of unless she needs them for someone else's sake, that same day. She got them ready for a dinner her sister never came to.",
   },
 };
 
