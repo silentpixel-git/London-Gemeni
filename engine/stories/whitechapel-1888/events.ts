@@ -23,7 +23,12 @@ export const WORLD_EVENTS: WorldEventDefinition[] = [
   {
     id: 'kemp_arrives',
     act: 0,
-    atClockMinutes: 1231,
+    // Act 0's canonicalMinutes is 1230 (8:30 PM) — matching it exactly (not
+    // 1230+1) fires this on the player's true first turn (elapsedMinutes: 0):
+    // the firing condition is >=, proven at the exact boundary by
+    // scripts/qa-engine.ts's testWorldEvents() "an event due at the act's
+    // canonical start fires on the very first turn" case.
+    atClockMinutes: 1230,
     text: "The bell goes at last, after two false starts at the railings below. Mrs. Hudson shows her up: a woman of about four and thirty, still gloved though the evening is warm, as if dressed for an appointment that never happened and given no more thought to her hands since. She sets down her bundle without ceremony, a pair of worn-out boots and a closed tin workbox, and holds the pawn ticket in her hand a long while before she can bring herself to lay it on the table beside them.",
   },
   {
