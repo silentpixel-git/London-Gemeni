@@ -2561,6 +2561,18 @@ function runKempChoice() {
     fail('giving the card resolves', JSON.stringify(gave.flagsUpdate));
   }
 
+  // Giving the card must not skip Holmes's reconstruction — without
+  // showed_charity_card_to_holmes, the SHOW should be blocked, not succeed.
+  const gaveWithoutHolmes = gameEngine.resolve(parseIntent('give the card to mrs kemp'), buildSnapshot({
+    ...base,
+    flags: { ...base.flags, showed_charity_card_to_holmes: false },
+  }));
+  if (!gaveWithoutHolmes.actionSuccess && !gaveWithoutHolmes.flagsUpdate?.['showed_charity_card_to_mrs_kemp']) {
+    pass('giving the card is blocked before Holmes has the reconstruction');
+  } else {
+    fail('giving the card is blocked before Holmes has the reconstruction', JSON.stringify(gaveWithoutHolmes));
+  }
+
   const asked = gameEngine.resolve(parseIntent('ask mrs kemp why she hid'), buildSnapshot(base));
   if (asked.actionSuccess && asked.flagsUpdate?.['asked_mrs_kemp_about_kemp_why_she_hid']) {
     pass('asking her first resolves');
