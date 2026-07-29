@@ -18,7 +18,10 @@ const LOCATIONS_DATA = {
     atmosphere: 'Warm lamplight and warmer air, both windows thrown up to the street. Holmes\' sitting room on a holiday evening, with nothing in it that wants solving.',
     description: 'Both windows stand open to the Bank Holiday noise, and the sound of the crowds carries all the way up from the pavement. The room is tidier than Watson has seen it in months: a concluded case bundled on the side table, the violin shut in its case, the chemistry bench wiped down and abandoned. Holmes has the particular restlessness of a man with nothing whatever to occupy him.',
     exits: ['dorset_street'],
-    interactables: ['pawn_ticket', 'concluded_case_file', 'holmes_chemistry_table', 'violin_case'],
+    interactables: [
+      'pawn_ticket', 'nells_boots', 'nells_workbox', 'nells_letters', 'charity_card',
+      'concluded_case_file', 'holmes_chemistry_table', 'violin_case',
+    ],
     locationExaminedFlag: 'examined_baker_street',
     timeOfDay: 'night',
     vignettes: [
@@ -340,6 +343,10 @@ export const LOCATIONS: Record<string, LocationDefinition> = LOCATIONS_DATA;
 const OBJECT_DISPLAY_NAMES_DATA = {
   // Baker Street (Act 0 — the Bank Holiday)
   pawn_ticket: "Nell's Pawn Ticket",
+  nells_boots: "Nell's Boots",
+  nells_workbox: "Nell's Workbox",
+  nells_letters: "Nell's Letters",
+  charity_card: "A Subscriber's Card",
   concluded_case_file: 'The Concluded Case',
   holmes_chemistry_table: "Holmes' Chemistry Table",
   violin_case: 'The Violin Case',
@@ -415,9 +422,18 @@ export type ObjectId = keyof typeof OBJECT_DISPLAY_NAMES_DATA;
 export const OBJECT_DISPLAY_NAMES: Record<string, string> = OBJECT_DISPLAY_NAMES_DATA;
 
 // Objects that are not present in their location from the start of the act.
-// `world_event_kemp_arrives` fires on the first substantive turn of Act 0 (see
-// events.ts); `opened_baker_street_nells_workbox` is set by the OPEN resolver.
-export const OBJECT_VISIBILITY: Record<string, string> = {};
+// `world_event_kemp_arrives` fires on the player's first substantive turn of
+// Act 0 (see events.ts); `opened_baker_street_nells_workbox` is set by the
+// OPEN resolver once the box is opened.
+export const OBJECT_VISIBILITY: Record<string, string> = {
+  pawn_ticket: 'world_event_kemp_arrives',
+  nells_boots: 'world_event_kemp_arrives',
+  nells_workbox: 'world_event_kemp_arrives',
+  nells_letters: 'opened_baker_street_nells_workbox',
+  charity_card: 'opened_baker_street_nells_workbox',
+};
 
 // Containers and what OPEN reveals.
-export const CONTAINER_CONTENTS: Record<string, string[]> = {};
+export const CONTAINER_CONTENTS: Record<string, string[]> = {
+  nells_workbox: ['nells_letters', 'charity_card'],
+};

@@ -21,6 +21,12 @@ export const WORLD_EVENTS: WorldEventDefinition[] = [
     text: 'Midnight comes over London in a slow relay of church bells, each parish a half-beat behind the last. Tonight not one of them can make itself heard over the holiday, which shows no sign whatever of going home.',
   },
   {
+    id: 'kemp_arrives',
+    act: 0,
+    atClockMinutes: 1231,
+    text: "The bell goes at last, after two false starts at the railings below. Mrs. Hudson shows her up: a woman of about four and thirty, still gloved though the evening is warm, as if dressed for an appointment that never happened and given no more thought to her hands since. She sets down her bundle without ceremony, a pair of worn-out boots and a closed tin workbox, and holds the pawn ticket in her hand a long while before she can bring herself to lay it on the table beside them.",
+  },
+  {
     id: 'act2_church_bells',
     act: 2,
     atClockMinutes: 660, // 11:00 AM, 11 Nov — a Sunday; morning service lets out

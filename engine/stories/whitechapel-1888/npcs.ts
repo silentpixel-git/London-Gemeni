@@ -120,6 +120,7 @@ const NPCS_DATA = {
     scheduleByAct: {
       0: { default: 'baker_street' },
     },
+    presenceRequiresFlag: 'world_event_kemp_arrives',
     // She is onstage for the whole of a single-room act, so this pool carries
     // every turn she is not being interviewed. Three was far too few. Every beat
     // is a seated caller's: nothing that touches the room or its furniture, or

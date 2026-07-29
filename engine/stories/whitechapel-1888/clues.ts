@@ -300,6 +300,10 @@ export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
   // here, but only via USE_COMBINATIONS, so it has no trigger entry.
   baker_street: {
     pawn_ticket: [],
+    nells_boots: [],
+    nells_workbox: [],
+    nells_letters: [],
+    charity_card: [],
     concluded_case_file: [],
     holmes_chemistry_table: [],
     violin_case: [],
@@ -396,7 +400,11 @@ export const ATMOSPHERIC_NOTES: Record<string, Record<string, string>> = {
     // NOTE: do not narrate Watson taking the ticket here — acquisition is
     // narrated via itemsGained (first examine only). This note also fires on
     // RE-examines, when the ticket is already in his pocket.
-    pawn_ticket: "A pawnbroker's ticket from a shop in Thrawl Street, soft at the folds from being carried about. One pair of women's boots, pledged for two shillings, three weeks ago now. The name against it is E. Ward, which is the caller's sister and not the caller. Watson turns it over; there is nothing on the back. A woman who pawns her boots in July means to have them again before the weather turns.",
+    pawn_ticket: "A pawnbroker's ticket, soft at the folds from being carried about. Dated Monday the thirtieth of July, from a shop in Pentonville. One pair of women's boots, pledged for two shillings. The redemption stamp is today's, fresh ink over old creases.",
+    nells_boots: "A worn pair of woman's boots, twice resoled already; the uppers have given at the flex, and a third resoling would not be worth the leather. The wear runs heaviest along the outer edge of the right heel. Caked into the welt, a crust of mud still dark and damp, though London has not seen rain in a fortnight.",
+    nells_workbox: "A tin box, japanned black, its lid catch stiff with disuse. It is not locked.",
+    nells_letters: "Eleven letters, April through July, tied with a thread that has since come loose. Chatty and affectionate at first; the hand thins as the months go on, and the last three are written on visibly cheaper paper.",
+    charity_card: "A printed subscriber's card. St. Saviour's Lying-in Charity, Snowsfields. Sixteen weekly entries of one shilling, ticked off in a clerk's copperplate, the last dated the twenty-fourth of July. The subscriber is named as Mrs. A. Marchant. On the reverse, a second and smaller hand has marked off the same dates again, as though to be certain of them.",
     concluded_case_file: "The case Holmes has just finished, bundled in string and already pushed to the far edge of the table. Watson unties it out of politeness and finds it every bit as dull as Holmes has been complaining: a disputed inheritance, a clerk, a great deal of arithmetic. It was solved in an afternoon. Holmes has not mentioned it since.",
     holmes_chemistry_table: "The chemistry table has been wiped down and abandoned. Beakers stand rinsed and inverted, the burner is cold, and the whole bench has been pushed into a tidiness entirely unlike him. Holmes has not been experimenting. Watson finds the neatness more unsettling than any disorder.",
     violin_case: "The violin lies in its case beside the chair, the bow strapped into the lid. Watson has long read the instrument as a barometer of its owner: played badly, Holmes is thinking; played well, he has finished thinking; and left in the case, as it is tonight, there is nothing whatever to think about.",
@@ -485,6 +493,7 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
   // pays it off, and it is deliberately absent from ITEM_SPENT_AFTER_ACT so it
   // stays in the bag for the whole game.
   pawn_ticket: "Nell's Pawn Ticket",
+  charity_card: "A Subscriber's Card",
   // Not a location interactable — granted directly by TALK (see
   // TALK_GRANTS_ITEM below). Kept here for its display name and so
   // USE/SHOW's inventory-possession checks resolve it.
@@ -560,7 +569,7 @@ export const USE_INTERACTIONS: Record<string, Record<string, string>> = {
   },
   baker_street: {
     pawn_ticket:
-      "Watson reads the ticket again, more slowly. Two shillings against a pair of boots, and a date in July. He finds himself doing the arithmetic a doctor does without being asked: what a woman walks on in August, and what she would need by October.",
+      "Watson reads the ticket again, more slowly. Two shillings, a Pentonville shop, a date three weeks old, and this morning's redemption stamp over it. He finds himself doing the arithmetic a doctor does without being asked: a woman who pawns her boots means to be rid of them, not to want money for them, and a woman who then buys them back the same morning her sister goes missing has not thought about the boots at all.",
   },
 };
 
@@ -690,20 +699,50 @@ export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const DOCUMENT_TEXT: Record<string, string> = {
-  // Act 0. The ticket is the only document in the act and the only one Watson
-  // carries the whole game. Deliberately mundane: a pledge, a sum, a date.
-  // Nell is never found, never named again, and never confirmed connected to
-  // anything — nothing here may hint otherwise.
-  pawn_ticket: `*Pledge ticket. J. Hartnell, Pawnbroker, Thrawl Street.*
+  // Act 0. Two documents, both deliberately mundane: a pledge, a sum, a date.
+  // Both are filed away at the Act 0→1 transition rather than carried the
+  // whole game. Nell is never found, never named again, and never confirmed
+  // connected to anything — nothing here may hint otherwise.
+  pawn_ticket: `*Pledge ticket. Pentonville.*
 
 No. 4471
 Pledged: one pair women's boots, black, mended.
 Advanced: two shillings.
-Date: 14 July 1888.
-Name: E. Ward.
+Date: 30 July 1888.
+Name: N. Rendell.
 
-*Redeemable within twelve months. Interest at the usual rate. Pledges not
-redeemed within that term become the property of the broker.*`,
+*Redeemed this day. Redeemable within twelve months of pledge. Interest at
+the usual rate. Pledges not redeemed within that term become the property
+of the broker.*`,
+
+  charity_card: `*St. Saviour's Lying-in Charity, Snowsfields.*
+
+Subscriber's Card
+
+Mrs. A. Marchant
+
+10 Apr   1s.
+17 Apr   1s.
+24 Apr   1s.
+1 May    1s.
+8 May    1s.
+15 May   1s.
+22 May   1s.
+29 May   1s.
+5 Jun    1s.
+12 Jun   1s.
+19 Jun   1s.
+26 Jun   1s.
+3 Jul    1s.
+10 Jul   1s.
+17 Jul   1s.
+24 Jul   1s.
+
+*A bed and attendance secured for December, upon completion of the full
+subscription.*
+
+On the reverse, in a second and smaller hand: the same sixteen dates,
+ticked off again.`,
 
   from_hell_letter: `*From Hell.*
 
