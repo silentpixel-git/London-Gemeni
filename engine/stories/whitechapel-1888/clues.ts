@@ -580,15 +580,23 @@ export const USE_INTERACTIONS: Record<string, Record<string, string>> = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const SHOW_INTERACTIONS: Record<string, Record<string, ShowInteraction>> = {
-  // Act 0 tutorial beat: SHOW the pawn ticket TO Holmes.
-  // Sets showed_pawn_ticket_to_holmes (the engine flag keys on the object id)
-  // — an Act 0 gate flag. This is the refusal the whole game answers: small
-  // East End trouble, dismissed as beneath notice, hours before Tabram.
-  // Holmes's contempt must read as canon-true and reasonable, NOT as villainy,
-  // and must not hint at any murder — none has happened.
+  // Act 0 — Holmes reads each object Watson shows him. The refusal itself now
+  // lives in the TALK fact holmes_no_case_here, not here; these four SHOW
+  // entries are the evidentiary readings that build toward the reconstruction,
+  // which charity_card triggers.
   'pawn_ticket': {
     'holmes': {
-      resultNote: "SUCCESS — Holmes takes the ticket, holds it to the lamp for perhaps three seconds, and gives it back. 'A pair of boots, two shillings, and a woman who has gone somewhere without leaving word. You will find, Watson, that the East End is very largely composed of people who have gone somewhere without leaving word.' He is already turning away. 'There is no case here. There is not even a crime. Give the poor woman her ticket back and let her go home.' Watson does not give the ticket back. He does not entirely know why.",
+      resultNote: "SUCCESS — \"She pawned them on the Monday and left on the Tuesday. Note the order, Watson. She did not pawn them because she was in want. She pawned them because she was going, and they were not worth the carrying.\" He handed it back. \"You have redeemed a pair of boots your sister took some trouble to be rid of. I am sorry to tell you it was two shillings badly spent.\"",
+    },
+  },
+  'nells_boots': {
+    'holmes': {
+      resultNote: "SUCCESS — \"It has not rained in London since the twenty-eighth of July, yet here is mud that has not finished drying.\" He turned the sole to the lamp and, to Mrs. Kemp's visible horror, smelled it. \"Oak bark. Lime. Under both, river silt: Thames, south bank, not far above the tide line. There are perhaps four streets in this city where a woman may gather all three on one pair of boots in a dry August, and they are every one of them in Bermondsey, among the tanyards, where the ground has not been dry since the Georges.\" \"I cannot tell you how far she walked in them altogether. I can tell you where the last hundred miles were spent.\"",
+    },
+  },
+  'nells_letters': {
+    'holmes': {
+      resultNote: "SUCCESS — \"Postmarks. April, May, June: N., her own district. July: S.E., S.E., S.E. The tenth, the seventeenth, the twenty-fourth.\" He fanned them like cards. \"Three consecutive Tuesdays south of the river, and not one word of it in eleven letters. A woman does not conceal an errand, madam. She conceals a habit.\" He laid them down. \"And she left on the thirty-first, which was also a Tuesday. She did not run away. She kept her appointment and did not come home.\"",
     },
   },
   // SHOW forensic note TO abberline / holmes (Act 5 gather).
@@ -636,6 +644,13 @@ export const SHOW_INTERACTIONS: Record<string, Record<string, ShowInteraction>> 
       requireFlags: ['used_hutchinson_account_with_court_archway'],
       blockedNote: "Watson's hand goes to the note in his pocket, and stops. He has only the man's own words, unweighed — read them back now and Hutchinson need only repeat them. Better first to try the account against the ground it claims to describe.",
       resultNote: "SUCCESS — Watson reads the statement back to him, slowly, and then asks — gently, as one asks a patient — how the lamp across the street showed him a tie-pin. Hutchinson's eagerness collapses by degrees. He did see a man, he says. Well-dressed — he thinks. The rest he... filled in, after, so they would take him seriously at the station. But he stood there the three-quarters of an hour, that part is gospel — he knew Mary three years, she'd have let him sleep on the floor, night like that. He looks at the archway rather than at Watson. 'I keep thinking, if I'd only stopped where I was till morning.' He has nothing else. He is not the man. He is only the last of her friends.",
+    },
+  },
+  'charity_card': {
+    'holmes': {
+      requireFlags: ['opened_baker_street_nells_workbox'],
+      blockedNote: "Watson does not yet have the card in hand to show him.",
+      resultNote: "SUCCESS — \"Sixteen weeks of shillings, and eleven letters that grow poorer as they go. A dead pair of boots that spent their last hundred miles in Bermondsey, and pawned the day before she went. Three Tuesdays south of the river she never named, and a departure on a fourth. A subscription to a lying-in charity under a name that is not hers, in a hand that is.\" He set the card down beside the boots. \"And a spring of sickness in the mornings, madam, which you assured her was the fish.\" Mrs. Kemp had gone very white. \"Your sister is not lost. She is five months gone with child. She has spent every one of those months walking near four miles each way rather than part with an omnibus fare, in order to buy herself a bed and a midwife in December, in a parish where nobody knows her face. She left Pentonville on the thirty-first because by the end of July she could no longer be looked at.\" On the box: \"Observe that she packed with great care. Everything she took, she chose. She left this because it was heavy and belonged to the life she was quitting, and she forgot what was inside it.\" He closed the lid. \"She left nothing behind her by accident but this. It is therefore the only honest object in the room.\" \"One further point of interest. The name she gave the charity was Marchant.\" \"That was...\" Her voice failed her. \"That was our mother's name.\" \"Yes,\" said Holmes. \"She wanted something of her family with her. She merely wanted it without the rest of you.\"",
     },
   },
 };
