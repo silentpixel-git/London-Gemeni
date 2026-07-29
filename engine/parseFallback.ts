@@ -12,6 +12,7 @@ import type { ParseCandidates, NPCState } from '../types';
 import { LOCATIONS, NPCS, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS } from './gameData';
 import { getPresentNpcIds, timePeriodFor } from './GameEngine';
 import { WHITECHAPEL_MANIFEST } from './stories/whitechapel-1888/manifest';
+import { visibleInteractables } from './visibility';
 
 // Verb intents that carry a target phrase; a non-empty phrase with no resolved
 // id is a miss the AI parse can recover.
@@ -26,7 +27,7 @@ const VERBS_NEEDING_TARGET = new Set<ParsedIntent['type']>([
  * carried).
  * Queries never route — world questions belong to narration.
  */
-export function needsAiParse(intent: ParsedIntent, location: string, inventory: string[]): boolean {
+export function needsAiParse(intent: ParsedIntent, location: string, inventory: string[], flags: Record<string, boolean>): boolean {
   if (intent.type === 'other' || intent.type === 'unresolved_target') return true;
   if (
     VERBS_NEEDING_TARGET.has(intent.type) &&
@@ -34,7 +35,7 @@ export function needsAiParse(intent: ParsedIntent, location: string, inventory: 
     !intent.targetId
   ) return true;
   if (intent.type === 'examine' && intent.targetId) {
-    const present = LOCATIONS[location]?.interactables ?? [];
+    const present = visibleInteractables(WHITECHAPEL_MANIFEST, location, flags);
     const t = intent.targetId;
     if (
       OBJECT_DISPLAY_NAMES[t] &&
@@ -56,8 +57,9 @@ export function buildParseCandidates(
   currentAct: number,
   introducedNpcs: string[],
   elapsedMinutes: number,
+  flags: Record<string, boolean>,
 ): ParseCandidates {
-  const present = LOCATIONS[location]?.interactables ?? [];
+  const present = visibleInteractables(WHITECHAPEL_MANIFEST, location, flags);
   const carriedIds = Object.entries(TAKEABLE_OBJECTS)
     .filter(([, itemName]) => inventory.includes(itemName))
     .map(([objId]) => objId);

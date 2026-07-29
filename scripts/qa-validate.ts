@@ -15,7 +15,7 @@
  * Exit code 1 if any FAIL.
  */
 
-import { LOCATIONS } from '../engine/stories/whitechapel-1888/locations';
+import { LOCATIONS, OBJECT_VISIBILITY, CONTAINER_CONTENTS } from '../engine/stories/whitechapel-1888/locations';
 import { NPCS } from '../engine/stories/whitechapel-1888/npcs';
 import {
   CLUE_DEFINITIONS,
@@ -320,6 +320,37 @@ section('Takeable gates + gated SHOW interactions');
     }
   }
   if (showGateOk) pass('every SHOW_INTERACTIONS requireFlags entry is settable');
+}
+
+// ── Object visibility + containers ────────────────────────────────────────────
+
+section('Object visibility + containers');
+{
+  for (const [objId, gateFlag] of Object.entries(OBJECT_VISIBILITY)) {
+    if (!allInteractables.has(objId)) {
+      fail(`objectVisibility: '${objId}' is not an interactable at any location`);
+    } else {
+      pass(`objectVisibility: '${objId}' exists`);
+    }
+    if (!gateFlag || typeof gateFlag !== 'string') {
+      fail(`objectVisibility: '${objId}' has no gate flag`);
+    }
+  }
+
+  for (const [containerId, contents] of Object.entries(CONTAINER_CONTENTS)) {
+    if (!allInteractables.has(containerId)) {
+      fail(`containerContents: container '${containerId}' is not an interactable anywhere`);
+    } else {
+      pass(`containerContents: container '${containerId}' exists`);
+    }
+    for (const contentId of contents) {
+      if (!OBJECT_VISIBILITY[contentId]) {
+        fail(`containerContents: '${contentId}' is inside '${containerId}' but is not gated in OBJECT_VISIBILITY — it would be visible before the container is opened`);
+      } else {
+        pass(`containerContents: '${contentId}' is visibility-gated`);
+      }
+    }
+  }
 }
 
 // ── 4. NPCs ──────────────────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ import { computeTimePeriod, formatTimeLabel, resolveActDay } from './time';
 import { getPresentNpcIds, maturedSpreadsFor, npcLocationAt, returnsPeriodFor } from './presence';
 import type { SessionSnapshot } from './session';
 import { periodOf } from './resolvers/support';
+import { visibleInteractables } from './visibility';
 
 /** The verified outcome a resolver hands to buildNarrationContext. */
 export interface NarrationOutcome {
@@ -165,7 +166,7 @@ export function buildNarrationContext(
     .map(exitId => story.locations[exitId]?.shortName || exitId);
 
   // Available objects
-  const availableObjects = (loc.interactables || [])
+  const availableObjects = visibleInteractables(story, locationId, session.flags)
     .map(id => story.objectDisplayNames[id] || id);
 
   // Recent NPC memory for NPCs present (keyed by label — alias or displayName)

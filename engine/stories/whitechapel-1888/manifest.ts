@@ -5,7 +5,7 @@
 // constructor) — no other engine file imports whitechapel-1888 data directly.
 
 import type { StoryManifest, CompanionDemeanor, ActSafetyNet } from '../types';
-import { LOCATIONS, OBJECT_DISPLAY_NAMES } from './locations';
+import { LOCATIONS, OBJECT_DISPLAY_NAMES, OBJECT_VISIBILITY, CONTAINER_CONTENTS } from './locations';
 import { NPCS, NPC_DISPLAY_NAMES, NPC_ALIASES } from './npcs';
 import {
   CLUE_DEFINITIONS,
@@ -91,6 +91,8 @@ export const WHITECHAPEL_MANIFEST: StoryManifest = {
   atmosphericNotes: ATMOSPHERIC_NOTES,
   takeableObjects: TAKEABLE_OBJECTS,
   takeableRequiresFlag: TAKEABLE_REQUIRES_FLAG,
+  objectVisibility: OBJECT_VISIBILITY,
+  containerContents: CONTAINER_CONTENTS,
   talkGrantsItem: TALK_GRANTS_ITEM,
   useInteractions: USE_INTERACTIONS,
   showInteractions: SHOW_INTERACTIONS,

@@ -368,6 +368,13 @@ export interface StoryManifest {
   /** Optional gate: object may only be taken once this flag is set. Blocked
    *  takes go through the standard blocked() path in narrator voice. */
   takeableRequiresFlag: Record<string, string>;
+  /** Object id → the flag that makes it visible in its location. An object
+   *  absent from this map is always visible. Covers both container contents
+   *  (revealed by `opened_<loc>_<obj>`) and objects that arrive mid-scene. */
+  objectVisibility: Record<string, string>;
+  /** Container object id → the object ids OPEN reveals. Drives both the OPEN
+   *  resolver and the sidebar's nested display. */
+  containerContents: Record<string, string[]>;
   /** Optional grant: talking to this NPC (keyed by npcId) adds the named
    *  takeable object to inventory, once, the first time the talk succeeds —
    *  for testimony/notes that exist only because the NPC gave them, not

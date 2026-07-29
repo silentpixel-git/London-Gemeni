@@ -24,8 +24,9 @@ export async function resolveIntentWithAI(
   currentAct: number,
   introducedNpcs: string[],
   elapsedMinutes: number,
+  flags: Record<string, boolean>,
 ): Promise<ParsedIntent> {
-  if (!needsAiParse(intent, location, inventory)) return intent;
+  if (!needsAiParse(intent, location, inventory, flags)) return intent;
   const raw = intent.raw.trim();
   if (!raw) return intent;
 
@@ -34,7 +35,7 @@ export async function resolveIntentWithAI(
   if (parseActionCache.has(key)) {
     resolved = parseActionCache.get(key)!;
   } else {
-    const candidates = buildParseCandidates(location, inventory, npcStates, currentAct, introducedNpcs, elapsedMinutes);
+    const candidates = buildParseCandidates(location, inventory, npcStates, currentAct, introducedNpcs, elapsedMinutes, flags);
     ({ intent: resolved } = await aiService.parseAction(raw, candidates));
     parseActionCache.set(key, resolved);
   }

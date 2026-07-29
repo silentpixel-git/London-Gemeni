@@ -229,7 +229,7 @@ function runFastPathGuard(): void {
     for (const p of fx.phrasings) {
       if (p.category === 'paraphrase') continue;
       const intent = parseIntent(`examine ${p.text}`);
-      if (intent.targetId === fx.objectId && needsAiParse(intent, locId, [])) {
+      if (intent.targetId === fx.objectId && needsAiParse(intent, locId, [], {})) {
         console.error(`  [FAIL] clean hit would still call AI: "examine ${p.text}" @ ${locId}`);
         failures++;
       }
@@ -238,14 +238,14 @@ function runFastPathGuard(): void {
 
   // 2. Misses MUST route: an unrecognised action phrase triggers the AI parse.
   const miss = parseIntent('crouch down and look under the sleeping pallet');
-  if (!needsAiParse(miss, 'millers_court', [])) {
+  if (!needsAiParse(miss, 'millers_court', [], {})) {
     console.error('  [FAIL] unparseable action did not route to the AI parse');
     failures++;
   }
 
   // 3. World questions never route (queries stay with narration).
   const q = parseIntent('why would the killer strike twice in one night');
-  if (q.type !== 'query' || needsAiParse(q, 'baker_street', [])) {
+  if (q.type !== 'query' || needsAiParse(q, 'baker_street', [], {})) {
     console.error('  [FAIL] query routed to the AI parse');
     failures++;
   }
@@ -253,7 +253,7 @@ function runFastPathGuard(): void {
   // 3b. WAIT is a free offline verb — it must parse deterministically and
   //     never route to the AI parse.
   const w = parseIntent('wait');
-  if (w.type !== 'wait' || needsAiParse(w, 'baker_street', [])) {
+  if (w.type !== 'wait' || needsAiParse(w, 'baker_street', [], {})) {
     console.error('  [FAIL] wait did not stay on the offline fast path');
     failures++;
   }
@@ -262,7 +262,7 @@ function runFastPathGuard(): void {
   //    name must never appear in the people candidates.
   for (const locId of Object.keys(LOCATIONS)) {
     for (let act = 0; act <= 6; act++) {
-      const c = buildParseCandidates(locId, [], {}, act, [], 0);
+      const c = buildParseCandidates(locId, [], {}, act, [], 0, {});
       for (const person of c.people) {
         const npc = NPCS[person.id];
         if (npc?.requiresIntroduction && person.name.includes(npc.displayName)) {
@@ -472,7 +472,7 @@ async function runIntentFixtures(): Promise<void> {
   for (const fx of INTENT_FIXTURES) {
     const intent = parseIntent(fx.input);
     const inv = fx.scene.inventory ?? [];
-    if (!needsAiParse(intent, fx.scene.location, inv)) {
+    if (!needsAiParse(intent, fx.scene.location, inv, {})) {
       offTotal++;
       if (intentMatches(intent, fx.expect)) offHit++;
       else offMisses.push(`  [off ] "${fx.input}" → ${intent.type}/${intent.targetId ?? '-'} (want ${fx.expect.type})`);
@@ -489,7 +489,7 @@ async function runIntentFixtures(): Promise<void> {
     const { aiService } = await import('../server/aiCore');
     for (const fx of aiCases) {
       const inv = fx.scene.inventory ?? [];
-      const candidates = buildParseCandidates(fx.scene.location, inv, {}, fx.scene.act, [], 0);
+      const candidates = buildParseCandidates(fx.scene.location, inv, {}, fx.scene.act, [], 0, {});
       const res = await aiService.parseAction(fx.input, candidates);
       if (res.invalidArgs) enumFailures++;
       tcTotal++;
@@ -568,7 +568,7 @@ async function main() {
         const act = (LOCATIONS as Record<string, { act?: number }>)[m.locId]?.act ?? 0;
         const { intent } = await aiService.parseAction(
           `examine ${m.text}`,
-          buildParseCandidates(m.locId, [], {}, act, [], 0),
+          buildParseCandidates(m.locId, [], {}, act, [], 0, {}),
         );
         const got = intent?.targetId ?? null;
         const ok = got === m.objectId;
@@ -616,7 +616,7 @@ async function main() {
       try {
         const { intent } = await aiService.parseAction(
           `talk to ${m.text}`,
-          buildParseCandidates(m.scene.location, [], {}, m.scene.act, [], 0),
+          buildParseCandidates(m.scene.location, [], {}, m.scene.act, [], 0, {}),
         );
         const got = intent?.targetId ?? null;
         const ok = got === m.npcId;

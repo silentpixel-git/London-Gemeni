@@ -2333,6 +2333,54 @@ function runTakeSetsFlag() {
   }
 }
 
+function runObjectVisibility() {
+  console.log('\n=== Flag-gated object visibility ===');
+
+  // A synthetic manifest: 'violin_case' at baker_street is hidden until a flag.
+  const gated = new GameEngine({
+    ...WHITECHAPEL_MANIFEST,
+    objectVisibility: { violin_case: 'test_reveal_flag' },
+    containerContents: {},
+  });
+
+  const hiddenSnap = buildSnapshot({ location: 'baker_street', currentAct: 0 });
+  const hiddenResult = gated.resolve(parseIntent('examine the violin case'), hiddenSnap);
+  if (!hiddenResult.actionSuccess) {
+    pass('gated object cannot be examined before its flag');
+  } else {
+    fail('gated object cannot be examined before its flag', 'examine succeeded');
+  }
+
+  const objectsWhileHidden = (hiddenResult.aiContext as any).availableObjects as string[];
+  if (!objectsWhileHidden.some(n => n.toLowerCase().includes('violin'))) {
+    pass('gated object absent from availableObjects before its flag');
+  } else {
+    fail('gated object absent from availableObjects', JSON.stringify(objectsWhileHidden));
+  }
+
+  const shownSnap = buildSnapshot({
+    location: 'baker_street',
+    currentAct: 0,
+    flags: { test_reveal_flag: true },
+  });
+  const shownResult = gated.resolve(parseIntent('examine the violin case'), shownSnap);
+  const objectsWhenShown = (shownResult.aiContext as any).availableObjects as string[];
+  if (shownResult.actionSuccess && objectsWhenShown.some(n => n.toLowerCase().includes('violin'))) {
+    pass('gated object appears once its flag is set');
+  } else {
+    fail('gated object appears once its flag is set', JSON.stringify(objectsWhenShown));
+  }
+
+  // Ungated objects are unaffected.
+  const plain = gameEngine.resolve(parseIntent('examine the violin case'),
+    buildSnapshot({ location: 'baker_street', currentAct: 0 }));
+  if (plain.actionSuccess) {
+    pass('ungated objects are unaffected by the visibility table');
+  } else {
+    fail('ungated objects are unaffected by the visibility table', 'examine failed');
+  }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -2355,6 +2403,7 @@ try {
   runUseCombinationActGate();
   runItemsGained();
   runTakeSetsFlag();
+  runObjectVisibility();
   runInventoryAwareness();
   runLivingWorld();
   runShowDative();

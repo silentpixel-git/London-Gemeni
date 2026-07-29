@@ -381,7 +381,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // engine can fire. No-op (and no latency) on hits. VITE_AI_PARSER='off'
       // is the emergency kill switch (regex-only parsing).
       if (AI_PARSER_ENABLED) {
-        intent = await resolveIntentWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs, elapsedMinutes);
+        intent = await resolveIntentWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs, elapsedMinutes, flags);
       }
 
       // STEP 2: Build session snapshot from current React state

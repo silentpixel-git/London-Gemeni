@@ -5,6 +5,7 @@ import type { SessionSnapshot } from '../session';
 import { periodOf, triggerClues, checkActProgression } from './support';
 import { buildNarrationContext, blocked, absentNpcBlocked } from '../narrationContext';
 import { npcLocationAt } from '../presence';
+import { visibleInteractables } from '../visibility';
 
 // --------------------------------------------------------
 // EXAMINE
@@ -36,7 +37,7 @@ export function resolveExamine(story: StoryManifest, intent: ParsedIntent, sessi
   }
 
   // Is the object actually in this location?
-  if (!currentLoc.interactables.includes(targetId)) {
+  if (!visibleInteractables(story, session.location, session.flags).includes(targetId)) {
     // Check if it's an NPC — organic physical examination rather than talk redirect
     if (story.npcs[targetId]) {
       const npcLoc = npcLocationAt(story.npcs, targetId, session.currentAct, periodOf(story, session), session.npcStates);
@@ -183,7 +184,7 @@ export function resolveRead(story: StoryManifest, intent: ParsedIntent, session:
   if (docText) {
     // Item must be in inventory OR in the current location
     const currentLoc = story.locations[session.location];
-    const inLocation = currentLoc.interactables.includes(targetId);
+    const inLocation = visibleInteractables(story, session.location, session.flags).includes(targetId);
     const inInventory = story.takeableObjects[targetId] && session.inventory.includes(story.takeableObjects[targetId]);
 
     if (inLocation || inInventory) {

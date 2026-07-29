@@ -4,6 +4,7 @@ import type { StoryManifest } from '../stories/types';
 import type { SessionSnapshot } from '../session';
 import { buildNarrationContext } from '../narrationContext';
 import { computeTimePeriod, minutesToNextPeriodBoundary, resolveActDay } from '../time';
+import { visibleInteractables } from '../visibility';
 
 // --------------------------------------------------------
 // WAIT (Phase 4a: advances the clock to the next time period)
@@ -96,7 +97,7 @@ export function resolveQuery(story: StoryManifest, intent: ParsedIntent, session
 
 export function resolveUnresolvedTarget(story: StoryManifest, intent: ParsedIntent, session: SessionSnapshot): EngineResult {
   const currentLoc = story.locations[session.location];
-  const availableObjects = currentLoc.interactables
+  const availableObjects = visibleInteractables(story, session.location, session.flags)
     .map(id => story.objectDisplayNames[id] ?? id)
     .join(', ');
   return {

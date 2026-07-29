@@ -413,3 +413,11 @@ const OBJECT_DISPLAY_NAMES_DATA = {
 export type ObjectId = keyof typeof OBJECT_DISPLAY_NAMES_DATA;
 
 export const OBJECT_DISPLAY_NAMES: Record<string, string> = OBJECT_DISPLAY_NAMES_DATA;
+
+// Objects that are not present in their location from the start of the act.
+// `world_event_kemp_arrives` fires on the first substantive turn of Act 0 (see
+// events.ts); `opened_baker_street_nells_workbox` is set by the OPEN resolver.
+export const OBJECT_VISIBILITY: Record<string, string> = {};
+
+// Containers and what OPEN reveals.
+export const CONTAINER_CONTENTS: Record<string, string[]> = {};
