@@ -517,12 +517,19 @@ export function matchObjectId(raw: string): string | undefined {
 
   // Longest alias wins — "pawnbroker's ticket" must match that alias, not the
   // shorter 'ticket'; "hutchinson's statement" not the shorter 'statement'.
+  // Compare against the NORMALISED alias, not the raw dict key — normalise()
+  // strips apostrophes from player input, so an un-normalised comparison can
+  // never match an apostrophe-bearing alias ("edmund's note", "halward's
+  // note", "edmund's room") against anything a player actually types. These
+  // three were dead on arrival until this fix — verified via the "Object
+  // alias reachability" qa:validate section, which now proves it.
   let bestId: string | undefined;
   let bestLen = 0;
   for (const [alias, id] of Object.entries(objectAliases)) {
-    if (norm.includes(alias) && alias.length > bestLen) {
+    const normAlias = normalise(alias);
+    if (norm.includes(normAlias) && normAlias.length > bestLen) {
       bestId = id;
-      bestLen = alias.length;
+      bestLen = normAlias.length;
     }
   }
   if (bestId) return bestId;
