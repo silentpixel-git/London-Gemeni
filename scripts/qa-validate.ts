@@ -37,6 +37,7 @@ import { INITIAL_INVENTORY } from '../constants';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { RUMORS } from '../engine/stories/whitechapel-1888/rumors';
 import { APPROACHES } from '../engine/stories/whitechapel-1888/approaches';
+import { objectAliases, matchObjectId } from '../engine/intentParser';
 
 // ── Logging helpers (same conventions as qa-engine.ts) ──────────────────────
 
@@ -917,6 +918,26 @@ section('NPC approaches (Phase 5)');
   }
   if (fails === beatFailsBefore) {
     pass(`${beats.length} act beats: one per act, mundane, single-act, unconditional, NPC present`);
+  }
+}
+
+section('Object alias reachability');
+{
+  // Every hardcoded single-word alias in intentParser.ts must still resolve
+  // to the object it names. A new OBJECT_DISPLAY_NAMES entry whose normalized
+  // form contains an alias as a substring can silently shadow it, since
+  // matchObjectId's unanchored substring scan over display names runs BEFORE
+  // this alias table is ever consulted. This has already happened three times
+  // in one task ('letter', 'box', 'boots' all got shadowed by new Act 0
+  // object names) — this check catches the whole class mechanically instead
+  // of relying on a manual re-check every time a new object is authored.
+  for (const [alias, expectedId] of Object.entries(objectAliases)) {
+    const resolved = matchObjectId(alias);
+    if (resolved === expectedId) {
+      pass(`alias '${alias}' still resolves to '${expectedId}'`);
+    } else {
+      fail(`alias '${alias}' should resolve to '${expectedId}' but resolves to '${resolved}' instead — a display name is shadowing this alias`);
+    }
   }
 }
 

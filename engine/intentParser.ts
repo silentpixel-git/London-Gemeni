@@ -400,10 +400,94 @@ export function looksLikeObjectReference(raw: string): boolean {
     .some(w => w.length > 1 && !STOP_WORDS.has(w) && OBJECT_VOCABULARY.has(w));
 }
 
+// Common object aliases. Module-scoped (not local to matchObjectId) and
+// exported so scripts/qa-validate.ts can mechanically verify every alias
+// still resolves to the object it names — matchObjectId's earlier substring
+// scan over OBJECT_DISPLAY_NAMES runs BEFORE this table is ever consulted, so
+// a new display name whose normalised form contains an alias as a substring
+// silently shadows it (bit us three times authoring Act 0: 'letter', 'box',
+// 'boots'). NOTE: 'boots' → pawn_ticket is deliberately absent — Act 0 gave
+// "Nell's Boots" its own object (nells_boots), so that alias can never fire
+// again and was removed rather than left pointing at the wrong id.
+export const objectAliases: Record<string, string> = {
+  'letter': 'from_hell_letter',
+  'the letter': 'from_hell_letter',
+  'kidney': 'kidney_parcel',
+  'the kidney': 'kidney_parcel',
+  'parcel': 'kidney_parcel',
+  'the parcel': 'kidney_parcel',
+  'fireplace': 'burned_clothing',
+  'grate': 'burned_clothing',
+  'ashes': 'burned_clothing',
+  'bed': 'the_bed',
+  'sheets': 'bloodstained_sheets',
+  'instruments': 'examination_instruments',
+  'cobblestones': 'cobblestone_roadway',
+  'street': 'cobblestone_roadway',
+  'ground': 'ground_where_body_was_discovered',
+  'body site': 'ground_where_body_was_discovered',
+  'fence': 'wooden_fence',
+  'gate': 'yard_entrance_gate',
+  'graffiti': 'graffiti_wall',
+  'writing': 'graffiti_wall',
+  'chalk': 'graffiti_wall',
+  'apron': 'apron_fragment_location',
+  'box': 'parcel_box',
+  'reports': 'medical_reports',
+  'forensic reports': 'medical_reports',
+  'ticket': 'pawn_ticket',
+  'pawn ticket': 'pawn_ticket',
+  'pawnbroker\'s ticket': 'pawn_ticket',
+  'pledge': 'pawn_ticket',
+  'case file': 'concluded_case_file',
+  'concluded case': 'concluded_case_file',
+  'last case': 'concluded_case_file',
+  'notes': 'edmund_forensic_note',
+  "edmund's note": 'edmund_forensic_note',
+  "halward's note": 'edmund_forensic_note',
+  'textbook': 'anatomical_texts',
+  'anatomy': 'anatomical_texts',
+  'jars': 'specimen_jars',
+  'specimens': 'specimen_jars',
+  'records': 'patient_records',
+  'diary': 'watson_diary',
+  // Repointed from a dangling 'holmes_violin' when Act 0 gained a real
+  // violin_case object. ('watson_diary' above is likewise not an object id —
+  // pre-existing, left alone.)
+  'violin': 'violin_case',
+  'violin case': 'violin_case',
+  'alley': 'alleyways',
+  'escape routes': 'alleyways',
+  'lantern': 'police_lanterns',
+  'walls': 'square_walls',
+  'furnishings': 'edmund_room_furnishings',
+  "edmund's room": 'edmund_room_furnishings',
+  'members': 'club_members',
+  'people': 'club_members',
+  'crowd': 'crowd',
+  'bystanders': 'crowd',
+  'barricade': 'police_barricade',
+  'lamp': 'street_lamps',
+  'lamps': 'street_lamps',
+  'lodgings': 'lodging_house_entrances',
+  'lodging houses': 'lodging_house_entrances',
+  'warehouse': 'warehouse_doors',
+  'doorway': 'club_doorway',
+  'posters': 'posters',
+  'archway': 'court_archway',
+  'court entrance': 'court_archway',
+  'passage': 'court_archway',
+  'account': 'hutchinson_account',
+  'statement': 'hutchinson_account',
+  "hutchinson's account": 'hutchinson_account',
+  "hutchinson's statement": 'hutchinson_account',
+  'witness statement': 'hutchinson_account',
+};
+
 /**
  * Try to match a raw target string to a known object ID.
  */
-function matchObjectId(raw: string): string | undefined {
+export function matchObjectId(raw: string): string | undefined {
   const norm = normalise(raw);
   for (const [id, displayName] of Object.entries(OBJECT_DISPLAY_NAMES)) {
     if (
@@ -431,82 +515,6 @@ function matchObjectId(raw: string): string | undefined {
     if (candidates.length === 1) return candidates[0];
   }
 
-  // Common object aliases
-  const objectAliases: Record<string, string> = {
-    'letter': 'from_hell_letter',
-    'the letter': 'from_hell_letter',
-    'kidney': 'kidney_parcel',
-    'the kidney': 'kidney_parcel',
-    'parcel': 'kidney_parcel',
-    'the parcel': 'kidney_parcel',
-    'fireplace': 'burned_clothing',
-    'grate': 'burned_clothing',
-    'ashes': 'burned_clothing',
-    'bed': 'the_bed',
-    'sheets': 'bloodstained_sheets',
-    'instruments': 'examination_instruments',
-    'cobblestones': 'cobblestone_roadway',
-    'street': 'cobblestone_roadway',
-    'ground': 'ground_where_body_was_discovered',
-    'body site': 'ground_where_body_was_discovered',
-    'fence': 'wooden_fence',
-    'gate': 'yard_entrance_gate',
-    'graffiti': 'graffiti_wall',
-    'writing': 'graffiti_wall',
-    'chalk': 'graffiti_wall',
-    'apron': 'apron_fragment_location',
-    'box': 'parcel_box',
-    'reports': 'medical_reports',
-    'forensic reports': 'medical_reports',
-    'ticket': 'pawn_ticket',
-    'pawn ticket': 'pawn_ticket',
-    'pawnbroker\'s ticket': 'pawn_ticket',
-    'pledge': 'pawn_ticket',
-    'boots': 'pawn_ticket',
-    'case file': 'concluded_case_file',
-    'concluded case': 'concluded_case_file',
-    'last case': 'concluded_case_file',
-    'notes': 'edmund_forensic_note',
-    "edmund's note": 'edmund_forensic_note',
-    "halward's note": 'edmund_forensic_note',
-    'textbook': 'anatomical_texts',
-    'anatomy': 'anatomical_texts',
-    'jars': 'specimen_jars',
-    'specimens': 'specimen_jars',
-    'records': 'patient_records',
-    'diary': 'watson_diary',
-    // Repointed from a dangling 'holmes_violin' when Act 0 gained a real
-    // violin_case object. ('watson_diary' above is likewise not an object id —
-    // pre-existing, left alone.)
-    'violin': 'violin_case',
-    'violin case': 'violin_case',
-    'alley': 'alleyways',
-    'escape routes': 'alleyways',
-    'lantern': 'police_lanterns',
-    'walls': 'square_walls',
-    'furnishings': 'edmund_room_furnishings',
-    "edmund's room": 'edmund_room_furnishings',
-    'members': 'club_members',
-    'people': 'club_members',
-    'crowd': 'crowd',
-    'bystanders': 'crowd',
-    'barricade': 'police_barricade',
-    'lamp': 'street_lamps',
-    'lamps': 'street_lamps',
-    'lodgings': 'lodging_house_entrances',
-    'lodging houses': 'lodging_house_entrances',
-    'warehouse': 'warehouse_doors',
-    'doorway': 'club_doorway',
-    'posters': 'posters',
-    'archway': 'court_archway',
-    'court entrance': 'court_archway',
-    'passage': 'court_archway',
-    'account': 'hutchinson_account',
-    'statement': 'hutchinson_account',
-    "hutchinson's account": 'hutchinson_account',
-    "hutchinson's statement": 'hutchinson_account',
-    'witness statement': 'hutchinson_account',
-  };
   // Longest alias wins — "pawnbroker's ticket" must match that alias, not the
   // shorter 'ticket'; "hutchinson's statement" not the shorter 'statement'.
   let bestId: string | undefined;
