@@ -22,6 +22,7 @@
 import { parseIntent } from '../engine/intentParser';
 import { LOCATIONS, NPCS } from '../engine/gameData';
 import { CLUE_TRIGGERS } from '../engine/stories/whitechapel-1888/clues';
+import { OBJECT_VISIBILITY } from '../engine/stories/whitechapel-1888/locations';
 import { toolCallToIntent } from '../server/parseAction.js';
 import { needsAiParse, buildParseCandidates } from '../engine/parseFallback';
 import type { ParseCandidates } from '../types';
@@ -224,12 +225,18 @@ function runFastPathGuard(): void {
 
   // 1. Every tier-1 object phrasing that deterministically resolves must NOT
   //    trigger the AI parse (needsAiParse must be false for a clean hit).
+  //    Objects gated by OBJECT_VISIBILITY (e.g. pawn_ticket behind
+  //    world_event_kemp_arrives) need their gating flag set here, or
+  //    needsAiParse reads a correctly-hidden object as an unexpected AI-route
+  //    miss rather than testing the thing this check is actually for.
   for (const fx of FIXTURES) {
     const locId = OBJECT_LOCATION[fx.objectId];
+    const gateFlag = OBJECT_VISIBILITY[fx.objectId];
+    const flags = gateFlag ? { [gateFlag]: true } : {};
     for (const p of fx.phrasings) {
       if (p.category === 'paraphrase') continue;
       const intent = parseIntent(`examine ${p.text}`);
-      if (intent.targetId === fx.objectId && needsAiParse(intent, locId, [], {})) {
+      if (intent.targetId === fx.objectId && needsAiParse(intent, locId, [], flags)) {
         console.error(`  [FAIL] clean hit would still call AI: "examine ${p.text}" @ ${locId}`);
         failures++;
       }

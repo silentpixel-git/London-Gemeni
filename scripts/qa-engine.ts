@@ -2301,8 +2301,13 @@ console.log('\n── NPC approaches ──');
 function runTakeSetsFlag() {
   console.log('\n=== TAKE sets a took_<loc>_<obj> flag ===');
 
-  // pawn_ticket is takeable at baker_street in Act 0 (see TAKEABLE_OBJECTS).
-  const snap = buildSnapshot({ location: 'baker_street', currentAct: 0 });
+  // pawn_ticket is takeable at baker_street in Act 0 (see TAKEABLE_OBJECTS),
+  // but is now visibility-gated behind world_event_kemp_arrives (Task 6) —
+  // the flag must be set or the object isn't there to take.
+  const snap = buildSnapshot({
+    location: 'baker_street', currentAct: 0,
+    flags: { world_event_kemp_arrives: true },
+  });
   const r = gameEngine.resolve(parseIntent('take the pawn ticket'), snap);
 
   if (r.actionSuccess && r.flagsUpdate?.['took_baker_street_pawn_ticket'] === true) {
@@ -2325,6 +2330,7 @@ function runTakeSetsFlag() {
     location: 'baker_street',
     currentAct: 0,
     inventory: ["Nell's Pawn Ticket"],
+    flags: { world_event_kemp_arrives: true },
   });
   const heldResult = gameEngine.resolve(parseIntent('take the pawn ticket'), heldSnap);
   if (heldResult.actionSuccess && heldResult.newAct === undefined) {
