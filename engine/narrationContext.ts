@@ -64,7 +64,7 @@ export function buildNarrationContext(
     }
   }
 
-  const presentNPCEntries = getPresentNpcIds(story.npcs, locationId, resolvedNpcStates, session.currentAct, periodOf(story, session, outcome.extraMinutes ?? 0))
+  const presentNPCEntries = getPresentNpcIds(story.npcs, locationId, resolvedNpcStates, session.currentAct, periodOf(story, session, outcome.extraMinutes ?? 0), session.flags)
     .map(npcId => [npcId, story.npcs[npcId]] as const);
 
   // Build alias-aware NPC list for NarrationContext
@@ -443,7 +443,7 @@ export function absentNpcBlocked(
   const label = introduced
     ? npc.displayName
     : (npc.alias ?? story.npcAliases[npcId] ?? npc.displayName);
-  const whereId = npcLocationAt(story.npcs, npcId, session.currentAct, period, session.npcStates);
+  const whereId = npcLocationAt(story.npcs, npcId, session.currentAct, period, session.npcStates, session.flags);
   const where = story.locations[whereId];
   const returns = returnsPeriodFor(npc, session.currentAct, session.location, period);
   const currentLocName = story.locations[session.location].name;

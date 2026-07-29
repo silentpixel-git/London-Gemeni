@@ -40,7 +40,7 @@ export function resolveExamine(story: StoryManifest, intent: ParsedIntent, sessi
   if (!visibleInteractables(story, session.location, session.flags).includes(targetId)) {
     // Check if it's an NPC — organic physical examination rather than talk redirect
     if (story.npcs[targetId]) {
-      const npcLoc = npcLocationAt(story.npcs, targetId, session.currentAct, periodOf(story, session), session.npcStates);
+      const npcLoc = npcLocationAt(story.npcs, targetId, session.currentAct, periodOf(story, session), session.npcStates, session.flags);
       const npcName = story.npcDisplayNames[targetId] || targetId;
 
       if (npcLoc !== session.location) {

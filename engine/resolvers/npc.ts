@@ -20,7 +20,7 @@ export function resolveTalk(story: StoryManifest, intent: ParsedIntent, session:
   // here, Watson addresses them — the same courtesy SHOW already extends.
   if (!targetId && intent.topicRaw) {
     const present = getPresentNpcIds(story.npcs, session.location, session.npcStates,
-      session.currentAct, periodOf(story, session));
+      session.currentAct, periodOf(story, session), session.flags);
     if (present.length === 1) targetId = present[0];
   }
 
@@ -34,7 +34,7 @@ export function resolveTalk(story: StoryManifest, intent: ParsedIntent, session:
   }
 
   // Check NPC is actually in this location
-  const npcLoc = npcLocationAt(story.npcs, targetId, session.currentAct, periodOf(story, session), session.npcStates);
+  const npcLoc = npcLocationAt(story.npcs, targetId, session.currentAct, periodOf(story, session), session.npcStates, session.flags);
 
   if (npcLoc !== session.location) {
     return absentNpcBlocked(story, intent, session, targetId, 'speak with');
@@ -118,7 +118,7 @@ export function resolveShow(story: StoryManifest, intent: ParsedIntent, session:
 
   // NPC must be present
   if (npcId) {
-    const npcLoc     = npcLocationAt(story.npcs, npcId, session.currentAct, periodOf(story, session), session.npcStates);
+    const npcLoc     = npcLocationAt(story.npcs, npcId, session.currentAct, periodOf(story, session), session.npcStates, session.flags);
     const npcName    = story.npcDisplayNames[npcId] ?? npcId;
 
     if (npcLoc !== session.location) {
@@ -174,7 +174,7 @@ export function resolveShow(story: StoryManifest, intent: ParsedIntent, session:
 
   // No NPC specified — if exactly one NPC is present, Watson naturally shows
   // it to them ("show the clipping" with only Holmes in the room).
-  const presentNpcIds = getPresentNpcIds(story.npcs, session.location, session.npcStates, session.currentAct, periodOf(story, session));
+  const presentNpcIds = getPresentNpcIds(story.npcs, session.location, session.npcStates, session.currentAct, periodOf(story, session), session.flags);
   if (presentNpcIds.length === 1) {
     return resolveShow(story, { ...intent, showTargetNpcId: presentNpcIds[0] }, session);
   }

@@ -2430,6 +2430,41 @@ function runOpenVerb() {
   else fail('re-opening is idempotent', JSON.stringify({ ok: reopen.actionSuccess, act: reopen.newAct }));
 }
 
+function runPresenceGating() {
+  console.log('\n=== Flag-gated NPC presence ===');
+
+  const gatedNpcs = {
+    ...WHITECHAPEL_MANIFEST.npcs,
+    mrs_kemp: {
+      ...WHITECHAPEL_MANIFEST.npcs['mrs_kemp'],
+      presenceRequiresFlag: 'test_arrival_flag',
+      scheduleByAct: { 0: { default: 'baker_street' } },
+    },
+  };
+  const gated = new GameEngine({ ...WHITECHAPEL_MANIFEST, npcs: gatedNpcs });
+
+  const before = buildSnapshot({ location: 'baker_street', currentAct: 0 });
+  const presentBefore = getPresentNpcIds(gatedNpcs as any, 'baker_street', before.npcStates, 0, 'night');
+  if (!presentBefore.includes('mrs_kemp')) pass('gated NPC is absent before her flag');
+  else fail('gated NPC is absent before her flag', JSON.stringify(presentBefore));
+
+  const talkBefore = gated.resolve(parseIntent('talk to mrs kemp'), before);
+  if (!talkBefore.actionSuccess) pass('cannot talk to a gated NPC before her flag');
+  else fail('cannot talk to a gated NPC before her flag', 'talk succeeded');
+
+  const after = buildSnapshot({
+    location: 'baker_street', currentAct: 0, flags: { test_arrival_flag: true },
+  });
+  const presentAfter = getPresentNpcIds(gatedNpcs as any, 'baker_street', after.npcStates, 0, 'night', after.flags);
+  if (presentAfter.includes('mrs_kemp')) pass('gated NPC is present once her flag is set');
+  else fail('gated NPC is present once her flag is set', JSON.stringify(presentAfter));
+
+  // Ungated NPCs are unaffected.
+  const holmesPresent = getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, 'baker_street', after.npcStates, 0, 'night', after.flags);
+  if (holmesPresent.includes('holmes')) pass('ungated NPCs are unaffected');
+  else fail('ungated NPCs are unaffected', JSON.stringify(holmesPresent));
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -2454,6 +2489,7 @@ try {
   runTakeSetsFlag();
   runObjectVisibility();
   runOpenVerb();
+  runPresenceGating();
   runInventoryAwareness();
   runLivingWorld();
   runShowDative();

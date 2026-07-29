@@ -52,6 +52,9 @@ export interface NPCDefinition<F extends string = string> {
   followingRule: 'follows_watson' | 'follows_bond' | 'location_based' | 'fixed';
   followsNpcId?: string;       // For follows_watson/'follows_bond': the entity ID to shadow ('watson' = player)
   followsUntilAct?: number;    // After this act, the NPC stops following and reverts to its canonical location (e.g. Edmund committed in Act 6)
+  /** Offstage until this flag is set, regardless of scheduleByAct. For NPCs who
+   *  arrive mid-scene rather than being in the room at curtain-up. */
+  presenceRequiresFlag?: F;
   // NPC placement — derived per turn from (act, timePeriod). `default` is the
   // act's anchor spot (the old canonicalLocationByAct value); byPeriod entries
   // move the NPC by time of day (e.g. evening at the pub). An act with NO

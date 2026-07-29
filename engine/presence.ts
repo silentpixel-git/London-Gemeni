@@ -73,9 +73,12 @@ export function npcLocationAt(
   act: number,
   timePeriod: TimePeriod,
   npcStates: Record<string, NPCState>,
+  flags: Record<string, boolean> = {},
 ): string {
   const npc = npcs[npcId];
   if (!npc) return 'offstage';
+  // Not yet arrived: offstage no matter what the schedule says.
+  if (npc.presenceRequiresFlag && flags[npc.presenceRequiresFlag] !== true) return 'offstage';
   const sched = npc.scheduleByAct[act];
   const scheduled = sched ? (sched.byPeriod?.[timePeriod] ?? sched.default) : undefined;
   const stored = npcStates[npcId]?.currentLocation;
@@ -97,8 +100,9 @@ export function getPresentNpcIds(
   npcStates: Record<string, NPCState>,
   currentAct: number,
   timePeriod: TimePeriod,
+  flags: Record<string, boolean> = {},
 ): string[] {
   return Object.keys(npcs).filter(npcId =>
-    npcLocationAt(npcs, npcId, currentAct, timePeriod, npcStates) === locationId &&
+    npcLocationAt(npcs, npcId, currentAct, timePeriod, npcStates, flags) === locationId &&
     npcStates[npcId]?.status !== 'deceased');
 }

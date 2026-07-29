@@ -79,7 +79,7 @@ export function selectApproach(
     const npc = story.npcs[a.npcId];
     if (!npc) continue;
     if (session.npcStates[a.npcId]?.status === 'deceased') continue;
-    if (npcLocationAt(story.npcs, a.npcId, session.currentAct, period, session.npcStates) !== locationId) continue;
+    if (npcLocationAt(story.npcs, a.npcId, session.currentAct, period, session.npcStates, session.flags) !== locationId) continue;
 
     let rumorStatement: string | undefined;
     if (a.kind === 'rumor') {

@@ -127,6 +127,7 @@ export function computeNpcMovements(
   // a real location id, so the NPC simply does not appear anywhere.
   for (const [npcId, npc] of Object.entries(story.npcs)) {
     if (npc.followingRule === 'location_based' || npc.followingRule === 'fixed') {
+      if (npc.presenceRequiresFlag && session.flags[npc.presenceRequiresFlag] !== true) continue;
       const canonical = npc.scheduleByAct[session.currentAct] ? (npc.scheduleByAct[session.currentAct].byPeriod?.[period] ?? npc.scheduleByAct[session.currentAct].default) : 'offstage';
       if (canonical !== session.npcStates[npcId]?.currentLocation) {
         updates[npcId] = { currentLocation: canonical };

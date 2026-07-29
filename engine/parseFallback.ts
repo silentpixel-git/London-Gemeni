@@ -67,7 +67,7 @@ export function buildParseCandidates(
   const asEntry = (id: string) => ({ id, name: OBJECT_DISPLAY_NAMES[id] ?? id.replace(/_/g, ' ') });
 
   const period = timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, currentAct, elapsedMinutes);
-  const people = getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, location, npcStates, currentAct, period)
+  const people = getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, location, npcStates, currentAct, period, flags)
     .map(id => {
       const npc = NPCS[id];
       const introduced = !npc.requiresIntroduction || introducedNpcs.includes(id);
