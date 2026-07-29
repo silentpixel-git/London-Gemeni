@@ -20,6 +20,7 @@ import type { SessionSnapshot } from './session';
 import { checkActProgression, computeActEntry, computeActEpilogue, computeNpcMovements } from './resolvers/support';
 import { resolveMove } from './resolvers/move';
 import { resolveExamine, resolveRead } from './resolvers/examine';
+import { resolveOpen } from './resolvers/open';
 import { resolveTalk, resolveShow } from './resolvers/npc';
 import { resolveTake, resolveUse, resolveDrop, resolveInventory } from './resolvers/items';
 import { resolveDeduce, resolveNotebook } from './resolvers/deduce';
@@ -64,6 +65,7 @@ export class GameEngine {
       case 'use':       result = resolveUse(this.story, intent, session); break;
       case 'show':      result = resolveShow(this.story, intent, session); break;
       case 'read':      result = resolveRead(this.story, intent, session); break;
+      case 'open':      result = resolveOpen(this.story, intent, session); break;
       case 'drop':      result = resolveDrop(this.story, intent, session); break;
       case 'inventory': result = resolveInventory(this.story, intent, session); break;
       case 'notebook':  result = resolveNotebook(this.story, intent, session); break;

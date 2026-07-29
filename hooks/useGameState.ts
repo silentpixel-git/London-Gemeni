@@ -510,7 +510,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // On an act-advance turn we keep advancing Act I's clock normally so the
       // held sidebar stays coherent until the curtain.
       const ACTION_TIME_MINUTES: Partial<Record<typeof result.actionType, number>> = {
-        move: 10, talk: 5, deduce: 5, examine: 2,
+        move: 10, talk: 5, deduce: 5, examine: 2, open: 2,
         use: 2, take: 1, inventory: 0, query: 1, help: 0, other: 2,
       };
       // On an act-advance the clock persists at the new act's canonical start (0);

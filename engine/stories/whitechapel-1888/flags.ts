@@ -50,6 +50,9 @@ type ShowedFlag = `showed_${ObjectId}_to_${NpcId}`;
 /** Took an object into inventory from a location. */
 type TookFlag = `took_${LocationId}_${ObjectId}`;
 
+/** Opened a container at a location. */
+type OpenedFlag = `opened_${LocationId}_${ObjectId}`;
+
 /** Used one item with another (USE combination). */
 type UsedFlag = `used_${ObjectId}_with_${ObjectId}`;
 
@@ -89,6 +92,7 @@ export type StoryFlag =
   | AskedAboutFlag
   | ShowedFlag
   | TookFlag
+  | OpenedFlag
   | UsedFlag
   | VisitedFlag
   | WorldEventFlag

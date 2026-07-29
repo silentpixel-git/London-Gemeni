@@ -39,7 +39,7 @@ const MOVE_VERBS = [
 const EXAMINE_VERBS = [
   'examine', 'look at', 'look', 'inspect', 'study', 'observe', 'check',
   'search', 'review', 'view', 'scrutinise', 'scrutinize',
-  'investigate', 'analyse', 'analyze', 'survey', 'peruse', 'open', 'smell',
+  'investigate', 'analyse', 'analyze', 'survey', 'peruse', 'smell',
 ];
 
 /**
@@ -87,6 +87,13 @@ const SHOW_VERBS = [
 // Read a document (distinct from examine — reads the literal text)
 const READ_VERBS = [
   'read',
+];
+
+// Open a container (distinct from examine — reveals contents rather than
+// describing the outside). 'open' was previously an EXAMINE verb; it moved here
+// when containers became a real mechanic.
+const OPEN_VERBS = [
+  'open', 'look inside', 'look in', 'unlatch', 'lift the lid of', 'lift the lid',
 ];
 
 // Drop / leave an item
@@ -587,7 +594,7 @@ function editDistance(a: string, b: string, max: number): number {
 // exactly; correcting them word-by-word isn't worth the false-positive risk).
 const FUZZY_VERBS: string[] = [
   ...MOVE_VERBS, ...EXAMINE_VERBS, ...TALK_VERBS, ...TAKE_VERBS,
-  ...USE_VERBS, ...SHOW_VERBS, ...READ_VERBS, ...DROP_VERBS,
+  ...USE_VERBS, ...SHOW_VERBS, ...READ_VERBS, ...DROP_VERBS, ...OPEN_VERBS,
 ].filter(v => !v.includes(' '));
 
 /**
@@ -798,6 +805,16 @@ export function parseIntent(rawInput: string): ParsedIntent {
       }
       const targetId = matchObjectId(afterVerb) || matchNpcId(afterVerb);
       return { type: 'use', targetId, targetRaw: afterVerb, raw: rawInput };
+    }
+  }
+
+  // 6e. Open a container. MUST precede examine: EXAMINE_VERBS still contains
+  // 'look', which would otherwise match "look inside the workbox" first.
+  for (const verb of OPEN_VERBS.sort((a, b) => b.length - a.length)) {
+    if (norm.startsWith(verb + ' ') || norm === verb) {
+      const targetRaw = stripVerb(rawInput, OPEN_VERBS);
+      const targetId = targetRaw ? matchObjectId(targetRaw) : undefined;
+      return { type: 'open', targetId, targetRaw, raw: rawInput };
     }
   }
 

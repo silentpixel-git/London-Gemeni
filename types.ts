@@ -173,7 +173,7 @@ export interface GameResponse {
 // ============================================================
 
 /** The type of action the player is attempting */
-export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'show' | 'read' | 'drop' | 'inventory' | 'deduce' | 'wait' | 'help' | 'query' | 'notebook' | 'other' | 'unresolved_target';
+export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'show' | 'read' | 'open' | 'drop' | 'inventory' | 'deduce' | 'wait' | 'help' | 'query' | 'notebook' | 'other' | 'unresolved_target';
 
 // Phase 3 — candidate lists for the constrained tool-calling parse fallback.
 // Built client-side (spoiler-safe: unintroduced NPCs are alias-masked) and

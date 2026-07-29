@@ -2381,6 +2381,55 @@ function runObjectVisibility() {
   }
 }
 
+function runOpenVerb() {
+  console.log('\n=== OPEN verb ===');
+
+  // Parsing: OPEN must win over EXAMINE for all its phrasings.
+  for (const phrase of ['open the workbox', 'look inside the workbox', 'look in the workbox', 'unlatch the workbox']) {
+    const intent = parseIntent(phrase);
+    if (intent.type === 'open') pass(`"${phrase}" parses as open`);
+    else fail(`"${phrase}" parses as open`, `got '${intent.type}'`);
+  }
+
+  // A bare "look" must still be a look-around, not an open.
+  if (parseIntent('look').type === 'examine') pass('"look" is still a look-around');
+  else fail('"look" is still a look-around', parseIntent('look').type);
+
+  // A synthetic container: violin_case at baker_street holds two objects.
+  const withContainer = new GameEngine({
+    ...WHITECHAPEL_MANIFEST,
+    containerContents: { violin_case: ['holmes_chemistry_table'] },
+    objectVisibility: { holmes_chemistry_table: 'opened_baker_street_violin_case' },
+  });
+
+  const snap = buildSnapshot({ location: 'baker_street', currentAct: 0 });
+  const opened = withContainer.resolve(parseIntent('open the violin case'), snap);
+  if (opened.actionSuccess && opened.flagsUpdate?.['opened_baker_street_violin_case'] === true) {
+    pass('OPEN sets opened_<loc>_<obj>');
+  } else {
+    fail('OPEN sets opened_<loc>_<obj>', JSON.stringify(opened.flagsUpdate));
+  }
+  if (opened.actionType === 'open') pass('OPEN returns actionType open');
+  else fail('OPEN returns actionType open', opened.actionType);
+
+  // Opening a non-container is blocked, not silently successful.
+  const notAContainer = withContainer.resolve(parseIntent('open the chemistry table'),
+    buildSnapshot({ location: 'baker_street', currentAct: 0, flags: { opened_baker_street_violin_case: true } }));
+  if (!notAContainer.actionSuccess) pass('OPEN on a non-container is blocked');
+  else fail('OPEN on a non-container is blocked', 'succeeded');
+
+  // Opening something not in the room is blocked.
+  const absent = withContainer.resolve(parseIntent('open the autopsy ledger'), snap);
+  if (!absent.actionSuccess) pass('OPEN on an absent object is blocked');
+  else fail('OPEN on an absent object is blocked', 'succeeded');
+
+  // Re-opening an open container succeeds without re-firing progression.
+  const reopen = withContainer.resolve(parseIntent('open the violin case'),
+    buildSnapshot({ location: 'baker_street', currentAct: 0, flags: { opened_baker_street_violin_case: true } }));
+  if (reopen.actionSuccess && reopen.newAct === undefined) pass('re-opening is idempotent');
+  else fail('re-opening is idempotent', JSON.stringify({ ok: reopen.actionSuccess, act: reopen.newAct }));
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -2404,6 +2453,7 @@ try {
   runItemsGained();
   runTakeSetsFlag();
   runObjectVisibility();
+  runOpenVerb();
   runInventoryAwareness();
   runLivingWorld();
   runShowDative();
