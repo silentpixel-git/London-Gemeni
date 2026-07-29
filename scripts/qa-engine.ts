@@ -2466,14 +2466,24 @@ function runPresenceGating() {
   else fail('ungated NPCs are unaffected', JSON.stringify(holmesPresent));
 
   // computeNpcMovements must also honor the gate — a move into her room must
-  // not snap a gated NPC into it via schedule-derived placement.
-  const movementSnap = buildSnapshot({ location: 'dorset_street', currentAct: 0 });
+  // not snap a gated NPC into it via schedule-derived placement. Her npcState
+  // is deliberately seeded away from her canonical slot ('baker_street'), so
+  // that WITHOUT the guard this move would genuinely produce an update —
+  // proving the test can actually fail if the guard regresses.
+  const movementSnap = buildSnapshot({
+    location: 'dorset_street',
+    currentAct: 0,
+    npcStates: {
+      ...INITIAL_NPC_STATES,
+      mrs_kemp: { npcId: 'mrs_kemp', currentLocation: 'dorset_street', status: 'alive', disposition: 50, memory: [] },
+    },
+  });
   const movementUpdates = computeNpcMovements(
     { ...WHITECHAPEL_MANIFEST, npcs: gatedNpcs },
     'baker_street',
     movementSnap,
   );
-  if (movementUpdates['mrs_kemp']?.currentLocation !== 'baker_street') {
+  if (movementUpdates['mrs_kemp'] === undefined) {
     pass('computeNpcMovements does not snap a gated NPC into the room');
   } else {
     fail('computeNpcMovements does not snap a gated NPC into the room', JSON.stringify(movementUpdates['mrs_kemp']));
