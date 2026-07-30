@@ -21,8 +21,8 @@ function fail(l: string, d?: string) { console.error(`[FAIL] ${l}${d ? ` — ${d
 
 // 1) resolveDiaryEntry: hand-authored DECISION_DIARY entry still resolves as before.
 {
-  const authored = resolveDiaryEntry({ kind: 'decision', refId: 'showed_pawn_ticket_to_holmes' });
-  authored?.title === 'The Refusal'
+  const authored = resolveDiaryEntry({ kind: 'decision', refId: 'read_pawn_ticket' });
+  authored?.title === 'The Pawn Ticket'
     ? pass('resolveDiaryEntry: hand-authored decision entry resolves via DECISION_DIARY')
     : fail('resolveDiaryEntry broke the hand-authored decision path', JSON.stringify(authored));
 }

@@ -16,20 +16,20 @@ export interface DecisionDiaryEntry {
 }
 
 export const DECISION_DIARY: Record<string, DecisionDiaryEntry> = {
-  // Act 0 tutorial beat — Watson reads the ticket the caller has left on the
-  // table. Nell is never found and never named again: this line must not
-  // promise a payoff the game deliberately withholds.
   read_pawn_ticket: {
     flag: 'examined_baker_street_pawn_ticket',
     name: 'The Pawn Ticket',
-    diaryNote: "The ticket she left on the table is for a pair of boots, pledged in July for two shillings and never redeemed. I have known women in that quarter to pawn a great deal before they would pawn what they walk in.",
+    diaryNote: "The ticket on the table is for a pair of boots, pledged three weeks ago at a shop in Pentonville and redeemed, by her own hand, this very morning. I do not yet know what to make of a woman who parts with her boots and then buys them back before she has any cause to think her sister is missing.",
   },
-  // Act 0 tutorial choice — Watson lays the ticket before Holmes, and Holmes
-  // declines. The refusal is the act, and Watson keeps the ticket regardless.
-  showed_pawn_ticket_to_holmes: {
-    flag: 'showed_pawn_ticket_to_holmes',
-    name: 'The Refusal',
-    diaryNote: "I put the ticket into Holmes's hand and he gave it back inside of a minute. No case, he said; not even a crime. He was very likely right, and I find I have kept the ticket all the same.",
+  the_reconstruction: {
+    flag: 'showed_charity_card_to_holmes',
+    name: 'The Reconstruction',
+    diaryNote: "He took the whole of it apart in front of me: the mud, the postmarks, the shillings, and had an answer before I had finished laying the last piece on the table. A woman's whole secret life, and it came to him as easily as a sum. I do not think I shall ever get used to watching him do that.",
+  },
+  opened_workbox: {
+    flag: 'opened_baker_street_nells_workbox',
+    name: 'The Workbox',
+    diaryNote: "I opened a stranger's box in front of her sister because Holmes wanted it open, and she said neither yes nor no. It was her private property and I went through it regardless. I did not care for the feeling, and I do not think I am meant to.",
   },
 };
 

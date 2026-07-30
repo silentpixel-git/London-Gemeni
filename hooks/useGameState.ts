@@ -17,6 +17,7 @@ import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
 import { gameEngine, SessionSnapshot, computeTimePeriod, resolveActDay } from '../engine/GameEngine';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
+import { resolveActDiary } from '../engine/stories/whitechapel-1888/diaryActs';
 import { audioManager } from '../services/AudioManager';
 import { parseIntent } from '../engine/intentParser';
 import { CLUE_DEFINITIONS, ACT_NAMES, ACT_TIME_CONFIG, ACT_WEATHER, TRUE_ENDING_CODA, DECISION_BY_FLAG, formatGameClock, TAKEABLE_OBJECTS, DOCUMENT_OBJECT_IDS } from '../engine/gameData';
@@ -814,13 +815,16 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
             // Also save the reflective entry into Watson's diary as the act's
             // closing note (the in-feed beat stays; this makes it re-readable).
+            // An authored act-closing entry (diaryActs.ts) overrides the AI
+            // journal text for the archived diary only.
+            const authoredActText = resolveActDiary(pendingJournalSummary.actNumber, flags);
             const actEntry: DiaryEntry = {
               id: crypto.randomUUID(),
               kind: 'act',
               refId: String(pendingJournalSummary.actNumber),
               actNumber: pendingJournalSummary.actNumber,
               sequence: diarySeqRef.current++,
-              text: journalText,
+              text: authoredActText ?? journalText,
               timeLabel: captureTimeLabel, // the clock at the act's close
             };
             setDiaryEntries(prev => [...prev, actEntry]);
