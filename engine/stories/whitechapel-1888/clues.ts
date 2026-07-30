@@ -490,8 +490,9 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
   // Act 0: examining the ticket Mrs. Kemp leaves on the table puts it in
   // Watson's pocket — the object he SHOWS to Holmes (tutorial beat). It is a
   // memento, not a puzzle piece: no USE combination resolves it, no later act
-  // pays it off, and it is deliberately absent from ITEM_SPENT_AFTER_ACT so it
-  // stays in the bag for the whole game.
+  // pays it off. Filed to Documents at the Act 0→1 transition (see
+  // ITEM_SPENT_AFTER_ACT below) — no longer carried, but permanently
+  // reviewable via its filed_pawn_ticket flag.
   pawn_ticket: "Nell's Pawn Ticket",
   charity_card: "A Subscriber's Card",
   // Not a location interactable — granted directly by TALK (see
@@ -527,8 +528,12 @@ export const TALK_GRANTS_ITEM: Record<string, string> = {
 // Value N = "still needed through Act N; drop when entering Act N+1".
 // ─────────────────────────────────────────────────────────────────────────────
 export const ITEM_SPENT_AFTER_ACT: Record<string, number> = {
-  // Nell's pawn ticket is deliberately NOT listed. Watson keeps it for the
-  // whole game and it never resolves — that is the point of it.
+  // Both Act 0 papers are act-0-specific mementos: filed to Documents (see
+  // the filed_<objectId> mechanism in GameEngine.ts) the moment they were
+  // taken, so dropping them from live inventory here loses nothing — they
+  // stay reviewable in the Documents tab for the rest of the game.
+  "Nell's Pawn Ticket": 0,
+  "A Subscriber's Card": 0,
   // The account is Act 1 business only — spent once Act 1 closes.
   "Hutchinson's Account (Watson's note)": 1,
 };
