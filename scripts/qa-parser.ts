@@ -481,21 +481,59 @@ const INTENT_FIXTURES: IntentFixture[] = [
   // nells_workbox alias in intentParser.ts (longer than "box", so "longest
   // alias wins" keeps "the box" still resolving to parcel_box at Lusk
   // Office). Both "workbox" and "workbasket" now resolve correctly, so both
-  // get permanent coverage below.
-  { scene: { location: 'baker_street', act: 0 }, input: 'open the workbox',
+  // get permanent coverage below. nells_workbox is gated by OBJECT_VISIBILITY
+  // behind world_event_kemp_arrives, and needsAiParse's soft-miss check now
+  // covers OPEN too (see below), so the flag has to be set here or these
+  // clean resolutions would misread as an unexpected AI-route miss.
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'open the workbox',
     expect: { type: 'open', targetId: 'nells_workbox' } },
-  { scene: { location: 'baker_street', act: 0 }, input: 'look inside the workbox',
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'look inside the workbox',
     expect: { type: 'open', targetId: 'nells_workbox' } },
-  { scene: { location: 'baker_street', act: 0 }, input: 'unlatch the workbox',
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'unlatch the workbox',
     expect: { type: 'open', targetId: 'nells_workbox' } },
-  { scene: { location: 'baker_street', act: 0 }, input: 'open the workbasket',
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'open the workbasket',
     expect: { type: 'open', targetId: 'nells_workbox' } },
-  { scene: { location: 'baker_street', act: 0 }, input: 'look inside the workbasket',
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'look inside the workbasket',
     expect: { type: 'open', targetId: 'nells_workbox' } },
-  { scene: { location: 'baker_street', act: 0 }, input: 'look in the workbasket',
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'look in the workbasket',
     expect: { type: 'open', targetId: 'nells_workbox' } },
-  { scene: { location: 'baker_street', act: 0 }, input: 'unlatch the workbasket',
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'unlatch the workbasket',
     expect: { type: 'open', targetId: 'nells_workbox' } },
+  // The fifth instance of this alias-collision class: the game's OWN hint
+  // text for the workbox objective says "the tin box she brought with her"
+  // (hints.ts), and nells_letters's own EXAMINE text calls itself "Eleven
+  // letters" — but "the tin box" / "the box" / "the letters" all resolve to
+  // the wrong, unrelated Act 4/5 objects (parcel_box / from_hell_letter) via
+  // the existing objectAliases table. Unlike "workbox", a literal alias can't
+  // fix this: "the box" legitimately means parcel_box at Lusk Office and
+  // nells_workbox at Baker Street — scene-blind aliases can't disambiguate
+  // that. Fixed instead by extending needsAiParse's soft-miss check (already
+  // used by EXAMINE to catch "resolved to a real object that isn't actually
+  // here") to also cover OPEN and READ, so these route to the AI's
+  // location-scoped candidate list rather than silently misresolving.
+  // These are "via AI" fixtures (needsAiParse now returns true at Baker
+  // Street, so parseIntent's raw — wrong — resolution is never asserted
+  // offline here); if the soft-miss fix ever regresses, these fall back into
+  // the offline-resolved bucket and fail there, since the offline intent's
+  // targetId would then be the wrong object.
+  { scene: { location: 'baker_street', act: 0 }, input: 'open the tin box',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'open the box',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'read the letters',
+    expect: { type: 'read', targetId: 'nells_letters' } },
+  // Non-regression: "the box" legitimately IS parcel_box at Lusk Office (Act
+  // 4/5) — the soft-miss check must only fire when the resolved target is
+  // ABSENT from the current scene, not when it's genuinely here. Offline.
+  { scene: { location: 'lusk_office', act: 4 }, input: 'open the box',
+    expect: { type: 'open', targetId: 'parcel_box' } },
   // Act 0's withhold branch (KEEP_PHRASES) — offline. parseIntent resolves
   // this deterministically to type:'other' with the phrase itself as
   // targetRaw, and needsAiParse now carves out a KEEP_PHRASES exception (see

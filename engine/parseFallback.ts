@@ -17,14 +17,23 @@ import { visibleInteractables } from './visibility';
 // Verb intents that carry a target phrase; a non-empty phrase with no resolved
 // id is a miss the AI parse can recover.
 const VERBS_NEEDING_TARGET = new Set<ParsedIntent['type']>([
-  'move', 'talk', 'take', 'examine', 'use', 'show', 'read', 'drop',
+  'move', 'talk', 'take', 'examine', 'use', 'show', 'read', 'drop', 'open',
 ]);
+
+// Verb intents whose resolved target can be a valid-but-absent object — the
+// same "aliases are scene-blind" problem EXAMINE already guards against (see
+// the soft-miss check below). OPEN and READ can hit it too: "open the tin
+// box" / "read the letters" resolve to a real object id (parcel_box /
+// from_hell_letter) that simply isn't the one present at this location.
+// Scoped to exactly these two additional verbs per a confirmed finding —
+// not speculatively extended to take/show/use/drop without one.
+const SOFT_MISS_VERBS = new Set<ParsedIntent['type']>(['examine', 'open', 'read']);
 
 /**
  * Should this regex-parse result be routed through the AI parse?
- * Misses are: 'other', 'unresolved_target', verb-with-unresolved-target,
- * and the soft miss (resolved examine target that is neither here nor
- * carried).
+ * Misses are: 'other' (unless a confirmed KEEP_PHRASES match), 'unresolved_target',
+ * verb-with-unresolved-target, and the soft miss (an examine/open/read target that
+ * resolved to a real object id, but one that is neither present here nor carried).
  * Queries never route — world questions belong to narration.
  */
 export function needsAiParse(intent: ParsedIntent, location: string, inventory: string[], flags: Record<string, boolean>): boolean {
@@ -41,7 +50,7 @@ export function needsAiParse(intent: ParsedIntent, location: string, inventory: 
     (intent.targetRaw ?? '').trim() !== '' &&
     !intent.targetId
   ) return true;
-  if (intent.type === 'examine' && intent.targetId) {
+  if (SOFT_MISS_VERBS.has(intent.type) && intent.targetId) {
     const present = visibleInteractables(WHITECHAPEL_MANIFEST, location, flags);
     const t = intent.targetId;
     if (
