@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { MapPin, Briefcase, DoorOpen, User, Search, X, CloudFog, CloudDrizzle, CloudRain, Cloudy, Moon, Haze, type LucideIcon } from 'lucide-react';
-import { LOCATIONS, NPCS, NPC_ALIASES, OBJECT_DISPLAY_NAMES } from '../engine/gameData';
+import { LOCATIONS, NPCS, NPC_ALIASES, OBJECT_DISPLAY_NAMES, OBJECT_VISIBILITY, CONTAINER_CONTENTS } from '../engine/gameData';
 import type { ActWeather, WeatherCondition } from '../engine/gameData';
 import { INITIAL_NPC_STATES, NPC_DISPLAY_NAMES } from '../constants';
 import { NPCState } from '../types';
@@ -68,11 +68,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return exitData && exitData.act <= currentAct;
   });
 
-  // Objects of interest — same source data the narration line "**Objects of
-  // interest:** ..." is built from (engine/GameEngine.ts buildContext()).
-  const visibleObjects = (LOCATIONS[location]?.interactables || []).map(
-    id => OBJECT_DISPLAY_NAMES[id] || id
-  );
+  // Objects of interest — the same visibility rule the engine uses, so the
+  // sidebar can never list something the parser will not resolve. Containers
+  // render their revealed contents as children.
+  const visibleIds = (LOCATIONS[location]?.interactables || [])
+    .filter(id => {
+      const gate = OBJECT_VISIBILITY[id];
+      return !gate || flags[gate] === true;
+    });
+  const containedIds = new Set(Object.values(CONTAINER_CONTENTS).flat());
+  const visibleObjects = visibleIds
+    .filter(id => !containedIds.has(id))
+    .map(id => ({
+      name: OBJECT_DISPLAY_NAMES[id] || id,
+      // A container with no revealed contents is annotated as closed; one with
+      // children needs no marker, since the indentation already says it is open.
+      closed: !!CONTAINER_CONTENTS[id] && !visibleIds.some(c => CONTAINER_CONTENTS[id].includes(c)),
+      children: (CONTAINER_CONTENTS[id] || [])
+        .filter(c => visibleIds.includes(c))
+        .map(c => OBJECT_DISPLAY_NAMES[c] || c),
+    }));
 
   return (
     <div className={`
@@ -165,10 +180,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           {visibleObjects.length > 0 ? (
             <ul className="space-y-3">
-              {visibleObjects.map((name, idx) => (
-                <li key={idx} className="flex items-center gap-3 text-lb-primary opacity-90">
-                  <div className="w-1.5 h-1.5 rounded-full bg-lb-accent" />
-                  <span className="font-sans text-md">{name}</span>
+              {visibleObjects.map((obj, idx) => (
+                <li key={idx}>
+                  <div className="flex items-center gap-3 text-lb-primary opacity-90">
+                    <div className="w-1.5 h-1.5 rounded-full bg-lb-accent" />
+                    <span className="font-sans text-md">{obj.name}</span>
+                    {obj.closed && (
+                      <span className="font-sans text-sm italic text-lb-primary opacity-60">closed</span>
+                    )}
+                  </div>
+                  {obj.children.length > 0 && (
+                    <ul className="mt-3 ml-6 space-y-3">
+                      {obj.children.map((childName, cIdx) => (
+                        <li key={cIdx} className="flex items-center gap-3 text-lb-primary opacity-90">
+                          <div className="w-1.5 h-1.5 rounded-full border border-lb-accent" />
+                          <span className="font-sans text-md">{childName}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               ))}
             </ul>

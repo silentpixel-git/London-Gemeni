@@ -12,6 +12,8 @@ export type {
 export {
   LOCATIONS,
   OBJECT_DISPLAY_NAMES,
+  OBJECT_VISIBILITY,
+  CONTAINER_CONTENTS,
 } from './stories/whitechapel-1888/locations.js';
 
 export {
