@@ -47,22 +47,15 @@ export function resolveTake(story: StoryManifest, intent: ParsedIntent, session:
     );
   }
 
-  if (session.inventory.includes(inventoryItem)) {
-    return {
-      actionSuccess: true,
-      actionType: 'take',
-      discoveredClueIds: [],
-      aiContext: buildNarrationContext(story, intent, session, {
-        success: true,
-        actionDescription: `Watson checked his ${inventoryItem}.`,
-        actionResultNote: `SUCCESS — Watson already has ${inventoryItem} in his possession.`,
-        newClueDefs: [],
-      }),
-    };
-  }
+  // Already carrying it: still runs the same flag + act-progression logic as a
+  // fresh take (mirrors resolveOpen's alreadyOpen branch) — only the narration
+  // wording varies. Before this, re-taking a held item short-circuited before
+  // any flag logic ran, so a gate keyed on took_<loc>_<obj> could never open
+  // once EXAMINE had already auto-added the object to inventory.
+  const alreadyHeld = session.inventory.includes(inventoryItem);
 
   const { newClueIds, newClueDefs, medicalDelta, moralDelta } =
-    triggerClues(story, session.location, targetId, false, session.discoveredClueIds);
+    triggerClues(story, session.location, targetId, alreadyHeld, session.discoveredClueIds);
 
   const tookFlag = `took_${session.location}_${targetId}`;
   const flagsUpdate: Record<string, boolean> = { [tookFlag]: true };
@@ -71,7 +64,7 @@ export function resolveTake(story: StoryManifest, intent: ParsedIntent, session:
   return {
     actionSuccess: true,
     actionType: 'take',
-    inventoryAdd: [inventoryItem],
+    inventoryAdd: alreadyHeld ? undefined : [inventoryItem],
     flagsUpdate: { ...flagsUpdate, ...(actCheck.flagsUpdate || {}) },
     newAct: actCheck.newAct,
     gameOver: actCheck.gameOver,
@@ -80,10 +73,14 @@ export function resolveTake(story: StoryManifest, intent: ParsedIntent, session:
     moralPointsDelta: moralDelta || undefined,
     aiContext: buildNarrationContext(story, intent, session, {
       success: true,
-      actionDescription: `Watson took (a copy of) the ${objectName} for his records.`,
-      actionResultNote: `SUCCESS — ${inventoryItem} added to Watson's bag.`,
+      actionDescription: alreadyHeld
+        ? `Watson checked his ${inventoryItem}.`
+        : `Watson took (a copy of) the ${objectName} for his records.`,
+      actionResultNote: alreadyHeld
+        ? `SUCCESS — Watson already has ${inventoryItem} in his possession.`
+        : `SUCCESS — ${inventoryItem} added to Watson's bag.`,
       newClueDefs,
-      itemsGained: [inventoryItem],
+      itemsGained: alreadyHeld ? undefined : [inventoryItem],
     }),
   };
 }

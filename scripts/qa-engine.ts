@@ -2325,7 +2325,11 @@ function runTakeSetsFlag() {
     fail('blocked TAKE sets no took_ flag', JSON.stringify(blockedResult.flagsUpdate));
   }
 
-  // Taking something already held must not re-fire progression.
+  // Taking something already held must still set the took_ flag and run act
+  // progression (regression test: resolveTake's "already carrying it" branch
+  // used to short-circuit before any flag logic ran, so a gate keyed on
+  // took_<loc>_<obj> could never open once EXAMINE had auto-added the object
+  // to inventory first — exactly Act 0's own play order for the pawn ticket).
   const heldSnap = buildSnapshot({
     location: 'baker_street',
     currentAct: 0,
@@ -2333,10 +2337,17 @@ function runTakeSetsFlag() {
     flags: { world_event_kemp_arrives: true },
   });
   const heldResult = gameEngine.resolve(parseIntent('take the pawn ticket'), heldSnap);
-  if (heldResult.actionSuccess && heldResult.newAct === undefined) {
-    pass('re-taking a held item does not advance the act');
+  if (heldResult.actionSuccess && heldResult.flagsUpdate?.['took_baker_street_pawn_ticket'] === true) {
+    pass('re-taking a held item still sets took_baker_street_pawn_ticket');
   } else {
-    fail('re-taking a held item does not advance the act', JSON.stringify(heldResult.newAct));
+    fail('re-taking a held item still sets took_baker_street_pawn_ticket', JSON.stringify(heldResult.flagsUpdate));
+  }
+  // With only this one flag set of Act 0's six, the act itself must not
+  // advance yet — this assertion predates the fix and still holds.
+  if (heldResult.newAct === undefined) {
+    pass('re-taking a held item does not, by itself, advance the act');
+  } else {
+    fail('re-taking a held item does not, by itself, advance the act', JSON.stringify(heldResult.newAct));
   }
 }
 
@@ -2600,6 +2611,37 @@ function runKempChoice() {
   }
 }
 
+// ── Scenario: Act 0's full six-flag gate, played in its own hinted order ──────
+// Regression coverage for the softlock found in Task 10 review: EXAMINE
+// auto-adds a takeable object to inventory (examine.ts), and the pawn ticket's
+// EXAMINE gate flag (#2) fires before its TAKE gate flag (#5) in the intended
+// play order — so by the time the player reaches TAKE, the ticket is already
+// held. resolveTake's "already carrying it" branch used to short-circuit
+// before setting any flag or checking act progression, which meant
+// took_baker_street_pawn_ticket could never be set via the hinted order and
+// Act 0 was unwinnable. This scripts the exact intended sequence end-to-end
+// and asserts the act actually advances on the final action.
+function runAct0CompletesTheGate() {
+  console.log('\n=== Act 0 completes via its own six-flag gate, in hinted order ===');
+
+  let s = buildSnapshot({ location: 'baker_street', currentAct: 0, flags: { world_event_kemp_arrives: true } });
+  s = step('Act0Gate', s, 'ask mrs kemp about her sister', { expectSuccess: true, expectFlag: 'asked_mrs_kemp_about_kemp_sister_missing' });
+  s = step('Act0Gate', s, 'examine the ticket', { expectSuccess: true, expectFlag: 'examined_baker_street_pawn_ticket' });
+  s = step('Act0Gate', s, 'open the workbasket', { expectSuccess: true, expectFlag: 'opened_baker_street_nells_workbox' });
+  // The card must be examined (which auto-adds it, like every other takeable
+  // object) before it can be shown — SHOW requires the item in inventory.
+  s = step('Act0Gate', s, 'examine the card', { expectSuccess: true, expectFlag: 'examined_baker_street_charity_card' });
+  s = step('Act0Gate', s, 'show the card to holmes', { expectSuccess: true, expectFlag: 'showed_charity_card_to_holmes' });
+  // The ticket is already in inventory from the EXAMINE two steps back — this
+  // is the exact step that was broken.
+  s = step('Act0Gate', s, 'take the pawn ticket', { expectSuccess: true, expectFlag: 'took_baker_street_pawn_ticket' });
+  s = step('Act0Gate', s, 'ask holmes about the criminal classes', {
+    expectSuccess: true,
+    expectFlag: 'asked_holmes_about_holmes_crime_grown_dull',
+    expectAct: 1,
+  });
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 try {
@@ -2627,6 +2669,7 @@ try {
   runPresenceGating();
   runSafetyNetLadder();
   runKempChoice();
+  runAct0CompletesTheGate();
   runInventoryAwareness();
   runLivingWorld();
   runShowDative();
