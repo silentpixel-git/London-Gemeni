@@ -73,10 +73,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // render their revealed contents as children.
   const visibleIds = (LOCATIONS[location]?.interactables || [])
     .filter(id => {
+      // Mirrors visibleInteractables' gate check in engine/visibility.ts — keep in sync.
       const gate = OBJECT_VISIBILITY[id];
       return !gate || flags[gate] === true;
     });
-  const containedIds = new Set(Object.values(CONTAINER_CONTENTS).flat());
+  const containedIds = new Set(
+    Object.entries(CONTAINER_CONTENTS)
+      .filter(([containerId]) => visibleIds.includes(containerId))
+      .flatMap(([, contents]) => contents)
+  );
   const visibleObjects = visibleIds
     .filter(id => !containedIds.has(id))
     .map(id => ({

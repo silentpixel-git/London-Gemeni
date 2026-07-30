@@ -19,6 +19,7 @@ export function visibleInteractables(
 ): string[] {
   const all = story.locations[locationId]?.interactables ?? [];
   return all.filter(id => {
+    // Mirrored by components/Sidebar.tsx's own gate check — keep in sync.
     const gate = story.objectVisibility[id];
     return !gate || flags[gate] === true;
   });
