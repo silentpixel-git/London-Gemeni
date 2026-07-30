@@ -441,6 +441,13 @@ export const objectAliases: Record<string, string> = {
   'chalk': 'graffiti_wall',
   'apron': 'apron_fragment_location',
   'box': 'parcel_box',
+  // "workbox" is the game's own word for nells_workbox (see events.ts's Act 0
+  // world-event text) — its display name is "Nell's Workbasket" specifically
+  // to avoid "workbox" colliding with the 'box' alias above (see the comment
+  // in locations.ts), but that left "workbox" itself unrouted. Longer than
+  // "box", so "longest alias wins" already keeps "the box" resolving to
+  // parcel_box at Lusk Office untouched.
+  'workbox': 'nells_workbox',
   'reports': 'medical_reports',
   'forensic reports': 'medical_reports',
   'ticket': 'pawn_ticket',

@@ -7,7 +7,7 @@
  * The gateway op itself lives in server/parseAction.ts + server/aiCore.ts.
  */
 
-import type { ParsedIntent } from './intentParser';
+import { KEEP_PHRASES, type ParsedIntent } from './intentParser';
 import type { ParseCandidates, NPCState } from '../types';
 import { LOCATIONS, NPCS, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS } from './gameData';
 import { getPresentNpcIds, timePeriodFor } from './GameEngine';
@@ -28,7 +28,14 @@ const VERBS_NEEDING_TARGET = new Set<ParsedIntent['type']>([
  * Queries never route — world questions belong to narration.
  */
 export function needsAiParse(intent: ParsedIntent, location: string, inventory: string[], flags: Record<string, boolean>): boolean {
-  if (intent.type === 'other' || intent.type === 'unresolved_target') return true;
+  if (intent.type === 'other') {
+    // Already deterministically resolved via KEEP_PHRASES (Act 0's withhold
+    // choice) — nothing for the AI tier to add, and routing it there risks
+    // the model reinterpreting "keep the card" as a TAKE action instead
+    // (the charity card is a valid `take` candidate at that exact moment).
+    return !KEEP_PHRASES.includes(intent.targetRaw ?? '');
+  }
+  if (intent.type === 'unresolved_target') return true;
   if (
     VERBS_NEEDING_TARGET.has(intent.type) &&
     (intent.targetRaw ?? '').trim() !== '' &&

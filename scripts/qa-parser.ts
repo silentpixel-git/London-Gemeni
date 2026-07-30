@@ -472,15 +472,22 @@ const INTENT_FIXTURES: IntentFixture[] = [
     expect: { type: 'none' } },
   { scene: { location: 'mitre_square', act: 3 }, input: 'hum a quiet tune to steady my nerves',
     expect: { type: 'none' } },
-  // OPEN — all offline. Phrased against "workbasket" rather than "workbox":
-  // Nell's Workbox's display name is deliberately "Nell's Workbasket" (see
-  // locations.ts) so that "the box" doesn't shadow parcel_box — but that same
-  // deliberate avoidance means "workbox" itself contains "box" as a raw
-  // substring and resolves to the 'box' → parcel_box alias instead of this
-  // object. "look in the box" was tried and confirmed to hit that collision
-  // (resolves to parcel_box, not nells_workbox); "workbasket" is the phrasing
-  // that actually reaches nells_workbox, so all four OPEN_VERBS forms below
-  // use it instead.
+  // OPEN — all offline. "workbox" is the game's own word for this object (see
+  // events.ts's Act 0 world-event text: "a closed tin workbox"), but its
+  // display name is deliberately "Nell's Workbasket" (see locations.ts) so
+  // that "the box" doesn't shadow parcel_box — which left "workbox" itself
+  // unrouted (it contains "box" as a raw substring, so it fell through to the
+  // 'box' → parcel_box alias). Fixed by adding a dedicated 'workbox' →
+  // nells_workbox alias in intentParser.ts (longer than "box", so "longest
+  // alias wins" keeps "the box" still resolving to parcel_box at Lusk
+  // Office). Both "workbox" and "workbasket" now resolve correctly, so both
+  // get permanent coverage below.
+  { scene: { location: 'baker_street', act: 0 }, input: 'open the workbox',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'look inside the workbox',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'unlatch the workbox',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
   { scene: { location: 'baker_street', act: 0 }, input: 'open the workbasket',
     expect: { type: 'open', targetId: 'nells_workbox' } },
   { scene: { location: 'baker_street', act: 0 }, input: 'look inside the workbasket',
@@ -489,19 +496,14 @@ const INTENT_FIXTURES: IntentFixture[] = [
     expect: { type: 'open', targetId: 'nells_workbox' } },
   { scene: { location: 'baker_street', act: 0 }, input: 'unlatch the workbasket',
     expect: { type: 'open', targetId: 'nells_workbox' } },
-  // Act 0's withhold branch (KEEP_PHRASES) — offline, parseIntent resolves
+  // Act 0's withhold branch (KEEP_PHRASES) — offline. parseIntent resolves
   // this deterministically to type:'other' with the phrase itself as
-  // targetRaw. NOTE: needsAiParse forces every type:'other' intent to the
-  // AI tier unconditionally (see engine/parseFallback.ts), so this fixture
-  // will never appear in the offline-resolved count — it always lands in
-  // aiCases. And it can never be recovered there either: the AI tool-call
-  // schema (server/parseAction.ts) has no equivalent of "other" — its
-  // closest tool, no_action, only ever yields 'query' or null. In real play
-  // this is harmless (hooks/gameState/aiParse.ts falls back to the original
-  // regex intent when the AI declines), but the qa harness's tool-call pass
-  // tests the raw AI response only, so this fixture can only ever register
-  // as a miss if the hybrid pass is ever run with GEMINI_API_KEY set. It's
-  // included anyway per spec, to document the expected parseIntent() shape.
+  // targetRaw, and needsAiParse now carves out a KEEP_PHRASES exception (see
+  // engine/parseFallback.ts) so this stays on the free offline path rather
+  // than being routed to the AI tier, where the tool-calling schema has no
+  // equivalent of "other" and — worse — a `take` tool that could plausibly
+  // reinterpret "keep the card" as picking the card up instead of withholding
+  // it (the charity card is a valid `take` candidate at this exact moment).
   { scene: { location: 'baker_street', act: 0, inventory: ["A Subscriber's Card"] },
     input: 'keep the card',
     expect: { type: 'other', targetRaw: 'keep the card' } },
