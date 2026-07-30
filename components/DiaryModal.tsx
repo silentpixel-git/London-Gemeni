@@ -66,7 +66,7 @@ const EvidencePanel: React.FC<{ entries: DiaryEntry[] }> = ({ entries }) => {
   if (clues.length === 0) {
     return (
       <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
-        No evidence formally recorded yet.
+        Watson has found nothing yet he would call evidence.
       </p>
     );
   }
