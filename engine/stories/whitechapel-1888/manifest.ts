@@ -91,6 +91,19 @@ const ACT_SAFETY_NETS: ActSafetyNet[] = [
       'She waits. Watson has the card, and Holmes has given her the district but not the address.',
     ],
   },
+  {
+    act: 0,
+    requiresNpcPresent: 'holmes',
+    when: s => s.currentAct === 0
+      && s.flags['world_event_kemp_arrives'] === true
+      && !s.flags['opened_baker_street_nells_workbox'],
+    instruction: [
+      'Holmes, without turning round: she has not brought everything she brought for nothing. He does not name the box.',
+      'Holmes indicates the table. "The table, Watson." Nothing further.',
+      'Holmes, drier: "The box."',
+      'Holmes, drier still: "The box is not locked, Watson." He will say versions of this indefinitely and will never open it himself.',
+    ],
+  },
 ];
 
 export const WHITECHAPEL_MANIFEST: StoryManifest = {

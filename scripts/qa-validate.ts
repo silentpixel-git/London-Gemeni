@@ -172,6 +172,21 @@ function flagUnreachableReason(flag: string): string | null {
     return 'no known location id matches this opened_ flag';
   }
 
+  // took_<locationId>_<objectId> — set by the TAKE resolver (engine/resolvers/items.ts)
+  // when a portable object at that location is taken.
+  if (flag.startsWith('took_')) {
+    for (const locId of locationIds) {
+      const prefix = `took_${locId}_`;
+      if (flag.startsWith(prefix)) {
+        const objId = flag.slice(prefix.length);
+        if (!LOCATIONS[locId].interactables.includes(objId)) return `no object "${objId}" at ${locId}`;
+        if (!TAKEABLE_OBJECTS[objId]) return `object "${objId}" exists at ${locId} but has no TAKEABLE_OBJECTS entry (not portable)`;
+        return null;
+      }
+    }
+    return 'no known location id matches this took_ flag';
+  }
+
   if (flag.startsWith('used_')) {
     const rest = flag.slice('used_'.length);
     const sep = rest.indexOf('_with_');
@@ -898,9 +913,23 @@ section('NPC approaches (Phase 5)');
       fail(`${label}: acts is ${a.acts ? `[${a.acts.join(', ')}]` : 'unset'}`,
         'an act beat must be pinned to exactly one act');
     }
-    if (a.requireFlags?.length || a.forbidFlags?.length) {
-      fail(`${label}: carries ${a.requireFlags?.length ? 'requireFlags' : 'forbidFlags'}`,
-        'a guaranteed beat must not depend on a flag that could withhold or permanently disable it');
+    if (a.forbidFlags?.length) {
+      fail(`${label}: carries forbidFlags`,
+        'a guaranteed beat must not depend on a flag that could permanently disable it');
+    }
+    if (a.requireFlags?.length) {
+      // requireFlags is allowed IFF every flag is also required by that act's
+      // own ACT_PROGRESSION gate — the act cannot complete without them being
+      // set, so the beat is still guaranteed to fire before the act ends, just
+      // not necessarily from turn one. Anything outside that gate could
+      // withhold the beat indefinitely and is still disallowed.
+      const act = a.acts?.[0];
+      const actGateFlags: string[] = (act !== undefined ? ACT_PROGRESSION[act]?.requireFlags : undefined) ?? [];
+      const notGuaranteed = a.requireFlags.filter(f => !actGateFlags.includes(f));
+      if (notGuaranteed.length) {
+        fail(`${label}: carries requireFlags not guaranteed by act ${act}'s own gate`,
+          `[${notGuaranteed.join(', ')}] — a guaranteed beat's requireFlags must all be required by ACT_PROGRESSION[${act}], otherwise the beat could be withheld indefinitely`);
+      }
     }
     if (a.timePeriods?.length) {
       fail(`${label}: restricted to periods [${a.timePeriods.join(', ')}]`,

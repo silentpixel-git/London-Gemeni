@@ -29,23 +29,29 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
   }
 }
 
-// 2) Act 0 prerequisite chain: ticket not yet in hand → examine it, not show it.
+// 2) Act 0 prerequisite chain: workbox unopened → the card is not yet showable.
 {
   const before = state({ currentAct: 0, location: 'baker_street',
-    npcStates: { holmes: { currentLocation: 'baker_street', status: 'alive' } } });
+    flags: { world_event_kemp_arrives: true },
+    npcStates: {
+      holmes: { currentLocation: 'baker_street', status: 'alive' },
+      mrs_kemp: { currentLocation: 'baker_street', status: 'alive' },
+    } });
   const pool = OBJECTIVES.filter(o => o.act === 0 && !o.done(before) && o.available(before));
   const ids = pool.map(o => o.id);
-  ids.includes('a0_ticket_examine') && !ids.includes('a0_ticket_show')
-    ? pass('act0: examine-ticket available, show-ticket not (no ticket yet)')
+  ids.includes('a0_ticket') && ids.includes('a0_workbox') && !ids.includes('a0_card')
+    ? pass('act0: examine-ticket and examine-workbox available, show-card not (workbox unopened)')
     : fail('act0 prereq gating wrong', ids.join(','));
 
   const after = state({ currentAct: 0, location: 'baker_street',
-    inventory: ["Nell's Pawn Ticket"],
-    flags: { examined_baker_street_pawn_ticket: true },
-    npcStates: { holmes: { currentLocation: 'baker_street', status: 'alive' } } });
+    flags: { world_event_kemp_arrives: true, opened_baker_street_nells_workbox: true },
+    npcStates: {
+      holmes: { currentLocation: 'baker_street', status: 'alive' },
+      mrs_kemp: { currentLocation: 'baker_street', status: 'alive' },
+    } });
   const ids2 = OBJECTIVES.filter(o => o.act === 0 && !o.done(after) && o.available(after)).map(o => o.id);
-  ids2.includes('a0_ticket_show') && !ids2.includes('a0_ticket_examine')
-    ? pass('act0: with ticket in hand, show-ticket available, examine done')
+  ids2.includes('a0_card') && !ids2.includes('a0_workbox')
+    ? pass('act0: with workbox opened, show-card available, examine-workbox done')
     : fail('act0 show gating wrong', ids2.join(','));
 }
 

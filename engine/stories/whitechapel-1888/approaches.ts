@@ -130,6 +130,7 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
     npcId: 'holmes',
     locationId: 'any',
     acts: [0],
+    requireFlags: ['showed_charity_card_to_holmes', 'took_baker_street_pawn_ticket'],
     actBeat: true,
     kind: 'mundane',
     text: 'Holmes crosses to the open window and stands looking down at the holiday crowd. The whole city is turned out of doors tonight, he says, a hundred thousand of them at the least, and a man might walk through the whole of that and not one soul afterwards able to say he had passed. He says it as a complaint against the tedium of scale, and turns back into the room without waiting to be answered.',

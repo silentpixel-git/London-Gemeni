@@ -7,7 +7,6 @@ import { NPCS } from './npcs';
 export type { HintState, HintObjective } from '../types';
 
 // ── Inventory display names (must match TAKEABLE_OBJECTS values in clues.ts) ──
-const PAWN_TICKET = "Nell's Pawn Ticket";
 const FROM_HELL = 'From Hell Letter (transcript)';
 const FORENSIC_NOTE = "Assistant's Forensic Note (copy)";
 const HUTCH_ACCOUNT = "Hutchinson's Account (Watson's note)";
@@ -44,28 +43,36 @@ function npcStep(s: HintState, locId: string, npcId: string): boolean {
 //    prerequisite steps that unlock show/use gates. Subjects stay neutral. ──────
 export const OBJECTIVES: HintObjective<StoryFlag>[] = [
   // ----- Act 0: The Bank Holiday -----
-  // Subjects must stay neutral AND must not promise a payoff: the caller's
-  // sister is never found and the ticket never resolves.
   { id: 'a0_kemp', act: 0, locationId: 'baker_street', verb: 'talk',
-    subject: 'the woman waiting in the sitting room, about why she has come',
+    subject: 'the caller, about why she has come',
     flag: 'asked_mrs_kemp_about_kemp_sister_missing',
     done: s => flag(s, 'asked_mrs_kemp_about_kemp_sister_missing'),
     available: s => npcStep(s, 'baker_street', 'mrs_kemp') },
-  { id: 'a0_ticket_examine', act: 0, locationId: 'baker_street', verb: 'examine',
+  { id: 'a0_ticket', act: 0, locationId: 'baker_street', verb: 'examine',
     subject: 'the ticket she has laid on the table',
     flag: 'examined_baker_street_pawn_ticket',
-    done: s => hasItem(s, PAWN_TICKET) || flag(s, 'examined_baker_street_pawn_ticket'),
-    available: s => locationReachable(s, 'baker_street') },
-  { id: 'a0_ticket_show', act: 0, locationId: 'baker_street', verb: 'show',
-    subject: 'the ticket, put in front of Holmes to see what he makes of it',
-    flag: 'showed_pawn_ticket_to_holmes',
-    done: s => flag(s, 'showed_pawn_ticket_to_holmes'),
-    available: s => hasItem(s, PAWN_TICKET) && npcStep(s, 'baker_street', 'holmes') },
-  { id: 'a0_holmes', act: 0, locationId: 'baker_street', verb: 'talk',
-    subject: 'Holmes about his complaint that crime has grown dull',
+    done: s => flag(s, 'examined_baker_street_pawn_ticket'),
+    available: s => flag(s, 'world_event_kemp_arrives') },
+  { id: 'a0_workbox', act: 0, locationId: 'baker_street', verb: 'examine',
+    subject: 'the tin box she brought with her',
+    flag: 'opened_baker_street_nells_workbox',
+    done: s => flag(s, 'opened_baker_street_nells_workbox'),
+    available: s => flag(s, 'world_event_kemp_arrives') },
+  { id: 'a0_card', act: 0, locationId: 'baker_street', verb: 'show',
+    subject: 'the printed card from the box, to Holmes',
+    flag: 'showed_charity_card_to_holmes',
+    done: s => flag(s, 'showed_charity_card_to_holmes'),
+    available: s => flag(s, 'opened_baker_street_nells_workbox') && npcStep(s, 'baker_street', 'holmes') },
+  { id: 'a0_take_ticket', act: 0, locationId: 'baker_street', verb: 'examine',
+    subject: 'the ticket, left behind on the table',
+    flag: 'took_baker_street_pawn_ticket',
+    done: s => flag(s, 'took_baker_street_pawn_ticket'),
+    available: s => flag(s, 'showed_charity_card_to_holmes') },
+  { id: 'a0_dull', act: 0, locationId: 'baker_street', verb: 'talk',
+    subject: 'Holmes, about the state of modern crime',
     flag: 'asked_holmes_about_holmes_crime_grown_dull',
     done: s => flag(s, 'asked_holmes_about_holmes_crime_grown_dull'),
-    available: s => npcStep(s, 'baker_street', 'holmes') },
+    available: s => flag(s, 'took_baker_street_pawn_ticket') && npcStep(s, 'baker_street', 'holmes') },
 
   // ----- Act 1: The Last Murder -----
   { id: 'a1_hutchinson', act: 1, locationId: 'dorset_street', verb: 'talk',
