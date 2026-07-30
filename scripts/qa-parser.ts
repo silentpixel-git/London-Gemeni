@@ -360,18 +360,28 @@ function runToolCallValidationChecks(): void {
 // A fixture that the regex resolves is asserted offline (fast-path proof);
 // one that misses is asserted through the tool-call pass (gateway tier).
 interface IntentFixture {
-  scene: { location: string; act: number; inventory?: string[] };
+  // `flags` is optional and only needed when a fixture's outcome depends on
+  // OBJECT_VISIBILITY gating inside needsAiParse (e.g. an EXAMINE target that's
+  // hidden behind a world-event flag) — most fixtures don't need it.
+  scene: { location: string; act: number; inventory?: string[]; flags?: Record<string, boolean> };
   input: string;
   expect:
     // `topicRaw` applies to talk only: the subject text the parser must peel off
     // an "ask X about Y" command for the TALK resolver to match against the fact
     // graph. Asserting it here keeps the split independent of the story data.
-    | { type: 'move' | 'examine' | 'talk' | 'take' | 'read' | 'drop'; targetId: string; topicRaw?: string }
+    // `targetId` is optional so a bare "look" (look-around, no target) can be
+    // asserted too — intentMatches then requires got.targetId to be undefined.
+    | { type: 'move' | 'examine' | 'talk' | 'take' | 'read' | 'drop' | 'open'; targetId?: string; topicRaw?: string }
     | { type: 'show'; targetId: string; showTargetNpcId: string }
     | { type: 'deduce' }
     | { type: 'wait' }
     | { type: 'query' }
-    | { type: 'none' }; // AI must decline to act (no_action → null intent)
+    | { type: 'none' } // AI must decline to act (no_action → null intent)
+    // Act 0's withhold branch (KEEP_PHRASES, see intentParser.ts) — the regex
+    // parse resolves this deterministically, but needsAiParse routes every
+    // type:'other' intent to the AI tier unconditionally (see the fixtures
+    // below for why that tier can never actually confirm this one).
+    | { type: 'other'; targetRaw: string };
 }
 
 const INTENT_FIXTURES: IntentFixture[] = [
@@ -462,6 +472,53 @@ const INTENT_FIXTURES: IntentFixture[] = [
     expect: { type: 'none' } },
   { scene: { location: 'mitre_square', act: 3 }, input: 'hum a quiet tune to steady my nerves',
     expect: { type: 'none' } },
+  // OPEN — all offline. Phrased against "workbasket" rather than "workbox":
+  // Nell's Workbox's display name is deliberately "Nell's Workbasket" (see
+  // locations.ts) so that "the box" doesn't shadow parcel_box — but that same
+  // deliberate avoidance means "workbox" itself contains "box" as a raw
+  // substring and resolves to the 'box' → parcel_box alias instead of this
+  // object. "look in the box" was tried and confirmed to hit that collision
+  // (resolves to parcel_box, not nells_workbox); "workbasket" is the phrasing
+  // that actually reaches nells_workbox, so all four OPEN_VERBS forms below
+  // use it instead.
+  { scene: { location: 'baker_street', act: 0 }, input: 'open the workbasket',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'look inside the workbasket',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'look in the workbasket',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'unlatch the workbasket',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  // Act 0's withhold branch (KEEP_PHRASES) — offline, parseIntent resolves
+  // this deterministically to type:'other' with the phrase itself as
+  // targetRaw. NOTE: needsAiParse forces every type:'other' intent to the
+  // AI tier unconditionally (see engine/parseFallback.ts), so this fixture
+  // will never appear in the offline-resolved count — it always lands in
+  // aiCases. And it can never be recovered there either: the AI tool-call
+  // schema (server/parseAction.ts) has no equivalent of "other" — its
+  // closest tool, no_action, only ever yields 'query' or null. In real play
+  // this is harmless (hooks/gameState/aiParse.ts falls back to the original
+  // regex intent when the AI declines), but the qa harness's tool-call pass
+  // tests the raw AI response only, so this fixture can only ever register
+  // as a miss if the hybrid pass is ever run with GEMINI_API_KEY set. It's
+  // included anyway per spec, to document the expected parseIntent() shape.
+  { scene: { location: 'baker_street', act: 0, inventory: ["A Subscriber's Card"] },
+    input: 'keep the card',
+    expect: { type: 'other', targetRaw: 'keep the card' } },
+  { scene: { location: 'baker_street', act: 0, inventory: ["A Subscriber's Card"] },
+    input: 'say nothing',
+    expect: { type: 'other', targetRaw: 'say nothing' } },
+  // Regression guard: bare "look" (no target) stays a look-around EXAMINE.
+  { scene: { location: 'baker_street', act: 0 }, input: 'look',
+    expect: { type: 'examine' } },
+  // Regression guard: "look at" stays EXAMINE — must not be swallowed by the
+  // OPEN dispatch block, which also matches "look in"/"look inside" phrasings.
+  // nells_boots is gated by OBJECT_VISIBILITY behind world_event_kemp_arrives,
+  // so the flag has to be set here or needsAiParse reads the gated object as
+  // an unexpected AI-route miss rather than testing the EXAMINE/OPEN split.
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'look at the boots',
+    expect: { type: 'examine', targetId: 'nells_boots' } },
 ];
 
 function intentMatches(got: ParsedIntentResult, exp: IntentFixture['expect']): boolean {
@@ -470,6 +527,7 @@ function intentMatches(got: ParsedIntentResult, exp: IntentFixture['expect']): b
   if (exp.type === 'query') return got.type === 'query';
   if (exp.type === 'deduce') return got.type === 'deduce';
   if (exp.type === 'wait') return got.type === 'wait';
+  if (exp.type === 'other') return got.type === 'other' && got.targetRaw === exp.targetRaw;
   if (got.type !== exp.type) return false;
   if (got.targetId !== exp.targetId) return false;
   if (exp.type === 'show' && got.showTargetNpcId !== exp.showTargetNpcId) return false;
@@ -487,7 +545,8 @@ async function runIntentFixtures(): Promise<void> {
   for (const fx of INTENT_FIXTURES) {
     const intent = parseIntent(fx.input);
     const inv = fx.scene.inventory ?? [];
-    if (!needsAiParse(intent, fx.scene.location, inv, {})) {
+    const flags = fx.scene.flags ?? {};
+    if (!needsAiParse(intent, fx.scene.location, inv, flags)) {
       offTotal++;
       if (intentMatches(intent, fx.expect)) offHit++;
       else offMisses.push(`  [off ] "${fx.input}" → ${intent.type}/${intent.targetId ?? '-'} (want ${fx.expect.type})`);
