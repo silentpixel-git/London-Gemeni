@@ -130,6 +130,17 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
     npcId: 'holmes',
     locationId: 'any',
     acts: [0],
+    // Once both flags are true, this still only fires on a full-mode turn (a
+    // move or a bare LOOK) — selectApproach (engine/approaches.ts) is
+    // deliberately full-mode-only, after an earlier version that also fired on
+    // TALK turns silently dropped the beat's prose (the one-shot flag burned,
+    // but compact mode's narration budget was already spent elsewhere). The
+    // strict minimal path through Act 0's gate — show card, take ticket, talk
+    // to Holmes about crime — has no full-mode turn between the gate closing
+    // and the act completing, so a player who never pauses to LOOK can finish
+    // Act 0 without seeing this beat. Accepted tradeoff, not a bug: do not add
+    // scaffolding to force it into the minimal path, and do not touch
+    // selectApproach's full-mode gating to "fix" this.
     requireFlags: ['showed_charity_card_to_holmes', 'took_baker_street_pawn_ticket'],
     actBeat: true,
     kind: 'mundane',

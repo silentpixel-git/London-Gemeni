@@ -2259,21 +2259,31 @@ console.log('\n── NPC approaches ──');
   }
 
   // 15. Holmes authored approach (production data, not a synthetic fixture):
-  // 'holmes_invisible_in_a_crowd' (acts: [0], locationId: 'any') should fire on
-  // a fresh Act 0 look-around at Baker Street — Holmes is a follows_watson NPC
-  // stored at baker_street from game start (see INITIAL_NPC_STATES).
-  // Pre-consume baker_street's 2 authored vignettes so an unfired vignette
-  // doesn't win over the approach this turn (case 9's concern, not this one).
+  // 'holmes_invisible_in_a_crowd' (acts: [0], locationId: 'any') is gated on
+  // Act 0's own gate flags (showed_charity_card_to_holmes and
+  // took_baker_street_pawn_ticket — see approaches.ts's comment there) and,
+  // once those are true, fires on the next full-mode turn (a move or bare
+  // LOOK; selectApproach is deliberately full-mode-only) — Holmes is a
+  // follows_watson NPC stored at baker_street from game start (see
+  // INITIAL_NPC_STATES). Pre-consume baker_street's 2 authored vignettes so an
+  // unfired vignette doesn't win over the approach this turn (case 9's
+  // concern, not this one). This is the permanent positive-case guard: the
+  // beat must still fire on a LOOK once the gate is satisfied, even though the
+  // strict minimal path through Act 0 (show → take → talk) never itself
+  // produces a full-mode turn after the gate closes.
   const holmesApproachSnap = buildSnapshot({
     currentAct: 0, location: 'baker_street',
-    flags: { vignette_baker_street_0: true, vignette_baker_street_1: true },
+    flags: {
+      vignette_baker_street_0: true, vignette_baker_street_1: true,
+      showed_charity_card_to_holmes: true, took_baker_street_pawn_ticket: true,
+    },
   });
   r = gameEngine.resolve(parseIntent('look'), holmesApproachSnap);
   const apHolmes = (r.aiContext as any).npcApproach;
   if (apHolmes?.npcId === 'holmes' && apHolmes.text?.includes('holiday crowd') &&
       r.flagsUpdate?.['approach_holmes_invisible_in_a_crowd']) {
-    pass('authored Holmes approach (holmes_invisible_in_a_crowd) fires on a fresh Act 0 look-around');
-  } else fail('Holmes approach fires', JSON.stringify({ apHolmes, flags: r.flagsUpdate }));
+    pass('authored Holmes approach (holmes_invisible_in_a_crowd) fires on a full-mode LOOK once its gate flags are set');
+  } else fail('Holmes approach fires once its gate flags are set', JSON.stringify({ apHolmes, flags: r.flagsUpdate }));
 
   // 16. Holmes authored approach in the acts-2/3 forbidFlags band:
   // 'holmes_watson_fatigue' (acts: [2], forbidFlags:
