@@ -19,7 +19,7 @@ export const DECISION_DIARY: Record<string, DecisionDiaryEntry> = {
   read_pawn_ticket: {
     flag: 'examined_baker_street_pawn_ticket',
     name: 'The Pawn Ticket',
-    diaryNote: "The ticket on the table is for a pair of boots, pledged three weeks ago at a shop in Pentonville and redeemed, by her own hand, this very morning. I do not yet know what to make of a woman who parts with her boots and then buys them back before she has any cause to think her sister is missing.",
+    diaryNote: "The ticket on the table is for a pair of boots, pledged a week ago at a shop in Pentonville and redeemed, by her own hand, this very morning, before she had any cause yet to think her sister missing. I do not know what to make of the timing of it.",
   },
   the_reconstruction: {
     flag: 'showed_charity_card_to_holmes',
