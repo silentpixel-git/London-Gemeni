@@ -255,6 +255,11 @@ export interface ShowInteraction {
    *  Unmet → blocked with blockedNote (authored, narrator voice). */
   requireFlags?: string[];
   blockedNote?: string;
+  /** Extra words beyond the normal compact-mode ceiling, for a resultNote long
+   *  enough that the standard budget would force cutting its essential content
+   *  (e.g. a full reconstruction). Additive to the existing calculation, not a
+   *  replacement — most interactions should never need this. */
+  extraWordBudget?: number;
 }
 
 export interface UseCombination {

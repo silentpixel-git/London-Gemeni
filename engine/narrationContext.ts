@@ -35,6 +35,10 @@ export interface NarrationOutcome {
   // that named a subject; a bare TALK sets neither and gets suggestedTopics.
   topicFact?: { label: string; statement: string };
   topicMissed?: string;
+  /** Extra words beyond the normal compact-mode ceiling — threaded from an
+   *  authored ShowInteraction.extraWordBudget when its resultNote is long
+   *  enough that the standard budget would force cutting essential content. */
+  extraWordBudget?: number;
 }
 
 /** An NPC's introduction mode; absent = self-introduces on first TALK. */
@@ -383,6 +387,7 @@ export function buildNarrationContext(
     targetNpcInterview,
     narrationMode,
     blockquoteHint,
+    extraWordBudget: outcome.extraWordBudget,
     npcScriptedLines: npcScriptedLines.length > 0 ? npcScriptedLines : undefined,
     // Pass introduction flags so useGameState can update introducedNpcs
     _introductionFlagsUpdate: Object.keys(introductionFlagsUpdate).length > 0

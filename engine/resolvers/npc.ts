@@ -153,6 +153,7 @@ export function resolveShow(story: StoryManifest, intent: ParsedIntent, session:
           actionResultNote: interaction.resultNote,
           newClueDefs,
           targetNpcId: npcId,
+          extraWordBudget: interaction.extraWordBudget,
         }),
       };
     }

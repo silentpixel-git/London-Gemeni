@@ -399,6 +399,10 @@ export interface NarrationContext {
   //   'inner_thought' — Watson's fleeting thought/memory triggered by the action (compact ~50%)
   //   'none'          — omit blockquote this turn (compact ~50%)
   blockquoteHint: 'world_event' | 'inner_thought' | 'none';
+  // Extra words beyond the normal compact-mode ceiling, for a resultNote long
+  // enough that the standard budget would force cutting its essential content
+  // (e.g. a full reconstruction). Additive, opt-in — most turns leave this unset.
+  extraWordBudget?: number;
 }
 
 /** Summary passed to AIService.generateJournalEntry() when an act closes */

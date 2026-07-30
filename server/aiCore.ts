@@ -365,7 +365,8 @@ ${structure}`;
   // A topic-scoped answer IS the turn — it has a specific fact to convey in
   // character, which does not fit the budget sized for a general exchange.
   const compactWordLimit = (ctx.blockquoteHint !== 'none' ? 130 : 100) +
-    (ctx.targetNpcInterview?.topic ? 50 : 0);
+    (ctx.targetNpcInterview?.topic ? 50 : 0) +
+    (ctx.extraWordBudget ?? 0);
   let compactPrompt = `=== NARRATION MODE: COMPACT ===
 Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line. Do NOT include any Markdown heading. NO act header. NO location description. NO exits listing.
 ${dayStepSection}${temporalSection}
