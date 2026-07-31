@@ -2517,6 +2517,68 @@ function runPresenceGating() {
   }
 }
 
+// ── Scripted beats: one blockquote per turn ──────────────────────────────────
+
+function runScriptedBeats() {
+  console.log('\n=== SCENARIO: scripted opening beats ===');
+
+  // Walk Act 0's authored opening the way the hook does: turnCount is 1-based
+  // for player actions, and each turn's flags carry forward.
+  let flags: Record<string, boolean> = {};
+  const seen: Array<{ turn: number; style?: string; hint: string }> = [];
+  for (let turn = 1; turn <= 5; turn++) {
+    const r = gameEngine.resolve(
+      parseIntent('examine the violin case'),
+      buildSnapshot({ location: 'baker_street', currentAct: 0, flags, turnCount: turn }),
+    );
+    const beat = r.aiContext.scriptedBeat;
+    seen.push({ turn, style: beat?.style, hint: r.aiContext.blockquoteHint });
+    flags = { ...flags, ...(r.flagsUpdate ?? {}) };
+  }
+
+  // Turns 1-4 each carry exactly one beat; turn 5 carries none.
+  const styles = seen.map(x => x.style ?? '-').join(',');
+  styles === 'prose,blockquote,blockquote,blockquote,-'
+    ? pass('ScriptedBeats: one beat per turn, in authored order, then none')
+    : fail('ScriptedBeats: wrong beat sequence', styles);
+
+  // The whole point: a blockquote beat must suppress the model's own, or the
+  // turn renders two quoted blocks stacked together.
+  const doubled = seen.filter(x => x.style === 'blockquote' && x.hint !== 'none');
+  doubled.length === 0
+    ? pass('ScriptedBeats: blockquote beats force blockquoteHint=none (never two per turn)')
+    : fail('ScriptedBeats: blockquote beat left the model free to add a second',
+        JSON.stringify(doubled));
+
+  // A prose beat leaves the turn's own blockquote budget alone.
+  const proseTurn = seen.find(x => x.style === 'prose');
+  proseTurn
+    ? pass('ScriptedBeats: prose beat does not consume the turn\'s blockquote')
+    : fail('ScriptedBeats: no prose beat found');
+
+  // Beat 4 admits Mrs. Kemp on the SAME turn it fires — presence and object
+  // visibility both read the post-beat flags.
+  const arrival = gameEngine.resolve(
+    parseIntent('examine the violin case'),
+    buildSnapshot({
+      location: 'baker_street', currentAct: 0, turnCount: 4,
+      flags: {
+        beat_act0_holmes_reads_the_crowd: true,
+        beat_act0_holmes_notices_the_caller: true,
+        beat_act0_the_bell: true,
+      },
+      previousNpcIds: ['holmes'],
+    }),
+  );
+  arrival.aiContext.npcsPresent.some(n => n.npcId === 'mrs_kemp')
+    ? pass('ScriptedBeats: the admitting beat puts Mrs. Kemp in the room the same turn')
+    : fail('ScriptedBeats: caller not present on her arrival turn',
+        JSON.stringify(arrival.aiContext.npcsPresent));
+  arrival.aiContext.npcsArrived?.includes('Mrs. Kemp')
+    ? pass('ScriptedBeats: arrival notice fires on the same turn')
+    : fail('ScriptedBeats: no arrival notice', JSON.stringify(arrival.aiContext.npcsArrived));
+}
+
 function runSafetyNetLadder() {
   console.log('\n=== Escalating safety nets ===');
 
@@ -2678,6 +2740,7 @@ try {
   runOpenVerb();
   runPresenceGating();
   runSafetyNetLadder();
+  runScriptedBeats();
   runKempChoice();
   runAct0CompletesTheGate();
   runInventoryAwareness();

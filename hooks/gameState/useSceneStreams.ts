@@ -35,6 +35,10 @@ export interface SceneStreamsDeps {
   setFlags: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   scrollRef: React.RefObject<HTMLDivElement>;
   captureLocationArrival: (locationId: string, actNumber: number, timeLabel: string) => void;
+  // Seeded by every scene entry point (opening / act arrival / resume) so the
+  // first ordinary turn after one diffs against the room the player was just
+  // shown, rather than against nothing.
+  previousNpcIdsRef: React.MutableRefObject<string[] | undefined>;
 }
 
 export function useSceneStreams(deps: SceneStreamsDeps) {
@@ -55,6 +59,7 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
     setFlags,
     scrollRef,
     captureLocationArrival,
+    previousNpcIdsRef,
   } = deps;
 
   const hasGeneratedOpening = useRef(false);
@@ -114,6 +119,9 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
         rumorEvents: {},
       };
       const result = gameEngine.resolve(intent, snapshot);
+      // Seed the presence baseline: the next ordinary turn diffs against
+      // the room this scene just showed the player.
+      previousNpcIdsRef.current = result.aiContext.npcsPresent.map(n => n.npcId);
       commitVignetteFlags(result.flagsUpdate, {}, activeInvestigation?.id);
       locationLabel = result.aiContext.locationName;
       setHistory(prev => {
@@ -127,7 +135,13 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
       // withholds everything: on 6 August nothing has happened, and the closing
       // clause must read as ordinary on a first play and as dread on a second.
       // Do NOT reintroduce a date, a victim, or the word Ripper here.
-      const OPENING_FIXED_LINE = "I called at Baker Street on the evening of the sixth of August, 1888. It was the Bank Holiday, half of London was out of doors, and nothing whatever had happened yet.\n\n";
+      // Holmes is SILENT here. His demonstration is the first scripted beat
+      // (scriptedBeats.ts, turn 1) rather than part of the opening: with the
+      // whole exchange here, the game met the player with a wall of authored
+      // dialogue before they had typed anything. The opening now just puts him
+      // at the window and lets the player move first.
+      const OPENING_FIXED_LINE = "I called at Baker Street on the evening of the sixth of August, 1888. It was the Bank Holiday, half of London was out of doors, and nothing whatever had happened yet.\n\n" +
+        "Holmes stood at the left-hand window with his back to the room, reading the pavement below as another man might read a newspaper.\n\n";
       let lastText = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening', blockquoteHint: 'none' })) {
         if (update.narrative) {
@@ -190,6 +204,9 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
         rumorEvents: {},
       };
       const result = gameEngine.resolve(intent, snapshot);
+      // Seed the presence baseline: the next ordinary turn diffs against
+      // the room this scene just showed the player.
+      previousNpcIdsRef.current = result.aiContext.npcsPresent.map(n => n.npcId);
       commitVignetteFlags(result.flagsUpdate, resume.flags, resume.investigationId);
       const locationLabel = result.aiContext.locationName;
       setHistory(prev => {
@@ -263,6 +280,9 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
         rumorEvents: {},
       };
       const result = gameEngine.resolve(intent, snapshot);
+      // Seed the presence baseline: the next ordinary turn diffs against
+      // the room this scene just showed the player.
+      previousNpcIdsRef.current = result.aiContext.npcsPresent.map(n => n.npcId);
       commitVignetteFlags(result.flagsUpdate, flags, activeInvestigation?.id);
       const locationLabel = result.aiContext.locationName;
       setHistory(prev => {

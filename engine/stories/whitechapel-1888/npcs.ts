@@ -113,7 +113,7 @@ const NPCS_DATA = {
     // NOTE: `description` is authoring metadata and is NOT sent to the AI (only
     // role, speakingStyle, personality and the fact envelope are). Anything the
     // narration must obey belongs in `role` or `personality`, not here.
-    description: 'A woman of perhaps forty-five who has come across London on an omnibus to ask a favour she does not expect to be granted. Her sister Ellen, called Nell, has not been seen in nine days. She is plain and tired and entirely without self-pity. She states her business, answers what she is asked, and does not plead.',
+    description: 'A woman of about four and thirty who has come across London on an omnibus to ask a favour she does not expect to be granted. Her sister Ellen, called Nell — eight years her junior — has not been seen in six days. She is plain and tired and entirely without self-pity. She states her business, answers what she is asked, and does not plead.',
     speakingStyle: 'Plain and unhurried. Answers the question put to her and stops. She does not embroider and she does not weep, and if she is conscious of taking up the gentlemen\'s evening she does not apologise for it.',
     personality: ['Plain-spoken', 'Tired', 'Not pitiable', 'Expects to be dismissed', 'Certain about her sister'],
     followingRule: 'fixed',

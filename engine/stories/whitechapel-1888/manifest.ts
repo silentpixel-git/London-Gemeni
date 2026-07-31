@@ -32,6 +32,7 @@ import { selectHint, OBJECTIVES } from './hints';
 import { isRequiredFlag, clueGateFlag, leadContextFor, detectSilentLeadFlags } from './diaryLeads';
 import { FACTS } from './facts';
 import { WORLD_EVENTS } from './events';
+import { SCRIPTED_BEATS } from './scriptedBeats';
 import { RUMORS } from './rumors';
 import { APPROACHES } from './approaches';
 
@@ -144,6 +145,8 @@ export const WHITECHAPEL_MANIFEST: StoryManifest = {
   facts: FACTS,
 
   worldEvents: WORLD_EVENTS,
+
+  scriptedBeats: SCRIPTED_BEATS,
 
   rumors: RUMORS,
 

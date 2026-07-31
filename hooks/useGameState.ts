@@ -170,6 +170,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // Proactive Holmes nudge — turns at current location without discovering a clue
   const [turnsAtLocationWithoutProgress, setTurnsAtLocationWithoutProgress] = useState(0);
+  // Who was in the room at the end of the previous turn, so the engine can
+  // report arrivals and departures. A ref, not state: it must be read and
+  // rewritten within a single turn's async body, where a state value would
+  // still hold the previous render's contents.
+  const previousNpcIdsRef = useRef<string[] | undefined>(undefined);
   // Procedural act journals — clue IDs accumulated since last act advance
   const [cluesFoundThisAct, setCluesFoundThisAct] = useState<string[]>([]);
 
@@ -228,6 +233,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setFlags,
       scrollRef,
       captureLocationArrival,
+      previousNpcIdsRef,
     });
 
   // ── Effects ───────────────────────────────────────────────────────────────
@@ -404,13 +410,19 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         elapsedMinutes,
         introducedNpcs,
         locationVisitCounts,
-        turnCount,
+        // 1-based: this is the Nth player action, not the count of completed
+        // ones. The scene-entry renders (opening / act arrival / resume) pass 0,
+        // so a beat scheduled for turn 1 fires on the player's first real action
+        // and never on the opening scene, which shares the pre-increment value.
+        turnCount: turnCount + 1,
         rumorEvents,
         lastApproachAtMinutes,
+        previousNpcIds: previousNpcIdsRef.current,
       };
 
       // STEP 3: Engine resolves — no AI yet
       const result = gameEngine.resolve(intent, snapshot);
+      previousNpcIdsRef.current = result.aiContext.npcsPresent.map(n => n.npcId);
 
       // STEP 3b: Process NPC introduction flags (alias system)
       // Extract npc_introduced_* keys and update introducedNpcs[] state.

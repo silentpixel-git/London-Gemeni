@@ -15,10 +15,17 @@ const LOCATIONS_DATA = {
     shortName: 'Baker Street',
     act: 0,
     timeframe: 'present',
-    atmosphere: 'Warm lamplight and warmer air, both windows thrown up to the street. Holmes\' sitting room on a holiday evening, with nothing in it that wants solving.',
-    description: 'Both windows stand open to the Bank Holiday noise, and the sound of the crowds carries all the way up from the pavement. The room is tidier than Watson has seen it in months: a concluded case bundled on the side table, the violin shut in its case, the chemistry bench wiped down and abandoned. Holmes has the particular restlessness of a man with nothing whatever to occupy him.',
+    atmosphere: 'Warm lamplight and warmer air, both windows thrown up to the street, and the holiday coming up off the pavement in waves. Holmes\' sitting room on the one evening of the year when the whole of London is somewhere else.',
+    // Holmes is AT THE WINDOW and occupied — reading the crowd for practice.
+    // Do not restore the earlier "restlessness of a man with nothing to occupy
+    // him": the act must open on an activity, not on boredom (see
+    // docs/act-structure-design-doc.md §2). His complaint about dull crime is
+    // the act's CLOSING beat, earned by the reconstruction, and stating it here
+    // spends it before he has proved it.
+    description: 'Both windows stand open to the Bank Holiday noise, and the sound of the crowds carries all the way up from the pavement. The room is tidier than Watson has seen it in months: a concluded case bundled on the side table, the violin shut in its case, the chemistry bench wiped down and abandoned. Holmes stands at the left-hand window with his back to the room, picking strangers out of the crowd below and taking them apart aloud, for no reason but the pleasure of it.',
     exits: ['dorset_street'],
     interactables: [
+      'open_window',
       'pawn_ticket', 'nells_boots', 'nells_workbox', 'nells_letters', 'charity_card',
       'concluded_case_file', 'holmes_chemistry_table', 'violin_case',
     ],
@@ -26,7 +33,14 @@ const LOCATIONS_DATA = {
     timeOfDay: 'night',
     vignettes: [
       { text: 'Mrs Hudson looks in to ask whether the gentlemen will want anything further tonight, and takes the answer as she finds it. She leaves the landing door ajar on her way out, for the air.', act: 0 },
-      { text: 'A telegraph boy hammers at the street door, hands up a wire, and is gone before it can be signed for. Holmes reads it once and puts it aside without comment.' },
+      // Act-scoped away from Act 0 deliberately. Un-scoped, this fired during
+      // the prologue's opening turn, and a caller at the street door is exactly
+      // what Act 0's staged arrival spends four beats building to — the model
+      // read "hammers at the street door" straight into "a sharp ring below,
+      // signalling a visitor", pre-empting the bell and inventing a caller no
+      // amount of prompt wording could talk it out of. It also dangled a
+      // telegram the player could never examine.
+      { text: 'A telegraph boy hammers at the street door, hands up a wire, and is gone before it can be signed for. Holmes reads it once and puts it aside without comment.', act: 5 },
     ],
   },
 
@@ -342,6 +356,10 @@ export const LOCATIONS: Record<string, LocationDefinition> = LOCATIONS_DATA;
 
 const OBJECT_DISPLAY_NAMES_DATA = {
   // Baker Street (Act 0 — the Bank Holiday)
+  // The act opens and closes at this window (spec phases A and G). Deliberately
+  // NOT gated in OBJECT_VISIBILITY: it is the one thing in the room before Mrs.
+  // Kemp arrives, so looking out of it is the opening's obvious first move.
+  open_window: 'The Open Window',
   pawn_ticket: "Nell's Pawn Ticket",
   nells_boots: "Nell's Boots",
   // Display names deliberately avoid "box" / "letter(s)" as raw substrings —

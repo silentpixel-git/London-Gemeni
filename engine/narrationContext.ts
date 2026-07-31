@@ -60,6 +60,47 @@ export function buildNarrationContext(
   const locationId = outcome.targetLocationId || session.location;
   const loc = story.locations[locationId] || story.locations[session.location];
 
+  // World events (Phase 4a) — authored broadcasts whose fire time the clock
+  // has passed this act. atClockMinutes earlier than the act's start means
+  // the next day (the vigil's midnight, the following dawn). Delivered
+  // once via world_event_* flags, lifted onto flagsUpdate in resolve().
+  //
+  // Computed HERE, ahead of presence and object visibility, because an event
+  // that brings someone into the room (Act 0's caller) sets the very flag those
+  // two gate on. Reading session.flags for them would hold both back a turn:
+  // the sidebar showed the visitor and her belongings while the prose was still
+  // being told the room was empty.
+  const actTimeCfgForEvents = resolveActDay(story.actTimeConfig[session.currentAct] ?? story.actTimeConfig[1], session.flags);
+  const clockNow = actTimeCfgForEvents.canonicalMinutes + session.elapsedMinutes + (outcome.extraMinutes ?? 0);
+  const firedEvents = story.worldEvents
+    .filter(e => e.act === session.currentAct && !session.flags[`world_event_${e.id}`])
+    .map(e => ({ e, fireAt: e.atClockMinutes >= actTimeCfgForEvents.canonicalMinutes ? e.atClockMinutes : e.atClockMinutes + 1440 }))
+    .filter(({ fireAt }) => clockNow >= fireAt)
+    .sort((a, b) => a.fireAt - b.fireAt);
+  const worldEventFlagsUpdate: Record<string, boolean> = {};
+  for (const { e } of firedEvents) worldEventFlagsUpdate[`world_event_${e.id}`] = true;
+  const worldEvents = firedEvents.length > 0 ? firedEvents.map(({ e }) => e.text) : undefined;
+
+  // Authored staging keyed to the player-turn index (see ScriptedBeat). At most
+  // one lands per turn by construction — that is the whole point of the
+  // mechanism — and it is delivered once, tracked as beat_<id>.
+  const scriptedBeatFlagsUpdate: Record<string, boolean> = {};
+  const firedBeat = story.scriptedBeats.find(b =>
+    b.act === session.currentAct &&
+    b.atTurn === session.turnCount &&
+    !session.flags[`beat_${b.id}`]);
+  if (firedBeat) {
+    scriptedBeatFlagsUpdate[`beat_${firedBeat.id}`] = true;
+    if (firedBeat.setsFlag) scriptedBeatFlagsUpdate[firedBeat.setsFlag] = true;
+  }
+  const scriptedBeat = firedBeat ? { text: firedBeat.text, style: firedBeat.style } : undefined;
+
+  /** Flags as they stand AFTER this turn's world events and scripted beat —
+   *  what the room looks like now. A beat that admits an NPC must be visible to
+   *  the presence and object-visibility reads below, or the prose is told the
+   *  room is empty on the very turn the caller walks into it. */
+  const flagsNow = { ...session.flags, ...worldEventFlagsUpdate, ...scriptedBeatFlagsUpdate };
+
   // Determine which NPCs are in this location after any movements
   const resolvedNpcStates = { ...session.npcStates };
   if (outcome.newNpcUpdates) {
@@ -68,7 +109,7 @@ export function buildNarrationContext(
     }
   }
 
-  const presentNPCEntries = getPresentNpcIds(story.npcs, locationId, resolvedNpcStates, session.currentAct, periodOf(story, session, outcome.extraMinutes ?? 0), session.flags)
+  const presentNPCEntries = getPresentNpcIds(story.npcs, locationId, resolvedNpcStates, session.currentAct, periodOf(story, session, outcome.extraMinutes ?? 0), flagsNow)
     .map(npcId => [npcId, story.npcs[npcId]] as const);
 
   // Build alias-aware NPC list for NarrationContext
@@ -83,6 +124,25 @@ export function buildNarrationContext(
 
   // Legacy flat arrays kept for internal engine use (NPC memory lookup etc.)
   const npcIds = presentNPCEntries.map(([id]) => id);
+
+  // Who came or went since last turn. Departures are labelled from the NPC
+  // record rather than from npcsPresent (they are, by definition, no longer in
+  // it), and use the same alias-aware rule so a departing stranger is not
+  // suddenly named.
+  const previousNpcIds = session.previousNpcIds;
+  const npcsArrived = previousNpcIds === undefined
+    ? []
+    : npcsPresent.filter(n => !previousNpcIds.includes(n.npcId)).map(n => n.label);
+  const npcsDeparted = previousNpcIds === undefined
+    ? []
+    : previousNpcIds
+        .filter(id => !npcIds.includes(id))
+        .map(id => {
+          const npc = story.npcs[id];
+          if (!npc) return id;
+          const isIntroduced = !npc.requiresIntroduction || session.introducedNpcs.includes(id);
+          return isIntroduced ? npc.displayName : (npc.alias ?? story.npcAliases[id] ?? npc.displayName);
+        });
 
   // Scripted NPC presence moments — fire when NPC present + location matches + flag satisfied.
   // These are directorial instructions injected into the AI prompt; no state changes.
@@ -177,7 +237,7 @@ export function buildNarrationContext(
     .map(exitId => story.locations[exitId]?.shortName || exitId);
 
   // Available objects
-  const availableObjects = visibleInteractables(story, locationId, session.flags)
+  const availableObjects = visibleInteractables(story, locationId, flagsNow)
     .map(id => story.objectDisplayNames[id] || id);
 
   // Recent NPC memory for NPCs present (keyed by label — alias or displayName)
@@ -203,10 +263,17 @@ export function buildNarrationContext(
 
   // Full mode always gets a world_event blockquote.
   // Compact mode gets an inner_thought ~30% of the time — less frequent so each one lands harder.
+  //
+  // ONE blockquote per turn, always. A blockquote-styled scripted beat is
+  // appended to the finished prose, and the model has no way to know that — so
+  // the turn has to give up its own, or the reader gets two quoted blocks
+  // stacked against each other and the form stops meaning anything.
   const blockquoteHint: NarrationContext['blockquoteHint'] =
-    narrationMode === 'full'
-      ? 'world_event'
-      : Math.random() < 0.3 ? 'inner_thought' : 'none';
+    scriptedBeat?.style === 'blockquote'
+      ? 'none'
+      : narrationMode === 'full'
+        ? 'world_event'
+        : Math.random() < 0.3 ? 'inner_thought' : 'none';
 
   // Compute current in-game time — anchored to the act's canonical start,
   // advanced by the minutes elapsed this act (tracked in the hook).
@@ -259,7 +326,7 @@ export function buildNarrationContext(
       personality: npc.personality,
       knowledgeEnvelope: [
         ...matured.map(m => m.statement),
-        ...deriveKnowledgeEnvelope(story.facts, outcome.targetNpcId, session.currentAct),
+        ...deriveKnowledgeEnvelope(story.facts, outcome.targetNpcId, session.currentAct, flagsNow),
       ],
       recentlyHeard,
       playerQuestion: intent.raw,
@@ -335,20 +402,6 @@ export function buildNarrationContext(
     ? loc.extras[(locationVisitCount - 1) % loc.extras.length]
     : undefined;
 
-  // World events (Phase 4a) — authored broadcasts whose fire time the clock
-  // has passed this act. atClockMinutes earlier than the act's start means
-  // the next day (the vigil's midnight, the following dawn). Delivered
-  // once via world_event_* flags, lifted onto flagsUpdate in resolve().
-  const worldEventFlagsUpdate: Record<string, boolean> = {};
-  const clockNow = totalMinutes; // already includes extraMinutes (WAIT spans deliver what they cross)
-  const firedEvents = story.worldEvents
-    .filter(e => e.act === act && !session.flags[`world_event_${e.id}`])
-    .map(e => ({ e, fireAt: e.atClockMinutes >= actTimeCfg.canonicalMinutes ? e.atClockMinutes : e.atClockMinutes + 1440 }))
-    .filter(({ fireAt }) => clockNow >= fireAt)
-    .sort((a, b) => a.fireAt - b.fireAt);
-  for (const { e } of firedEvents) worldEventFlagsUpdate[`world_event_${e.id}`] = true;
-  const worldEvents = firedEvents.length > 0 ? firedEvents.map(({ e }) => e.text) : undefined;
-
   return {
     locationName: loc.name,
     locationAtmosphere: loc.atmosphere,
@@ -365,6 +418,9 @@ export function buildNarrationContext(
     worldEvents,
     ambientExtra,
     npcsPresent,
+    npcsArrived,
+    npcsDeparted,
+    scriptedBeat,
     availableObjects,
     availableExits,
     inventory: session.inventory,
@@ -397,9 +453,12 @@ export function buildNarrationContext(
     _vignetteFlagsUpdate: Object.keys(vignetteFlagsUpdate).length > 0
       ? vignetteFlagsUpdate
       : undefined,
-    // World-event once-only flags — lifted onto result.flagsUpdate in resolve()
-    _worldEventFlagsUpdate: Object.keys(worldEventFlagsUpdate).length > 0
-      ? worldEventFlagsUpdate
+    // World-event and scripted-beat once-only flags — lifted onto
+    // result.flagsUpdate in resolve(). They share this channel because they are
+    // the same kind of thing: authored beats that fire once and must be
+    // recorded, or they re-fire on the next turn.
+    _worldEventFlagsUpdate: Object.keys({ ...worldEventFlagsUpdate, ...scriptedBeatFlagsUpdate }).length > 0
+      ? { ...worldEventFlagsUpdate, ...scriptedBeatFlagsUpdate }
       : undefined,
     // Rumor-ack once-only flags — lifted onto result.flagsUpdate in resolve()
     _rumorAckFlagsUpdate: Object.keys(rumorAckFlagsUpdate).length > 0

@@ -279,6 +279,16 @@ export interface NarrationContext {
     npcId: string;
     isIntroduced: boolean;
   }>;
+  // Labels of NPCs who arrived / left since the previous turn. Rendered as a
+  // mechanical notice under the prose, never handed to the AI as something to
+  // narrate — the engine owns who is in the room. Optional so hand-built
+  // fixtures (qa-narration) need not restate a turn-to-turn delta they have
+  // no previous turn for; buildNarrationContext always sets both.
+  npcsArrived?: string[];
+  npcsDeparted?: string[];
+  // An authored beat due on this player turn (see ScriptedBeat). Rendered
+  // verbatim under the prose, not paraphrased by the model.
+  scriptedBeat?: { text: string; style: 'prose' | 'blockquote' };
   availableObjects: string[];     // Display names of interactable objects
   availableExits: string[];       // Display names of accessible exits
   inventory: string[];

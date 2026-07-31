@@ -55,7 +55,7 @@ export function resolveTalk(story: StoryManifest, intent: ParsedIntent, session:
   // prompt keeps the engine/AI contract intact: the AI is handed the answer,
   // it does not choose one.
   const matched = intent.topicRaw
-    ? matchTopic(story.facts, targetId, session.currentAct, intent.topicRaw)
+    ? matchTopic(story.facts, targetId, session.currentAct, intent.topicRaw, session.flags)
     : undefined;
   if (matched) flagsUpdate[`asked_${targetId}_about_${matched.id}`] = true;
 

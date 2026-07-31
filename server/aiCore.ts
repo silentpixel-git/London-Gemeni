@@ -303,13 +303,32 @@ Description: ${ctx.locationDescription}`;
     // FULL MODE — location arrival or look-around. Arrival: 3 tight paragraphs.
     // Revisit (look-around in a known room): 2 paragraphs, no re-description; a
     // blockquote only when an authored vignette is present (no atmospheric seed).
+    // Before the caller arrives, the note must not know she is coming. Naming a
+    // visitor here — even as scene-setting — had the model writing Watson's
+    // evening as an anteroom to her knock ("until the arrival of an unexpected
+    // visitor..."), which pre-empts the one event the act opens on.
+    const act0CallerPresent = ctx.npcsPresent.some(n => n.npcId === 'mrs_kemp');
     const act0Note = ctx.act === 0
       // PHRASED ENTIRELY AS A POSITIVE, deliberately. An earlier version listed
       // what must not appear ("no crime scene, no victim, no East End") and the
       // model promptly wrote Watson searching the carpet for a crime scene and
       // failing to find one: naming the forbidden thing is what introduces it.
       // Describe the room and the evening; mention nothing that is off-limits.
-      ? '\nACT 0 PROLOGUE NOTE: this act is domestic and entirely self-contained. An over-warm sitting room on the evening of the August Bank Holiday, both windows up, the holiday audible from the pavement below; a bored Holmes with nothing whatever to occupy him, lately finished with a dull civil matter he considers beneath discussion; and a woman who has called on a small private errand of her own and does not expect to be listened to. The room, those two people, and the ticket she has laid on the table are the entire world of this scene, and Watson\'s attention stays inside it. He is going nowhere tonight: the exits list is empty because there is nowhere to be at this hour, so do NOT invent exits or imply he may leave. Write it as a quiet evening at home. Watson has no idea that this evening will turn out to matter, so give the prose no sense of significance gathering and no air of something impending; it is simply a warm night with a visitor in it. The prose should make speaking to the caller, or looking at what she has brought, feel like the obvious next thing to do, and should weave the objects into the room rather than reciting them as a list.'
+      ? '\nACT 0 PROLOGUE NOTE: this act is domestic and entirely self-contained. An over-warm sitting room on the evening of the August Bank Holiday, both windows up, the holiday audible from the pavement below; Holmes at the left-hand window with his back to the room, reading strangers out of the crowd below for the pleasure of the exercise, lately finished with a dull civil matter whose papers lie bundled and finished on the side table.'
+        + (act0CallerPresent
+          ? ' A woman has called on a small private errand of her own and does not expect to be listened to. The room, those two people, and the ticket she has laid on the table are the entire world of this scene, and Watson\'s attention stays inside it.'
+          // Positive phrasing only. This scene has exactly two people in it, and
+          // the way to keep it that way is to describe the two — an earlier
+          // draft spelled out that no one had called, no bell had rung and no
+          // one was on the stair, and the model duly produced a dismissed
+          // caller and a petition on the table. Naming the absent thing is what
+          // conjures it; see the note above this one, which learned the same
+          // lesson about crime scenes.
+          : ' The cast of this scene is exactly two: Holmes at his window and Watson in the room behind him, at leisure, with the whole warm evening to themselves and nothing to do in it. Those two men, this room and the noise of the holiday coming up off the pavement are the entire world of the scene.')
+        + ' Holmes is OCCUPIED and enjoying himself: do not write him bored, restless, pacing, sighing, listless, or adrift, do not have him fidget with the violin or a book for want of anything better, and do not have him say the great cases are finished — that is his line at the END of this evening and he has not yet earned it. He is going nowhere tonight: the exits list is empty because there is nowhere to be at this hour, so do NOT invent exits or imply he may leave. Write it as a quiet evening at home. Watson has no idea that this evening will turn out to matter, so give the prose no sense of significance gathering and no air of something impending; it is simply a warm night.'
+        + (act0CallerPresent
+          ? ' The prose should make speaking to the caller, or looking at what she has brought, feel like the obvious next thing to do, and should weave the objects into the room rather than reciting them as a list.'
+          : ' The prose should make looking out of the window, or speaking to Holmes, feel like the obvious next thing to do, and should weave the objects into the room rather than reciting them as a list.')
       : '';
     const noticeBeat = `WHAT WATSON NOTICES: In prose (not a list), mention who is present (using their exact labels), what objects catch his eye, and which directions he could go — using ONLY the verified data above.${ctx.availableExits.length === 0 ? '\nNo exits are available yet. Do NOT invent exits or directions. Omit the "directions" sentence entirely — focus only on who and what is present.' : ''}`;
     const blockquoteBeat = `BLOCKQUOTE: ${ctx.vignette
@@ -329,15 +348,18 @@ Format EXACTLY as a Markdown blockquote:
 
     // Revisit keeps the authored vignette as an extra quoted beat when present,
     // but never invents an atmospheric-seed blockquote (keeps look-arounds tight).
+    // ONE blockquote per turn. 'none' means something else already owns this
+    // turn's quoted block — the opening's authored lines, or a scripted beat
+    // appended to the finished prose — so the structure drops its own rather
+    // than stacking two against each other.
+    const wantsBlockquote = ctx.blockquoteHint !== 'none';
     const structure = isRevisit
       ? `Paragraph 1 — RETURN: Watson's purpose in returning, or what is immediately different — NO room description, NO weather opener — ending with one brief clause of his reflection on the case.${act0Note}
-${ctx.vignette ? `\n${blockquoteBeat}\n` : ''}
+${ctx.vignette && wantsBlockquote ? `\n${blockquoteBeat}\n` : ''}
 Paragraph 2 — ${noticeBeat}${approachBeat}${epilogueCutNote}`
       : `Paragraph 1 — ATMOSPHERE: Vivid sensory description (apply the temporal register above), ending with one clause of Watson's reflection on the case or his unease.${act0Note}
-
-Paragraph 2 — ${blockquoteBeat}
-
-Paragraph 3 — ${noticeBeat}${approachBeat}${epilogueCutNote}`;
+${wantsBlockquote ? `\nParagraph 2 — ${blockquoteBeat}\n` : ''}
+Paragraph ${wantsBlockquote ? 3 : 2} — ${noticeBeat}${approachBeat}${epilogueCutNote}`;
 
     return `=== NARRATION MODE: FULL ===
 ${lengthLine} Do NOT include any Markdown heading (no "###" line) — begin directly with the prose.
@@ -367,9 +389,21 @@ ${structure}`;
   const compactWordLimit = (ctx.blockquoteHint !== 'none' ? 130 : 100) +
     (ctx.targetNpcInterview?.topic ? 50 : 0) +
     (ctx.extraWordBudget ?? 0);
+  // Most of Act 0 is compact turns, so the register note has to live here too —
+  // it was full-mode only, and the model spent every examine writing Holmes
+  // bored, stagnant and coiled, which is precisely the reading the act is built
+  // to withhold until he has earned it.
+  const act0CompactNote = ctx.act === 0
+    ? '\nACT 0 REGISTER: Holmes is engaged and in good humour this evening — he has been reading strangers out of the holiday crowd for the pleasure of it. Do not describe him as bored, restless, stagnating, listless, coiled, or starved of a problem, and do not have him volunteer that modern crime is dull or that the great cases are finished. If the Result below gives him such a line, follow the Result; otherwise he does not think it yet.'
+      + (ctx.npcsPresent.some(n => n.npcId === 'mrs_kemp')
+        ? '\n'
+        // Positive phrasing — see the full-mode note: spelling out that nobody
+        // has called is what produced a caller.
+        : ' The cast of this scene is exactly two, Holmes and Watson, alone in the room with the evening to themselves.\n')
+    : '';
   let compactPrompt = `=== NARRATION MODE: COMPACT ===
 Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line. Do NOT include any Markdown heading. NO act header. NO location description. NO exits listing.
-${dayStepSection}${temporalSection}
+${act0CompactNote}${dayStepSection}${temporalSection}
 === VERIFIED CONTEXT ===
 Location: ${ctx.locationName} (Act ${ctx.act}: ${ctx.actName})
 NPCs present (use labels exactly): ${npcLabelList}
@@ -654,6 +688,32 @@ export class AIService {
         }
       }
       parsed.stimUpdate = Object.keys(record).length > 0 ? record : undefined;
+    }
+
+    // An authored beat due this turn (see ScriptedBeat). Rendered here rather
+    // than prompted, so long authored dialogue survives verbatim instead of
+    // being compressed to fit compact mode's word ceiling, and so its format is
+    // the author's choice: 'prose' for speech, 'blockquote' for atmosphere.
+    // Sits above the presence notice so "Mrs. Hudson shows the visitor up"
+    // precedes "Mrs. Kemp has arrived."
+    if (ctx.scriptedBeat) {
+      const { text, style } = ctx.scriptedBeat;
+      const rendered = style === 'blockquote'
+        ? `> *${text}*`
+        : text;
+      parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + rendered;
+    }
+
+    // Who came or went this turn. Appended on EVERY mode, unlike the verified
+    // data summary below: presence can change on a compact turn (a caller shown
+    // up while Watson examines something, a witness leaving after his say), and
+    // a change the player is never told about reads as the sidebar lying.
+    const presenceLines: string[] = [
+      ...(ctx.npcsArrived ?? []).map(label => `**${label}** has arrived.`),
+      ...(ctx.npcsDeparted ?? []).map(label => `**${label}** has left.`),
+    ];
+    if (presenceLines.length > 0) {
+      parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + presenceLines.join('\n\n');
     }
 
     // For full-mode turns (move / look-around), append a verified data summary.

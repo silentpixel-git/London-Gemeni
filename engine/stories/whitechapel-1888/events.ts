@@ -20,17 +20,12 @@ export const WORLD_EVENTS: WorldEventDefinition[] = [
     // happened, and the holiday is simply a holiday.
     text: 'Midnight comes over London in a slow relay of church bells, each parish a half-beat behind the last. Tonight not one of them can make itself heard over the holiday, which shows no sign whatever of going home.',
   },
-  {
-    id: 'kemp_arrives',
-    act: 0,
-    // Act 0's canonicalMinutes is 1230 (8:30 PM) — matching it exactly (not
-    // 1230+1) fires this on the player's true first turn (elapsedMinutes: 0):
-    // the firing condition is >=, proven at the exact boundary by
-    // scripts/qa-engine.ts's testWorldEvents() "an event due at the act's
-    // canonical start fires on the very first turn" case.
-    atClockMinutes: 1230,
-    text: "The bell goes at last, after two false starts at the railings below. Mrs. Hudson shows her up: a woman of about four and thirty, still gloved though the evening is warm, as if dressed for an appointment that never happened and given no more thought to her hands since. She sets down her bundle without ceremony, a pair of worn-out boots and a closed tin workbox, and holds the pawn ticket in her hand a long while before she can bring herself to lay it on the table beside them.",
-  },
+  // Mrs. Kemp's arrival is NOT a world event. It is the four-beat opening
+  // sequence in scriptedBeats.ts, which lands one beat per player action. A
+  // clock-timed event could not do that: verbs cost different amounts of time,
+  // so a single 5-minute TALK crosses several fire times at once and delivered
+  // the whole arrival in one lump. `world_event_kemp_arrives` remains the flag
+  // that admits her and her belongings; the last scripted beat sets it.
   {
     id: 'act2_church_bells',
     act: 2,

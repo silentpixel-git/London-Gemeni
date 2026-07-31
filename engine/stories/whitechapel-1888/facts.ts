@@ -21,7 +21,13 @@ export const FACTS: StoryFact[] = [
   { id: 'kemp_sister_sickly_spring', statement: 'Nell was poorly in the mornings through the spring. She told her at the time it was the fish', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['her health', 'the spring', 'she was poorly', 'the sickness'] },
   { id: 'kemp_landlady', statement: 'The landlady saw Nell go at six in the morning with a bag. The rent lapsed on the Saturday; the room was cleared by Sunday. Nothing in it worth keeping', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['the landlady', 'mrs pring', 'the room'] },
   { id: 'kemp_why_she_hid', knownBy: ['mrs_kemp'], visibleFromAct: 0,
-    topics: ['why she hid', 'why she hid herself', 'why she did not tell you', 'whether you know why'],
+    // Broad on purpose: a live playtest showed a natural, on-topic phrasing
+    // ("why her sister hid this from her") missing every one of the original
+    // four narrow phrases and silently falling through to ungrounded AI
+    // improv — which then also mis-selected the diary's "kept the address"
+    // closing variant, since no flag had actually been set.
+    topics: ['why she hid', 'why she hid herself', 'why she did not tell you', 'whether you know why',
+      'hid this from you', 'hid it from you', 'hiding it from you', 'hiding this from you', 'kept this from you'],
     statement: 'She does not answer. Watson has asked Madam, if she has hidden herself from you, do you know why, and she has no answer to give him' },
 
   // ── holmes ──────────────────────────────────────────────────────────────────
@@ -45,14 +51,24 @@ export const FACTS: StoryFact[] = [
   { id: 'holmes_knowing_vs_proving', statement: 'Refuses to name a suspect without evidence that would satisfy a court — "knowing and proving are not the same act"', knownBy: ['holmes'], visibleFromAct: 0, topics: ['proof', 'the evidence', 'knowing and proving'] },
   // Act 0 — the Bank Holiday. The irony the act is built on: Holmes declares
   // crime finished, hours before Tabram. None of these may hint at a murder.
-  { id: 'holmes_crime_grown_dull', statement: 'His complaint of the season: the great cases are done. What remains to the criminal classes is squalid stuff that explains itself before a man can get his coat on. He says it as settled fact rather than as melancholy. This is the closing beat of the act', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the criminal classes', 'crime', 'your boredom'] },
-  { id: 'holmes_no_case_here', statement: 'On the woman who called: he has found her sister exactly, and there is no crime in it. She has arranged her own affairs with more foresight than most of his clients manage, and gone to considerable expense to be somewhere her sister is not. What her sister does with that knowledge is not a problem for him to solve; it is a decision, and hers alone. His tone is flat and perfectly reasonable, and he is wrong', knownBy: ['holmes'], visibleFromAct: 0, topics: ['mrs kemp', 'the woman who called', 'her sister', 'the ticket', 'the pawn ticket', 'why you refused'] },
+  // Gated on the reconstruction: this is the act's CLOSING beat and it is only
+  // earned once he has just taken a human catastrophe apart and found it
+  // arithmetic. Ungated, he delivered it in the act's opening minutes — before
+  // the caller had even sat down — spending the ending on turn two.
+  { id: 'holmes_crime_grown_dull', statement: 'His complaint of the season: the great cases are done. What remains to the criminal classes is squalid stuff that explains itself before a man can get his coat on. He says it as settled fact rather than as melancholy. This is the closing beat of the act', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['showed_charity_card_to_holmes'], topics: ['the criminal classes', 'crime', 'your boredom'] },
+  // All five gated on the reconstruction (SHOW the card to Holmes). These ARE
+  // the reconstruction's findings: ungated they were both askable by name and
+  // free for him to voice as background from turn one, handing the player the
+  // solved case — "ask holmes about marchant" before the workbox was open.
+  // The refusal is gated with them because it is his verdict ON the
+  // reconstruction and means nothing before it.
+  { id: 'holmes_no_case_here', statement: 'On the woman who called: he has found her sister exactly, and there is no crime in it. She has arranged her own affairs with more foresight than most of his clients manage, and gone to considerable expense to be somewhere her sister is not. What her sister does with that knowledge is not a problem for him to solve; it is a decision, and hers alone. His tone is flat and perfectly reasonable, and he is wrong', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['showed_charity_card_to_holmes'], topics: ['mrs kemp', 'the woman who called', 'her sister', 'why you refused', 'why you will not help'] },
   { id: 'holmes_concluded_case', statement: 'The matter he has just finished is concluded and already forgotten. He names nothing and no one about it and declines to be drawn; it was solved in an afternoon and was not worth the afternoon', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the case you have just closed', 'your last case'] },
   { id: 'holmes_invisible_in_a_crowd', statement: 'At the open window, watching the holiday crowd: the whole city is turned out of doors tonight, a hundred thousand of them at the least, and a man might pass through the whole of that and be remembered by none. He means it as a complaint about the tedium of scale', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the crowd', 'the holiday', 'the window'] },
-  { id: 'holmes_boots_bermondsey', statement: 'Oak bark, lime, and south-bank river silt, caked into a pair of boots in a dry August. Four streets in London could put all three on one sole, and every one of them is a tanyard in Bermondsey', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the mud', 'bermondsey'] },
-  { id: 'holmes_letters_tuesdays', statement: 'Three consecutive Tuesdays with a postmark south of the river, and not one word of them in eleven letters. She left on a fourth Tuesday, and did not come home', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the postmarks', 'tuesday'] },
-  { id: 'holmes_honest_object', statement: 'Everything she took, she chose. The workbox is the one thing she did not think about, and is therefore the only honest object in the room', knownBy: ['holmes'], visibleFromAct: 0, topics: ['what she left behind'] },
-  { id: 'holmes_mothers_name', statement: 'She took her mother\'s name with her and left the rest of her family behind it', knownBy: ['holmes'], visibleFromAct: 0, topics: ['marchant', 'the name', 'the charity'] },
+  { id: 'holmes_boots_bermondsey', statement: 'Oak bark, lime, and south-bank river silt, caked into a pair of boots in a dry August. Four streets in London could put all three on one sole, and every one of them is a tanyard in Bermondsey', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['showed_charity_card_to_holmes'], topics: ['the mud', 'bermondsey'] },
+  { id: 'holmes_letters_tuesdays', statement: 'Three consecutive Tuesdays with a postmark south of the river, and not one word of them in eleven letters. She left on a fourth Tuesday, and did not come home', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['showed_charity_card_to_holmes'], topics: ['the postmarks', 'tuesday'] },
+  { id: 'holmes_honest_object', statement: 'Everything she took, she chose. The workbox is the one thing she did not think about, and is therefore the only honest object in the room', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['showed_charity_card_to_holmes'], topics: ['what she left behind', 'the honest object'] },
+  { id: 'holmes_mothers_name', statement: 'She took her mother\'s name with her and left the rest of her family behind it', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['showed_charity_card_to_holmes'], topics: ['marchant', 'the name she gave the charity'] },
   // Act-gated capstones. These carry the act's turning thought and are what the
   // ACT_PROGRESSION gate asks for — the player must raise the subject with
   // Holmes, not merely stand near him. visibleFromAct keeps each sealed until

@@ -123,6 +123,12 @@ export interface StoryFact {
   statement: string;      // the prose line rendered into the AI prompt (the hard knowledge ceiling)
   knownBy: string[];      // NPC ids that can voice this fact
   visibleFromAct: number; // earliest act (0-6) this fact may surface; 0 = always
+  // Flags that must ALL be set before this fact exists for the NPC at all —
+  // neither askable by name nor available as background they may draw on.
+  // visibleFromAct alone cannot express "after the reconstruction", which left
+  // Holmes free to voice the Act 0 solution, and his closing complaint about
+  // dull crime, in the act's opening minutes.
+  requireFlags?: string[];
   relatedClues?: string[]; // clue ids this fact supports (validator-checked)
   // TALK topics: lowercase phrases the player might type after "about" to raise
   // this fact ("the graffiti", "warren", "the writing on the wall"). A fact with
@@ -148,6 +154,27 @@ export interface WorldEventDefinition {
                            // EARLIER than the act's canonical start means the
                            // NEXT day (e.g. dawn during the act-0 night vigil).
   text: string;            // the beat itself — spoiler-guarded by qa:validate
+}
+
+// ── Scripted beats ───────────────────────────────────────────────────────────
+// Authored staging keyed to the PLAYER-TURN index rather than the clock, for a
+// sequence that must land one beat per action no matter what the player types.
+// World events cannot do this: they fire on the in-game clock, and since verbs
+// cost different amounts of time (talk 5 minutes, take 1) a single action can
+// cross several fire times at once and dump the whole sequence in one turn.
+//
+// Rendered mechanically, never handed to the model to paraphrase, so authored
+// dialogue survives verbatim and its formatting is under the author's control:
+// 'prose' for anything a character says aloud, 'blockquote' for atmosphere and
+// Watson's interiority. (Speech set in a blockquote reads as a pulled quote.)
+export interface ScriptedBeat<F extends string = string> {
+  id: string;              // unique, snake_case; delivery is tracked as beat_<id>
+  act: number;
+  atTurn: number;          // 1 = the player's first action after the opening scene
+  style: 'prose' | 'blockquote';
+  text: string;
+  /** Extra flag to set when this beat lands — e.g. admitting an NPC to the room. */
+  setsFlag?: F;
 }
 
 // ── Rumor propagation (Phase 4b) ─────────────────────────────────────────────
@@ -423,6 +450,9 @@ export interface StoryManifest {
 
   // World events (Phase 4a)
   worldEvents: WorldEventDefinition[];
+
+  // Turn-indexed authored staging (see ScriptedBeat)
+  scriptedBeats: ScriptedBeat[];
 
   // Rumor propagation (Phase 4b)
   rumors: RumorDefinition[];

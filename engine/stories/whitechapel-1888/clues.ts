@@ -299,6 +299,7 @@ export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
   // refusal it earns, not evidence. clue_06_prasarved_spelling is also found
   // here, but only via USE_COMBINATIONS, so it has no trigger entry.
   baker_street: {
+    open_window: [],
     pawn_ticket: [],
     nells_boots: [],
     nells_workbox: [],
@@ -400,8 +401,13 @@ export const ATMOSPHERIC_NOTES: Record<string, Record<string, string>> = {
     // NOTE: do not narrate Watson taking the ticket here — acquisition is
     // narrated via itemsGained (first examine only). This note also fires on
     // RE-examines, when the ticket is already in his pocket.
+    // Deliberately yields nothing. Holmes has just read three strangers out of
+    // this crowd; Watson looks at the same crowd and sees a crowd. The act's
+    // one clean opportunity to notice nothing, and the whole point of the beat
+    // — do not add a detail here that rewards the look.
+    open_window: "Watson leans out into the warm air. Baker Street is full of people who have been out of doors since ten in the morning: a barrel organ two streets off, somebody's cornet, a great deal of laughing. He looks for a while and can make nothing of any of it. They are simply people, going home or not going home.",
     pawn_ticket: "A pawnbroker's ticket, soft at the folds from being carried about. Dated Monday the thirtieth of July, from a shop in Pentonville. One pair of women's boots, pledged for two shillings. The redemption stamp is today's, fresh ink over old creases.",
-    nells_boots: "A worn pair of woman's boots, twice resoled already; the uppers have given at the flex, and a third resoling would not be worth the leather. The wear runs heaviest along the outer edge of the right heel. Caked into the welt, a crust of mud still dark and damp, though London has not seen rain in a fortnight.",
+    nells_boots: "A worn pair of woman's boots, twice resoled already; the uppers have given at the flex, and a third resoling would not be worth the leather. The wear runs heaviest along the outer edge of the right heel. Caked into the welt, a crust of mud still dark and damp, though London has not seen rain in well over a week.",
     nells_workbox: "A tin box, japanned black, its lid catch stiff with disuse. It is not locked.",
     nells_letters: "Eleven letters, April through July, tied with a thread that has since come loose. Chatty and affectionate at first; the hand thins as the months go on, and the last three are written on visibly cheaper paper.",
     charity_card: "A printed subscriber's card. St. Saviour's Lying-in Charity, Snowsfields. Sixteen weekly entries of one shilling, ticked off in a clerk's copperplate, the last dated the twenty-fourth of July. The subscriber is named as Mrs. A. Marchant. On the reverse, a second and smaller hand has marked off the same dates again, as though to be certain of them.",

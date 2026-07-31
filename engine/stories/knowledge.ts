@@ -2,6 +2,17 @@
 import type { StoryFact } from './types';
 
 /**
+ * Is this fact live for the NPC right now — act gate passed AND every
+ * requireFlag set? The single admission test, applied identically to the
+ * knowledge envelope and to askability, so a fact can never be spoken as
+ * background before it can be asked for.
+ */
+function factIsAvailable(f: StoryFact, currentAct: number, flags: Record<string, boolean>): boolean {
+  if (f.visibleFromAct > currentAct) return false;
+  return (f.requireFlags ?? []).every(flag => flags[flag] === true);
+}
+
+/**
  * Derive an NPC's knowledge envelope from the fact graph: every fact this NPC
  * knows whose act gate has passed, in fact-file order (author order matters —
  * aiCore's 8-item cap falls back to the head of this list).
@@ -10,9 +21,10 @@ export function deriveKnowledgeEnvelope(
   facts: StoryFact[],
   npcId: string,
   currentAct: number,
+  flags: Record<string, boolean> = {},
 ): string[] {
   return facts
-    .filter(f => f.knownBy.includes(npcId) && f.visibleFromAct <= currentAct)
+    .filter(f => f.knownBy.includes(npcId) && factIsAvailable(f, currentAct, flags))
     .map(f => f.statement);
 }
 
@@ -26,10 +38,11 @@ export function askableFacts(
   facts: StoryFact[],
   npcId: string,
   currentAct: number,
+  flags: Record<string, boolean> = {},
 ): StoryFact[] {
   return facts.filter(f =>
     f.knownBy.includes(npcId) &&
-    f.visibleFromAct <= currentAct &&
+    factIsAvailable(f, currentAct, flags) &&
     !!f.topics?.length);
 }
 
@@ -49,7 +62,7 @@ export function suggestTopics(
   flags: Record<string, boolean>,
   limit = 3,
 ): string[] | undefined {
-  const askable = askableFacts(facts, npcId, currentAct);
+  const askable = askableFacts(facts, npcId, currentAct, flags);
   const unasked = askable.filter(f => !flags[`asked_${npcId}_about_${f.id}`]);
   // Everything already covered: the opening exchange offers nothing rather than
   // repeating spent subjects.
@@ -93,11 +106,12 @@ export function matchTopic(
   npcId: string,
   currentAct: number,
   topicRaw: string,
+  flags: Record<string, boolean> = {},
 ): StoryFact | undefined {
   const q = canonicalisePersons(
     topicRaw.toLowerCase().replace(/^(the|a|an|his|her|their|that|this)\s+/, '').trim());
   if (!q) return undefined;
-  const candidates = askableFacts(facts, npcId, currentAct);
+  const candidates = askableFacts(facts, npcId, currentAct, flags);
 
   let exact: StoryFact | undefined;
   let partial: { fact: StoryFact; len: number } | undefined;
