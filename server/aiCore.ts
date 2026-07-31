@@ -109,7 +109,7 @@ const NARRATION_SCHEMA = {
   properties: {
     markdownOutput: {
       type: Type.STRING,
-      description: "Watson's first-person narrative prose. Markdown formatting. Full mode: max 160 words (110 on a revisit). Compact mode: max 130 words.",
+      description: "Watson's first-person narrative prose. Markdown formatting. Full mode: max 160 words (110 on a revisit). Compact mode: max 130 words (some interactions raise this — the prompt's own stated limit is the authority, not this description).",
     },
     npcMemoryUpdate: {
       type: Type.OBJECT,
