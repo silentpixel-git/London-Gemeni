@@ -55,14 +55,25 @@ export const FACTS: StoryFact[] = [
   // earned once he has just taken a human catastrophe apart and found it
   // arithmetic. Ungated, he delivered it in the act's opening minutes — before
   // the caller had even sat down — spending the ending on turn two.
-  { id: 'holmes_crime_grown_dull', statement: 'His complaint of the season: the great cases are done. What remains to the criminal classes is squalid stuff that explains itself before a man can get his coat on. He says it as settled fact rather than as melancholy. This is the closing beat of the act', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['showed_charity_card_to_holmes'], topics: ['the criminal classes', 'crime', 'your boredom'] },
+  // This is the closing beat of the act. "This is the closing beat" used to be
+  // three words INSIDE the statement string above — a stray authoring note
+  // that was being fed to the AI as something Holmes knows, in the same list
+  // as everything he actually says. Moved here, where it belongs.
+  { id: 'holmes_crime_grown_dull', statement: 'His complaint of the season: the great cases are done. What remains to the criminal classes is squalid stuff that explains itself before a man can get his coat on — a woman vanishes out of London and the answer is a pawn ticket, a postmark and a shilling a week; everything is a sum now. He says it as settled fact rather than as melancholy, and adds, still watching the crowd below: he should be glad of something he could not have solved from this window', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['showed_charity_card_to_holmes'], topics: ['the criminal classes', 'crime', 'your boredom'] },
   // All five gated on the reconstruction (SHOW the card to Holmes). These ARE
   // the reconstruction's findings: ungated they were both askable by name and
   // free for him to voice as background from turn one, handing the player the
   // solved case — "ask holmes about marchant" before the workbox was open.
   // The refusal is gated with them because it is his verdict ON the
   // reconstruction and means nothing before it.
-  { id: 'holmes_no_case_here', statement: 'On the woman who called: he has found her sister exactly, and there is no crime in it. She has arranged her own affairs with more foresight than most of his clients manage, and gone to considerable expense to be somewhere her sister is not. What her sister does with that knowledge is not a problem for him to solve; it is a decision, and hers alone. His tone is flat and perfectly reasonable, and he is wrong', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['showed_charity_card_to_holmes'], topics: ['mrs kemp', 'the woman who called', 'her sister', 'why you refused', 'why you will not help'] },
+  // Spec's Phase F cost beat — "You might have said it more gently." / "I
+  // might... She would have understood it less." — is Watson's private aside
+  // right after the refusal, not something Holmes is asked. It has no natural
+  // home in a paraphrased TALK answer, which is built to deliver ONE
+  // character's voice on the named subject, not a Watson/Holmes exchange. Folded
+  // into what Holmes himself would say of his own manner instead, so the cost
+  // survives the paraphrase even though the exact lines cannot be guaranteed.
+  { id: 'holmes_no_case_here', statement: 'On the woman who called: he has found her sister exactly, and there is no crime in it. She has arranged her own affairs with more foresight than most of his clients manage, and gone to considerable expense to be somewhere her sister is not. What her sister does with that knowledge is not a problem for him to solve; it is a decision, and hers alone. His tone is flat and perfectly reasonable, and he is wrong. Pressed on whether he might have delivered it more gently, he allows that he might — and adds that she would only have understood it the less for it', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['showed_charity_card_to_holmes'], topics: ['mrs kemp', 'the woman who called', 'her sister', 'why you refused', 'why you will not help'] },
   { id: 'holmes_concluded_case', statement: 'The matter he has just finished is concluded and already forgotten. He names nothing and no one about it and declines to be drawn; it was solved in an afternoon and was not worth the afternoon', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the case you have just closed', 'your last case'] },
   { id: 'holmes_invisible_in_a_crowd', statement: 'At the open window, watching the holiday crowd: the whole city is turned out of doors tonight, a hundred thousand of them at the least, and a man might pass through the whole of that and be remembered by none. He means it as a complaint about the tedium of scale', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the crowd', 'the holiday', 'the window'] },
   { id: 'holmes_boots_bermondsey', statement: 'Oak bark, lime, and south-bank river silt, caked into a pair of boots in a dry August. Four streets in London could put all three on one sole, and every one of them is a tanyard in Bermondsey', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['showed_charity_card_to_holmes'], topics: ['the mud', 'bermondsey'] },

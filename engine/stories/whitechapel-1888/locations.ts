@@ -464,3 +464,12 @@ export const OBJECT_VISIBILITY: Record<string, string> = {
 export const CONTAINER_CONTENTS: Record<string, string[]> = {
   nells_workbox: ['nells_letters', 'charity_card'],
 };
+
+// First-open beats — see containerOpenNotes on StoryManifest. Spec phase D:
+// "the player's first intrusion and the first real action in the game" —
+// opening a stranger's private property, without her permission, because the
+// man at the window wants it open. Instructional, not literal dialogue,
+// because it's an interior beat of Watson's rather than something said aloud.
+export const CONTAINER_OPEN_NOTES: Record<string, string> = {
+  nells_workbox: 'This is a stranger\'s private property, opened without her leave, because Holmes wants it open and Watson does what Holmes wants. Mrs. Kemp says neither yes nor no. In no more than one sentence, let Watson register the discomfort of doing it anyway — do not moralise on it, and do not let the moment slow the scene down.',
+};

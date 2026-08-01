@@ -14,7 +14,7 @@ import { EngineResult, NarrationContext, RumorEvents, NPCState } from '../types'
 import { ParsedIntent } from './intentParser';
 import type { StoryManifest } from './stories/types';
 import { WHITECHAPEL_MANIFEST } from './stories/whitechapel-1888/manifest';
-import { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor, resolveActDay, formatTimeLabel } from './time';
+import { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor, resolveActDay, formatTimeLabel, rollForwardCalendarLabel } from './time';
 import { npcLocationAt, returnsPeriodFor, getPresentNpcIds, maturedSpreadsFor } from './presence';
 import type { SessionSnapshot } from './session';
 import { checkActProgression, computeActEntry, computeActEpilogue, computeNpcMovements } from './resolvers/support';
@@ -28,7 +28,7 @@ import { resolveWait, resolveHelp, resolveQuery, resolveUnresolvedTarget, resolv
 import { selectApproach } from './approaches';
 
 // Re-export for existing consumers (useGameState, parseFallback, qa scripts).
-export { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor, resolveActDay };
+export { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor, resolveActDay, rollForwardCalendarLabel };
 export { npcLocationAt, returnsPeriodFor, getPresentNpcIds, maturedSpreadsFor };
 export type { SessionSnapshot };
 

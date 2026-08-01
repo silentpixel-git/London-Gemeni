@@ -138,6 +138,18 @@ export function resolveExamine(story: StoryManifest, intent: ParsedIntent, sessi
 
   const objectName = story.objectDisplayNames[targetId] || intent.targetRaw;
 
+  // A closed container is scenery until OPEN reveals it. A live playtest
+  // caught the model inventing contents anyway — "spools of dark thread, a
+  // silver thimble" for a box nothing had opened — despite EXAMINE never
+  // having been told what was inside. Generic and container-shape-driven
+  // (story.containerContents), not keyed to any one object id, so it guards
+  // every closed container any story built on this engine ever adds, not just
+  // the one that happened to expose the bug.
+  const isUnopenedContainer = !!story.containerContents[targetId]?.length && !session.flags[openFlagFor(session.location, targetId)];
+  const closedContainerNote = isUnopenedContainer
+    ? ` This is a CLOSED container — Watson has not opened it. Do not describe, list, or guess at anything inside it; describe only its outside.`
+    : '';
+
   return {
     actionSuccess: true,
     actionType: 'examine',
@@ -151,15 +163,22 @@ export function resolveExamine(story: StoryManifest, intent: ParsedIntent, sessi
     aiContext: buildNarrationContext(story, intent, session, {
       success: true,
       actionDescription: `Watson examined the ${objectName} at ${currentLoc.name}.`,
-      actionResultNote: newClueIds.length > 0
+      actionResultNote: (newClueIds.length > 0
         ? `SUCCESS — Watson discovered ${newClueIds.length} new clue(s).`
         : alreadyExamined
         ? `SUCCESS — Watson re-examined the ${objectName}. (Previously examined — no new clues.${story.takeableObjects[targetId] && session.inventory.includes(story.takeableObjects[targetId]) ? ` Watson already carries ${story.takeableObjects[targetId]} — do NOT narrate him taking or copying it again.` : ''})`
-        : `SUCCESS — Watson examined the ${objectName}.`,
+        : `SUCCESS — Watson examined the ${objectName}.`) + closedContainerNote,
       newClueDefs,
       itemsGained: inventoryAdd,
     }),
   };
+}
+
+/** Shared with resolveOpen's own flag naming — kept local since only these two
+ *  resolvers need to compute it, and importing across resolvers for one string
+ *  template would be more indirection than the string itself. */
+function openFlagFor(locationId: string, objectId: string): string {
+  return `opened_${locationId}_${objectId}`;
 }
 
 // --------------------------------------------------------

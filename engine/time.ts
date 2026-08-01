@@ -104,11 +104,56 @@ export function timePeriodFor(
   return computeTimePeriod(cfg.canonicalMinutes + elapsedMinutes);
 }
 
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+  'August', 'September', 'October', 'November', 'December'];
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/**
+ * Rolls dayOfWeek/displayDate forward by however many midnight boundaries
+ * `totalMinutes` (canonicalMinutes + elapsed) has crossed past its first day.
+ * Every act's canonicalMinutes is authored under 1440 (a clock-of-day value),
+ * so Math.floor(totalMinutes / 1440) is exactly "how many extra calendar days
+ * elapsed play has pushed us into."
+ *
+ * Deliberately separate from resolveActDay's `days` step system (engine.
+ * GameEngine.ts's day-step-advance detection): that mechanism is for
+ * INTENTIONAL, narratively-authored day transitions with their own transition
+ * text, triggered by a flag. This covers the generic case no act currently
+ * opts into — a player who simply waits, or otherwise spends enough turns,
+ * to cross midnight without any authored transition to carry it. A live
+ * playtest found the display frozen on the original date after several WAITs
+ * narrated dawn breaking, while the room's own clock (formatGameClock, %1440)
+ * correctly wrapped — this closes that gap without touching the step system.
+ *
+ * Composes safely with an active day-step: elapsedMinutes resets to 0 when a
+ * step advances (see GameEngine.ts), so totalMinutes here already measures
+ * time since whichever day is currently active, authored or not.
+ *
+ * Defensive: an unparseable displayDate (an author typo) returns the label
+ * unchanged rather than crashing the turn on it.
+ */
+export function rollForwardCalendarLabel(
+  totalMinutes: number,
+  dayOfWeek: string,
+  displayDate: string,
+): { dayOfWeek: string; displayDate: string } {
+  const extraDays = Math.floor(totalMinutes / 1440);
+  if (extraDays <= 0) return { dayOfWeek, displayDate };
+  const base = new Date(displayDate);
+  if (isNaN(base.getTime())) return { dayOfWeek, displayDate };
+  base.setDate(base.getDate() + extraDays);
+  return {
+    dayOfWeek: WEEKDAY_NAMES[base.getDay()],
+    displayDate: `${base.getDate()} ${MONTH_NAMES[base.getMonth()]} ${base.getFullYear()}`,
+  };
+}
+
 export function formatTimeLabel(totalMinutes: number, dayOfWeek: string, displayDate: string): string {
+  const rolled = rollForwardCalendarLabel(totalMinutes, dayOfWeek, displayDate);
   const m    = totalMinutes % 1440;
   const h24  = Math.floor(m / 60);
   const mins = m % 60;
   const ampm = h24 < 12 ? 'AM' : 'PM';
   const h12  = h24 % 12 === 0 ? 12 : h24 % 12;
-  return `${h12}:${mins.toString().padStart(2, '0')} ${ampm} — ${dayOfWeek}, ${displayDate}`;
+  return `${h12}:${mins.toString().padStart(2, '0')} ${ampm} — ${rolled.dayOfWeek}, ${rolled.displayDate}`;
 }

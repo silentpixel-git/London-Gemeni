@@ -93,7 +93,7 @@ export function buildNarrationContext(
     scriptedBeatFlagsUpdate[`beat_${firedBeat.id}`] = true;
     if (firedBeat.setsFlag) scriptedBeatFlagsUpdate[firedBeat.setsFlag] = true;
   }
-  const scriptedBeat = firedBeat ? { text: firedBeat.text, style: firedBeat.style } : undefined;
+  const scriptedBeat = firedBeat ? { text: firedBeat.text, style: firedBeat.style, notice: firedBeat.notice } : undefined;
 
   /** Flags as they stand AFTER this turn's world events and scripted beat —
    *  what the room looks like now. A beat that admits an NPC must be visible to
@@ -158,31 +158,73 @@ export function buildNarrationContext(
     }
   }
 
-  // Act safety nets — story-authored failure-path nudges. Fire when the
-  // act matches, the named NPC is present, and the condition holds. An array
-  // instruction escalates with how long the player has been stalled here.
+  // Everything below is ONE priority chain, first match wins — at most a
+  // single npcScriptedLines entry leaves this function. Four independent
+  // sources used to each push unconditionally (only the idle beat checked
+  // `length === 0`), which let e.g. a safety net AND the companion demeanour
+  // both land in the same compact turn on top of the turn's own action, and
+  // in Act 0 — no clues, no reachable exits, so turnsAtLocationWithoutProgress
+  // only ever increases — the safety net pinned to its final, most insistent
+  // rung by ~turn 6 and re-emitted it every turn thereafter. A live playtest
+  // showed the resulting wall of text.
+
+  // Act safety nets — story-authored failure-path nudges. Only when the
+  // player is GENUINELY stalled (a handful of turns, not one), and then only
+  // on a cadence rather than every qualifying turn — this is a safety net,
+  // not per-turn narration. `break` after the first match: at most one net
+  // fires even if several qualify the same turn.
+  const STALL_THRESHOLD = 3;
+  const STALL_CADENCE = 3;
   const TURNS_PER_RUNG = 2;
-  for (const net of story.actSafetyNets) {
-    if (net.act !== session.currentAct) continue;
-    if (!net.when(session)) continue;
-    const present = npcsPresent.find(n => n.npcId === net.requiresNpcPresent);
-    if (!present) continue;
-    const rungs = Array.isArray(net.instruction) ? net.instruction : [net.instruction];
-    const rung = Math.min(
-      Math.floor(session.turnsAtLocationWithoutProgress / TURNS_PER_RUNG),
-      rungs.length - 1,
-    );
-    npcScriptedLines.push({ npcId: present.npcId, label: present.label, instruction: rungs[rung] });
+  if (npcScriptedLines.length === 0
+      && session.turnsAtLocationWithoutProgress >= STALL_THRESHOLD
+      && session.turnsAtLocationWithoutProgress % STALL_CADENCE === 0) {
+    for (const net of story.actSafetyNets) {
+      if (net.act !== session.currentAct) continue;
+      if (!net.when(session)) continue;
+      const present = npcsPresent.find(n => n.npcId === net.requiresNpcPresent);
+      if (!present) continue;
+      const rungs = Array.isArray(net.instruction) ? net.instruction : [net.instruction];
+      const rung = Math.min(
+        Math.floor(session.turnsAtLocationWithoutProgress / TURNS_PER_RUNG),
+        rungs.length - 1,
+      );
+      npcScriptedLines.push({ npcId: present.npcId, label: present.label, instruction: rungs[rung] });
+      break;
+    }
   }
 
-  // Idle beat — at most ONE flat ambient beat per turn across ALL present
-  // NPCs, and none on a turn where a scripted moment or safety net fired
-  // (those are the scene's texture that round). The NPC is chosen round-robin
-  // by turn count so no one hogs the background; within the chosen NPC,
-  // location-scoped beats (props that live here) win over portable quirks.
-  // The beat index strides by the round-robin QUOTIENT, not turnCount itself —
-  // with a shared counter, gcd(eligible.length, beats.length) > 1 would lock
-  // each NPC to a fixed subset of their beats forever.
+  // Companion case-state demeanor — derived, no new state. Only if nothing
+  // above fired, and only every other turn: this fires on every turn the
+  // companion is present and not interviewed, so its wording reaches the
+  // model more than anything else in the prompt. Without BOTH the cadence and
+  // the caveat below, the model echoes its vocabulary back turn after turn —
+  // a playtest found "restless" in 12 of 20 replies, traced to the single
+  // word in the Act 0 catch-all variant. `break`: at most one demeanour.
+  if (npcScriptedLines.length === 0 && session.turnCount % 2 === 0) {
+    for (const cd of story.companionDemeanors) {
+      if (outcome.targetNpcId === cd.npcId) continue;
+      const present = npcsPresent.find(n => n.npcId === cd.npcId);
+      if (!present) continue;
+      const variant = cd.variants.find(v => v.when(session));
+      if (variant) {
+        npcScriptedLines.push({
+          npcId: cd.npcId,
+          label: present.label,
+          instruction: `Demeanor note (a register for how to play him this scene, NOT a line to render — never reuse its wording, and vary how it shows from turn to turn): ${variant.text}`,
+        });
+        break;
+      }
+    }
+  }
+
+  // Idle beat — lowest priority, only when nothing above fired. The NPC is
+  // chosen round-robin by turn count so no one hogs the background; within
+  // the chosen NPC, location-scoped beats (props that live here) win over
+  // portable quirks. The beat index strides by the round-robin QUOTIENT, not
+  // turnCount itself — with a shared counter, gcd(eligible.length,
+  // beats.length) > 1 would lock each NPC to a fixed subset of their beats
+  // forever.
   if (npcScriptedLines.length === 0) {
     const eligible = npcsPresent
       .filter(({ npcId }) => npcId !== outcome.targetNpcId)
@@ -203,27 +245,6 @@ export function buildNarrationContext(
         // business two and three times within a single reply, which made a
         // rotating pool look far smaller than it is.
         instruction: `Background only, no emphasis. Give it one clause and do not restate it later in the reply: ${beats[beatIndex].text}`,
-      });
-    }
-  }
-
-  // Companion case-state demeanor — derived, no new state. First matching
-  // variant wins; injected only when the NPC is present and not interviewed.
-  for (const cd of story.companionDemeanors) {
-    if (outcome.targetNpcId === cd.npcId) continue;
-    const present = npcsPresent.find(n => n.npcId === cd.npcId);
-    if (!present) continue;
-    const variant = cd.variants.find(v => v.when(session));
-    if (variant) {
-      // This fires on EVERY turn the companion is present and not interviewed,
-      // so its wording reaches the model more often than anything else in the
-      // prompt. Without the caveat the model echoes its vocabulary back turn
-      // after turn — a playtest found "restless" in 12 of 20 replies, traced to
-      // the single word in the Act 0 catch-all variant below.
-      npcScriptedLines.push({
-        npcId: cd.npcId,
-        label: present.label,
-        instruction: `Demeanor note (a register for how to play him this scene, NOT a line to render — never reuse its wording, and vary how it shows from turn to turn): ${variant.text}`,
       });
     }
   }
@@ -254,10 +275,22 @@ export function buildNarrationContext(
   // blocked move (invalid/unavailable destination) must stay 'compact' too —
   // the full template has no instruction to acknowledge a failed action, so a
   // blocked move rendered in full mode silently reads as a normal look-around.
+  //
+  // 'other' is NEVER full mode. It used to read `type === 'other' &&
+  // !intent.targetId` — but intent.targetId is never set for 'other' at all
+  // (only intent.targetRaw sometimes is, for the KEEP_PHRASES match), so that
+  // condition was actually unconditional: every 'other' intent got the full
+  // "arrival" treatment (atmosphere, who's present, objects), including
+  // genuinely unrecognized input, where resolveOther's own actionResultNote
+  // asks the model to respond "briefly." A live playtest hit this two ways at
+  // once: "answer the door" got a long room re-description instead of a short
+  // in-character non-sequitur, and because it landed on the exact turn a
+  // scripted beat was admitting Mrs. Kemp, that full-mode "who's present"
+  // paragraph described her as already in the room a beat before her own
+  // arrival text ran.
   const narrationMode: 'full' | 'compact' =
     (intent.type === 'move' && outcome.success) ||
-    (intent.type === 'examine' && !intent.targetId) ||
-    (intent.type === 'other' && !intent.targetId)
+    (intent.type === 'examine' && !intent.targetId)
       ? 'full'
       : 'compact';
 
@@ -269,7 +302,11 @@ export function buildNarrationContext(
   // the turn has to give up its own, or the reader gets two quoted blocks
   // stacked against each other and the form stops meaning anything.
   const blockquoteHint: NarrationContext['blockquoteHint'] =
-    scriptedBeat?.style === 'blockquote'
+    // ANY scripted beat, not just a blockquote-styled one, yields the turn's
+    // blockquote budget — a prose beat is already the turn's substance, so
+    // asking the model for its own quoted aside on top invites the same
+    // wall-of-text problem this whole mechanism exists to bound.
+    scriptedBeat
       ? 'none'
       : narrationMode === 'full'
         ? 'world_event'

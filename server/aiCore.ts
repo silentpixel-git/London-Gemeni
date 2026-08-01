@@ -280,7 +280,15 @@ Result: ${ctx.actionResultNote}
 Paragraph 1 — ATMOSPHERE: 2–3 tight sentences. Vivid sensory hook. Apply correct temporal register. Do NOT list NPCs, objects, or exits.
 
 ${ctx.act === 0
-  ? `Paragraph 2 — HOOK: One sentence. Act 0 opens BEFORE there is any case at all, so do NOT raise dread, menace, or a sense of something coming: nothing has happened, and a manufactured shiver here is exactly the foreshadow this act must not carry. Hook instead on Holmes having nothing whatever to occupy him, and on the fact that somebody has called this evening on a matter he does not want. Curiosity, not dread.`
+  // Stale for a full session: this used to fire when Mrs. Kemp was present at
+  // turn 0. She now arrives on player turn 4 (see scriptedBeats.ts) and this
+  // is the OPENING turn specifically — nobody has called yet. The old text
+  // ("somebody has called this evening", "nothing whatever to occupy him")
+  // both instructed the model to invent a caller and contradicted act0Note /
+  // act0CompactNote elsewhere in this file, neither of which this early-return
+  // branch ever reaches. Phrased positively per the lesson already recorded
+  // below at the other two Act 0 notes: naming the absent thing conjures it.
+  ? `Paragraph 2 — HOOK: One sentence. Act 0 opens BEFORE there is any case at all, so do NOT raise dread, menace, or a sense of something coming: nothing has happened, and a manufactured shiver here is exactly the foreshadow this act must not carry. Hook instead on Holmes reading strangers out of the holiday crowd below for the pleasure of it, and on the warm evening the two of them have entirely to themselves. Curiosity, not dread.`
   : `Paragraph 2 — MYSTERY HOOK: One sentence that raises a question or creates dread. Leave the player wanting to look around.`}
 
 NO Markdown headings. NO blockquote. NO exits listing. NO character roster. NPCs, objects, and exits will be appended separately.`;
@@ -386,9 +394,22 @@ ${structure}`;
   // COMPACT MODE — examine, talk, take, use, inventory, deduce, blocked action
   // A topic-scoped answer IS the turn — it has a specific fact to convey in
   // character, which does not fit the budget sized for a general exchange.
-  const compactWordLimit = (ctx.blockquoteHint !== 'none' ? 130 : 100) +
-    (ctx.targetNpcInterview?.topic ? 50 : 0) +
-    (ctx.extraWordBudget ?? 0);
+  //
+  // A scripted beat carries its own text mechanically appended after the
+  // model's reply (see the end of this function), uncounted against any
+  // budget. On a NON-interview turn that beat IS the scene's substance for
+  // this round — the model's own reply only needs to land the player's actual
+  // action, tersely, so it gets a small fixed budget instead of the normal
+  // formula. Scoped to non-interview turns only: an interview turn's topic
+  // answer is real content (a fact the player asked for) that must not be
+  // squeezed to make room for a beat that happens to land the same turn.
+  const hasScriptedBeat = !!ctx.scriptedBeat;
+  const isInterviewTurn = !!ctx.targetNpcInterview;
+  const compactWordLimit = (hasScriptedBeat && !isInterviewTurn)
+    ? 60
+    : (ctx.blockquoteHint !== 'none' ? 130 : 100) +
+      (ctx.targetNpcInterview?.topic ? 50 : 0) +
+      (ctx.extraWordBudget ?? 0);
   // Most of Act 0 is compact turns, so the register note has to live here too —
   // it was full-mode only, and the model spent every examine writing Holmes
   // bored, stagnant and coiled, which is precisely the reading the act is built
@@ -402,7 +423,9 @@ ${structure}`;
         : ' The cast of this scene is exactly two, Holmes and Watson, alone in the room with the evening to themselves.\n')
     : '';
   let compactPrompt = `=== NARRATION MODE: COMPACT ===
-Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line. Do NOT include any Markdown heading. NO act header. NO location description. NO exits listing.
+${(hasScriptedBeat && !isInterviewTurn)
+    ? `Write ONE short paragraph (max ${compactWordLimit} words) narrating only Watson's own action this turn. An authored beat follows immediately after your reply and carries the scene's substance — do not anticipate it, restate it, or write a second paragraph.`
+    : `Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line.`} Do NOT include any Markdown heading. NO act header. NO location description. NO exits listing.
 ${act0CompactNote}${dayStepSection}${temporalSection}
 === VERIFIED CONTEXT ===
 Location: ${ctx.locationName} (Act ${ctx.act}: ${ctx.actName})
@@ -697,11 +720,18 @@ export class AIService {
     // Sits above the presence notice so "Mrs. Hudson shows the visitor up"
     // precedes "Mrs. Kemp has arrived."
     if (ctx.scriptedBeat) {
-      const { text, style } = ctx.scriptedBeat;
+      const { text, style, notice } = ctx.scriptedBeat;
       const rendered = style === 'blockquote'
         ? `> *${text}*`
         : text;
       parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + rendered;
+      // Mechanical notice for an event the player should be told about
+      // plainly, same register as the presence lines just below (e.g. a
+      // doorbell — unlike an arrival/departure, there's no npcsArrived-style
+      // engine signal for it, so the beat carries its own).
+      if (notice) {
+        parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + notice;
+      }
     }
 
     // Who came or went this turn. Appended on EVERY mode, unlike the verified

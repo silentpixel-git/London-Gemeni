@@ -41,6 +41,12 @@ export function resolveOpen(story: StoryManifest, intent: ParsedIntent, session:
 
   const revealed = contents.map(id => story.objectDisplayNames[id] ?? id).join(', ');
 
+  // A container's FIRST opening can be a moment in its own right — an
+  // intrusion into someone's private property, not just a lid coming off a
+  // box — rather than scenery that happens to hold things. Authored per
+  // container (story.containerOpenNotes), never on the re-open.
+  const openNote = !alreadyOpen ? story.containerOpenNotes?.[targetId] : undefined;
+
   return {
     actionSuccess: true,
     actionType: 'open',
@@ -53,7 +59,7 @@ export function resolveOpen(story: StoryManifest, intent: ParsedIntent, session:
       actionDescription: `Watson opened the ${objectName}.`,
       actionResultNote: alreadyOpen
         ? `SUCCESS — the ${objectName} is already open. Inside: ${revealed}. Watson looks again at what is already before him; no new discovery. One sentence.`
-        : `SUCCESS — the ${objectName} is now open. Inside: ${revealed}. Describe only these contents and nothing else.`,
+        : `SUCCESS — the ${objectName} is now open. Inside: ${revealed}. Describe only these contents and nothing else.${openNote ? ` ${openNote}` : ''}`,
       newClueDefs: [],
     }),
   };

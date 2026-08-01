@@ -288,7 +288,7 @@ export interface NarrationContext {
   npcsDeparted?: string[];
   // An authored beat due on this player turn (see ScriptedBeat). Rendered
   // verbatim under the prose, not paraphrased by the model.
-  scriptedBeat?: { text: string; style: 'prose' | 'blockquote' };
+  scriptedBeat?: { text: string; style: 'prose' | 'blockquote'; notice?: string };
   availableObjects: string[];     // Display names of interactable objects
   availableExits: string[];       // Display names of accessible exits
   inventory: string[];

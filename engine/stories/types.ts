@@ -175,6 +175,11 @@ export interface ScriptedBeat<F extends string = string> {
   text: string;
   /** Extra flag to set when this beat lands — e.g. admitting an NPC to the room. */
   setsFlag?: F;
+  /** Optional mechanical notice rendered under the beat's own text, same
+   *  register as "**X** has arrived." — for an event a player should be told
+   *  about plainly rather than only through prose (a bell ringing, a door
+   *  opening). Author supplies their own markdown (bold subject etc.). */
+  notice?: string;
 }
 
 // ── Rumor propagation (Phase 4b) ─────────────────────────────────────────────
@@ -413,6 +418,14 @@ export interface StoryManifest {
   /** Container object id → the object ids OPEN reveals. Drives both the OPEN
    *  resolver and the sidebar's nested display. */
   containerContents: Record<string, string[]>;
+  /** Optional: container object id → a beat for the FIRST time it is opened,
+   *  appended to OPEN's normal contents description. For a container whose
+   *  opening is itself a moment — an intrusion into someone's private
+   *  property, a decision made on another character's behalf — rather than
+   *  just a container whose contents happen to be inside a box. Flat by
+   *  object id, same shape as objectVisibility, since a container's id is
+   *  already unique across the story. */
+  containerOpenNotes?: Record<string, string>;
   /** Optional grant: talking to this NPC (keyed by npcId) adds the named
    *  takeable object to inventory, once, the first time the talk succeeds —
    *  for testimony/notes that exist only because the NPC gave them, not

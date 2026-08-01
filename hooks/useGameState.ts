@@ -15,7 +15,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
 import { GameRepository, UserProfile } from '../services/GameRepository';
 import { aiService } from '../services/AIService';
-import { gameEngine, SessionSnapshot, computeTimePeriod, resolveActDay } from '../engine/GameEngine';
+import { gameEngine, SessionSnapshot, computeTimePeriod, resolveActDay, rollForwardCalendarLabel } from '../engine/GameEngine';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { resolveActDiary } from '../engine/stories/whitechapel-1888/diaryActs';
 import { audioManager } from '../services/AudioManager';
@@ -529,7 +529,15 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // On an act-advance the clock persists at the new act's canonical start (0);
       // React's elapsedMinutes stays held until Begin (see the hold comment above).
       const actionMinutes = result.minutesAdvanced ?? ACTION_TIME_MINUTES[result.actionType] ?? 2;
-      const newElapsedMinutes = advancingAct ? 0 : elapsedMinutes + actionMinutes;
+      // Belt-and-braces alongside resolveWait's own midnight refusal: even
+      // ordinary verbs must not carry the clock into the next calendar day —
+      // the calendar only moves when an authored act transition moves it (see
+      // ActTimeConfig.days). Clamped, not wrapped, so a pathological run of
+      // turns holds at 11:59 PM rather than silently rolling the date forward.
+      const actDayForClock = resolveActDay(ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1], flags);
+      const maxElapsedForDay = 1439 - actDayForClock.canonicalMinutes;
+      const clampedElapsedMinutes = Math.min(elapsedMinutes + actionMinutes, maxElapsedForDay);
+      const newElapsedMinutes = advancingAct ? 0 : clampedElapsedMinutes;
       if (!advancingAct) setElapsedMinutes(newElapsedMinutes);
       // Mirrors newElapsedMinutes's override scheme: result.approachAtMinutes
       // is architecturally always undefined on an advancing turn, so without
@@ -540,7 +548,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // Clock label for any diary entries captured this turn. Use the held clock
       // (current act + this action's time), not the next act's reset — entries
       // captured this turn belong to the current act even on an advancing turn.
-      const captureTimeLabel = formatGameClock(currentAct, elapsedMinutes + actionMinutes, flags);
+      const captureTimeLabel = formatGameClock(currentAct, clampedElapsedMinutes, flags);
       setTurnCount(t => t + 1);
 
       // Hour-bell clock event — fires when the turn crosses an hour boundary
@@ -960,7 +968,13 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     displayTime: formatGameClock(currentAct, elapsedMinutes, flags),
 
-    displayDate: actDay.displayDate,
+    // actDay.displayDate alone is frozen except across an authored day-step
+    // (see rollForwardCalendarLabel) — this rolls it forward generically once
+    // elapsed play (e.g. repeated WAITs) crosses a midnight the act's own
+    // config never anticipated.
+    displayDate: rollForwardCalendarLabel(
+      actDay.canonicalMinutes + elapsedMinutes, actDay.dayOfWeek, actDay.displayDate
+    ).displayDate,
 
     weather: ACT_WEATHER[currentAct] ?? ACT_WEATHER[1],
 

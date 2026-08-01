@@ -2,7 +2,7 @@ import { EngineResult } from '../../types';
 import { ParsedIntent, KEEP_PHRASES } from '../intentParser';
 import type { StoryManifest } from '../stories/types';
 import type { SessionSnapshot } from '../session';
-import { buildNarrationContext } from '../narrationContext';
+import { buildNarrationContext, blocked } from '../narrationContext';
 import { computeTimePeriod, minutesToNextPeriodBoundary, resolveActDay } from '../time';
 import { visibleInteractables } from '../visibility';
 import { periodOf } from './support';
@@ -17,6 +17,20 @@ export function resolveWait(story: StoryManifest, intent: ParsedIntent, session:
   const total = resolveActDay(cfg, session.flags).canonicalMinutes + session.elapsedMinutes;
   const from = computeTimePeriod(total);
   const minutesAdvanced = minutesToNextPeriodBoundary(total);
+
+  // The calendar only moves when the story moves it (see ActTimeConfig.days:
+  // "advance is FLAG-DRIVEN, never clock-driven"). WAIT jumping to the next
+  // period boundary can cross midnight on its own — two WAITs from Act 0's
+  // 8:30 PM start reached 5 AM the next day, past the historical hour of the
+  // first murder, silently breaking the act's premise that nothing has
+  // happened yet. Refuse in character rather than let the clock drift.
+  if (total + minutesAdvanced > 1439) {
+    return blocked(story, intent, session,
+      `It is late enough. Watson does not care to let the rest of the night go by simply sitting.`,
+      `WAIT blocked: waiting would carry the clock past midnight into the next calendar day, which only an authored act transition may do. Narrate Watson deciding against idling the night away — restlessness, an ache in an old wound, anything in character — never a system refusal.`
+    );
+  }
+
   const to = computeTimePeriod(total + minutesAdvanced);
   const hours = Math.round((minutesAdvanced / 60) * 10) / 10;
 

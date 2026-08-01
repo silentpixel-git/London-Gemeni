@@ -37,7 +37,8 @@
  * Exit code 1 if any FAIL.
  */
 
-import { gameEngine, GameEngine, SessionSnapshot, npcLocationAt, getPresentNpcIds, timePeriodFor, resolveActDay, PERIOD_ORDER, minutesToNextPeriodBoundary, nextOpenPeriod, returnsPeriodFor, periodBoundariesCrossed, maturedSpreadsFor } from '../engine/GameEngine';
+import { gameEngine, GameEngine, SessionSnapshot, npcLocationAt, getPresentNpcIds, timePeriodFor, resolveActDay, PERIOD_ORDER, minutesToNextPeriodBoundary, nextOpenPeriod, returnsPeriodFor, periodBoundariesCrossed, maturedSpreadsFor, rollForwardCalendarLabel } from '../engine/GameEngine';
+import { formatTimeLabel } from '../engine/time';
 import { parseIntent } from '../engine/intentParser';
 import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
 import type { StoryFact, RumorDefinition } from '../engine/stories/types';
@@ -1032,17 +1033,23 @@ function runLivingWorld() {
     ? pass('LivingWorld: intra-act weather drift (clear-night → foggy after 120min)')
     : fail('LivingWorld: weather drift broken', JSON.stringify({ wEarly, wLate }));
 
-  // Idle behavior rotates with turnCount and never targets the interviewed NPC
+  // Idle behavior rotates with turnCount and never targets the interviewed NPC.
+  // Compared at two ODD turn counts deliberately: the companion demeanour
+  // (narrationContext.ts) now only competes for the turn's one scripted-line
+  // slot on EVEN turns (see the safety-net/demeanour cadence added to bound
+  // Act 0's per-turn text growth), so an even/odd pair here would sometimes
+  // catch the demeanour winning the slot instead of idle — a real change in
+  // priority, not a broken rotation.
   const idleAt = (tc: number) => {
     const s = buildSnapshot({ turnCount: tc });
     const r = gameEngine.resolve(parseIntent('examine the whitechapel map'), s);
     return (r.aiContext.npcScriptedLines ?? []).find(l =>
       l.npcId === 'holmes' && l.instruction.startsWith('Background only'))?.instruction;
   };
-  const i0 = idleAt(0), i1 = idleAt(1);
-  i0 && i1 && i0 !== i1
+  const i1 = idleAt(1), i3 = idleAt(3);
+  i1 && i3 && i1 !== i3
     ? pass('LivingWorld: Holmes idle behavior present and rotates by turn')
-    : fail('LivingWorld: idle rotation broken', JSON.stringify({ i0, i1 }));
+    : fail('LivingWorld: idle rotation broken', JSON.stringify({ i1, i3 }));
   const sTalk = buildSnapshot({ turnCount: 0 });
   const rTalk = gameEngine.resolve(parseIntent('talk to holmes'), sTalk);
   !(rTalk.aiContext.npcScriptedLines ?? []).some(l => l.instruction.startsWith('Background only') && l.npcId === 'holmes')
@@ -1308,6 +1315,65 @@ function testWait() {
   else fail('resolveWait: narration context shows the post-wait period', r.aiContext.timePeriod);
   if (r.newAct === undefined && r.newLocation === undefined) pass('resolveWait: never moves or advances the act');
   else fail('resolveWait: never moves or advances the act');
+
+  // WAIT must never carry the clock past midnight — the calendar only moves
+  // via an authored act transition (see ActTimeConfig.days: "advance is
+  // FLAG-DRIVEN, never clock-driven"). A live playtest crossed from Act 0's
+  // 8:30 PM start to 5 AM the next day in two WAITs, landing the game past
+  // the historical hour of the first murder while the act's premise is that
+  // nothing has happened yet.
+  const act0Session: SessionSnapshot = {
+    location: 'baker_street', inventory: [], flags: {},
+    npcStates: {}, currentAct: 0, medicalPoints: 0, moralPoints: 0,
+    discoveredClueIds: [], turnsAtLocationWithoutProgress: 0, elapsedMinutes: 0,
+    introducedNpcs: [], locationVisitCounts: {}, turnCount: 1,
+    rumorEvents: {},
+  };
+  const firstWait = gameEngine.resolve(parseIntent('wait'), act0Session);
+  (firstWait.actionSuccess && firstWait.minutesAdvanced === 150)
+    ? pass('resolveWait: Act 0 8:30 PM → 150 minutes to 11:00 PM, same day')
+    : fail('resolveWait: Act 0 8:30 PM → 150 minutes to 11:00 PM, same day',
+        JSON.stringify({ ok: firstWait.actionSuccess, min: firstWait.minutesAdvanced }));
+
+  const secondWait = gameEngine.resolve(parseIntent('wait'),
+    { ...act0Session, elapsedMinutes: 150, turnCount: 2 });
+  !secondWait.actionSuccess
+    ? pass('resolveWait: a second WAIT that would cross midnight is refused')
+    : fail('resolveWait: a second WAIT that would cross midnight is refused',
+        JSON.stringify(secondWait.minutesAdvanced));
+
+  // rollForwardCalendarLabel: the displayed date/day must not stay frozen
+  // when repeated WAITs (or any other elapsed time) push totalMinutes past a
+  // midnight the act's own config never anticipated — a live playtest found
+  // the sidebar and the AI's own CURRENT TIME context stuck on the original
+  // date after several such WAITs, contradicting narration that had been
+  // describing dawn breaking.
+  const noRoll = rollForwardCalendarLabel(1439, 'Monday', '6 August 1888');
+  (noRoll.dayOfWeek === 'Monday' && noRoll.displayDate === '6 August 1888')
+    ? pass('rollForwardCalendarLabel: 23:59 of day 0 does not roll')
+    : fail('rollForwardCalendarLabel: 23:59 of day 0 does not roll', JSON.stringify(noRoll));
+
+  const oneRoll = rollForwardCalendarLabel(1440, 'Monday', '6 August 1888');
+  (oneRoll.dayOfWeek === 'Tuesday' && oneRoll.displayDate === '7 August 1888')
+    ? pass('rollForwardCalendarLabel: exactly midnight rolls to the next real calendar day')
+    : fail('rollForwardCalendarLabel: exactly midnight rolls to the next real calendar day', JSON.stringify(oneRoll));
+
+  const monthCross = rollForwardCalendarLabel(1440 * 26, 'Monday', '6 August 1888');
+  monthCross.displayDate === '1 September 1888'
+    ? pass('rollForwardCalendarLabel: rolls correctly across a month boundary')
+    : fail('rollForwardCalendarLabel: rolls correctly across a month boundary', JSON.stringify(monthCross));
+
+  const malformed = rollForwardCalendarLabel(3000, 'Monday', 'not a real date');
+  (malformed.dayOfWeek === 'Monday' && malformed.displayDate === 'not a real date')
+    ? pass('rollForwardCalendarLabel: an unparseable date degrades to unchanged, not a crash')
+    : fail('rollForwardCalendarLabel: an unparseable date degrades to unchanged, not a crash', JSON.stringify(malformed));
+
+  // formatTimeLabel must carry the same rollover through to the AI's own
+  // CURRENT TIME context, not just the standalone helper.
+  const label = formatTimeLabel(1500, 'Monday', '6 August 1888');
+  label.includes('Tuesday, 7 August 1888')
+    ? pass('formatTimeLabel: rolls the calendar forward, not just the clock')
+    : fail('formatTimeLabel: rolls the calendar forward, not just the clock', label);
 }
 
 // ── Phase 4a: location opening hours ─────────────────────────────────────────
@@ -2456,6 +2522,23 @@ function runOpenVerb() {
     buildSnapshot({ location: 'baker_street', currentAct: 0, flags: { opened_baker_street_violin_case: true } }));
   if (reopen.actionSuccess && reopen.newAct === undefined) pass('re-opening is idempotent');
   else fail('re-opening is idempotent', JSON.stringify({ ok: reopen.actionSuccess, act: reopen.newAct }));
+
+  // EXAMINE of an unopened container must warn the model off inventing
+  // contents. A live playtest caught the model describing "spools of dark
+  // thread, a silver thimble" inside a box nothing had opened yet.
+  const examineClosed = withContainer.resolve(parseIntent('examine the violin case'), snap);
+  examineClosed.aiContext.actionResultNote.includes('CLOSED container')
+    ? pass('EXAMINE of an unopened container warns against describing contents')
+    : fail('EXAMINE of an unopened container warns against describing contents',
+        examineClosed.aiContext.actionResultNote);
+
+  // Once opened, EXAMINE goes back to normal — no closed-container warning.
+  const examineOpened = withContainer.resolve(parseIntent('examine the violin case'),
+    buildSnapshot({ location: 'baker_street', currentAct: 0, flags: { opened_baker_street_violin_case: true } }));
+  !examineOpened.aiContext.actionResultNote.includes('CLOSED container')
+    ? pass('EXAMINE of an OPENED container carries no closed-container warning')
+    : fail('EXAMINE of an OPENED container carries no closed-container warning',
+        examineOpened.aiContext.actionResultNote);
 }
 
 function runPresenceGating() {
@@ -2525,36 +2608,55 @@ function runScriptedBeats() {
   // Walk Act 0's authored opening the way the hook does: turnCount is 1-based
   // for player actions, and each turn's flags carry forward.
   let flags: Record<string, boolean> = {};
-  const seen: Array<{ turn: number; style?: string; hint: string }> = [];
-  for (let turn = 1; turn <= 5; turn++) {
+  const seen: Array<{ turn: number; style?: string; hint: string; notice?: string }> = [];
+  for (let turn = 1; turn <= 6; turn++) {
     const r = gameEngine.resolve(
       parseIntent('examine the violin case'),
       buildSnapshot({ location: 'baker_street', currentAct: 0, flags, turnCount: turn }),
     );
     const beat = r.aiContext.scriptedBeat;
-    seen.push({ turn, style: beat?.style, hint: r.aiContext.blockquoteHint });
+    seen.push({ turn, style: beat?.style, hint: r.aiContext.blockquoteHint, notice: beat?.notice });
     flags = { ...flags, ...(r.flagsUpdate ?? {}) };
   }
 
-  // Turns 1-4 each carry exactly one beat; turn 5 carries none.
+  // Turns 1-5 each carry exactly one beat (spec phases A and B); turn 6 carries
+  // none — the opening sequence is spent and the player has the controls. All
+  // five are 'prose' now — none uses 'blockquote' (see the file header for why).
   const styles = seen.map(x => x.style ?? '-').join(',');
-  styles === 'prose,blockquote,blockquote,blockquote,-'
+  styles === 'prose,prose,prose,prose,prose,-'
     ? pass('ScriptedBeats: one beat per turn, in authored order, then none')
     : fail('ScriptedBeats: wrong beat sequence', styles);
 
-  // The whole point: a blockquote beat must suppress the model's own, or the
-  // turn renders two quoted blocks stacked together.
-  const doubled = seen.filter(x => x.style === 'blockquote' && x.hint !== 'none');
-  doubled.length === 0
-    ? pass('ScriptedBeats: blockquote beats force blockquoteHint=none (never two per turn)')
-    : fail('ScriptedBeats: blockquote beat left the model free to add a second',
-        JSON.stringify(doubled));
+  // ANY scripted beat — not just a blockquote-styled one — must suppress the
+  // model's own blockquote, or a prose beat's authored dialogue competes with
+  // an unrelated "Watson's inner thought" aside for the same turn's one quoted
+  // block. The single-sample check above is too weak to trust as a regression
+  // guard on its own: blockquoteHint's compact-mode branch is `Math.random() <
+  // 0.3 ? 'inner_thought' : 'none'`, so a broken build still prints 'none' on
+  // any turn that didn't happen to roll under 0.3 — roughly a 1-in-6 chance of
+  // the single-pass version above missing a real regression across 5 turns.
+  // Hammering one scripted-beat turn 40 times drops that to astronomically
+  // unlikely (0.7^40) while staying a plain assertion, no test-only seam.
+  let leakyRolls = 0;
+  for (let i = 0; i < 40; i++) {
+    const r = gameEngine.resolve(
+      parseIntent('examine the violin case'),
+      buildSnapshot({ location: 'baker_street', currentAct: 0, flags: {}, turnCount: 1 }),
+    );
+    if (r.aiContext.scriptedBeat && r.aiContext.blockquoteHint !== 'none') leakyRolls++;
+  }
+  leakyRolls === 0
+    ? pass('ScriptedBeats: any scripted beat forces blockquoteHint=none (40 rolls)')
+    : fail('ScriptedBeats: a beat left the model free to add its own blockquote',
+        `${leakyRolls}/40 rolls leaked a blockquote`);
 
-  // A prose beat leaves the turn's own blockquote budget alone.
-  const proseTurn = seen.find(x => x.style === 'prose');
-  proseTurn
-    ? pass('ScriptedBeats: prose beat does not consume the turn\'s blockquote')
-    : fail('ScriptedBeats: no prose beat found');
+  // Beat 3 (the bell) carries its own mechanical notice, same register as an
+  // arrival/departure line — there is no engine-level presence signal for a
+  // doorbell the way there is for an NPC.
+  const bellTurn = seen.find(x => x.turn === 3);
+  bellTurn?.notice === '**Door bell** is ringing.'
+    ? pass('ScriptedBeats: the bell beat carries its doorbell notice')
+    : fail('ScriptedBeats: the bell beat carries its doorbell notice', JSON.stringify(bellTurn));
 
   // Beat 4 admits Mrs. Kemp on the SAME turn it fires — presence and object
   // visibility both read the post-beat flags.
@@ -2579,6 +2681,57 @@ function runScriptedBeats() {
     : fail('ScriptedBeats: no arrival notice', JSON.stringify(arrival.aiContext.npcsArrived));
 }
 
+// ── 'other' intents are never full mode ──────────────────────────────────────
+
+function runOtherIsNeverFull() {
+  console.log('\n=== SCENARIO: unrecognized/other input never gets full-mode narration ===');
+
+  // The bug: narrationMode's condition for 'other' was `!intent.targetId`,
+  // but intent.targetId is never set on a 'other' intent at all (only
+  // targetRaw sometimes is) — so the condition was actually unconditional,
+  // and EVERY 'other' intent got full "arrival" treatment. A live playtest
+  // hit this via "answer the door": a long room re-description instead of
+  // the short in-character non-sequitur resolveOther's own text asks for,
+  // and — because it landed on the exact turn a scripted beat was admitting
+  // Mrs. Kemp — that full-mode text described her as already in the room a
+  // beat before her own arrival text ran.
+
+  // Genuinely unrecognized input (the catch-all fallback, no targetRaw).
+  const gibberish = gameEngine.resolve(parseIntent('answer the door'), buildSnapshot());
+  gibberish.aiContext.narrationMode === 'compact'
+    ? pass('unrecognized "other" input (no targetRaw) resolves to compact mode')
+    : fail('unrecognized "other" input (no targetRaw) resolves to compact mode',
+        gibberish.aiContext.narrationMode);
+
+  // The KEEP_PHRASES match (Act 0's withhold choice) also carries targetRaw
+  // but no targetId, so it hit the same bug — and a deliberate, consequential
+  // choice deserves a targeted compact reply even less than gibberish does.
+  const withhold = gameEngine.resolve(parseIntent('say nothing'), buildSnapshot({
+    location: 'baker_street', currentAct: 0,
+    flags: { showed_charity_card_to_holmes: true, world_event_kemp_arrives: true },
+  }));
+  withhold.aiContext.narrationMode === 'compact'
+    ? pass('the KEEP_PHRASES withhold choice resolves to compact mode')
+    : fail('the KEEP_PHRASES withhold choice resolves to compact mode', withhold.aiContext.narrationMode);
+
+  // The specific collision: on Mrs. Kemp's admitting turn, unrecognized input
+  // must not describe her as present in the model's own prose ahead of her
+  // arrival beat. Compact mode carries no "who's present" paragraph at all,
+  // so this is really re-proving the mode fix from the caller's own turn.
+  const collision = gameEngine.resolve(parseIntent('answer the door'), buildSnapshot({
+    location: 'baker_street', currentAct: 0, turnCount: 4,
+    flags: {
+      beat_act0_holmes_reads_the_crowd: true,
+      beat_act0_holmes_notices_the_caller: true,
+      beat_act0_the_bell: true,
+    },
+    previousNpcIds: ['holmes'],
+  }));
+  collision.aiContext.narrationMode === 'compact'
+    ? pass('unrecognized input on Mrs. Kemp\'s admitting turn stays compact (no premature mention)')
+    : fail('unrecognized input on Mrs. Kemp\'s admitting turn stays compact', collision.aiContext.narrationMode);
+}
+
 function runSafetyNetLadder() {
   console.log('\n=== Escalating safety nets ===');
 
@@ -2592,32 +2745,63 @@ function runSafetyNetLadder() {
     }],
   });
 
-  const rungFor = (turns: number): string | undefined => {
+  const rungFor = (turns: number, turnCount = 100): string | undefined => {
     const snap = buildSnapshot({
-      location: 'baker_street', currentAct: 0, turnsAtLocationWithoutProgress: turns,
+      location: 'baker_street', currentAct: 0, turnsAtLocationWithoutProgress: turns, turnCount,
     });
     const r = laddered.resolve(parseIntent('look'), snap);
     const lines = (r.aiContext as any).npcScriptedLines as Array<{ instruction: string }> | undefined;
     return lines?.find(l => l.instruction.startsWith('RUNG'))?.instruction;
   };
 
-  const cases: Array<[number, string]> = [
-    [0, 'RUNG ZERO'], [1, 'RUNG ZERO'],
-    [2, 'RUNG ONE'],  [3, 'RUNG ONE'],
-    [4, 'RUNG TWO'],  [9, 'RUNG TWO'],
-  ];
-  for (const [turns, expected] of cases) {
+  // Below the stall threshold (3), or off the firing cadence (every 3rd
+  // stalled turn), a net must not fire at all. This is the actual fix: Act 0
+  // has no clues and no reachable exits, so turnsAtLocationWithoutProgress
+  // only ever increases there, and firing on every qualifying turn (the old
+  // behaviour) pinned the net to its top rung by ~turn 6 and re-emitted it
+  // every turn thereafter — a live playtest found the resulting wall of text.
+  for (const turns of [0, 1, 2, 4, 5, 7, 8]) {
     const got = rungFor(turns);
-    if (got === expected) pass(`${turns} stalled turns selects ${expected}`);
-    else fail(`${turns} stalled turns selects ${expected}`, `got ${got}`);
+    got === undefined
+      ? pass(`${turns} stalled turns: below threshold or off-cadence, no net fires`)
+      : fail(`${turns} stalled turns: below threshold or off-cadence, no net fires`, `got ${got}`);
   }
 
-  // A single-string instruction still works unchanged.
+  // On the cadence (a multiple of 3, at or above the threshold), the rung
+  // still escalates correctly with how long the player has been stalled.
+  const cases: Array<[number, string]> = [[3, 'RUNG ONE'], [6, 'RUNG TWO'], [9, 'RUNG TWO']];
+  for (const [turns, expected] of cases) {
+    const got = rungFor(turns);
+    got === expected
+      ? pass(`${turns} stalled turns (on cadence) selects ${expected}`)
+      : fail(`${turns} stalled turns (on cadence) selects ${expected}`, `got ${got}`);
+  }
+
+  // At most ONE npcScriptedLines entry ever leaves buildNarrationContext — the
+  // whole point of collapsing four independent sources (authored lines,
+  // safety nets, companion demeanour, idle beats) into one priority chain.
+  // Stack a safety net with the real story's Holmes demeanour (an
+  // unconditional Act 0 catch-all) on a turn where BOTH would be individually
+  // eligible to fire, and confirm only the higher-priority one survives.
+  const stacked = new GameEngine({
+    ...WHITECHAPEL_MANIFEST,
+    actSafetyNets: [{ act: 0, requiresNpcPresent: 'holmes', when: () => true, instruction: 'THE NET' }],
+  });
+  const stackedSnap = buildSnapshot({
+    location: 'baker_street', currentAct: 0, turnsAtLocationWithoutProgress: 6, turnCount: 6,
+  });
+  const stackedLines = (stacked.resolve(parseIntent('look'), stackedSnap).aiContext as any)
+    .npcScriptedLines as Array<{ instruction: string }> | undefined;
+  (stackedLines?.length ?? 0) <= 1
+    ? pass('npcScriptedLines never carries more than one entry per turn')
+    : fail('npcScriptedLines never carries more than one entry per turn', JSON.stringify(stackedLines));
+
+  // A single-string instruction still works unchanged, on a cadence-eligible turn.
   const single = new GameEngine({
     ...WHITECHAPEL_MANIFEST,
     actSafetyNets: [{ act: 0, requiresNpcPresent: 'holmes', when: () => true, instruction: 'FLAT' }],
   });
-  const flatSnap = buildSnapshot({ location: 'baker_street', currentAct: 0, turnsAtLocationWithoutProgress: 8 });
+  const flatSnap = buildSnapshot({ location: 'baker_street', currentAct: 0, turnsAtLocationWithoutProgress: 6 });
   const flatLines = (single.resolve(parseIntent('look'), flatSnap).aiContext as any).npcScriptedLines as Array<{ instruction: string }>;
   if (flatLines?.some(l => l.instruction === 'FLAT')) pass('a string instruction still fires unchanged');
   else fail('a string instruction still fires unchanged', JSON.stringify(flatLines));
@@ -2741,6 +2925,7 @@ try {
   runPresenceGating();
   runSafetyNetLadder();
   runScriptedBeats();
+  runOtherIsNeverFull();
   runKempChoice();
   runAct0CompletesTheGate();
   runInventoryAwareness();

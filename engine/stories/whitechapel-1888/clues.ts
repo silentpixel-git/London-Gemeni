@@ -408,7 +408,26 @@ export const ATMOSPHERIC_NOTES: Record<string, Record<string, string>> = {
     open_window: "Watson leans out into the warm air. Baker Street is full of people who have been out of doors since ten in the morning: a barrel organ two streets off, somebody's cornet, a great deal of laughing. He looks for a while and can make nothing of any of it. They are simply people, going home or not going home.",
     pawn_ticket: "A pawnbroker's ticket, soft at the folds from being carried about. Dated Monday the thirtieth of July, from a shop in Pentonville. One pair of women's boots, pledged for two shillings. The redemption stamp is today's, fresh ink over old creases.",
     nells_boots: "A worn pair of woman's boots, twice resoled already; the uppers have given at the flex, and a third resoling would not be worth the leather. The wear runs heaviest along the outer edge of the right heel. Caked into the welt, a crust of mud still dark and damp, though London has not seen rain in well over a week.",
-    nells_workbox: "A tin box, japanned black, its lid catch stiff with disuse. It is not locked.",
+    // Kemp's reluctance is described rather than quoted, matching every other
+    // atmospheric note (they get expanded/paraphrased in Watson's voice, not
+    // reproduced verbatim — see the ATMOSPHERIC NOTE prompt instruction). The
+    // spec has her actually say "It is her private box"; kept as the fact
+    // underneath the description instead, since a quote embedded here would
+    // just get rewritten anyway.
+    //
+    // Two live-playtest bugs fixed here in turn. First: an allusive draft
+    // ("her stillness leaves no doubt whose property it still is") led the
+    // model to invent the box being ABSENT rather than merely unopened —
+    // reaching for a reason to explain the tension instead of reporting it.
+    // Second, worse, and specific to this note being the ONLY container the
+    // game has (so this exact failure mode had never been exercised before):
+    // with the box merely described as closed, the model twice invented its
+    // CONTENTS anyway — "spools of dark thread, a silver thimble" — despite
+    // CONTAINER_CONTENTS gating them behind OPEN. EXAMINE's generic framing
+    // ("Watson's direct observation") apparently reads a closed container as
+    // an invitation to describe what's inside it. The line below now says
+    // outright that Watson does not know and cannot describe what is inside.
+    nells_workbox: "A tin box, japanned black, its lid catch stiff with disuse. It is shut, not locked, and Watson has not opened it — he cannot see or guess at what is inside, only the outside of the tin. It belongs to Nell, not to the woman watching him look at it, and Mrs. Kemp says nothing about whether he should open it.",
     nells_letters: "Eleven letters, April through July, tied with a thread that has since come loose. Chatty and affectionate at first; the hand thins as the months go on, and the last three are written on visibly cheaper paper.",
     charity_card: "A printed subscriber's card. St. Saviour's Lying-in Charity, Snowsfields. Sixteen weekly entries of one shilling, ticked off in a clerk's copperplate, the last dated the twenty-fourth of July. The subscriber is named as Mrs. A. Marchant. On the reverse, a second and smaller hand has marked off the same dates again, as though to be certain of them.",
     concluded_case_file: "The case Holmes has just finished, bundled in string and already pushed to the far edge of the table. Watson unties it out of politeness and finds it every bit as dull as Holmes has been complaining: a disputed inheritance, a clerk, a great deal of arithmetic. It was solved in an afternoon. Holmes has not mentioned it since.",
