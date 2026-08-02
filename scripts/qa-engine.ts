@@ -184,22 +184,29 @@ function runWinningPath() {
   // The rewoven critical path: five suspect-theory acts, anchor auto-moves
   // between them, and the Act 5 Baker Street convergence driving the advance.
 
-  // Act 0 — the vigil. Tutorial: talk, examine, take, show.
-  let s = buildSnapshot();
-  s = step('Act0', s, 'ask holmes about the man we are looking for', { expectSuccess: true, expectFlag: 'asked_holmes_about_holmes_man_no_one_remembers' });
-  s = step('Act0', s, 'examine case files wall', { expectSuccess: true, expectFlag: 'examined_baker_street_case_files_wall', expectClue: 'clue_00_campaign_timeline' });
-  s = step('Act0', s, 'examine newspaper pile',  { expectSuccess: true }); // yields the clipping (takeable)
-  if (s.inventory.includes('Newspaper Clipping (the "Dear Boss" letter)')) {
-    pass('Act0 → newspaper clipping added to inventory');
+  // Act 0 — the Bank Holiday. Tutorial: talk, examine, open, show, take.
+  // world_event_kemp_arrives is seeded rather than played: it is set by the
+  // last of the four scripted opening beats, which land on turnCount 1-4, and
+  // step()/applyResult deliberately freeze turnCount. The beat sequence itself
+  // is covered by runScriptedBeats, and the turn-by-turn Act 0 run lives in
+  // scripts/qa-golden.ts, which does advance the clock and the counter.
+  let s = buildSnapshot({ flags: { world_event_kemp_arrives: true } });
+  s = step('Act0', s, 'ask mrs kemp about her sister', { expectSuccess: true, expectFlag: 'asked_mrs_kemp_about_kemp_sister_missing' });
+  s = step('Act0', s, 'examine the pawn ticket',  { expectSuccess: true, expectFlag: 'examined_baker_street_pawn_ticket' }); // yields the ticket (takeable)
+  if (s.inventory.includes("Nell's Pawn Ticket")) {
+    pass('Act0 → pawn ticket added to inventory by the examine');
   } else {
-    fail(`Act0 → clipping not in inventory: ${JSON.stringify(s.inventory)}`);
+    fail(`Act0 → pawn ticket not in inventory: ${JSON.stringify(s.inventory)}`);
   }
-  s = step('Act0', s, 'show newspaper clipping to holmes', { expectSuccess: true, expectFlag: 'showed_newspaper_pile_to_holmes' });
-  s = step('Act0', s, 'examine telegrams pile',  {
+  s = step('Act0', s, 'open the workbox',          { expectSuccess: true, expectFlag: 'opened_baker_street_nells_workbox' });
+  s = step('Act0', s, 'examine the card',          { expectSuccess: true, expectFlag: 'examined_baker_street_charity_card' }); // the card must be in hand to show it
+  s = step('Act0', s, 'show the card to holmes',   { expectSuccess: true, expectFlag: 'showed_charity_card_to_holmes' });
+  s = step('Act0', s, 'take the ticket',           { expectSuccess: true, expectFlag: 'took_baker_street_pawn_ticket' });
+  s = step('Act0', s, 'ask holmes about the criminal classes', {
     expectSuccess: true,
-    expectFlag: 'examined_baker_street_telegrams_pile',
+    expectFlag: 'asked_holmes_about_holmes_crime_grown_dull',
     expectAct: 1,
-    expectLocation: 'dorset_street', // ← anchor auto-move (overnight cut; Kelly dies tonight)
+    expectLocation: 'dorset_street', // ← anchor auto-move (the cut to 9 November)
   });
 
   // Act 1 — "The Stranger". The witness-test chain: the account only exists
@@ -407,18 +414,23 @@ function runColdCaseAbberline() {
 function runActGateBoundary() {
   console.log('\n=== SCENARIO: act-gate-boundary ===');
 
-  // Act 0: 2/3 flags — examine watson_armchair (no gate flag) should not advance
+  // Act 0: 5/6 gate flags — the closing ask to Holmes is missing, so a
+  // non-gate examine must not advance.
   const s0 = buildSnapshot({
     flags: {
-      examined_baker_street_case_files_wall: true,
-      examined_baker_street_telegrams_pile: true,
-      // talked_to_holmes_at_baker_street missing
+      world_event_kemp_arrives: true,
+      asked_mrs_kemp_about_kemp_sister_missing: true,
+      examined_baker_street_pawn_ticket: true,
+      opened_baker_street_nells_workbox: true,
+      showed_charity_card_to_holmes: true,
+      took_baker_street_pawn_ticket: true,
+      // asked_holmes_about_holmes_crime_grown_dull missing
     },
   });
-  const r0 = gameEngine.resolve(parseIntent('examine watson armchair'), s0);
+  const r0 = gameEngine.resolve(parseIntent('examine the violin case'), s0);
   r0.newAct === undefined || r0.newAct <= 0
-    ? pass('Act0 gate — held with 2/3 flags (expected)')
-    : fail('Act0 gate — advanced with 2/3 flags (missing the ask to holmes)');
+    ? pass('Act0 gate — held with 5/6 flags (expected)')
+    : fail('Act0 gate — advanced with 5/6 flags (missing the closing ask to Holmes)');
 
   // Act 2: partial flags (mortuary + bucks_row only; missing phillips talk,
   // hanbury, tumblety, holmes) — examine at baker_street → gate holds
@@ -430,7 +442,7 @@ function runActGateBoundary() {
       examined_bucks_row: true,
     },
   });
-  const r2 = gameEngine.resolve(parseIntent('examine case files wall'), s2);
+  const r2 = gameEngine.resolve(parseIntent('examine the violin case'), s2);
   r2.newAct === undefined || r2.newAct <= 2
     ? pass('Act2 gate — held with 2/3 flags (expected)')
     : fail('Act2 gate — advanced with 2/3 flags (missing examined_hanbury_street)');
@@ -814,12 +826,15 @@ function runTalkGatedAdvance() {
   // a bare 'talk to holmes' deliberately no longer completes it (asserted below).
   const s = buildSnapshot({
     flags: {
-      examined_baker_street_case_files_wall: true,
-      examined_baker_street_telegrams_pile: true,
-      showed_newspaper_pile_to_holmes: true,
+      world_event_kemp_arrives: true,
+      asked_mrs_kemp_about_kemp_sister_missing: true,
+      examined_baker_street_pawn_ticket: true,
+      opened_baker_street_nells_workbox: true,
+      showed_charity_card_to_holmes: true,
+      took_baker_street_pawn_ticket: true,
     },
   });
-  const result = gameEngine.resolve(parseIntent('ask holmes about the man we are looking for'), s);
+  const result = gameEngine.resolve(parseIntent('ask holmes about the criminal classes'), s);
 
   // The point of the migration: presence alone is not an interview.
   const bare = gameEngine.resolve(parseIntent('talk to holmes'), s);
@@ -876,7 +891,7 @@ function runTypoCorrection() {
   console.log('\n=== SCENARIO: typo-correction ===');
 
   const cases: Array<{ input: string; type: string; targetId?: string; label: string }> = [
-    { input: 'exmaine the case files wall', type: 'examine', targetId: 'case_files_wall', label: 'transposed examine resolves target' },
+    { input: 'exmaine the chemistry table', type: 'examine', targetId: 'holmes_chemistry_table', label: 'transposed examine resolves target' },
     { input: 'spek to holmes', type: 'talk', targetId: 'holmes', label: 'misspelled speak → talk' },
     { input: 'shwo letter to holmes', type: 'show', targetId: 'from_hell_letter', label: 'transposed show keeps show intent (not implicit examine)' },
     { input: 'dorp letter', type: 'drop', targetId: 'from_hell_letter', label: 'transposed drop keeps drop intent' },
@@ -936,27 +951,28 @@ function runUseCombinationActGate() {
 function runItemsGained() {
   console.log('\n=== SCENARIO: items-gained ===');
 
-  // Examine-grant: newspaper_pile yields the Dear Boss clipping (Act 0)
-  const s = buildSnapshot();
-  const r1 = gameEngine.resolve(parseIntent('examine the newspaper pile'), s);
-  r1.aiContext.itemsGained?.some(i => i.includes('Dear Boss'))
+  // Examine-grant: pawn_ticket yields Nell's Pawn Ticket (Act 0, visibility-gated
+  // on Mrs. Kemp having arrived — see runScriptedBeats for the arrival itself).
+  const s = buildSnapshot({ flags: { world_event_kemp_arrives: true } });
+  const r1 = gameEngine.resolve(parseIntent('examine the pawn ticket'), s);
+  r1.aiContext.itemsGained?.some(i => i.includes('Pawn Ticket'))
     ? pass('ItemsGained: examine-grant surfaces item in aiContext')
     : fail('ItemsGained: examine-grant missing from aiContext', JSON.stringify(r1.aiContext.itemsGained));
 
   // Already-owned: re-examining must NOT report a gain
   const sOwned = buildSnapshot({
-    inventory: ['Newspaper Clipping (the "Dear Boss" letter)'],
-    flags: { examined_baker_street_newspaper_pile: true },
+    inventory: ["Nell's Pawn Ticket"],
+    flags: { world_event_kemp_arrives: true, examined_baker_street_pawn_ticket: true },
   });
-  const r2 = gameEngine.resolve(parseIntent('examine the newspaper pile'), sOwned);
+  const r2 = gameEngine.resolve(parseIntent('examine the pawn ticket'), sOwned);
   !r2.aiContext.itemsGained
     ? pass('ItemsGained: no phantom gain on re-examine')
     : fail('ItemsGained: phantom gain reported', JSON.stringify(r2.aiContext.itemsGained));
 
   // Explicit take
-  const sTake = buildSnapshot();
-  const r3 = gameEngine.resolve(parseIntent('take the newspaper pile'), sTake);
-  r3.aiContext.itemsGained?.some(i => i.includes('Dear Boss'))
+  const sTake = buildSnapshot({ flags: { world_event_kemp_arrives: true } });
+  const r3 = gameEngine.resolve(parseIntent('take the pawn ticket'), sTake);
+  r3.aiContext.itemsGained?.some(i => i.includes('Pawn Ticket'))
     ? pass('ItemsGained: take surfaces item in aiContext')
     : fail('ItemsGained: take missing from aiContext', JSON.stringify(r3.aiContext.itemsGained));
 }
@@ -966,16 +982,17 @@ function runItemsGained() {
 function runInventoryAwareness() {
   console.log('\n=== SCENARIO: inventory-awareness ===');
 
-  // Alias precedence: "dear boss letter" must resolve to newspaper_pile,
-  // not from_hell_letter (the shorter 'letter' alias).
-  const r1 = parseIntent('examine dear boss letter');
-  r1.targetId === 'newspaper_pile'
-    ? pass('InvAware: "dear boss letter" resolves to newspaper_pile (longest alias wins)')
+  // Alias precedence: "nell's correspondence" must resolve to nells_letters,
+  // not from_hell_letter (the shorter 'letter' alias). The display name was
+  // chosen precisely to dodge that substring shadowing — see locations.ts.
+  const r1 = parseIntent("examine nell's correspondence");
+  r1.targetId === 'nells_letters'
+    ? pass('InvAware: "nell\'s correspondence" resolves to nells_letters (longest alias wins)')
     : fail('InvAware: alias precedence broken', `got ${r1.targetId}`);
-  const r2 = parseIntent('read the newspaper clipping about the dear boss letter');
-  r2.targetId === 'newspaper_pile'
-    ? pass('InvAware: "newspaper clipping..." resolves to newspaper_pile')
-    : fail('InvAware: clipping alias broken', `got ${r2.targetId}`);
+  const r2 = parseIntent("read nell's letters");
+  r2.targetId === 'nells_letters'
+    ? pass('InvAware: "nell\'s letters" resolves to nells_letters')
+    : fail('InvAware: letters alias broken', `got ${r2.targetId}`);
   // Bare "letter" still resolves to the From Hell letter
   const r3 = parseIntent('examine the letter');
   r3.targetId === 'from_hell_letter'
@@ -987,16 +1004,16 @@ function runInventoryAwareness() {
   const sCarrying = buildSnapshot({
     currentAct: 4,
     location: 'lusk_office',
-    inventory: ['Newspaper Clipping (the "Dear Boss" letter)'],
+    inventory: ["Nell's Pawn Ticket"],
   });
-  const r4 = gameEngine.resolve(parseIntent('examine the newspaper clipping'), sCarrying);
+  const r4 = gameEngine.resolve(parseIntent('examine the pawn ticket'), sCarrying);
   r4.actionSuccess && r4.aiContext.actionResultNote.includes('medical bag')
     ? pass('InvAware: carried item examinable away from its source location')
     : fail('InvAware: carried item blocked', r4.aiContext.actionResultNote.slice(0, 120));
 
   // Not carried and not present → still correctly blocked
   const sEmpty = buildSnapshot({ currentAct: 4, location: 'lusk_office' });
-  const r5 = gameEngine.resolve(parseIntent('examine the newspaper clipping'), sEmpty);
+  const r5 = gameEngine.resolve(parseIntent('examine the pawn ticket'), sEmpty);
   !r5.actionSuccess
     ? pass('InvAware: absent + not carried still blocked')
     : fail('InvAware: phantom examine of absent object');
@@ -1024,13 +1041,15 @@ function runLivingWorld() {
     ? pass('LivingWorld: spent vignettes never refire')
     : fail('LivingWorld: vignette refired after flag set');
 
-  // Weather drift: Act 0 shifts to fog after 120 elapsed minutes
-  const sEarly = buildSnapshot({ elapsedMinutes: 30 });
-  const sLate  = buildSnapshot({ elapsedMinutes: 130 });
+  // Weather drift, measured in Act 1 — Act 0 is the warm, clear Bank Holiday
+  // evening of 6 August and carries no lateShift by design (the November
+  // vigil's rising fog cannot happen in August; see acts.ts).
+  const sEarly = buildSnapshot({ currentAct: 1, location: 'dorset_street', elapsedMinutes: 30 });
+  const sLate  = buildSnapshot({ currentAct: 1, location: 'dorset_street', elapsedMinutes: 300 });
   const wEarly = gameEngine.resolve(parseIntent('look'), sEarly).aiContext.weather;
   const wLate  = gameEngine.resolve(parseIntent('look'), sLate).aiContext.weather;
-  wEarly.condition === 'clear-night' && wLate.condition === 'foggy'
-    ? pass('LivingWorld: intra-act weather drift (clear-night → foggy after 120min)')
+  wEarly.condition !== wLate.condition
+    ? pass(`LivingWorld: intra-act weather drift (${wEarly.condition} → ${wLate.condition})`)
     : fail('LivingWorld: weather drift broken', JSON.stringify({ wEarly, wLate }));
 
   // Idle behavior rotates with turnCount and never targets the interviewed NPC.
@@ -1073,36 +1092,42 @@ function runLivingWorld() {
 function runShowDative() {
   console.log('\n=== SCENARIO: show-dative ===');
 
-  // "show holmes the newspaper clipping" must keep BOTH npc and item
-  const r1 = parseIntent('Show holmes the newspaper clipping');
-  r1.type === 'show' && r1.targetId === 'newspaper_pile' && r1.showTargetNpcId === 'holmes'
-    ? pass('ShowDative: "show holmes the clipping" resolves npc + item')
+  // "show holmes the card" must keep BOTH npc and item
+  const r1 = parseIntent('Show holmes the card');
+  r1.type === 'show' && r1.targetId === 'charity_card' && r1.showTargetNpcId === 'holmes'
+    ? pass('ShowDative: "show holmes the card" resolves npc + item')
     : fail('ShowDative: dative parse broken', JSON.stringify({ t: r1.targetId, n: r1.showTargetNpcId }));
   // Classic "show X to Y" unchanged
-  const r2 = parseIntent('show the newspaper clipping to holmes');
-  r2.showTargetNpcId === 'holmes' && r2.targetId === 'newspaper_pile'
+  const r2 = parseIntent('show the card to holmes');
+  r2.showTargetNpcId === 'holmes' && r2.targetId === 'charity_card'
     ? pass('ShowDative: classic "show X to Y" unchanged')
     : fail('ShowDative: classic form regressed');
 
-  // Engine: "show clipping" with only Holmes present defaults to Holmes and
+  // Engine: "show the card" with only Holmes present defaults to Holmes and
   // sets the Act 0 gate flag (this was the prologue softlock).
+  // Holmes deliberately alone: world_event_kemp_arrives is left unset so Mrs.
+  // Kemp stays offstage and the single-NPC default is the thing under test.
+  // charity_card's visibility hangs only on the workbox being open.
   const s = buildSnapshot({
-    inventory: [...INITIAL_INVENTORY, 'Newspaper Clipping (the "Dear Boss" letter)'],
-    flags: { examined_baker_street_newspaper_pile: true },
+    inventory: [...INITIAL_INVENTORY, "A Subscriber's Card"],
+    flags: {
+      opened_baker_street_nells_workbox: true,
+      examined_baker_street_charity_card: true,
+    },
   });
-  const r3 = gameEngine.resolve(parseIntent('show the newspaper clipping'), s);
-  r3.actionSuccess && r3.flagsUpdate?.['showed_newspaper_pile_to_holmes']
+  const r3 = gameEngine.resolve(parseIntent('show the card'), s);
+  r3.actionSuccess && r3.flagsUpdate?.['showed_charity_card_to_holmes']
     ? pass('ShowDative: single-NPC default sets showed_..._to_holmes gate flag')
     : fail('ShowDative: single-NPC default broken', JSON.stringify(r3.flagsUpdate));
 
   // Full dative phrasing also satisfies the gate
-  const r4 = gameEngine.resolve(parseIntent('Show holmes the newspaper clipping'), s);
-  r4.actionSuccess && r4.flagsUpdate?.['showed_newspaper_pile_to_holmes']
+  const r4 = gameEngine.resolve(parseIntent('Show holmes the card'), s);
+  r4.actionSuccess && r4.flagsUpdate?.['showed_charity_card_to_holmes']
     ? pass('ShowDative: dative phrasing satisfies the Act 0 gate')
     : fail('ShowDative: dative phrasing fails the gate', JSON.stringify(r4.flagsUpdate));
 
-  // Re-examining the pile with the clipping held must instruct the AI not to re-take
-  const r5 = gameEngine.resolve(parseIntent('examine the newspaper pile'), s);
+  // Re-examining the card while holding it must instruct the AI not to re-take
+  const r5 = gameEngine.resolve(parseIntent('examine the card'), s);
   r5.aiContext.actionResultNote.includes('do NOT narrate him taking')
     ? pass('ShowDative: re-examine carries do-not-retake instruction')
     : fail('ShowDative: re-take guard missing', r5.aiContext.actionResultNote.slice(0, 140));
@@ -1112,17 +1137,18 @@ function runShowDative() {
 function runPartialObjectMatching() {
   console.log('\n=== SCENARIO: partial-object-matching ===');
 
-  // "examine case wall" should resolve to case_files_wall (2 words match "Case Files Wall")
+  // "examine chemistry table" should resolve to holmes_chemistry_table
+  // (2 words match "Holmes' Chemistry Table")
   const s = buildSnapshot();
-  const r1 = gameEngine.resolve(parseIntent('examine case wall'), s);
+  const r1 = gameEngine.resolve(parseIntent('examine chemistry table'), s);
   r1.aiContext.actionResultNote.includes('SUCCESS') && r1.actionSuccess
-    ? pass('PartialMatch: "examine case wall" resolves to case_files_wall')
-    : fail(`PartialMatch: "examine case wall" did not resolve — actionSuccess=${r1.actionSuccess} note=${r1.aiContext.actionResultNote.slice(0, 80)}`);
+    ? pass('PartialMatch: "examine chemistry table" resolves to holmes_chemistry_table')
+    : fail(`PartialMatch: "examine chemistry table" did not resolve — actionSuccess=${r1.actionSuccess} note=${r1.aiContext.actionResultNote.slice(0, 80)}`);
 
-  // "examine the case files wall" (full name) should still work
-  const r2 = gameEngine.resolve(parseIntent('examine the case files wall'), s);
+  // "examine holmes chemistry table" (full name) should still work
+  const r2 = gameEngine.resolve(parseIntent('examine holmes chemistry table'), s);
   r2.actionSuccess
-    ? pass('PartialMatch: full name "examine the case files wall" still resolves')
+    ? pass('PartialMatch: full name "examine holmes chemistry table" still resolves')
     : fail('PartialMatch: full name broke after partial matching change');
 
   // Words that don't match any object's word set should not resolve to an object
@@ -1161,7 +1187,7 @@ function runUnresolvedTargetNarration() {
     : fail('UnresolvedTarget: raw target phrase missing from actionResultNote');
 
   // Note should list available objects at the current location
-  r.aiContext.actionResultNote.includes('Case Files Wall')
+  r.aiContext.actionResultNote.includes('Open Window')
     ? pass('UnresolvedTarget: available objects listed in actionResultNote')
     : fail('UnresolvedTarget: available objects not listed in actionResultNote');
 
@@ -1209,9 +1235,12 @@ function runFactGraphDerivation() {
 function testScheduleParity() {
   const DEFAULT_CANONICAL: Record<string, Record<number, string>> = {
     holmes:         { 0: 'baker_street', 1: 'dorset_street', 2: 'whitechapel_mortuary', 3: 'dutfields_yard', 4: 'lusk_office', 5: 'bond_office', 6: 'private_asylum' },
-    abberline:      { 0: 'h_division_station', 1: 'dorset_street', 2: 'h_division_station', 3: 'working_mens_club', 4: 'lusk_office', 5: 'bond_office', 6: 'private_asylum' },
-    bond:           { 0: 'whitechapel_mortuary', 1: 'millers_court', 2: 'whitechapel_mortuary', 3: 'whitechapel_mortuary', 4: 'lusk_office', 5: 'bond_office', 6: 'bond_office' },
-    edmund:         { 0: 'whitechapel_mortuary', 1: 'millers_court', 2: 'whitechapel_mortuary', 3: 'whitechapel_mortuary', 4: 'lusk_office', 5: 'bond_office', 6: 'private_asylum' },
+    // No act-0 entries for abberline/bond/edmund: Act 0 is the Bank Holiday
+    // evening at Baker Street, and nobody but Holmes and the caller is onstage
+    // (chronological rework — see the same note on their scheduleByAct in npcs.ts).
+    abberline:      { 1: 'dorset_street', 2: 'h_division_station', 3: 'working_mens_club', 4: 'lusk_office', 5: 'bond_office', 6: 'private_asylum' },
+    bond:           { 1: 'millers_court', 2: 'whitechapel_mortuary', 3: 'whitechapel_mortuary', 4: 'lusk_office', 5: 'bond_office', 6: 'bond_office' },
+    edmund:         { 1: 'millers_court', 2: 'whitechapel_mortuary', 3: 'whitechapel_mortuary', 4: 'lusk_office', 5: 'bond_office', 6: 'private_asylum' },
     lusk:           { 4: 'lusk_office', 5: 'lusk_office', 6: 'lusk_office' },
     diemschutz:     { 0: 'working_mens_club', 1: 'working_mens_club', 2: 'working_mens_club', 3: 'working_mens_club', 4: 'working_mens_club', 5: 'working_mens_club', 6: 'working_mens_club' },
     hutchinson:     { 1: 'dorset_street', 2: 'whitechapel_pub', 3: 'whitechapel_pub' },
@@ -1226,7 +1255,6 @@ function testScheduleParity() {
   // moves away from their act default. Keep in sync with npcs.ts.
   const BY_PERIOD_OVERRIDES: Record<string, Record<number, Partial<Record<typeof PERIOD_ORDER[number], string>>>> = {
     abberline: {
-      0: { night: 'whitechapel_pub', lateNight: 'whitechapel_pub' },
       2: { evening: 'whitechapel_pub' },
     },
     bond: {
