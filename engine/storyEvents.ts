@@ -181,6 +181,12 @@ export function applyStoryEvents(
     result.aiContext.actionSuccess = true;
     result.aiContext.actionDescription = event.actionDescription;
     result.aiContext.actionResultNote = event.actionResultNote;
+    if (result.aiContext.targetNpcInterview) {
+      // The authored event supplies the answer, so base TALK miss/menu metadata
+      // must not instruct narration to deflect or offer unrelated subjects.
+      result.aiContext.targetNpcInterview.topicMissed = undefined;
+      result.aiContext.targetNpcInterview.suggestedTopics = undefined;
+    }
     result.aiContext.storyEvent = payloadOf(event);
   }
 

@@ -2681,6 +2681,48 @@ function runStoryEvents() {
     fail('asking Kemp about the ticket does not perform the boots analysis', JSON.stringify(ticketQuestion));
   }
 
+  const unarmedPronoun = gameEngine.resolve(parseIntent('ask holmes about them'), buildSnapshot({
+    location: 'baker_street', currentAct: 0, flags: { act0_caller_noticed: true, act0_bell_rang: true },
+  }));
+  if (!unarmedPronoun.flagsUpdate?.['act0_boots_analyzed'] && eventId(unarmedPronoun) !== 'act0_boots_analyzed') {
+    pass('"ask Holmes about them" does not resolve before Kemp brings the evidence');
+  } else {
+    fail('"ask Holmes about them" does not resolve before Kemp brings the evidence', JSON.stringify(unarmedPronoun));
+  }
+
+  for (const input of ['ask holmes about them', 'ask mrs kemp about them']) {
+    const pronounQuestion = gameEngine.resolve(parseIntent(input), s);
+    if (eventId(pronounQuestion) === 'act0_boots_analyzed' &&
+        pronounQuestion.flagsUpdate?.['act0_boots_analyzed'] &&
+        !Object.keys(pronounQuestion.flagsUpdate ?? {}).some(flag => flag.startsWith('asked_')) &&
+        !pronounQuestion.resolvedTopicId &&
+        !pronounQuestion.aiContext.targetNpcInterview?.topic &&
+        !pronounQuestion.aiContext.targetNpcInterview?.topicMissed) {
+      pass(`scene-armed pronoun resolves the boots analysis: "${input}"`);
+    } else {
+      fail(`scene-armed pronoun resolves the boots analysis: "${input}"`, JSON.stringify(pronounQuestion));
+    }
+  }
+
+  const unrelatedThem = gameEngine.resolve(parseIntent('ask mrs kemp why the police ignored them'), s);
+  if (eventId(unrelatedThem) !== 'act0_boots_analyzed' &&
+      !unrelatedThem.flagsUpdate?.['act0_boots_analyzed']) {
+    pass('a pronoun inside another question does not perform the boots analysis');
+  } else {
+    fail('a pronoun inside another question does not perform the boots analysis', JSON.stringify(unrelatedThem));
+  }
+
+  const mixedBusinessQuestion = gameEngine.resolve(
+    parseIntent('ask mrs kemp what brings her here with the boots'), s);
+  if (eventId(mixedBusinessQuestion) === 'act0_kemp_business' &&
+      mixedBusinessQuestion.flagsUpdate?.['act0_kemp_business_heard'] &&
+      !mixedBusinessQuestion.flagsUpdate?.['act0_boots_analyzed']) {
+    pass('Kemp business takes priority when a natural business question also mentions the boots');
+  } else {
+    fail('Kemp business takes priority when a natural business question also mentions the boots',
+      JSON.stringify(mixedBusinessQuestion));
+  }
+
   // Failed, meta, and unrecognised turns never advance the two-action fallback.
   for (const input of ['inventory', 'notebook', 'deduce that holmes did it', 'what time is it', 'xyzzy']) {
     r = gameEngine.resolve(parseIntent(input), s);

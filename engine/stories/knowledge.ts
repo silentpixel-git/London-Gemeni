@@ -110,7 +110,10 @@ export function matchTopic(
 ): StoryFact | undefined {
   const q = canonicalisePersons(
     topicRaw.toLowerCase().replace(/^(the|a|an|his|her|their|that|this)\s+/, '').trim());
-  if (!q) return undefined;
+  // A bare pronoun names no fact by itself. Let scene-local story events own
+  // phrases such as "ask Holmes about them" instead of guessing whichever
+  // authored topic happens to contain a person token.
+  if (!q || q === '_p_') return undefined;
   const candidates = askableFacts(facts, npcId, currentAct, flags);
 
   let exact: StoryFact | undefined;

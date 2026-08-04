@@ -98,6 +98,7 @@ export const STORY_EVENTS: StoryEventDefinition<StoryFlag>[] = [
     triggers: [
       { intentTypes: ['examine'], targetIds: ['nells_boots'], requireFlags: ['world_event_kemp_arrives'], forbidFlags: ['act0_boots_analyzed'], locationId: 'baker_street' },
       { intentTypes: ['talk'], npcIds: ['mrs_kemp', 'holmes'], topicPhrases: ['boots', 'mud', 'soles', 'where she walked'], requireFlags: ['world_event_kemp_arrives'], forbidFlags: ['act0_boots_analyzed'], locationId: 'baker_street' },
+      { intentTypes: ['talk'], npcIds: ['mrs_kemp', 'holmes'], rawPhrases: ['ask holmes about them', 'ask mrs kemp about them'], rawPhraseMatch: 'exact', requireFlags: ['world_event_kemp_arrives'], forbidFlags: ['act0_boots_analyzed'], locationId: 'baker_street' },
     ],
     setFlags: ['act0_boots_analyzed'],
     maxWords: 180,

@@ -76,3 +76,37 @@ Task 1 defines and populates `NarrationContext.storyEvent` and the separate foll
 - `git diff --check` -> PASS before report/commit staging.
 - `engine-logic-reviewer` recheck -> no remaining actionable engine/parser or regression findings.
 - `narrative-consistency-reviewer` recheck -> no remaining actionable findings.
+
+## Fix round 2/5
+
+### Finding resolved
+
+- Restored the scene-armed pronoun routes for `ask Holmes about them` and `ask Mrs Kemp about them` with exact full-command triggers on the boots event.
+- Kept the alias narrow: the boots event still requires Kemp's arrival, Baker Street, a Holmes/Kemp TALK, and its unspent once-flag. The existing pawn-ticket question remains negative; the same phrase before Kemp arrives and an unrelated question containing `them` also remain negative.
+- Prevented the fact matcher from resolving a bare canonical pronoun to whichever authored topic happens to contain a person token. When an authored event supplies an answer, the event runtime also clears stale base-TALK miss/menu metadata, so the intended routes carry no contradictory `asked_*` fact flag, `resolvedTopicId`, interview topic, or deflection instruction.
+- Restored Kemp's business event before the boots event once exact pronoun commands removed the earlier collision. Bare Kemp conversation, sister/business questions, and natural mixed wording such as `what brings her here with the boots` resolve the business first; boots-specific questions still resolve the analysis.
+
+### Regression coverage and RED evidence
+
+- `scripts/qa-engine.ts` now covers both required positive pronoun routes, absence of collateral fact-topic state/context, the same phrase before `world_event_kemp_arrives`, and an unrelated question containing `them`.
+  - Initial RED: `npm run qa:engine` -> 440 passed, 2 failed, 2 pre-existing warnings; both armed pronoun routes failed.
+  - Intermediate run after adding the alias: `npm run qa:engine` -> 441 passed, 1 failed, 2 pre-existing warnings; Holmes passed, while Kemp's question exposed the event-priority collision.
+  - Intermediate GREEN before specialist review: 442 passed, 0 failed, 2 pre-existing warnings.
+  - Reviewer-driven RED for false-positive and collateral topic state: 440 passed, 3 failed, 2 pre-existing warnings.
+  - Reviewer-driven RED for the stale `topicMissed` deflection: 441 passed, 2 failed, 2 pre-existing warnings.
+  - The narrative reviewer also reproduced the mixed business/boots priority error; that exact sentence now has a permanent regression.
+  - Final GREEN after clearing stale event-answer metadata and restoring business-first ordering: 444 passed, 0 failed, 2 pre-existing warnings.
+
+### Verification commands and summaries
+
+- `npm run qa:engine` -> 444 passed, 0 failed, 2 pre-existing warnings.
+- `npm run qa:golden` -> 138 passed, 0 failed.
+- `npm run qa:all` -> PASS: lint plus engine, golden, parser, hints, diary-leads, and validation suites.
+  - Parser regression gates passed.
+  - Hints: 38 passed, 0 failed.
+  - Diary leads: 39 passed, 0 failed.
+  - Story validation: 107 passed, 0 failed, 26 known warnings.
+- `engine-logic-reviewer` final recheck -> no remaining Critical or Important engine correctness findings.
+- `narrative-consistency-reviewer` final recheck -> no remaining Critical or Important story consistency findings.
+- `git diff --check` -> PASS before staging.
+- `git diff --cached --check` -> PASS with only the five intended fix/report files staged.
