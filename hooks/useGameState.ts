@@ -34,7 +34,13 @@ import {
 import { GameHistoryItem, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod, ThemeMode, RumorEvents } from '../types';
 import { stripLeadingActHeading } from '../services/narrationFormat';
 import { AI_PARSER_ENABLED, resolveIntentWithAI } from './gameState/aiParse';
-import { extractOpeningSentence } from './gameState/narration';
+import {
+  cloudPersistOutcome,
+  extractOpeningSentence,
+  mergeNarrationContinuity,
+  narrationCloudPersisted,
+  streamFollowUpNarration,
+} from './gameState/narration';
 import { useConnections } from './gameState/useConnections';
 import { useAppearance } from './gameState/useAppearance';
 import { useDiary } from './gameState/useDiary';
@@ -112,7 +118,7 @@ export interface GameStateReturn {
 
   // Handlers
   handleAction: (userAction: string) => Promise<void>;
-  handleSaveGame: (silent?: boolean) => Promise<void>;
+  handleSaveGame: (silent?: boolean) => Promise<boolean>;
   handleLoadGame: () => Promise<void>;
   handleConsultHolmes: () => Promise<void>;
   handleScroll: () => void;
@@ -379,6 +385,21 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       });
     }
 
+    const cloudWriteResults: boolean[] = [];
+    let cloudOutcomeFinalized = false;
+    const finalizeCloudPersistence = (turnCompleted: boolean) => {
+      if (!user || !activeInvestigation || cloudOutcomeFinalized || cloudWriteResults.length === 0) return;
+      const outcome = cloudPersistOutcome(
+        cloudPersistFailedRef.current,
+        cloudWriteResults,
+        turnCompleted,
+      );
+      cloudOutcomeFinalized = true;
+      cloudPersistFailedRef.current = outcome.failed;
+      if (outcome.shouldNotify) {
+        setNotification({ message: 'Cloud sync failed — recent progress may not be saved online.', type: 'error' });
+      }
+    };
     try {
       // STEP 1: Parse intent deterministically
       let intent = parseIntent(userAction);
@@ -427,11 +448,15 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // STEP 3b: Process NPC introduction flags (alias system)
       // Extract npc_introduced_* keys and update introducedNpcs[] state.
       const introFlags = result.introductionFlagsUpdate;
+      const newIntroducedNpcs = [...introducedNpcs];
       if (introFlags) {
         const newIntros = Object.keys(introFlags)
           .filter(k => k.startsWith('npc_introduced_') && introFlags[k])
           .map(k => k.replace('npc_introduced_', ''));
         if (newIntros.length > 0) {
+          for (const npcId of newIntros) {
+            if (!newIntroducedNpcs.includes(npcId)) newIntroducedNpcs.push(npcId);
+          }
           setIntroducedNpcs(prev => {
             const next = [...prev];
             for (const npcId of newIntros) {
@@ -458,6 +483,13 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         : rumorEvents;
 
       const advancingAct = !!result.newAct && !result.gameOver;
+      const newNpcStates: Record<string, NPCState> = { ...npcStates };
+      for (const [id, update] of Object.entries(result.npcUpdates ?? {})) {
+        newNpcStates[id] = {
+          ...(newNpcStates[id] || { npcId: id, disposition: 50, status: 'alive' }),
+          ...update,
+        } as NPCState;
+      }
 
       // On an act-advance we HOLD the sidebar-visible state (location, act, npcs,
       // clock) in React until the player clicks "Begin Act N" — so the cinematic
@@ -499,13 +531,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       }
 
       if (result.npcUpdates && !advancingAct) {
-        setNpcStates(prev => {
-          const next = { ...prev };
-          Object.entries(result.npcUpdates!).forEach(([id, upd]) => {
-            next[id] = { ...(next[id] || { npcId: id, disposition: 50, status: 'alive' }), ...upd } as NPCState;
-          });
-          return next;
-        });
+        setNpcStates(newNpcStates);
       }
 
       // Update turns-without-progress counter (for Holmes nudge)
@@ -615,15 +641,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         const npcPersisted = result.npcUpdates
           ? await GameRepository.applyNPCUpdates(activeInvestigation.id, result.npcUpdates)
           : true;
-        // A reload before the next successful write would lose this turn's
-        // sparse fields (location, act, inventory) or NPC positions, so the
-        // player must know either way.
-        if (persisted && npcPersisted) {
-          cloudPersistFailedRef.current = false;
-        } else if (!cloudPersistFailedRef.current) {
-          cloudPersistFailedRef.current = true;
-          setNotification({ message: 'Cloud sync failed — recent progress may not be saved online.', type: 'error' });
-        }
+        cloudWriteResults.push(persisted, npcPersisted);
         if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
           GameRepository.addDiscoveredClues(activeInvestigation.id, result.discoveredClueIds);
         }
@@ -739,6 +757,12 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         });
       }
 
+      let narrationContinuity = {
+        npcStates: advancingAct ? npcStates : newNpcStates,
+        stim,
+      };
+      const narrationMemoryNpcIds = new Set<string>();
+
       // STEP 7: Stream AI narration
       for await (const update of aiService.stream(aiContext)) {
         const { narrative, isComplete, parsed } = update;
@@ -768,57 +792,86 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
               type: 'narration',
               content: parsed.markdownOutput + pickupNote,
             });
-
-            if (parsed.npcMemoryUpdate && Object.keys(parsed.npcMemoryUpdate).length > 0) {
-              GameRepository.updateNPCMemory(
-                activeInvestigation.id,
-                parsed.npcMemoryUpdate,
-                npcStates
-              );
-            }
           }
 
-          // In-memory NPC continuity (feeds npcRecentMemory into the next prompt)
-          // — runs for guests too, same as STIM below; only the Supabase mirror
-          // above is gated on being signed in.
-          if (parsed.npcMemoryUpdate && Object.keys(parsed.npcMemoryUpdate).length > 0) {
-            setNpcStates(prev => {
-              const next = { ...prev };
-              Object.entries(parsed.npcMemoryUpdate!).forEach(([npcId, summary]) => {
-                const existing = next[npcId]?.memory || [];
-                next[npcId] = {
-                  ...(next[npcId] || { npcId, disposition: 50, status: 'alive' }),
-                  memory: [summary, ...existing].slice(0, 5),
-                } as NPCState;
-              });
-              return next;
-            });
+          for (const npcId of Object.keys(parsed.npcMemoryUpdate ?? {})) {
+            narrationMemoryNpcIds.add(npcId);
           }
-
-          // Handle STIM updates (session memory — first observation wins, never overwrite)
-          if (parsed.stimUpdate && Object.keys(parsed.stimUpdate).length > 0) {
-            setStim(prev => {
-              const next = { ...prev };
-              (Object.entries(parsed.stimUpdate!) as [string, STIMEntry][]).forEach(([id, entry]) => {
-                if (!next[id]) {
-                  next[id] = { ...entry, turnCreated: turnCount };
-                }
-              });
-              // Evict oldest beyond 15 (token diet: STIM is serialized into
-              // every compact prompt — keep only the freshest observations)
-              const sorted = (Object.entries(next) as [string, STIMEntry][])
-                .sort(([, a], [, b]) => b.turnCreated - a.turnCreated)
-                .slice(0, 15);
-              return Object.fromEntries(sorted);
-            });
-          }
-
-          // Silent auto-save after every completed turn. Skipped on an act-advance
-          // turn: this closure still holds the OLD currentAct (React is held until
-          // Begin), so saving here would clobber the new act the DB already committed
-          // in STEP 5. beginNextAct persists the reconciled state at Begin.
-          if (!advancingAct) handleSaveGame(true);
+          narrationContinuity = mergeNarrationContinuity(narrationContinuity, parsed, turnCount);
+          setNpcStates(narrationContinuity.npcStates);
+          setStim(narrationContinuity.stim);
         }
+      }
+
+      // A due deterministic fallback is presentation-only: its state effects
+      // were merged and persisted above with the triggering action. Narrate it
+      // only after that action's stream finishes, in its own assistant item.
+      if (result.followUpEvent) {
+        const parsed = await streamFollowUpNarration(
+          result.followUpEvent,
+          context => aiService.stream(context),
+          setHistory,
+        );
+        if (parsed) {
+          finalNarrationText = [finalNarrationText, parsed.markdownOutput]
+            .filter(Boolean)
+            .join('\n\n');
+
+          const opening = extractOpeningSentence(parsed.markdownOutput);
+          if (opening) setRecentOpenings(prev => [opening, ...prev].slice(0, 4));
+
+          if (user && activeInvestigation) {
+            GameRepository.addLogEntry(activeInvestigation.id, {
+              timestamp: new Date().toISOString(),
+              type: 'narration',
+              content: parsed.markdownOutput,
+            });
+          }
+
+          for (const npcId of Object.keys(parsed.npcMemoryUpdate ?? {})) {
+            narrationMemoryNpcIds.add(npcId);
+          }
+          narrationContinuity = mergeNarrationContinuity(narrationContinuity, parsed, turnCount);
+          setNpcStates(narrationContinuity.npcStates);
+          setStim(narrationContinuity.stim);
+        }
+      }
+
+      let narrationNpcPersisted = true;
+      if (user && activeInvestigation && narrationMemoryNpcIds.size > 0) {
+        narrationNpcPersisted = await GameRepository.applyNPCUpdates(
+          activeInvestigation.id,
+          Object.fromEntries([...narrationMemoryNpcIds].map(npcId => [
+            npcId,
+            { memory: narrationContinuity.npcStates[npcId]?.memory ?? [] },
+          ])),
+        );
+      }
+
+      // The turn's single auto-save happens only after both narration streams
+      // have merged continuity. Fresh overrides prevent this async handler's
+      // pre-turn React closure from clobbering the engine state persisted above.
+      let narrationStatePersisted = true;
+      if (!advancingAct) {
+        narrationStatePersisted = await handleSaveGame(true, {
+          location: newLocation,
+          inventory: newInventory,
+          medicalPoints: newMedicalPoints,
+          moralPoints: newMoralPoints,
+          npcStates: narrationContinuity.npcStates,
+          flags: newFlags,
+          stim: narrationContinuity.stim,
+          introducedNpcs: newIntroducedNpcs,
+          currentAct,
+          rumorEvents: newRumorEvents,
+        });
+      }
+      if (user && activeInvestigation) {
+        cloudWriteResults.push(narrationCloudPersisted(
+          narrationNpcPersisted,
+          narrationStatePersisted,
+        ));
+        finalizeCloudPersistence(true);
       }
 
       // STEP 8: Generate act journal after narration stream completes (act advance only)
@@ -900,6 +953,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       }
 
     } catch (error) {
+      // If narration aborts after any cloud write was attempted, the per-turn
+      // save sequence is incomplete and must not clear (or hide) a failure streak.
+      finalizeCloudPersistence(false);
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error('handleAction error:', errorMsg, error);
       setHistory(prev => {

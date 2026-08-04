@@ -87,8 +87,8 @@ export const STORY_EVENTS: StoryEventDefinition<StoryFlag>[] = [
       forbidFlags: ['act0_kemp_business_heard'],
       maxWords: 130,
       beats: [
-        'After Watson’s second local action, Mrs Kemp can bear the unexplained purpose of her visit no longer and says her younger sister Ellen, called Nell, has been missing for six days.',
-        'She adds that the police merely wrote the name down; Holmes calls the facts a departure, not yet a disappearance, and turns back to the objects she brought.',
+        'After Watson’s second local action, Holmes turns from the objects and invites Mrs Kemp to state the purpose of her visit.',
+        'Mrs Kemp says her younger sister Ellen, called Nell, has been missing for six days, and that the police merely wrote the name down.',
       ],
     },
   },
@@ -137,6 +137,7 @@ export const STORY_EVENTS: StoryEventDefinition<StoryFlag>[] = [
       { intentTypes: ['show'], targetIds: ['charity_card'], npcIds: ['mrs_kemp'], requireFlags: ['act0_reconstruction_complete'], forbidFlags: ['act0_kemp_choice_resolved'], locationId: 'baker_street' },
     ],
     setFlags: ['act0_kemp_choice_resolved', 'showed_charity_card_to_mrs_kemp'],
+    inventoryRemove: ["A Subscriber's Card"],
     maxWords: 100,
     actionDescription: 'Watson gave Mrs Kemp the charity card and its address.',
     actionResultNote: 'STORY EVENT — Watson gives Kemp the card. She accepts it and departs; do not decide what she later does with the address.',

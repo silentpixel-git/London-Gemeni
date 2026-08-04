@@ -70,7 +70,13 @@ function payloadOf(event: StoryEventDefinition): StoryEventPayload {
   return { id: event.id, beats: event.beats, maxWords: event.maxWords, notice: event.notice };
 }
 
-function followUpContext(base: NarrationContext, storyEvent: StoryEventPayload): NarrationContext {
+function followUpContext(
+  base: NarrationContext,
+  storyEvent: StoryEventPayload,
+  story: StoryManifest,
+): NarrationContext {
+  const speaker = story.npcs.mrs_kemp;
+  const speakerPresence = base.npcsPresent.find(npc => npc.npcId === speaker.id);
   return {
     locationName: base.locationName,
     locationAtmosphere: base.locationAtmosphere,
@@ -84,6 +90,13 @@ function followUpContext(base: NarrationContext, storyEvent: StoryEventPayload):
     npcsArrived: base.npcsArrived,
     npcsDeparted: base.npcsDeparted,
     storyEvent,
+    storyEventCharacter: {
+      label: speakerPresence?.label ?? speaker.displayName,
+      isIntroduced: speakerPresence?.isIntroduced ?? !speaker.requiresIntroduction,
+      role: speaker.role,
+      speakingStyle: speaker.speakingStyle,
+      personality: speaker.personality,
+    },
     availableObjects: base.availableObjects,
     availableExits: base.availableExits,
     inventory: base.inventory,
@@ -128,7 +141,8 @@ function refreshContextState(story: StoryManifest, session: SessionSnapshot, res
   result.aiContext.npcsDeparted = previous.filter(id => !presentIds.includes(id))
     .map(id => story.npcs[id]?.displayName ?? id);
   result.aiContext.availableObjects = visibleInteractables(story, locationId, flags)
-    .map(id => story.objectDisplayNames[id] ?? id);
+    .map(id => story.objectDisplayNames[id] ?? id)
+    .filter(label => !(result.inventoryRemove ?? []).includes(label));
   result.aiContext.inventory = [
     ...session.inventory.filter(item => !(result.inventoryRemove ?? []).includes(item)),
     ...(result.inventoryAdd ?? []),
@@ -148,6 +162,7 @@ function suppressOptionalNarration(result: EngineResult): void {
   result.aiContext.npcScriptedLines = undefined;
   result.aiContext.watsonHint = undefined;
   result.aiContext.npcApproach = undefined;
+  result.aiContext.atmosphericNote = undefined;
   result.aiContext.blockquoteHint = 'none';
 }
 
@@ -165,11 +180,17 @@ export function applyStoryEvents(
 
   if (event) {
     const existingAdds = result.inventoryAdd ?? [];
+    const existingRemoves = result.inventoryRemove ?? [];
     const eventAdds = (event.inventoryAdd ?? []).filter(item =>
       !session.inventory.includes(item) && !existingAdds.includes(item));
+    const eventRemoves = (event.inventoryRemove ?? []).filter(item =>
+      session.inventory.includes(item) && !existingRemoves.includes(item));
     if (eventAdds.length > 0) {
       result.inventoryAdd = [...existingAdds, ...eventAdds];
       result.aiContext.itemsGained = [...(result.aiContext.itemsGained ?? []), ...eventAdds];
+    }
+    if (eventRemoves.length > 0) {
+      result.inventoryRemove = [...existingRemoves, ...eventRemoves];
     }
     result.actionSuccess = true;
     result.blockedReason = undefined;
@@ -212,7 +233,7 @@ export function applyStoryEvents(
       result.followUpEvent = {
         storyEvent,
         effects,
-        aiContext: followUpContext(result.aiContext, storyEvent),
+        aiContext: followUpContext(result.aiContext, storyEvent, story),
       };
     }
   }

@@ -2767,12 +2767,14 @@ function runStoryEvents() {
   const talkFollowUp = talkFallback.followUpEvent?.aiContext;
   if (talkFallback.followUpEvent?.storyEvent.id === 'act0_kemp_business_fallback' &&
       !talkFollowUp?.targetNpcInterview &&
+      talkFollowUp?.storyEventCharacter?.label === 'Mrs. Kemp' &&
+      talkFollowUp.storyEventCharacter.speakingStyle.includes('does not weep') &&
       !talkFollowUp?.atmosphericNote &&
       !talkFollowUp?.itemsGained &&
       talkFollowUp?.newCluesDiscovered.length === 0) {
-    pass('Kemp fallback after TALK Holmes carries only sanitized follow-up context');
+    pass('Kemp fallback carries a sanitized speaker profile without unrelated interview facts');
   } else {
-    fail('Kemp fallback after TALK Holmes carries only sanitized follow-up context', JSON.stringify(talkFallback.followUpEvent));
+    fail('Kemp fallback carries a sanitized speaker profile without unrelated interview facts', JSON.stringify(talkFallback.followUpEvent));
   }
 
   // The event flags are one-shot; repeating a trigger never overlaps a second
@@ -2863,9 +2865,8 @@ function runOtherIsNeverFull() {
   // and EVERY 'other' intent got full "arrival" treatment. A live playtest
   // hit this via "answer the door": a long room re-description instead of
   // the short in-character non-sequitur resolveOther's own text asks for,
-  // and — because it landed on the exact turn a scripted beat was admitting
-  // Mrs. Kemp — that full-mode text described her as already in the room a
-  // beat before her own arrival text ran.
+  // and the full-mode text could describe Mrs. Kemp before her arrival action
+  // had landed.
 
   // Genuinely unrecognized input (the catch-all fallback, no targetRaw).
   const gibberish = gameEngine.resolve(parseIntent('answer the door'), buildSnapshot());

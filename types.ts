@@ -299,13 +299,20 @@ export interface NarrationContext {
   // no previous turn for; buildNarrationContext always sets both.
   npcsArrived?: string[];
   npcsDeparted?: string[];
-  // Legacy presentation field retained until the Task 2 streaming/prompt
-  // migration lands; the engine no longer produces scripted beats.
-  scriptedBeat?: { text: string; style: 'prose' | 'blockquote'; notice?: string };
-  // Deterministically selected pivotal event. Task 2 teaches the server prompt
-  // to integrate these ordered semantic beats; the engine owns their identity,
-  // order, effects and word ceiling now.
+  // Deterministically selected pivotal event. The server prompt integrates
+  // these ordered semantic beats; the engine owns their identity, order,
+  // effects and word ceiling.
   storyEvent?: StoryEventPayload;
+  // Sanitized identity/manner for an event speaker when the event is a
+  // separate follow-up rather than the player's NPC interview. Carries no
+  // knowledge envelope or topic facts.
+  storyEventCharacter?: {
+    label: string;
+    isIntroduced: boolean;
+    role: string;
+    speakingStyle: string;
+    personality: string[];
+  };
   availableObjects: string[];     // Display names of interactable objects
   availableExits: string[];       // Display names of accessible exits
   inventory: string[];

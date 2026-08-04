@@ -19,7 +19,7 @@ export interface ActBreakDeps {
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   captureLocationArrival: (locationId: string, actNumber: number, timeLabel: string) => void;
   streamArrivalScene: (toAct: number, anchor: string, npcUpdates: Record<string, Partial<NPCState>>) => Promise<void>;
-  handleSaveGameRef: React.MutableRefObject<(silent?: boolean) => Promise<void>>;
+  handleSaveGameRef: React.MutableRefObject<(silent?: boolean) => Promise<boolean>>;
 }
 
 const CURTAIN_HOLD_MS = 4500; // enter animation eats ~1s; this leaves ~3.5s to read the act title

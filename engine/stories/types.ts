@@ -198,6 +198,8 @@ export interface StoryEventDefinition<F extends string = string> extends StoryEv
   /** Display-name inventory entries applied with the event's deterministic
    *  effects. Existing holdings are not duplicated. */
   inventoryAdd?: string[];
+  /** Display-name inventory entries transferred away by the event. */
+  inventoryRemove?: string[];
   actionDescription: string;
   actionResultNote: string;
   fallback?: StoryEventFallback<F>;

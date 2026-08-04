@@ -23,6 +23,7 @@ import {
   LOCATIONS,
   ACT_NAMES,
 } from '../engine/gameData';
+import { buildAct0NarrationContexts } from './qa-narration-fixtures';
 
 // ── Base fixture factory ──────────────────────────────────────────────────────
 
@@ -388,6 +389,16 @@ const fixtures: Array<{ label: string; rubric: string; ctx: NarrationContext }> 
   },
 ];
 
+// Derive live fixtures from real engine results so visibility, inventory,
+// presence, aliases and fallback sanitation cannot drift from game state.
+for (const event of buildAct0NarrationContexts()) {
+  fixtures.push({
+    label: `story-event-${event.id}`,
+    rubric: '2c_writing_quality',
+    ctx: event.ctx,
+  });
+}
+
 // ── Repetition analysis (3 sequential narrations, n-gram overlap) ─────────────
 
 function extractOpening(markdown: string): string {
@@ -538,6 +549,7 @@ async function main() {
     '',
     'Read each narration output below and evaluate against the rubric for its section.',
     'Look for: anachronisms, spoiler leaks, voice consistency, Doyle fidelity.',
+    'For story-event fixtures, also verify every numbered semantic beat appears exactly once, in order, and the prose stays within the stated maximum.',
     'Add your findings under each section in the format:',
     '- **HISTORY_ERROR**: description',
     '- **SPOILER_LEAK**: description',
@@ -574,6 +586,12 @@ async function main() {
       lines.push('');
       lines.push(`**Mode:** ${fixture.ctx.narrationMode} | **Act:** ${fixture.ctx.act} | **Location:** ${fixture.ctx.locationName}`);
       lines.push('');
+      if (fixture.ctx.storyEvent) {
+        lines.push(`**Required ordered beats (${fixture.ctx.storyEvent.maxWords} words max):**`);
+        lines.push('');
+        fixture.ctx.storyEvent.beats.forEach((beat, index) => lines.push(`${index + 1}. ${beat}`));
+        lines.push('');
+      }
       lines.push('**Narration output:**');
       lines.push('');
       lines.push('```');

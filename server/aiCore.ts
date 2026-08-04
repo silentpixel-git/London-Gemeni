@@ -185,6 +185,19 @@ export function buildNarrationPrompt(ctx: NarrationContext): string {
     ? `\n=== HOLMES' CROSS-CASE DEDUCTION (incorporate naturally into prose) ===\n"${ctx.holmesSynthesis}"\n`
     : '';
 
+  const storyEventSection = ctx.storyEvent
+    ? `\n=== REQUIRED STORY EVENT ===
+Within one Watson response, cover every semantic beat exactly once and in the numbered order below. Integrate the beats naturally into the resolved action; do not quote them as instructions, repeat them, reorder them, or leave any for mechanically appended prose.
+Complete each numbered beat before beginning the next. Preserve who did what, to whom, and why exactly as written; do not substitute or infer relationships.
+Do not add motives, requests, facts, or consequences that are not present in the verified Result or numbered beats.
+Negative statements in a beat are hard constraints. If a person gives no answer, promise, explanation, or reason, supply no partial answer, explanation, speculation, motive, hint, promise, or plan in dialogue or narration.
+Never name or describe a container's contents unless those contents appear in verified scenery, inventory, Result, or numbered beats. A closed or unopened container reveals nothing inside it.
+Do not assign a role, title, occupation, or relationship to a named NPC unless one is supplied below. Otherwise use only their verified label and the actions stated in the numbered beats.
+Keep connective prose neutral: it may join the beats but must not add an emotion, intention, character judgement, or new object detail.
+Maximum length for the entire response: ${ctx.storyEvent.maxWords} words.
+${ctx.storyEvent.beats.map((beat, index) => `${index + 1}. ${beat}`).join('\n')}\n`
+    : '';
+
   // Helpers for the new npcsPresent shape
   const npcLabelList = ctx.npcsPresent.length > 0
     ? ctx.npcsPresent.map(n => n.label).join(', ')
@@ -266,7 +279,9 @@ ${ctx.npcApproach.statement
   if (isOpening) {
     // OPENING MODE — game start only: tight hook, no inventory of scene elements
     return `=== NARRATION MODE: OPENING ===
-Write exactly 2 short paragraphs (max 130 words total). Do NOT include any Markdown heading — begin directly with the prose.
+${ctx.storyEvent
+  ? `Write one coherent Watson response (max ${ctx.storyEvent.maxWords} words total), using short paragraphs as the ordered event requires.`
+  : 'Write exactly 2 short paragraphs (max 130 words total).'} Do NOT include any Markdown heading — begin directly with the prose.
 ${temporalSection}
 === VERIFIED LOCATION ===
 Location: ${ctx.locationName}
@@ -276,12 +291,12 @@ Description: ${ctx.locationDescription}
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
+${storyEventSection}
 
 Paragraph 1 — ATMOSPHERE: 2–3 tight sentences. Vivid sensory hook. Apply correct temporal register. Do NOT list NPCs, objects, or exits.
 
 ${ctx.act === 0
-  // Stale for a full session: this used to fire when Mrs. Kemp was present at
-  // turn 0. She now arrives on player turn 4 (see scriptedBeats.ts) and this
+  // Mrs. Kemp now arrives only after the player attends the ringing bell; this
   // is the OPENING turn specifically — nobody has called yet. The old text
   // ("somebody has called this evening", "nothing whatever to occupy him")
   // both instructed the model to invent a caller and contradicted act0Note /
@@ -347,19 +362,19 @@ Format EXACTLY as a Markdown blockquote:
 
     // An approach adds a paragraph and its own word allowance — folding it into
     // the existing budget is what let it get dropped.
-    const lengthLine = isRevisit
-      ? `Write ${approachDirective ? 3 : 2} short paragraphs (max ${approachDirective ? 150 : 110} words).`
-      : `Write ${approachDirective ? 4 : 3} short paragraphs (max ${approachDirective ? 200 : 160} words).`;
+    const lengthLine = ctx.storyEvent
+      ? `Write one coherent Watson response (max ${ctx.storyEvent.maxWords} words total), using short paragraphs as the ordered event requires.`
+      : isRevisit
+        ? `Write ${approachDirective ? 3 : 2} short paragraphs (max ${approachDirective ? 150 : 110} words).`
+        : `Write ${approachDirective ? 4 : 3} short paragraphs (max ${approachDirective ? 200 : 160} words).`;
     const approachBeat = approachDirective
       ? `\n\nParagraph ${isRevisit ? 3 : 4} — NPC APPROACH (required — do not omit or merge into another paragraph): ${approachDirective}`
       : '';
 
     // Revisit keeps the authored vignette as an extra quoted beat when present,
     // but never invents an atmospheric-seed blockquote (keeps look-arounds tight).
-    // ONE blockquote per turn. 'none' means something else already owns this
-    // turn's quoted block — the opening's authored lines, or a scripted beat
-    // appended to the finished prose — so the structure drops its own rather
-    // than stacking two against each other.
+    // ONE blockquote per turn. 'none' means the turn has no quoted aside, so the
+    // structure drops its own rather than stacking formats unnecessarily.
     const wantsBlockquote = ctx.blockquoteHint !== 'none';
     const structure = isRevisit
       ? `Paragraph 1 — RETURN: Watson's purpose in returning, or what is immediately different — NO room description, NO weather opener — ending with one brief clause of his reflection on the case.${act0Note}
@@ -385,6 +400,7 @@ ${memorySection}
 === ACTION ===
 ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
+${storyEventSection}
 ${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${ambientExtraSection}${clueSection}${synthesisSection}
 Narrate Watson's arrival / survey of this location using exactly this structure:
 
@@ -395,36 +411,25 @@ ${structure}`;
   // A topic-scoped answer IS the turn — it has a specific fact to convey in
   // character, which does not fit the budget sized for a general exchange.
   //
-  // A scripted beat carries its own text mechanically appended after the
-  // model's reply (see the end of this function), uncounted against any
-  // budget. On a NON-interview turn that beat IS the scene's substance for
-  // this round — the model's own reply only needs to land the player's actual
-  // action, tersely, so it gets a small fixed budget instead of the normal
-  // formula. Scoped to non-interview turns only: an interview turn's topic
-  // answer is real content (a fact the player asked for) that must not be
-  // squeezed to make room for a beat that happens to land the same turn.
-  const hasScriptedBeat = !!ctx.scriptedBeat;
-  const isInterviewTurn = !!ctx.targetNpcInterview;
-  const compactWordLimit = (hasScriptedBeat && !isInterviewTurn)
-    ? 60
-    : (ctx.blockquoteHint !== 'none' ? 130 : 100) +
-      (ctx.targetNpcInterview?.topic ? 50 : 0) +
-      (ctx.extraWordBudget ?? 0);
+  const compactWordLimit = ctx.storyEvent?.maxWords ??
+    (ctx.blockquoteHint !== 'none' ? 130 : 100) +
+    (ctx.targetNpcInterview?.topic ? 50 : 0) +
+    (ctx.extraWordBudget ?? 0);
   // Most of Act 0 is compact turns, so the register note has to live here too —
   // it was full-mode only, and the model spent every examine writing Holmes
   // bored, stagnant and coiled, which is precisely the reading the act is built
   // to withhold until he has earned it.
   const act0CompactNote = ctx.act === 0
     ? '\nACT 0 REGISTER: Holmes is engaged and in good humour this evening — he has been reading strangers out of the holiday crowd for the pleasure of it. Do not describe him as bored, restless, stagnating, listless, coiled, or starved of a problem, and do not have him volunteer that modern crime is dull or that the great cases are finished. If the Result below gives him such a line, follow the Result; otherwise he does not think it yet.'
-      + (ctx.npcsPresent.some(n => n.npcId === 'mrs_kemp')
+      + (ctx.npcsPresent.some(n => n.npcId === 'mrs_kemp') || ctx.storyEvent
         ? '\n'
         // Positive phrasing — see the full-mode note: spelling out that nobody
         // has called is what produced a caller.
         : ' The cast of this scene is exactly two, Holmes and Watson, alone in the room with the evening to themselves.\n')
     : '';
-  let compactPrompt = `=== NARRATION MODE: COMPACT ===
-${(hasScriptedBeat && !isInterviewTurn)
-    ? `Write ONE short paragraph (max ${compactWordLimit} words) narrating only Watson's own action this turn. An authored beat follows immediately after your reply and carries the scene's substance — do not anticipate it, restate it, or write a second paragraph.`
+let compactPrompt = `=== NARRATION MODE: COMPACT ===
+${ctx.storyEvent
+    ? `Write one coherent Watson response (max ${compactWordLimit} words total), using short paragraphs as the ordered event requires.`
     : `Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line.`} Do NOT include any Markdown heading. NO act header. NO location description. NO exits listing.
 ${act0CompactNote}${dayStepSection}${temporalSection}
 === VERIFIED CONTEXT ===
@@ -438,13 +443,46 @@ ${ctx.actionDescription}
 Result: ${ctx.actionResultNote}
 ${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${clueSection}${synthesisSection}`;
 
-  if (ctx.targetNpcInterview) {
-    const { label, isIntroduced, introducingThisTurn, realName, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion, recentlyHeard, topic, topicMissed, suggestedTopics } = ctx.targetNpcInterview;
-    const nameInstruction = isIntroduced
+  const interviewNameInstruction = (
+    interview: NonNullable<NarrationContext['targetNpcInterview']>,
+  ): string => {
+    const { label, isIntroduced, introducingThisTurn, realName, role } = interview;
+    return isIntroduced
       ? `Watson is speaking with: ${label} (${role})`
       : introducingThisTurn
       ? `Watson is speaking with: ${label} (${role}) — until this moment a stranger whose name Watson did not know. THIS IS THE TURN HE COMES FORWARD AND GIVES HIS NAME. Have him state his name, "${realName}", naturally in his own dialogue near the start of his reply (e.g. "${realName}, sir — ..."). Only after he has spoken it may the narration use "${realName}"; Watson registers it as he hears it. Do not have Watson know the name before it is said aloud.`
       : `Watson is speaking with: ${label} — their real name is unknown to Watson. Refer to them only as "${label}" throughout.`;
+  };
+
+  if (ctx.targetNpcInterview && ctx.storyEvent) {
+    const interview = ctx.targetNpcInterview;
+    compactPrompt += `
+
+=== STORY EVENT CHARACTER ===
+${interviewNameInstruction(interview)}
+Role: ${interview.role}
+Speaking style: ${interview.speakingStyle}
+Personality: ${interview.personality.join(', ')}
+Use this section only for identity, alias and manner. The REQUIRED STORY EVENT supplies the turn's facts; do not answer from general knowledge or unrelated topic directives.`;
+  }
+
+  if (!ctx.targetNpcInterview && ctx.storyEvent && ctx.storyEventCharacter) {
+    const character = ctx.storyEventCharacter;
+    compactPrompt += `
+
+=== STORY EVENT CHARACTER ===
+${character.isIntroduced
+  ? `Story event speaker: ${character.label} (${character.role})`
+  : `Story event speaker: ${character.label}. Refer to them only as "${character.label}"; Watson does not know another name.`}
+Role: ${character.role}
+Speaking style: ${character.speakingStyle}
+Personality: ${character.personality.join(', ')}
+Use this section only for identity, alias and manner. The REQUIRED STORY EVENT supplies the turn's facts; do not add knowledge or unrelated topics.`;
+  }
+
+  if (ctx.targetNpcInterview && !ctx.storyEvent) {
+    const { label, speakingStyle, personality, knowledgeEnvelope, playerQuestion, recentlyHeard, topic, topicMissed, suggestedTopics } = ctx.targetNpcInterview;
+    const nameInstruction = interviewNameInstruction(ctx.targetNpcInterview);
     // Token diet: cap the knowledge envelope at 8 items, preferring those that
     // overlap the player's question (simple keyword match), falling back to
     // the author-ordered head of the list.
@@ -568,6 +606,10 @@ Apply only when the action in the scene makes it plausible.
 ${ctx.npcScriptedLines.map(s => `**${s.label}**: ${s.instruction}`).join('\n\n')}`;
   }
 
+  // Keep the pivotal contract last so ordinary action/interview structure
+  // cannot dilute or contradict the engine-authored semantic order.
+  if (ctx.storyEvent) compactPrompt += storyEventSection;
+
   return compactPrompt;
 }
 
@@ -613,6 +655,78 @@ function extractMarkdownFromPartialJson(json: string): string {
   }
 
   return result;
+}
+
+/**
+ * Add only deterministic presentation chrome to Gemini's completed response.
+ * Story-event beats belong inside the generated Watson prose; the server never
+ * appends their authored wording after generation.
+ */
+export function finalizeNarrationResponse(
+  ctx: NarrationContext,
+  response: NarrationResponse,
+): NarrationResponse {
+  const parsed: NarrationResponse = { ...response };
+
+  // The schema expresses stimUpdate as an array (Gemini structured output
+  // cannot describe an arbitrary-key map); the rest of the app consumes it as
+  // a Record<key, STIMEntry>. Normalize here. turnCreated is set by the
+  // consumer, so 0 is a placeholder.
+  const rawStim = parsed.stimUpdate as unknown;
+  if (Array.isArray(rawStim)) {
+    const record: Record<string, STIMEntry> = {};
+    for (const e of rawStim as Array<{ key?: string; summary?: string; scope?: STIMEntry['scope'] }>) {
+      if (e?.key && e.summary && e.scope) {
+        record[e.key] = { summary: e.summary, scope: e.scope, turnCreated: 0 };
+      }
+    }
+    parsed.stimUpdate = Object.keys(record).length > 0 ? record : undefined;
+  }
+
+  // A short mechanical notice may follow the integrated prose. Unlike the
+  // semantic beats, this is engine-owned state the player must see plainly.
+  if (ctx.storyEvent?.notice) {
+    parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + ctx.storyEvent.notice;
+  }
+
+  // Who came or went this turn. Appended on EVERY mode, unlike the verified
+  // data summary below: presence can change on a compact turn.
+  const presenceLines: string[] = [
+    ...(ctx.npcsArrived ?? []).map(label => `**${label}** has arrived.`),
+    ...(ctx.npcsDeparted ?? []).map(label => `**${label}** has left.`),
+  ];
+  if (presenceLines.length > 0) {
+    parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + presenceLines.join('\n\n');
+  }
+
+  // For full-mode turns (move / look-around), append a verified data summary.
+  // This block is built from engine-confirmed data — the AI cannot hallucinate it.
+  if (ctx.narrationMode === 'full' || ctx.narrationMode === 'opening') {
+    const lines: string[] = [];
+    if (ctx.npcsPresent.length > 0) {
+      const named = ctx.npcsPresent.map(n => `**${n.label}**`);
+      const sentence =
+        named.length === 1
+          ? `${named[0]} is here.`
+          : named.length === 2
+          ? `${named[0]} and ${named[1]} are here.`
+          : `${named.slice(0, -1).join(', ')}, and ${named[named.length - 1]} are here.`;
+      lines.push(sentence);
+    }
+    if (ctx.availableObjects.length > 0) {
+      lines.push(`**Objects of interest:** ${ctx.availableObjects.join(', ')}`);
+    }
+    if (ctx.availableExits.length > 0) {
+      lines.push(`**Possible exits:** ${ctx.availableExits.join(', ')}`);
+    } else {
+      lines.push(`**No exits available yet** — investigate your surroundings first.`);
+    }
+    if (lines.length > 0) {
+      parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + lines.join('\n');
+    }
+  }
+
+  return parsed;
 }
 
 // ============================================================
@@ -698,81 +812,7 @@ export class AIService {
       parsed = { markdownOutput: lastNarrative || 'The ink on Watson\'s pen ran dry.' };
     }
 
-    // The schema expresses stimUpdate as an array (Gemini structured output
-    // cannot describe an arbitrary-key map); the rest of the app consumes it as
-    // a Record<key, STIMEntry>. Normalize here. turnCreated is set by the
-    // consumer, so 0 is a placeholder.
-    const rawStim = parsed.stimUpdate as unknown;
-    if (Array.isArray(rawStim)) {
-      const record: Record<string, STIMEntry> = {};
-      for (const e of rawStim as Array<{ key?: string; summary?: string; scope?: STIMEntry['scope'] }>) {
-        if (e?.key && e.summary && e.scope) {
-          record[e.key] = { summary: e.summary, scope: e.scope, turnCreated: 0 };
-        }
-      }
-      parsed.stimUpdate = Object.keys(record).length > 0 ? record : undefined;
-    }
-
-    // An authored beat due this turn (see ScriptedBeat). Rendered here rather
-    // than prompted, so long authored dialogue survives verbatim instead of
-    // being compressed to fit compact mode's word ceiling, and so its format is
-    // the author's choice: 'prose' for speech, 'blockquote' for atmosphere.
-    // Sits above the presence notice so "Mrs. Hudson shows the visitor up"
-    // precedes "Mrs. Kemp has arrived."
-    if (ctx.scriptedBeat) {
-      const { text, style, notice } = ctx.scriptedBeat;
-      const rendered = style === 'blockquote'
-        ? `> *${text}*`
-        : text;
-      parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + rendered;
-      // Mechanical notice for an event the player should be told about
-      // plainly, same register as the presence lines just below (e.g. a
-      // doorbell — unlike an arrival/departure, there's no npcsArrived-style
-      // engine signal for it, so the beat carries its own).
-      if (notice) {
-        parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + notice;
-      }
-    }
-
-    // Who came or went this turn. Appended on EVERY mode, unlike the verified
-    // data summary below: presence can change on a compact turn (a caller shown
-    // up while Watson examines something, a witness leaving after his say), and
-    // a change the player is never told about reads as the sidebar lying.
-    const presenceLines: string[] = [
-      ...(ctx.npcsArrived ?? []).map(label => `**${label}** has arrived.`),
-      ...(ctx.npcsDeparted ?? []).map(label => `**${label}** has left.`),
-    ];
-    if (presenceLines.length > 0) {
-      parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + presenceLines.join('\n\n');
-    }
-
-    // For full-mode turns (move / look-around), append a verified data summary.
-    // This block is built from engine-confirmed data — the AI cannot hallucinate it.
-    if (ctx.narrationMode === 'full' || ctx.narrationMode === 'opening') {
-      const lines: string[] = [];
-      if (ctx.npcsPresent.length > 0) {
-        const named = ctx.npcsPresent.map(n => `**${n.label}**`);
-        const sentence =
-          named.length === 1
-            ? `${named[0]} is here.`
-            : named.length === 2
-            ? `${named[0]} and ${named[1]} are here.`
-            : `${named.slice(0, -1).join(', ')}, and ${named[named.length - 1]} are here.`;
-        lines.push(sentence);
-      }
-      if (ctx.availableObjects.length > 0) {
-        lines.push(`**Objects of interest:** ${ctx.availableObjects.join(', ')}`);
-      }
-      if (ctx.availableExits.length > 0) {
-        lines.push(`**Possible exits:** ${ctx.availableExits.join(', ')}`);
-      } else {
-        // Prologue or locked location — give the player a clear signal rather than silence
-        lines.push(`**No exits available yet** — investigate your surroundings first.`);
-      }
-      if (lines.length > 0) {
-        parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + lines.join('\n');
-      }
-    }
+    parsed = finalizeNarrationResponse(ctx, parsed);
 
     yield { narrative: parsed.markdownOutput, fullJson: fullJsonText, isComplete: true, parsed };
   }

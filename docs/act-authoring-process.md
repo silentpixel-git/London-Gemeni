@@ -59,6 +59,41 @@ Plus, once per act: the gate-flag table (flag → verb → scene), the choice an
 - Branches (the act's choice) get their own scenario, including the diary variant each branch selects.
 - Goldens run in `qa:all` forever. A later engine change that breaks an act's timeline should fail loudly.
 
+## Action-triggered story events
+
+Use a story event only for a pivotal scene whose timing belongs to a resolved
+player action. Timed city broadcasts remain world events; ambient texture,
+vignettes and incidental NPC business remain in their existing systems.
+
+Author each event as a compact contract:
+
+```md
+Event id:
+Trigger(s): resolved intent + target/NPC/topic; list aliases beside the local trigger
+Prerequisites: required flags, forbidden flags, location and presence rules
+Semantic effects: one-shot event flag plus every story/inventory/presence effect
+Narration: compact/full, maximum words, then numbered semantic beats in required order
+Fallback: none, or why silence would block/confuse the player; eligible actions and exact threshold
+```
+
+Aliases belong beside the event trigger that needs them, not in the global
+parser, unless they are genuinely valid for that object or NPC throughout the
+story. File order is priority order: the runtime selects at most one main event
+per action. A declared fallback may follow as a distinct narration only; it
+must not disguise a second main event or apply state twice.
+
+Every event ships with three levels of proof:
+
+- Positive tests for each canonical trigger and supported local alias.
+- Negative tests for premature, blocked, unrelated and once-only attempts,
+  including fallback exclusions and exact threshold boundaries.
+- A golden path that asserts the prerequisites, semantic effects, visibility,
+  word budget and branch outcome in the act's real turn order.
+
+Narration-seam QA must also assert that Gemini receives every numbered beat and
+the event word ceiling. The beats describe meaning, not copy-ready prose: Gemini
+must cover each once and in order within one Watson response.
+
 ## Playtest triage
 
 Every playtest finding is one of two things:

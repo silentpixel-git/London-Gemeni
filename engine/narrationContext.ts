@@ -269,10 +269,8 @@ export function buildNarrationContext(
   // genuinely unrecognized input, where resolveOther's own actionResultNote
   // asks the model to respond "briefly." A live playtest hit this two ways at
   // once: "answer the door" got a long room re-description instead of a short
-  // in-character non-sequitur, and because it landed on the exact turn a
-  // scripted beat was admitting Mrs. Kemp, that full-mode "who's present"
-  // paragraph described her as already in the room a beat before her own
-  // arrival text ran.
+  // in-character non-sequitur, and the full-mode "who's present" paragraph
+  // could describe Mrs. Kemp before her arrival action had landed.
   const narrationMode: 'full' | 'compact' =
     (intent.type === 'move' && outcome.success) ||
     (intent.type === 'examine' && !intent.targetId)
@@ -282,15 +280,8 @@ export function buildNarrationContext(
   // Full mode always gets a world_event blockquote.
   // Compact mode gets an inner_thought ~30% of the time — less frequent so each one lands harder.
   //
-  // ONE blockquote per turn, always. A blockquote-styled scripted beat is
-  // appended to the finished prose, and the model has no way to know that — so
-  // the turn has to give up its own, or the reader gets two quoted blocks
-  // stacked against each other and the form stops meaning anything.
+  // ONE blockquote per turn, always.
   const blockquoteHint: NarrationContext['blockquoteHint'] =
-    // ANY scripted beat, not just a blockquote-styled one, yields the turn's
-    // blockquote budget — a prose beat is already the turn's substance, so
-    // asking the model for its own quoted aside on top invites the same
-    // wall-of-text problem this whole mechanism exists to bound.
     narrationMode === 'full'
         ? 'world_event'
         : Math.random() < 0.3 ? 'inner_thought' : 'none';
