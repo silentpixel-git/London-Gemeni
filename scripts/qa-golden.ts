@@ -150,6 +150,7 @@ interface GoldenChecks {
   expectEvent?: string | null;      // storyEvent id, or explicitly none
   expectNoticeIncludes?: string;   // substring of the event payload
   expectItemGained?: string;       // exact inventory entry present after the turn
+  expectItemAbsent?: string;       // exact inventory entry absent after the turn
   expectWordBudget?: number;       // storyEvent.maxWords — playtest-tuned, load-bearing
 }
 
@@ -234,6 +235,11 @@ function goldenStep(label: string, snap: SessionSnapshot, input: string, checks:
     next.inventory.includes(checks.expectItemGained)
       ? pass(`${prefix} → inventory gained "${checks.expectItemGained}"`)
       : fail(`${prefix} → inventory missing "${checks.expectItemGained}"`, JSON.stringify(next.inventory));
+  }
+  if (checks.expectItemAbsent !== undefined) {
+    !next.inventory.includes(checks.expectItemAbsent)
+      ? pass(`${prefix} → inventory does not contain "${checks.expectItemAbsent}"`)
+      : fail(`${prefix} → inventory unexpectedly contains "${checks.expectItemAbsent}"`, JSON.stringify(next.inventory));
   }
   if (checks.expectWordBudget !== undefined) {
     const budget = result.aiContext.storyEvent?.maxWords;
@@ -450,6 +456,48 @@ function runGoldenAct0Withhold(): void {
     : fail('Act0Withhold → act-close diary missing the withhold variant', diary.slice(0, 200));
 }
 
+// Complete alternate route: reconstruct by ASK without first taking the card,
+// then withhold it, take the ticket, and close the act.
+function runGoldenAct0AskReconstruction(): void {
+  console.log('\n=== GOLDEN: Act 0 — ASK reconstruction into withhold ===');
+  const A0A = 'Act0AskReconstruction';
+  let s = buildSnapshot();
+
+  for (const input of [
+    'talk to holmes', 'examine the woman', 'answer the door', 'talk to mrs kemp',
+    'examine the pawn ticket', 'examine the boots', 'open the workbox', "examine nell's letters",
+  ]) {
+    s = goldenStep(A0A, s, input);
+  }
+
+  s = goldenStep(A0A, s, 'ask holmes about the card', {
+    expectSuccess: true,
+    expectFlags: ['showed_charity_card_to_holmes', 'act0_reconstruction_complete', 'story_event_act0_reconstruction'],
+    expectEvent: 'act0_reconstruction',
+    expectItemAbsent: "A Subscriber's Card",
+  });
+  s = goldenStep(A0A, s, 'say nothing', {
+    expectSuccess: true,
+    expectFlags: ['withheld_address', 'act0_kemp_choice_resolved', 'story_event_act0_withhold_card', 'filed_charity_card'],
+    expectEvent: 'act0_withhold_card',
+    expectItemGained: "A Subscriber's Card",
+    expectNpcAbsent: ['mrs_kemp'],
+  });
+  s = goldenStep(A0A, s, 'take the ticket', {
+    expectSuccess: true,
+    expectFlags: ['took_baker_street_pawn_ticket'],
+    expectItemGained: "Nell's Pawn Ticket",
+    expectAct: 0,
+  });
+  s = goldenStep(A0A, s, 'talk to holmes', {
+    expectSuccess: true,
+    expectFlags: ['act0_closing_complete', 'story_event_act0_closing'],
+    expectEvent: 'act0_closing',
+    expectAct: 1,
+    expectLocation: 'dorset_street',
+  });
+}
+
 // Diary variant precedence: first match wins, in authored order.
 function runAct0DiaryVariants(): void {
   console.log('\n=== GOLDEN: Act 0 diary variant precedence ===');
@@ -474,6 +522,7 @@ function runAct0DiaryVariants(): void {
 try {
   runGoldenAct0();
   runGoldenAct0Withhold();
+  runGoldenAct0AskReconstruction();
   runAct0DiaryVariants();
 } catch (err) {
   console.error('\n[FATAL] Uncaught exception in golden harness:', err);

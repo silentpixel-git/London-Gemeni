@@ -398,9 +398,9 @@ export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
 
 export const ATMOSPHERIC_NOTES: Record<string, Record<string, string>> = {
   baker_street: {
-    // NOTE: do not narrate Watson taking the ticket here — acquisition is
-    // narrated via itemsGained (first examine only). This note also fires on
-    // RE-examines, when the ticket is already in his pocket.
+    // NOTE: do not narrate Watson taking the ticket here. Examination records
+    // its evidence but leaves it on the table; explicit TAKE transfers it only
+    // after Mrs Kemp's choice has resolved. This note also fires on re-examine.
     // Deliberately yields nothing. Holmes has just read three strangers out of
     // this crowd; Watson looks at the same crowd and sees a crowd. The act's
     // one clean opportunity to notice nothing, and the whole point of the beat
@@ -512,12 +512,11 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
   kidney_parcel: 'Kidney Examination Notes',
   medical_reports: 'Forensic Reports Summary',
   autopsy_ledger: 'Autopsy Ledger Notes',
-  // Act 0: examining the ticket Mrs. Kemp leaves on the table puts it in
-  // Watson's pocket — the object he SHOWS to Holmes (tutorial beat). It is a
-  // memento, not a puzzle piece: no USE combination resolves it, no later act
-  // pays it off. Filed to Documents at the Act 0→1 transition (see
-  // ITEM_SPENT_AFTER_ACT below) — no longer carried, but permanently
-  // reviewable via its filed_pawn_ticket flag.
+  // Act 0: examining the ticket records its evidence but leaves it on the
+  // table. Explicit TAKE after Mrs Kemp's choice moves it to Watson's pocket.
+  // It is a memento, not a puzzle piece: no USE combination resolves it and no
+  // later act pays it off. It is filed on transfer, then removed from carried
+  // inventory at the Act 0→1 transition while remaining reviewable.
   pawn_ticket: "Nell's Pawn Ticket",
   charity_card: "A Subscriber's Card",
   // Not a location interactable — granted directly by TALK (see
@@ -527,9 +526,8 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAKEABLE GATES — object may only be taken once this flag is set.
-// (No entries currently authored — see TALK_GRANTS_ITEM for the pattern used
-// when an item should exist only because an NPC gave it, not as scenery.)
+// TAKEABLE GATES — object may only be taken once this flag is set. The pawn
+// ticket remains on Mrs Kemp's table until Watson resolves what to tell her.
 // ─────────────────────────────────────────────────────────────────────────────
 export const TAKEABLE_REQUIRES_FLAG: Record<string, StoryFlag> = {
   pawn_ticket: 'act0_kemp_choice_resolved',

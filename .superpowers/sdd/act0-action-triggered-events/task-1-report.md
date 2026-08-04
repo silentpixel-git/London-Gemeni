@@ -39,3 +39,40 @@ Implementation commit: `4f81b5f35de0cc1650d5aea888ec08253d776e64`
 ## Coordination note
 
 Task 1 defines and populates `NarrationContext.storyEvent` and the separate follow-up context, but intentionally does not implement Task 2's server prompt or hook/feed sequencing. The legacy optional `NarrationContext.scriptedBeat` presentation field remains temporarily so this engine-only commit compiles against the still-unmigrated Task 2 server/hook code; the engine and manifest no longer produce or contain scripted beats.
+
+## Fix round 1/5
+
+### Findings resolved
+
+- Changed non-exact event phrase matching from unrestricted substrings to normalized token/phrase boundaries, so `her` no longer matches inside `weather`.
+- Removed the broad `kemp_pawn_ticket` topic-id trigger from the boots event; TALK now requires boots-specific language to perform the oak-bark/lime/silt analysis.
+- Added declarative story-event inventory additions and made the withhold branch add the subscriber's card only when Watson does not already carry it. ASK reconstruction followed by silence now matches the authored pocket action in deterministic state and narration context.
+- Replaced fallback context spreading with an explicit compact follow-up context containing scene state and the Kemp event, but no main-action interview, question, clues, atmospheric note, item gains, optional vignette, hint, scripted lines, or approach.
+- Cleared the private `_vignetteFlagsUpdate` when a pivotal event suppresses its vignette, updated all stale pawn-ticket/takeable-gate comments, and added a complete positive ASK-reconstruction golden route through the Act 1 transition.
+- Moved document filing behind story-event application so declarative event inventory uses the same permanent Documents contract as resolver inventory; the ASK/withhold route now sets `filed_charity_card` before Act 1 spends the physical card.
+
+### Regression coverage and RED evidence
+
+- `scripts/qa-engine.ts` covers the unrelated weather question, ticket-versus-boots topic, ASK reconstruction plus withhold inventory, TALK-Holmes fallback sanitization, and suppressed-vignette flag retention.
+  - Weather boundary RED: `npm run qa:engine` -> 434 passed, 1 failed, 2 existing warnings.
+  - Ticket/boots RED: `npm run qa:engine` -> 435 passed, 1 failed, 2 existing warnings.
+  - ASK/withhold inventory RED: `npm run qa:engine` -> 436 passed, 1 failed, 2 existing warnings.
+  - Follow-up sanitization RED: `npm run qa:engine` -> 437 passed, 1 failed, 2 existing warnings.
+  - Vignette flag RED: `npm run qa:engine` -> 438 passed, 1 failed, 2 existing warnings.
+- `scripts/qa-golden.ts` covers the full ASK reconstruction route without pre-taking the card, silence adding it, explicit ticket take, and closing into Act 1.
+  - Golden-route RED: `npm run qa:golden` -> 136 passed, 1 failed.
+  - Reviewer-driven filing RED: `npm run qa:golden` -> 137 passed, 1 failed.
+
+### Verification commands and summaries
+
+- `npm run lint` -> PASS (`tsc --noEmit`).
+- `npm run qa:engine` -> 439 passed, 0 failed, 2 pre-existing warnings.
+- `npm run qa:golden` -> 138 passed, 0 failed.
+- `npm run qa:all` -> PASS: lint plus engine, golden, parser, hints, diary-leads, and validation suites.
+  - Parser regression gates passed.
+  - Hints: 38 passed, 0 failed.
+  - Diary leads: 39 passed, 0 failed.
+  - Story validation: 107 passed, 0 failed, 26 known warnings.
+- `git diff --check` -> PASS before report/commit staging.
+- `engine-logic-reviewer` recheck -> no remaining actionable engine/parser or regression findings.
+- `narrative-consistency-reviewer` recheck -> no remaining actionable findings.

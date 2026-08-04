@@ -97,7 +97,7 @@ export const STORY_EVENTS: StoryEventDefinition<StoryFlag>[] = [
     act: 0,
     triggers: [
       { intentTypes: ['examine'], targetIds: ['nells_boots'], requireFlags: ['world_event_kemp_arrives'], forbidFlags: ['act0_boots_analyzed'], locationId: 'baker_street' },
-      { intentTypes: ['talk'], npcIds: ['mrs_kemp', 'holmes'], topicIds: ['kemp_pawn_ticket'], topicPhrases: ['boots', 'mud', 'soles', 'where she walked'], requireFlags: ['world_event_kemp_arrives'], forbidFlags: ['act0_boots_analyzed'], locationId: 'baker_street' },
+      { intentTypes: ['talk'], npcIds: ['mrs_kemp', 'holmes'], topicPhrases: ['boots', 'mud', 'soles', 'where she walked'], requireFlags: ['world_event_kemp_arrives'], forbidFlags: ['act0_boots_analyzed'], locationId: 'baker_street' },
     ],
     setFlags: ['act0_boots_analyzed'],
     maxWords: 180,
@@ -166,6 +166,7 @@ export const STORY_EVENTS: StoryEventDefinition<StoryFlag>[] = [
       { intentTypes: ['other', 'take', 'talk', 'examine'], rawPhrases: ['keep the card', 'keep it', 'keep the subscriber’s card', 'keep the subscriber\'s card', 'say nothing', 'stay silent', 'hold my tongue', 'pocket the card'], rawPhraseMatch: 'exact', requireFlags: ['act0_reconstruction_complete'], forbidFlags: ['act0_kemp_choice_resolved'], locationId: 'baker_street', replacesBlocked: true },
     ],
     setFlags: ['act0_kemp_choice_resolved', 'withheld_address'],
+    inventoryAdd: ["A Subscriber's Card"],
     maxWords: 100,
     actionDescription: 'Watson kept the charity card and said nothing.',
     actionResultNote: 'STORY EVENT — Watson withholds the address. Kemp understands the silence and departs.',

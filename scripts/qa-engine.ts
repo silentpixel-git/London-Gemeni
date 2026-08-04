@@ -41,7 +41,7 @@ import { gameEngine, GameEngine, SessionSnapshot, npcLocationAt, getPresentNpcId
 import { formatTimeLabel } from '../engine/time';
 import { parseIntent } from '../engine/intentParser';
 import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
-import type { StoryFact, RumorDefinition } from '../engine/stories/types';
+import type { StoryFact, RumorDefinition, StoryManifest } from '../engine/stories/types';
 import type { RumorEvents } from '../types';
 import { NPCS } from '../engine/stories/whitechapel-1888/npcs';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
@@ -2632,6 +2632,13 @@ function runStoryEvents() {
   else fail('a pivotal action selects exactly one main story event', JSON.stringify(callerEventFlags));
   s = applyResult(s, r);
 
+  const weatherQuestion = gameEngine.resolve(parseIntent('ask holmes about the weather'), s);
+  if (!weatherQuestion.flagsUpdate?.['act0_bell_rang'] && eventId(weatherQuestion) !== 'act0_bell_rang') {
+    pass('the pronoun "her" does not match inside unrelated words such as "weather"');
+  } else {
+    fail('the pronoun "her" does not match inside unrelated words such as "weather"', JSON.stringify(weatherQuestion));
+  }
+
   // Unrelated successful actions still do not ring the bell, even forever.
   for (let i = 0; i < 4; i++) {
     r = gameEngine.resolve(parseIntent('examine the chemistry table'), s);
@@ -2667,6 +2674,13 @@ function runStoryEvents() {
   } else fail('OPEN door admits Kemp without stating business or counting the arrival turn', JSON.stringify(r));
   s = applyResult(s, r);
 
+  const ticketQuestion = gameEngine.resolve(parseIntent('ask mrs kemp about the pawn ticket'), s);
+  if (!ticketQuestion.flagsUpdate?.['act0_boots_analyzed'] && eventId(ticketQuestion) !== 'act0_boots_analyzed') {
+    pass('asking Kemp about the ticket does not perform the boots analysis');
+  } else {
+    fail('asking Kemp about the ticket does not perform the boots analysis', JSON.stringify(ticketQuestion));
+  }
+
   // Failed, meta, and unrecognised turns never advance the two-action fallback.
   for (const input of ['inventory', 'notebook', 'deduce that holmes did it', 'what time is it', 'xyzzy']) {
     r = gameEngine.resolve(parseIntent(input), s);
@@ -2697,6 +2711,27 @@ function runStoryEvents() {
     pass('second eligible action schedules only the separate business follow-up');
   } else fail('second eligible action schedules only the separate business follow-up', JSON.stringify(r));
   s = applyResult(s, r);
+
+  const talkFallback = gameEngine.resolve(parseIntent('ask holmes about the concluded case'), buildSnapshot({
+    location: 'baker_street',
+    currentAct: 0,
+    flags: {
+      act0_caller_noticed: true,
+      act0_bell_rang: true,
+      world_event_kemp_arrives: true,
+      act0_kemp_fallback_action_1: true,
+    },
+  }));
+  const talkFollowUp = talkFallback.followUpEvent?.aiContext;
+  if (talkFallback.followUpEvent?.storyEvent.id === 'act0_kemp_business_fallback' &&
+      !talkFollowUp?.targetNpcInterview &&
+      !talkFollowUp?.atmosphericNote &&
+      !talkFollowUp?.itemsGained &&
+      talkFollowUp?.newCluesDiscovered.length === 0) {
+    pass('Kemp fallback after TALK Holmes carries only sanitized follow-up context');
+  } else {
+    fail('Kemp fallback after TALK Holmes carries only sanitized follow-up context', JSON.stringify(talkFallback.followUpEvent));
+  }
 
   // The event flags are one-shot; repeating a trigger never overlaps a second
   // event, and pivotal turns suppress all optional narration furniture.
@@ -2746,6 +2781,33 @@ function runStoryEvents() {
   if (!earlyClosing.flagsUpdate?.['act0_closing_complete'] && !/arithmetic|everything is a sum/i.test(earlyClosingText)) {
     pass('crime arithmetic remains sealed until the final closing');
   } else fail('crime arithmetic remains sealed until the final closing', earlyClosingText);
+
+  const vignetteStory: StoryManifest = {
+    ...WHITECHAPEL_MANIFEST,
+    locations: {
+      ...WHITECHAPEL_MANIFEST.locations,
+      baker_street: {
+        ...WHITECHAPEL_MANIFEST.locations.baker_street,
+        vignettes: [{ text: 'A QA-only vignette that a pivotal event must suppress.', act: 0 }],
+      },
+    },
+    storyEvents: [{
+      id: 'qa_pivotal_look',
+      act: 0,
+      triggers: [{ intentTypes: ['examine'] }],
+      setFlags: [],
+      beats: ['The pivotal look owns this turn.'],
+      maxWords: 40,
+      actionDescription: 'Watson looked around during a pivotal moment.',
+      actionResultNote: 'QA-only pivotal event.',
+    }],
+  };
+  const pivotalLook = new GameEngine(vignetteStory).resolve(parseIntent('look'), buildSnapshot());
+  if (!pivotalLook.aiContext.vignette && !pivotalLook.flagsUpdate?.['vignette_baker_street_0']) {
+    pass('suppressing a pivotal-turn vignette does not spend its once-only flag');
+  } else {
+    fail('suppressing a pivotal-turn vignette does not spend its once-only flag', JSON.stringify(pivotalLook));
+  }
 }
 
 // ── 'other' intents are never full mode ──────────────────────────────────────
@@ -2943,6 +3005,34 @@ function runKempChoice() {
     } else {
       fail(`addressed question does not resolve the withhold choice: "${question}"`, JSON.stringify(advice));
     }
+  }
+
+  const askRouteBase = buildSnapshot({
+    location: 'baker_street',
+    currentAct: 0,
+    inventory: [],
+    flags: {
+      world_event_kemp_arrives: true,
+      act0_kemp_business_heard: true,
+      examined_baker_street_pawn_ticket: true,
+      act0_boots_analyzed: true,
+      opened_baker_street_nells_workbox: true,
+      examined_baker_street_nells_letters: true,
+    },
+  });
+  const askReconstruction = gameEngine.resolve(parseIntent('ask holmes about the card'), askRouteBase);
+  const afterAskReconstruction = applyResult(askRouteBase, askReconstruction);
+  const askRouteWithhold = gameEngine.resolve(parseIntent('say nothing'), afterAskReconstruction);
+  if (askReconstruction.flagsUpdate?.['act0_reconstruction_complete'] &&
+      !afterAskReconstruction.inventory.includes("A Subscriber's Card") &&
+      askRouteWithhold.inventoryAdd?.includes("A Subscriber's Card") &&
+      askRouteWithhold.aiContext.inventory.includes("A Subscriber's Card")) {
+    pass('ASK reconstruction followed by withhold deterministically pockets the card');
+  } else {
+    fail('ASK reconstruction followed by withhold deterministically pockets the card', JSON.stringify({
+      reconstruction: askReconstruction,
+      withhold: askRouteWithhold,
+    }));
   }
 
   // The withhold must NOT fire before the choice is live.

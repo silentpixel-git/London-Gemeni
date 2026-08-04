@@ -1,4 +1,4 @@
-import type { EngineResult, NPCState, StoryEventPayload } from '../types';
+import type { EngineResult, NarrationContext, NPCState, StoryEventPayload } from '../types';
 import type { ParsedIntent } from './intentParser';
 import { getPresentNpcIds } from './presence';
 import { periodOf } from './resolvers/support';
@@ -17,7 +17,7 @@ function phraseMatches(value: string | undefined, phrases: string[] | undefined)
   const haystack = normalise(value ?? '');
   return phrases.some(phrase => {
     const needle = normalise(phrase);
-    return haystack === needle || haystack.includes(needle);
+    return haystack === needle || ` ${haystack} `.includes(` ${needle} `);
   });
 }
 
@@ -70,6 +70,37 @@ function payloadOf(event: StoryEventDefinition): StoryEventPayload {
   return { id: event.id, beats: event.beats, maxWords: event.maxWords, notice: event.notice };
 }
 
+function followUpContext(base: NarrationContext, storyEvent: StoryEventPayload): NarrationContext {
+  return {
+    locationName: base.locationName,
+    locationAtmosphere: base.locationAtmosphere,
+    locationDescription: base.locationDescription,
+    locationVisitCount: base.locationVisitCount,
+    locationTimeframe: base.locationTimeframe,
+    locationReconstitutionNote: base.locationReconstitutionNote,
+    act: base.act,
+    actName: base.actName,
+    npcsPresent: base.npcsPresent,
+    npcsArrived: base.npcsArrived,
+    npcsDeparted: base.npcsDeparted,
+    storyEvent,
+    availableObjects: base.availableObjects,
+    availableExits: base.availableExits,
+    inventory: base.inventory,
+    watsonStats: base.watsonStats,
+    actionType: 'talk',
+    actionSuccess: true,
+    actionDescription: 'Mrs Kemp explained the purpose of her visit after Watson’s second local action.',
+    actionResultNote: 'FOLLOW-UP STORY EVENT — Kemp says Nell has been missing six days. This is a distinct narration after the resolved player action.',
+    newCluesDiscovered: [],
+    narrationMode: 'compact',
+    timeLabel: base.timeLabel,
+    timePeriod: base.timePeriod,
+    weather: base.weather,
+    blockquoteHint: 'none',
+  };
+}
+
 function refreshContextState(story: StoryManifest, session: SessionSnapshot, result: EngineResult): void {
   const flags = { ...session.flags, ...(result.flagsUpdate ?? {}) };
   const locationId = result.newLocation ?? session.location;
@@ -109,7 +140,11 @@ function refreshContextState(story: StoryManifest, session: SessionSnapshot, res
 }
 
 function suppressOptionalNarration(result: EngineResult): void {
+  const context = result.aiContext as NarrationContext & {
+    _vignetteFlagsUpdate?: Record<string, boolean>;
+  };
   result.aiContext.vignette = undefined;
+  delete context._vignetteFlagsUpdate;
   result.aiContext.npcScriptedLines = undefined;
   result.aiContext.watsonHint = undefined;
   result.aiContext.npcApproach = undefined;
@@ -129,6 +164,13 @@ export function applyStoryEvents(
     candidate.triggers.some(trigger => triggerMatches(trigger, intent, result, session)));
 
   if (event) {
+    const existingAdds = result.inventoryAdd ?? [];
+    const eventAdds = (event.inventoryAdd ?? []).filter(item =>
+      !session.inventory.includes(item) && !existingAdds.includes(item));
+    if (eventAdds.length > 0) {
+      result.inventoryAdd = [...existingAdds, ...eventAdds];
+      result.aiContext.itemsGained = [...(result.aiContext.itemsGained ?? []), ...eventAdds];
+    }
     result.actionSuccess = true;
     result.blockedReason = undefined;
     result.flagsUpdate = {
@@ -164,18 +206,7 @@ export function applyStoryEvents(
       result.followUpEvent = {
         storyEvent,
         effects,
-        aiContext: {
-          ...result.aiContext,
-          storyEvent,
-          actionSuccess: true,
-          actionDescription: 'Mrs Kemp explained the purpose of her visit after Watson’s second local action.',
-          actionResultNote: 'FOLLOW-UP STORY EVENT — Kemp says Nell has been missing six days. This is a distinct narration after the resolved player action.',
-          vignette: undefined,
-          npcScriptedLines: undefined,
-          watsonHint: undefined,
-          npcApproach: undefined,
-          blockquoteHint: 'none',
-        },
+        aiContext: followUpContext(result.aiContext, storyEvent),
       };
     }
   }

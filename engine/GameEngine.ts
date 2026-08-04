@@ -79,12 +79,18 @@ export class GameEngine {
       default:                   result = resolveOther(this.story, intent, session); break;
     }
 
+    // Pivotal authored events match the already-resolved action. Their effects
+    // are deterministic and merge before progression; a trigger explicitly
+    // marked replacesBlocked may authoritatively turn a base refusal into the
+    // successful story action the player's words requested.
+    result = applyStoryEvents(this.story, intent, session, result);
+
     // Filed documents — any inventoryAdd containing a document-bearing object
     // is marked filed via a `filed_<objectId>` flag, permanently (flags
-    // already persist; no new save-state needed). The Documents tab reads
-    // these flags instead of live inventory, so a document stays on file
-    // even after it leaves the bag (dropped, spent after an act transition,
-    // or consumed by a USE combination).
+    // already persist; no new save-state needed). This runs after story-event
+    // effects so declarative event inventory follows the same filing contract
+    // as resolver inventory. The Documents tab reads these flags even after an
+    // item is dropped, spent after an act transition, or consumed by USE.
     if (result.inventoryAdd && result.inventoryAdd.length > 0) {
       const filedFlags: Record<string, boolean> = {};
       for (const displayName of result.inventoryAdd) {
@@ -95,12 +101,6 @@ export class GameEngine {
         result.flagsUpdate = { ...result.flagsUpdate, ...filedFlags };
       }
     }
-
-    // Pivotal authored events match the already-resolved action. Their effects
-    // are deterministic and merge before progression; a trigger explicitly
-    // marked replacesBlocked may authoritatively turn a base refusal into the
-    // successful story action the player's words requested.
-    result = applyStoryEvents(this.story, intent, session, result);
 
     // Re-check progression after event effects for every successful action.
     // Individual resolvers may already have checked their base flags, but they

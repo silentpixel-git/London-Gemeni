@@ -195,6 +195,9 @@ export interface StoryEventDefinition<F extends string = string> extends StoryEv
   act: number;
   triggers: StoryEventTrigger<F>[];
   setFlags: F[];
+  /** Display-name inventory entries applied with the event's deterministic
+   *  effects. Existing holdings are not duplicated. */
+  inventoryAdd?: string[];
   actionDescription: string;
   actionResultNote: string;
   fallback?: StoryEventFallback<F>;
