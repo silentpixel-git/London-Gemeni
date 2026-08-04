@@ -52,6 +52,17 @@ function warn(label: string, detail?: string) { console.warn(`[WARN] ${label}${d
 
 function section(title: string) { console.log(`\n── ${title} ${'─'.repeat(Math.max(0, 56 - title.length))}`); }
 
+function fallbackSpeakerReferenceErrors(
+  events: ReadonlyArray<{ id: string; fallback?: { speakerNpcId: string } }>,
+  knownNpcIds: ReadonlySet<string>,
+): string[] {
+  return events.flatMap(event => {
+    const speakerNpcId = event.fallback?.speakerNpcId;
+    if (!speakerNpcId || knownNpcIds.has(speakerNpcId)) return [];
+    return [`story event "${event.id}": fallback speaker "${speakerNpcId}" does not resolve`];
+  });
+}
+
 // ── Derived lookup sets ──────────────────────────────────────────────────────
 
 const locationIds = new Set(Object.keys(LOCATIONS));
@@ -749,6 +760,22 @@ section('Action-triggered story events');
 {
   const seen = new Set<string>();
   const fallbackActs = new Set<number>();
+  const fallbackFixture = STORY_EVENTS.find(event => event.fallback)?.fallback;
+  if (!fallbackFixture) {
+    fail('fallback speaker validator regression fixture: no authored fallback exists');
+  } else {
+    const typoErrors = fallbackSpeakerReferenceErrors([
+      {
+        id: 'synthetic_typo_fallback',
+        fallback: { ...fallbackFixture, speakerNpcId: 'synthetic_typo_npc' },
+      },
+    ], npcIds);
+    if (typoErrors.some(error => error.includes('synthetic_typo_npc'))) {
+      pass('fallback speaker validator rejects a synthetic NPC id typo');
+    } else {
+      fail('fallback speaker validator accepted a synthetic NPC id typo');
+    }
+  }
   for (const event of STORY_EVENTS) {
     if (seen.has(event.id)) fail(`story event "${event.id}": duplicate id`);
     seen.add(event.id);
@@ -776,6 +803,7 @@ section('Action-triggered story events');
         fail(`story event "${event.id}": fallback counter count does not equal afterEligibleActions`);
       }
       if (!event.fallback.beats.length) fail(`story event "${event.id}": fallback has no beats`);
+      for (const error of fallbackSpeakerReferenceErrors([event], npcIds)) fail(error);
       if (event.fallback.locationId && !locationIds.has(event.fallback.locationId)) {
         fail(`story event "${event.id}": fallback location "${event.fallback.locationId}" does not resolve`);
       }

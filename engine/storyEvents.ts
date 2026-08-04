@@ -73,10 +73,13 @@ function payloadOf(event: StoryEventDefinition): StoryEventPayload {
 function followUpContext(
   base: NarrationContext,
   storyEvent: StoryEventPayload,
+  fallback: NonNullable<StoryEventDefinition['fallback']>,
   story: StoryManifest,
 ): NarrationContext {
-  const speaker = story.npcs.mrs_kemp;
-  const speakerPresence = base.npcsPresent.find(npc => npc.npcId === speaker.id);
+  const speaker = story.npcs[fallback.speakerNpcId];
+  const speakerPresence = speaker
+    ? base.npcsPresent.find(npc => npc.npcId === speaker.id)
+    : undefined;
   return {
     locationName: base.locationName,
     locationAtmosphere: base.locationAtmosphere,
@@ -90,21 +93,21 @@ function followUpContext(
     npcsArrived: base.npcsArrived,
     npcsDeparted: base.npcsDeparted,
     storyEvent,
-    storyEventCharacter: {
+    storyEventCharacter: speaker ? {
       label: speakerPresence?.label ?? speaker.displayName,
       isIntroduced: speakerPresence?.isIntroduced ?? !speaker.requiresIntroduction,
       role: speaker.role,
       speakingStyle: speaker.speakingStyle,
       personality: speaker.personality,
-    },
+    } : undefined,
     availableObjects: base.availableObjects,
     availableExits: base.availableExits,
     inventory: base.inventory,
     watsonStats: base.watsonStats,
     actionType: 'talk',
     actionSuccess: true,
-    actionDescription: 'Mrs Kemp explained the purpose of her visit after Watson’s second local action.',
-    actionResultNote: 'FOLLOW-UP STORY EVENT — Kemp says Nell has been missing six days. This is a distinct narration after the resolved player action.',
+    actionDescription: fallback.actionDescription,
+    actionResultNote: fallback.actionResultNote,
     newCluesDiscovered: [],
     narrationMode: 'compact',
     timeLabel: base.timeLabel,
@@ -233,7 +236,7 @@ export function applyStoryEvents(
       result.followUpEvent = {
         storyEvent,
         effects,
-        aiContext: followUpContext(result.aiContext, storyEvent, story),
+        aiContext: followUpContext(result.aiContext, storyEvent, fallback, story),
       };
     }
   }

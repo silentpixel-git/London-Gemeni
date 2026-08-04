@@ -78,6 +78,9 @@ export const STORY_EVENTS: StoryEventDefinition<StoryFlag>[] = [
     ],
     fallback: {
       id: 'act0_kemp_business_fallback',
+      speakerNpcId: 'mrs_kemp',
+      actionDescription: 'Mrs Kemp explained the purpose of her visit after Watson’s second local action.',
+      actionResultNote: 'FOLLOW-UP STORY EVENT — Kemp says Nell has been missing six days. This is a distinct narration after the resolved player action.',
       afterEligibleActions: 2,
       eligibleIntentTypes: ['examine', 'talk', 'take', 'use', 'show', 'read', 'open', 'drop', 'wait'],
       counterFlags: ['act0_kemp_fallback_action_1', 'act0_kemp_fallback_action_2'],

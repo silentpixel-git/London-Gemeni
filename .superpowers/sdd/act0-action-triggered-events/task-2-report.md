@@ -50,3 +50,38 @@ Representative RED to GREEN cycles:
 
 - The first commit attempt could not open GPG PIN entry in the non-interactive shell. The implementation commit was therefore created with the one-off `commit.gpgsign=false` override; repository configuration was not changed.
 - No push or pull request was requested or performed.
+
+## Fix Round 1
+
+Hardened the story-event finalization seam and removed the Whitechapel-specific fallback assumptions from the generic engine path.
+
+- Story-event responses now throw at the real final response parser when Gemini returns malformed JSON or a missing, empty, or whitespace-only `markdownOutput`. Because engine state has already committed, the existing generic narration-error path handles the failure without replaying state.
+- Ordinary narration keeps its existing recovery behavior: a valid streamed partial is retained, while an absent or whitespace-only partial falls back to the ink-dry message.
+- `StoryEventFallback` now owns its speaker NPC ID, action description, result note, and semantic beats. The generic engine resolves the declared speaker safely and continues applying effects and progression when that NPC is absent.
+- Added a synthetic non-Whitechapel manifest regression proving the engine no longer depends on Mrs Kemp, plus a missing-speaker regression.
+- Added manifest validation for unresolved fallback speaker IDs.
+- Scoped the Act 0 authoring guide to compact action turns only; full and opening narration remain out of scope for the pilot.
+
+### TDD evidence
+
+- Malformed story-event JSON: missing parser export to 79/79.
+- Missing and whitespace-only story-event prose: 79/81 to 81/81.
+- Synthetic non-Kemp manifest fallback: 81/82 to 82/82.
+- Missing fallback speaker safety: 82/83 to 83/83.
+- Compact-only documentation contract: 83/84 to 84/84.
+- Reviewer-driven ordinary narration compatibility assertions were authored before the production correction for missing, empty, and whitespace-only prose. Their initial RED execution was blocked by the earlier command-usage quota; the final focused harness is now green and proves parsed metadata survives the whitespace fallback.
+- Fallback-speaker referential validation: executed RED with `fallbackSpeakerReferenceErrors is not defined`, then GREEN with a synthetic `synthetic_typo_npc` fixture rejected by the same checker used for the authored manifest.
+
+### Verification and review
+
+- `npm run qa:narration-inject` — PASS, 88/88, including the final ordinary-narration fallback and metadata-preservation assertions.
+- `npm run qa:validate` — PASS, 108 passed / 0 failed / 26 existing warnings, including the synthetic fallback-speaker typo regression.
+- `npm run qa:all` and `npm run build` — PASS before the final ordinary-narration compatibility and fallback-speaker validator additions.
+- `npm run lint` — PASS after the final corrections. `npm run build` last passed before the final validator and whitespace-only regression additions.
+- `git diff --check` — PASS after the final corrections.
+- The focused live Gemini rerun was policy-blocked because it would send private story context to an external service without explicit authorization. The earlier Task 2 live fixture run passed before this fix round.
+- `qa-playthrough` found no P0/P1/P2 issues in the core story-event fixes.
+- `engineering-reviewer` confirmed the generic finalization and fallback-manifest approach, then identified the ordinary missing/empty and whitespace-only recovery edge cases addressed in the final patch.
+- `engine-logic-reviewer` found no P0/P1 issues and identified the unresolved-speaker validation gap addressed in `qa:validate`.
+
+The root agent owns the final full-suite and build verification before commit. No staging or commit was performed in this fix round.

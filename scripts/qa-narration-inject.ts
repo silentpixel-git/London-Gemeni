@@ -19,9 +19,14 @@
  */
 
 import { injectAfterHeading, stripLeadingActHeading, formatActHeading } from '../services/narrationFormat';
+import { readFileSync } from 'node:fs';
 import { ACT_BRIDGES, ACT_NAMES } from '../engine/gameData';
 import { ACT_ROMAN } from '../constants';
-import { buildNarrationPrompt, finalizeNarrationResponse } from '../server/aiCore';
+import {
+  buildNarrationPrompt,
+  finalizeNarrationResponse,
+  parseFinalNarrationResponse,
+} from '../server/aiCore';
 import {
   cloudPersistOutcome,
   mergeNarrationContinuity,
@@ -29,6 +34,10 @@ import {
   streamFollowUpNarration,
 } from '../hooks/gameState/narration';
 import { buildAct0NarrationContexts } from './qa-narration-fixtures';
+import { applyStoryEvents } from '../engine/storyEvents';
+import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
+import type { SessionSnapshot } from '../engine/session';
+import type { StoryManifest } from '../engine/stories/types';
 import type { EngineResult, GameHistoryItem, NarrationContext } from '../types';
 
 let passed = 0;
@@ -42,6 +51,13 @@ function check(label: string, cond: boolean) {
 const HEADING = '### ACT I: The Last Murder\n\n';
 const SCENE = 'The drizzle coated the cobbles of Dorset Street.';
 const LINE = 'A bridge sentence.';
+
+{
+  const guide = readFileSync(new URL('../docs/act-authoring-process.md', import.meta.url), 'utf8');
+  check('story event authoring guide: Act 0 pilot is scoped to compact action turns',
+    /Act 0 pilot.*compact action turns only/i.test(guide) &&
+    !/Narration:\s*compact\/full/i.test(guide));
+}
 
 // 1. Complete heading: line becomes its own paragraph between heading and scene.
 {
@@ -184,6 +200,60 @@ const baseInterviewCtx: NarrationContext = {
 }
 
 // ── Action-triggered story-event prompt contract ────────────────────────────
+
+{
+  const eventCtx = {
+    ...baseInterviewCtx,
+    targetNpcInterview: undefined,
+    storyEvent: { id: 'test_event', maxWords: 70, beats: ['The event completes.'] },
+  } as NarrationContext;
+  let malformedError = '';
+  try {
+    parseFinalNarrationResponse(eventCtx, '{"markdownOutput":"Only a partial beat', 'Only a partial beat');
+  } catch (error) {
+    malformedError = error instanceof Error ? error.message : String(error);
+  }
+  check('story event final response: malformed JSON throws instead of accepting partial prose',
+    /invalid.*story event narration/i.test(malformedError));
+
+  for (const [label, json] of [
+    ['missing prose', '{}'],
+    ['empty prose', '{"markdownOutput":"   "}'],
+  ] as const) {
+    let finalError = '';
+    try {
+      parseFinalNarrationResponse(eventCtx, json, 'A partial streamed beat');
+    } catch (error) {
+      finalError = error instanceof Error ? error.message : String(error);
+    }
+    check(`story event final response: ${label} throws instead of using streamed fallback`,
+      /missing.*story event narration/i.test(finalError));
+  }
+
+  const ordinaryMissing = parseFinalNarrationResponse(
+    { ...baseInterviewCtx, targetNpcInterview: undefined },
+    '{}',
+    'The ordinary streamed narration survives.',
+  );
+  const ordinaryEmpty = parseFinalNarrationResponse(
+    { ...baseInterviewCtx, targetNpcInterview: undefined },
+    '{"markdownOutput":""}',
+    '',
+  );
+  const ordinaryWhitespace = parseFinalNarrationResponse(
+    { ...baseInterviewCtx, targetNpcInterview: undefined },
+    '{"markdownOutput":"   ","npcMemoryUpdate":{"mrs_kemp":"Metadata survives fallback."}}',
+    '   ',
+  );
+  check('ordinary final response: missing prose retains the streamed fallback',
+    ordinaryMissing.markdownOutput === 'The ordinary streamed narration survives.');
+  check('ordinary final response: empty prose retains the ink fallback',
+    ordinaryEmpty.markdownOutput === 'The ink on Watson\'s pen ran dry.');
+  check('ordinary final response: whitespace prose retains the ink fallback',
+    ordinaryWhitespace.markdownOutput === 'The ink on Watson\'s pen ran dry.');
+  check('ordinary final response: whitespace prose fallback preserves parsed metadata',
+    ordinaryWhitespace.npcMemoryUpdate?.mrs_kemp === 'Metadata survives fallback.');
+}
 
 {
   const prompt = buildNarrationPrompt({
@@ -349,6 +419,131 @@ const baseInterviewCtx: NarrationContext = {
   }
   check('story event fallback: an incomplete stream reaches the generic-error path',
     /ended before a complete response/i.test(incompleteError));
+}
+
+{
+  const syntheticNpcs = { ...WHITECHAPEL_MANIFEST.npcs };
+  const sourceSpeaker = syntheticNpcs.mrs_kemp;
+  delete syntheticNpcs.mrs_kemp;
+  syntheticNpcs.archivist = {
+    ...sourceSpeaker,
+    id: 'archivist',
+    displayName: 'The Archivist',
+    role: 'A visiting records keeper',
+    speakingStyle: 'Precise and economical.',
+    personality: ['Methodical'],
+    presenceRequiresFlag: undefined,
+    presenceForbidFlag: undefined,
+    scheduleByAct: { 0: { default: 'baker_street' } },
+  };
+  const syntheticStory = {
+    ...WHITECHAPEL_MANIFEST,
+    id: 'synthetic-archive-story',
+    npcs: syntheticNpcs,
+    npcAliases: { ...WHITECHAPEL_MANIFEST.npcAliases, archivist: 'The Archivist' },
+    npcDisplayNames: { ...WHITECHAPEL_MANIFEST.npcDisplayNames, archivist: 'The Archivist' },
+    storyEvents: [{
+      id: 'synthetic_carrier',
+      act: 0,
+      triggers: [],
+      setFlags: [],
+      maxWords: 1,
+      beats: [],
+      actionDescription: 'unused',
+      actionResultNote: 'unused',
+      fallback: {
+        id: 'synthetic_archivist_fallback',
+        afterEligibleActions: 1,
+        eligibleIntentTypes: ['examine'],
+        counterFlags: ['synthetic_fallback_action_1'],
+        setFlags: ['synthetic_fallback_complete'],
+        speakerNpcId: 'archivist',
+        actionDescription: 'The archivist supplied the missing catalogue note.',
+        actionResultNote: 'FOLLOW-UP STORY EVENT — the archivist states the verified catalogue fact.',
+        beats: ['The Archivist states that the ledger is complete.'],
+        maxWords: 45,
+      },
+    }],
+  } as StoryManifest;
+  const snapshot: SessionSnapshot = {
+    location: 'baker_street', inventory: [], flags: {}, npcStates: {}, currentAct: 0,
+    medicalPoints: 0, moralPoints: 0, discoveredClueIds: [],
+    turnsAtLocationWithoutProgress: 0, elapsedMinutes: 0,
+    introducedNpcs: ['holmes', 'archivist'], locationVisitCounts: {}, turnCount: 0,
+    rumorEvents: {},
+  };
+  const result: EngineResult = {
+    actionSuccess: true,
+    actionType: 'examine',
+    aiContext: {
+      ...baseInterviewCtx,
+      act: 0,
+      actName: 'The Archive Test',
+      locationName: 'Archive Room',
+      targetNpcInterview: undefined,
+      npcsPresent: [{ npcId: 'archivist', label: 'The Archivist', isIntroduced: true }],
+      actionType: 'examine',
+    },
+  };
+
+  let resolved: EngineResult | undefined;
+  let syntheticError = '';
+  try {
+    resolved = applyStoryEvents(
+      syntheticStory,
+      { type: 'examine', targetId: 'ledger', raw: 'examine ledger' },
+      snapshot,
+      result,
+    );
+  } catch (error) {
+    syntheticError = error instanceof Error ? error.message : String(error);
+  }
+
+  check('story event fallback: synthetic manifest has no Kemp dependency',
+    syntheticError === '' &&
+    resolved?.followUpEvent?.aiContext.storyEventCharacter?.label === 'The Archivist' &&
+    resolved.followUpEvent.aiContext.actionDescription ===
+      'The archivist supplied the missing catalogue note.' &&
+    resolved.followUpEvent.aiContext.actionResultNote ===
+      'FOLLOW-UP STORY EVENT — the archivist states the verified catalogue fact.');
+
+  const missingSpeakerStory = {
+    ...syntheticStory,
+    storyEvents: syntheticStory.storyEvents.map(event => ({
+      ...event,
+      fallback: event.fallback ? { ...event.fallback, speakerNpcId: 'missing_archivist' } : undefined,
+    })),
+  } as StoryManifest;
+  const missingSpeakerResult: EngineResult = {
+    actionSuccess: true,
+    actionType: 'examine',
+    aiContext: {
+      ...baseInterviewCtx,
+      act: 0,
+      actName: 'The Archive Test',
+      locationName: 'Archive Room',
+      targetNpcInterview: undefined,
+      npcsPresent: [],
+      actionType: 'examine',
+    },
+  };
+  let missingResolved: EngineResult | undefined;
+  let missingSpeakerError = '';
+  try {
+    missingResolved = applyStoryEvents(
+      missingSpeakerStory,
+      { type: 'examine', targetId: 'ledger', raw: 'examine ledger' },
+      snapshot,
+      missingSpeakerResult,
+    );
+  } catch (error) {
+    missingSpeakerError = error instanceof Error ? error.message : String(error);
+  }
+  check('story event fallback: missing manifest speaker degrades without a character profile',
+    missingSpeakerError === '' &&
+    missingResolved?.followUpEvent?.aiContext.storyEventCharacter === undefined &&
+    missingResolved?.followUpEvent?.aiContext.actionDescription ===
+      'The archivist supplied the missing catalogue note.');
 }
 
 {

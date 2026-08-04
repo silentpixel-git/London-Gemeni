@@ -729,6 +729,48 @@ export function finalizeNarrationResponse(
   return parsed;
 }
 
+/** Parse the completed Gemini JSON, then apply deterministic presentation facts. */
+export function parseFinalNarrationResponse(
+  ctx: NarrationContext,
+  fullJsonText: string,
+  lastNarrative: string,
+): NarrationResponse {
+  const fallbackNarrative = lastNarrative.trim().length > 0
+    ? lastNarrative
+    : 'The ink on Watson\'s pen ran dry.';
+  let parsed: NarrationResponse;
+  try {
+    let clean = fullJsonText.replace(/^```json\s*/m, '').replace(/^```\s*/m, '').replace(/\s*```$/m, '');
+    const start = clean.indexOf('{');
+    const end = clean.lastIndexOf('}');
+    if (start !== -1 && end !== -1) clean = clean.substring(start, end + 1);
+    parsed = JSON.parse(clean) as NarrationResponse;
+  } catch {
+    if (ctx.storyEvent) {
+      throw new Error('Invalid story event narration response: Gemini returned malformed JSON.');
+    }
+    parsed = { markdownOutput: fallbackNarrative };
+  }
+
+  const hasNarrationProse = Boolean(
+    parsed &&
+    typeof parsed.markdownOutput === 'string' &&
+    parsed.markdownOutput.trim().length > 0,
+  );
+  if (!hasNarrationProse) {
+    if (ctx.storyEvent) {
+      throw new Error('Missing story event narration prose in Gemini\'s final response.');
+    }
+    const metadata = parsed && typeof parsed === 'object' ? parsed : {};
+    parsed = {
+      ...metadata,
+      markdownOutput: fallbackNarrative,
+    };
+  }
+
+  return finalizeNarrationResponse(ctx, parsed);
+}
+
 // ============================================================
 // MAIN AI SERVICE CLASS
 // ============================================================
@@ -799,20 +841,7 @@ export class AIService {
       }
     }
 
-    // Parse final response
-    let parsed: NarrationResponse | undefined;
-    try {
-      // Strip markdown code fences if present
-      let clean = fullJsonText.replace(/^```json\s*/m, '').replace(/^```\s*/m, '').replace(/\s*```$/m, '');
-      const start = clean.indexOf('{');
-      const end = clean.lastIndexOf('}');
-      if (start !== -1 && end !== -1) clean = clean.substring(start, end + 1);
-      parsed = JSON.parse(clean) as NarrationResponse;
-    } catch {
-      parsed = { markdownOutput: lastNarrative || 'The ink on Watson\'s pen ran dry.' };
-    }
-
-    parsed = finalizeNarrationResponse(ctx, parsed);
+    const parsed = parseFinalNarrationResponse(ctx, fullJsonText, lastNarrative);
 
     yield { narrative: parsed.markdownOutput, fullJson: fullJsonText, isComplete: true, parsed };
   }

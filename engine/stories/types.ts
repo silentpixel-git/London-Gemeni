@@ -180,6 +180,9 @@ export interface StoryEventTrigger<F extends string = string> {
 
 export interface StoryEventFallback<F extends string = string> {
   id: string;
+  speakerNpcId: string;
+  actionDescription: string;
+  actionResultNote: string;
   afterEligibleActions: number;
   eligibleIntentTypes: IntentType[];
   counterFlags: F[];

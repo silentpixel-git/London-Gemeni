@@ -72,9 +72,13 @@ Event id:
 Trigger(s): resolved intent + target/NPC/topic; list aliases beside the local trigger
 Prerequisites: required flags, forbidden flags, location and presence rules
 Semantic effects: one-shot event flag plus every story/inventory/presence effect
-Narration: compact/full, maximum words, then numbered semantic beats in required order
+Narration: compact action turn, maximum words, then numbered semantic beats in required order
 Fallback: none, or why silence would block/confuse the player; eligible actions and exact threshold
 ```
+
+The Act 0 pilot supports compact action turns only. Do not attach this focused
+story-event template to `full` or `opening` narration; those modes retain broader
+arrival and survey instructions that can compete with the ordered event contract.
 
 Aliases belong beside the event trigger that needs them, not in the global
 parser, unless they are genuinely valid for that object or NPC throughout the
