@@ -5,6 +5,7 @@ import type { SessionSnapshot } from '../session';
 import { periodOf } from './support';
 import { buildNarrationContext, blocked, absentNpcBlocked } from '../narrationContext';
 import { npcLocationAt, getPresentNpcIds } from '../presence';
+import { visibleInteractables } from '../visibility';
 import { matchTopic } from '../stories/knowledge';
 import { resolveExamine } from './examine';
 
@@ -110,7 +111,17 @@ export function resolveShow(story: StoryManifest, intent: ParsedIntent, session:
   const inventoryName = story.takeableObjects[targetId];
   const hasItem = inventoryName && session.inventory.includes(inventoryName);
   if (!hasItem) {
-    const objectName = story.objectDisplayNames[targetId] ?? intent.targetRaw ?? targetId;
+    // Name the object only when it is actually here to be named. A phrase like
+    // "show the letters to holmes" resolves through a global alias to an object
+    // from a later act, and naming it in the refusal leaks it — in Act 0 that
+    // means announcing the From Hell letter on the 6th of August. Fall back to
+    // the player's own words, which are always safe to repeat.
+    const here = visibleInteractables(story, session.location, session.flags).includes(targetId);
+    // Display names carry their own article ("The Violin Case"), and this
+    // sentence supplies one, so drop the leading article before interpolating.
+    const objectName = here
+      ? (story.objectDisplayNames[targetId] ?? intent.targetRaw ?? targetId).replace(/^the\s+/i, '')
+      : (intent.targetRaw ?? 'that');
     return blocked(story, intent, session,
       `Watson does not have the ${objectName} to show.`,
       `SHOW blocked: ${targetId} not in inventory.`

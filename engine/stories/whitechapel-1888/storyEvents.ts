@@ -102,6 +102,11 @@ export const STORY_EVENTS: StoryEventDefinition<StoryFlag>[] = [
       { intentTypes: ['examine'], targetIds: ['nells_boots'], requireFlags: ['world_event_kemp_arrives'], forbidFlags: ['act0_boots_analyzed'], locationId: 'baker_street' },
       { intentTypes: ['talk'], npcIds: ['mrs_kemp', 'holmes'], topicPhrases: ['boots', 'mud', 'soles', 'where she walked'], requireFlags: ['world_event_kemp_arrives'], forbidFlags: ['act0_boots_analyzed'], locationId: 'baker_street' },
       { intentTypes: ['talk'], npcIds: ['mrs_kemp', 'holmes'], rawPhrases: ['ask holmes about them', 'ask mrs kemp about them'], rawPhraseMatch: 'exact', requireFlags: ['world_event_kemp_arrives'], forbidFlags: ['act0_boots_analyzed'], locationId: 'baker_street' },
+      // The boots are EXAMINE + SHOW and never takeable, so resolveShow refuses
+      // them before it reaches any authored reading; replacesBlocked lets the
+      // event own the verb instead. Same flag, same beats as the examine path —
+      // one delivery of the Bermondsey reading, never two.
+      { intentTypes: ['show'], targetIds: ['nells_boots'], npcIds: ['holmes'], requireFlags: ['world_event_kemp_arrives'], forbidFlags: ['act0_boots_analyzed'], locationId: 'baker_street', replacesBlocked: true },
     ],
     setFlags: ['act0_boots_analyzed'],
     maxWords: 180,

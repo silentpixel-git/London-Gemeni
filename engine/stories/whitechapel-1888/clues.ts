@@ -619,16 +619,11 @@ export const SHOW_INTERACTIONS: Record<string, Record<string, ShowInteraction>> 
       resultNote: "SUCCESS — \"She pawned them on the Monday and left on the Tuesday. Note the order, Watson. She did not pawn them because she was in want. She pawned them because she was going, and they were not worth the carrying.\" He handed it back. \"You have redeemed a pair of boots your sister took some trouble to be rid of. I am sorry to tell you it was two shillings badly spent.\"",
     },
   },
-  'nells_boots': {
-    'holmes': {
-      resultNote: "SUCCESS — \"It has not rained in London since the twenty-eighth of July, yet here is mud that has not finished drying.\" He turned the sole to the lamp and, to Mrs. Kemp's visible horror, smelled it. \"Oak bark. Lime. Under both, river silt: Thames, south bank, not far above the tide line. There are perhaps four streets in this city where a woman may gather all three on one pair of boots in a dry August, and they are every one of them in Bermondsey, among the tanyards, where the ground has not been dry since the Georges.\" \"I cannot tell you how far she walked in them altogether. I can tell you where the last hundred miles were spent.\"",
-    },
-  },
-  'nells_letters': {
-    'holmes': {
-      resultNote: "SUCCESS — \"Postmarks. April, May, June: N., her own district. July: S.E., S.E., S.E. The tenth, the seventeenth, the twenty-fourth.\" He fanned them like cards. \"Three consecutive Tuesdays south of the river, and not one word of it in eleven letters. A woman does not conceal an errand, madam. She conceals a habit.\" He laid them down. \"And she left on the thirty-first, which was also a Tuesday. She did not run away. She kept her appointment and did not come home.\"",
-    },
-  },
+  // No nells_boots / nells_letters entries: both were unreachable here (SHOW
+  // refuses non-takeables before it consults this table) and both readings now
+  // live where they can actually be delivered — the boots in the
+  // act0_boots_analyzed story event, the Tuesday postmarks in the beats of
+  // act0_reconstruction. SHOW of the boots routes to that event.
   // SHOW forensic note TO abberline / holmes (Act 5 gather).
   // NEITHER yields the smoking gun — the convergence belongs to Baker Street,
   // and to the player. Both redirect without resolving.

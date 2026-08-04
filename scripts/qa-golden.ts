@@ -259,10 +259,18 @@ function probe(label: string, snap: SessionSnapshot, input: string, expect: {
   blocked?: boolean;
   flagNotSet?: string;      // absent from result.flagsUpdate
   noActAdvance?: boolean;
+  refusalExcludes?: string; // the player-facing refusal must NOT contain this
 }): void {
   const acting: SessionSnapshot = { ...snap, turnCount: snap.turnCount + 1 };
   const result = gameEngine.resolve(parseIntent(input), acting);
   const prefix = `${label} probe ("${input}")`;
+
+  if (expect.refusalExcludes !== undefined) {
+    const shown = `${result.blockedReason ?? ''} ${result.aiContext.actionResultNote ?? ''}`;
+    !shown.toLowerCase().includes(expect.refusalExcludes.toLowerCase())
+      ? pass(`${prefix} → refusal does not mention "${expect.refusalExcludes}"`)
+      : fail(`${prefix} → refusal leaks "${expect.refusalExcludes}"`, shown.trim().slice(0, 160));
+  }
 
   if (expect.blocked !== undefined) {
     result.actionSuccess !== expect.blocked
@@ -517,12 +525,50 @@ function runAct0DiaryVariants(): void {
     : fail('DiaryVariants → expected withhold variant', withheld.slice(0, 200));
 }
 
+// SHOW routes into the evidence events (score: docs/act0-mechanical-score.md).
+// The boots and the letters are EXAMINE + SHOW by design and never takeable, so
+// SHOW must reach the same authored event as EXAMINE — one delivery, one flag —
+// and a SHOW that resolves to an object which is not here must not name it.
+function runGoldenAct0ShowRoutes(): void {
+  console.log('\n=== GOLDEN: Act 0 SHOW routes ===');
+  const A0S = 'Act0Show';
+  const base = buildSnapshot({
+    location: 'baker_street',
+    currentAct: 0,
+    turnCount: 5,
+    flags: { world_event_kemp_arrives: true, opened_baker_street_nells_workbox: true },
+  });
+
+  // Row 3 — "the letters" collides with the global 'letter' alias and resolves
+  // to an Act 4 artifact. Act 0 carries no murder foreshadowing: whatever the
+  // refusal says, it may not name the From Hell letter on 6 August.
+  probe(A0S, base, 'show the letters to holmes', { blocked: true, refusalExcludes: 'From Hell' });
+
+  // Row 1 — SHOW reaches the boots event and sets the same gate flag as EXAMINE.
+  let s = goldenStep(A0S, base, 'show the boots to holmes', {
+    expectSuccess: true,
+    expectFlags: ['act0_boots_analyzed', 'story_event_act0_boots_analyzed'],
+    expectEvent: 'act0_boots_analyzed',
+    expectWordBudget: 180,
+  });
+
+  // Row 1, negative — the reading is one-shot. Showing again must not re-fire it,
+  // or the act's set piece is delivered twice.
+  s = goldenStep(A0S, s, 'show the boots to holmes', { expectEvent: null });
+
+  // Row 2 — the retired standalone SHOW reading must not resurface alongside it.
+  !JSON.stringify(s.flags).includes('showed_nells_boots_to_holmes')
+    ? pass('Act0Show → no orphaned showed_nells_boots_to_holmes flag')
+    : fail('Act0Show → the retired SHOW interaction fired');
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 try {
   runGoldenAct0();
   runGoldenAct0Withhold();
   runGoldenAct0AskReconstruction();
+  runGoldenAct0ShowRoutes();
   runAct0DiaryVariants();
 } catch (err) {
   console.error('\n[FATAL] Uncaught exception in golden harness:', err);
