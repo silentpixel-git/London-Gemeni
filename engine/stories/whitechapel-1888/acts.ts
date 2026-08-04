@@ -120,18 +120,20 @@ export const ACT_BRIDGES: Record<number, string> = {
 // the moving spotlight is mandatory, not optional.
 export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
   // Act 0 — the Bank Holiday. NO murder has happened and none may be hinted at.
-  // Six flags, five verbs (TALK / EXAMINE / OPEN / SHOW / TAKE), every one
-  // motivated by the caller's visit rather than announced as a lesson.
-  // No actEpilogues entry — the act IS Baker Street.
+  // Action-triggered semantic milestones. The explicit evidence actions are
+  // prerequisites of reconstruction; the closing event cannot fire until the
+  // choice is resolved and the ticket has been taken.
   0: {
     name: 'The Bank Holiday',
     requireFlags: [
-      'asked_mrs_kemp_about_kemp_sister_missing',    // TALK    — the hook
-      'examined_baker_street_pawn_ticket',           // EXAMINE
-      'opened_baker_street_nells_workbox',           // OPEN
-      'showed_charity_card_to_holmes',               // SHOW    — the reconstruction
-      'took_baker_street_pawn_ticket',               // TAKE    — after she goes
-      'asked_holmes_about_holmes_crime_grown_dull',  // TALK    — the closing beat
+      'act0_caller_noticed',
+      'act0_bell_rang',
+      'act0_kemp_business_heard',
+      'act0_boots_analyzed',
+      'act0_reconstruction_complete',
+      'act0_kemp_choice_resolved',
+      'took_baker_street_pawn_ticket',
+      'act0_closing_complete',
     ],
     advanceTo: 1,
   },

@@ -184,27 +184,23 @@ function runWinningPath() {
   // The rewoven critical path: five suspect-theory acts, anchor auto-moves
   // between them, and the Act 5 Baker Street convergence driving the advance.
 
-  // Act 0 — the Bank Holiday. Tutorial: talk, examine, open, show, take.
-  // world_event_kemp_arrives is seeded rather than played: it is set by the
-  // last of the four scripted opening beats, which land on turnCount 1-4, and
-  // step()/applyResult deliberately freeze turnCount. The beat sequence itself
-  // is covered by runScriptedBeats, and the turn-by-turn Act 0 run lives in
-  // scripts/qa-golden.ts, which does advance the clock and the counter.
-  let s = buildSnapshot({ flags: { world_event_kemp_arrives: true } });
-  s = step('Act0', s, 'ask mrs kemp about her sister', { expectSuccess: true, expectFlag: 'asked_mrs_kemp_about_kemp_sister_missing' });
-  s = step('Act0', s, 'examine the pawn ticket',  { expectSuccess: true, expectFlag: 'examined_baker_street_pawn_ticket' }); // yields the ticket (takeable)
-  if (s.inventory.includes("Nell's Pawn Ticket")) {
-    pass('Act0 → pawn ticket added to inventory by the examine');
-  } else {
-    fail(`Act0 → pawn ticket not in inventory: ${JSON.stringify(s.inventory)}`);
-  }
-  s = step('Act0', s, 'open the workbox',          { expectSuccess: true, expectFlag: 'opened_baker_street_nells_workbox' });
-  s = step('Act0', s, 'examine the card',          { expectSuccess: true, expectFlag: 'examined_baker_street_charity_card' }); // the card must be in hand to show it
-  s = step('Act0', s, 'show the card to holmes',   { expectSuccess: true, expectFlag: 'showed_charity_card_to_holmes' });
-  s = step('Act0', s, 'take the ticket',           { expectSuccess: true, expectFlag: 'took_baker_street_pawn_ticket' });
-  s = step('Act0', s, 'ask holmes about the criminal classes', {
+  // Act 0 — every pivotal beat follows the player's semantic action.
+  let s = buildSnapshot();
+  s = step('Act0', s, 'talk to holmes',             { expectSuccess: true, expectFlag: 'act0_caller_noticed' });
+  s = step('Act0', s, 'examine the street',         { expectSuccess: true, expectFlag: 'act0_bell_rang' });
+  s = step('Act0', s, 'answer the door',             { expectSuccess: true, expectFlag: 'world_event_kemp_arrives' });
+  s = step('Act0', s, 'talk to mrs kemp',            { expectSuccess: true, expectFlag: 'act0_kemp_business_heard' });
+  s = step('Act0', s, 'examine the boots',           { expectSuccess: true, expectFlag: 'act0_boots_analyzed' });
+  s = step('Act0', s, 'examine the pawn ticket',     { expectSuccess: true, expectFlag: 'examined_baker_street_pawn_ticket' });
+  s = step('Act0', s, 'open the workbox',            { expectSuccess: true, expectFlag: 'opened_baker_street_nells_workbox' });
+  s = step('Act0', s, "examine nell's letters",     { expectSuccess: true, expectFlag: 'examined_baker_street_nells_letters' });
+  s = step('Act0', s, 'examine the card',            { expectSuccess: true, expectFlag: 'examined_baker_street_charity_card' });
+  s = step('Act0', s, 'show the card to holmes',     { expectSuccess: true, expectFlag: 'act0_reconstruction_complete' });
+  s = step('Act0', s, 'say nothing',                  { expectSuccess: true, expectFlag: 'act0_kemp_choice_resolved' });
+  s = step('Act0', s, 'take the ticket',             { expectSuccess: true, expectFlag: 'took_baker_street_pawn_ticket' });
+  s = step('Act0', s, 'talk to holmes', {
     expectSuccess: true,
-    expectFlag: 'asked_holmes_about_holmes_crime_grown_dull',
+    expectFlag: 'act0_closing_complete',
     expectAct: 1,
     expectLocation: 'dorset_street', // ← anchor auto-move (the cut to 9 November)
   });
@@ -414,23 +410,26 @@ function runColdCaseAbberline() {
 function runActGateBoundary() {
   console.log('\n=== SCENARIO: act-gate-boundary ===');
 
-  // Act 0: 5/6 gate flags — the closing ask to Holmes is missing, so a
+  // Act 0: every semantic gate except the closing is set, so a
   // non-gate examine must not advance.
   const s0 = buildSnapshot({
     flags: {
+      act0_caller_noticed: true,
+      act0_bell_rang: true,
       world_event_kemp_arrives: true,
-      asked_mrs_kemp_about_kemp_sister_missing: true,
+      act0_kemp_business_heard: true,
+      act0_boots_analyzed: true,
       examined_baker_street_pawn_ticket: true,
-      opened_baker_street_nells_workbox: true,
-      showed_charity_card_to_holmes: true,
+      act0_reconstruction_complete: true,
+      act0_kemp_choice_resolved: true,
       took_baker_street_pawn_ticket: true,
-      // asked_holmes_about_holmes_crime_grown_dull missing
+      // act0_closing_complete missing
     },
   });
   const r0 = gameEngine.resolve(parseIntent('examine the violin case'), s0);
   r0.newAct === undefined || r0.newAct <= 0
-    ? pass('Act0 gate — held with 5/6 flags (expected)')
-    : fail('Act0 gate — advanced with 5/6 flags (missing the closing ask to Holmes)');
+    ? pass('Act0 gate — held without the closing event (expected)')
+    : fail('Act0 gate — advanced before the closing event');
 
   // Act 2: partial flags (mortuary + bucks_row only; missing phillips talk,
   // hanbury, tumblety, holmes) — examine at baker_street → gate holds
@@ -820,31 +819,26 @@ function runDropMechanic() {
 function runTalkGatedAdvance() {
   console.log('\n=== SCENARIO: talk-gated-advance ===');
 
-  // Act 0 with all other gate flags already set — the ASK is the last gate
-  // action. Pre-fix this soft-locked (talk never fired act progression).
-  // Topic-scoped since the gate now wants a subject raised, not mere presence:
-  // a bare 'talk to holmes' deliberately no longer completes it (asserted below).
+  // Act 0 with all other semantic gates set: bare TALK Holmes is the authored
+  // closing action and must re-check progression on the same turn.
   const s = buildSnapshot({
     flags: {
+      act0_caller_noticed: true,
+      act0_bell_rang: true,
       world_event_kemp_arrives: true,
-      asked_mrs_kemp_about_kemp_sister_missing: true,
+      act0_kemp_business_heard: true,
+      act0_boots_analyzed: true,
       examined_baker_street_pawn_ticket: true,
-      opened_baker_street_nells_workbox: true,
-      showed_charity_card_to_holmes: true,
+      act0_reconstruction_complete: true,
+      act0_kemp_choice_resolved: true,
       took_baker_street_pawn_ticket: true,
     },
   });
-  const result = gameEngine.resolve(parseIntent('ask holmes about the criminal classes'), s);
-
-  // The point of the migration: presence alone is not an interview.
-  const bare = gameEngine.resolve(parseIntent('talk to holmes'), s);
-  bare.actionSuccess && bare.newAct === undefined
-    ? pass('TalkGated: a bare TALK succeeds but does NOT complete the gate')
-    : fail(`TalkGated: bare talk should not advance — newAct=${bare.newAct}`);
+  const result = gameEngine.resolve(parseIntent('talk to holmes'), s);
 
   result.newAct === 1
-    ? pass('TalkGated: act advances when a TALK completes the gate')
-    : fail(`TalkGated: expected newAct=1, got ${result.newAct} — talk progression fix broken`);
+    ? pass('TalkGated: closing TALK advances the act')
+    : fail(`TalkGated: expected newAct=1, got ${result.newAct}`);
 
   result.newLocation === 'dorset_street'
     ? pass('TalkGated: anchor auto-move fired (baker_street → dorset_street)')
@@ -951,26 +945,26 @@ function runUseCombinationActGate() {
 function runItemsGained() {
   console.log('\n=== SCENARIO: items-gained ===');
 
-  // Examine-grant: pawn_ticket yields Nell's Pawn Ticket (Act 0, visibility-gated
-  // on Mrs. Kemp having arrived — see runScriptedBeats for the arrival itself).
-  const s = buildSnapshot({ flags: { world_event_kemp_arrives: true } });
-  const r1 = gameEngine.resolve(parseIntent('examine the pawn ticket'), s);
-  r1.aiContext.itemsGained?.some(i => i.includes('Pawn Ticket'))
+  // Examine-grant remains the normal rule for takeables other than the pawn
+  // ticket, whose evidence/physical-transfer split is covered in runStoryEvents.
+  const s = buildSnapshot({ flags: { opened_baker_street_nells_workbox: true } });
+  const r1 = gameEngine.resolve(parseIntent('examine the card'), s);
+  r1.aiContext.itemsGained?.some(i => i.includes("Subscriber's Card"))
     ? pass('ItemsGained: examine-grant surfaces item in aiContext')
     : fail('ItemsGained: examine-grant missing from aiContext', JSON.stringify(r1.aiContext.itemsGained));
 
   // Already-owned: re-examining must NOT report a gain
   const sOwned = buildSnapshot({
-    inventory: ["Nell's Pawn Ticket"],
-    flags: { world_event_kemp_arrives: true, examined_baker_street_pawn_ticket: true },
+    inventory: ["A Subscriber's Card"],
+    flags: { opened_baker_street_nells_workbox: true, examined_baker_street_charity_card: true },
   });
-  const r2 = gameEngine.resolve(parseIntent('examine the pawn ticket'), sOwned);
+  const r2 = gameEngine.resolve(parseIntent('examine the card'), sOwned);
   !r2.aiContext.itemsGained
     ? pass('ItemsGained: no phantom gain on re-examine')
     : fail('ItemsGained: phantom gain reported', JSON.stringify(r2.aiContext.itemsGained));
 
   // Explicit take
-  const sTake = buildSnapshot({ flags: { world_event_kemp_arrives: true } });
+  const sTake = buildSnapshot({ flags: { world_event_kemp_arrives: true, act0_kemp_choice_resolved: true } });
   const r3 = gameEngine.resolve(parseIntent('take the pawn ticket'), sTake);
   r3.aiContext.itemsGained?.some(i => i.includes('Pawn Ticket'))
     ? pass('ItemsGained: take surfaces item in aiContext')
@@ -1104,7 +1098,7 @@ function runShowDative() {
     : fail('ShowDative: classic form regressed');
 
   // Engine: "show the card" with only Holmes present defaults to Holmes and
-  // sets the Act 0 gate flag (this was the prologue softlock).
+  // fires reconstruction once every evidence prerequisite is set.
   // Holmes deliberately alone: world_event_kemp_arrives is left unset so Mrs.
   // Kemp stays offstage and the single-NPC default is the thing under test.
   // charity_card's visibility hangs only on the workbox being open.
@@ -1113,18 +1107,23 @@ function runShowDative() {
     flags: {
       opened_baker_street_nells_workbox: true,
       examined_baker_street_charity_card: true,
+      examined_baker_street_pawn_ticket: true,
+      examined_baker_street_nells_letters: true,
+      act0_boots_analyzed: true,
     },
   });
   const r3 = gameEngine.resolve(parseIntent('show the card'), s);
-  r3.actionSuccess && r3.flagsUpdate?.['showed_charity_card_to_holmes']
-    ? pass('ShowDative: single-NPC default sets showed_..._to_holmes gate flag')
+  r3.actionSuccess && r3.flagsUpdate?.['showed_charity_card_to_holmes'] &&
+      r3.flagsUpdate?.['act0_reconstruction_complete']
+    ? pass('ShowDative: single-NPC default fires Holmes reconstruction')
     : fail('ShowDative: single-NPC default broken', JSON.stringify(r3.flagsUpdate));
 
-  // Full dative phrasing also satisfies the gate
+  // Full dative phrasing also fires the reconstruction.
   const r4 = gameEngine.resolve(parseIntent('Show holmes the card'), s);
-  r4.actionSuccess && r4.flagsUpdate?.['showed_charity_card_to_holmes']
-    ? pass('ShowDative: dative phrasing satisfies the Act 0 gate')
-    : fail('ShowDative: dative phrasing fails the gate', JSON.stringify(r4.flagsUpdate));
+  r4.actionSuccess && r4.flagsUpdate?.['showed_charity_card_to_holmes'] &&
+      r4.flagsUpdate?.['act0_reconstruction_complete']
+    ? pass('ShowDative: dative phrasing fires Holmes reconstruction')
+    : fail('ShowDative: dative phrasing fails reconstruction', JSON.stringify(r4.flagsUpdate));
 
   // Re-examining the card while holding it must instruct the AI not to re-take
   const r5 = gameEngine.resolve(parseIntent('examine the card'), s);
@@ -2352,34 +2351,7 @@ console.log('\n── NPC approaches ──');
     } else fail('authored act beat delivery', missing.join('; '));
   }
 
-  // 15. Holmes authored approach (production data, not a synthetic fixture):
-  // 'holmes_invisible_in_a_crowd' (acts: [0], locationId: 'any') is gated on
-  // Act 0's own gate flags (showed_charity_card_to_holmes and
-  // took_baker_street_pawn_ticket — see approaches.ts's comment there) and,
-  // once those are true, fires on the next full-mode turn (a move or bare
-  // LOOK; selectApproach is deliberately full-mode-only) — Holmes is a
-  // follows_watson NPC stored at baker_street from game start (see
-  // INITIAL_NPC_STATES). Pre-consume baker_street's 2 authored vignettes so an
-  // unfired vignette doesn't win over the approach this turn (case 9's
-  // concern, not this one). This is the permanent positive-case guard: the
-  // beat must still fire on a LOOK once the gate is satisfied, even though the
-  // strict minimal path through Act 0 (show → take → talk) never itself
-  // produces a full-mode turn after the gate closes.
-  const holmesApproachSnap = buildSnapshot({
-    currentAct: 0, location: 'baker_street',
-    flags: {
-      vignette_baker_street_0: true, vignette_baker_street_1: true,
-      showed_charity_card_to_holmes: true, took_baker_street_pawn_ticket: true,
-    },
-  });
-  r = gameEngine.resolve(parseIntent('look'), holmesApproachSnap);
-  const apHolmes = (r.aiContext as any).npcApproach;
-  if (apHolmes?.npcId === 'holmes' && apHolmes.text?.includes('holiday crowd') &&
-      r.flagsUpdate?.['approach_holmes_invisible_in_a_crowd']) {
-    pass('authored Holmes approach (holmes_invisible_in_a_crowd) fires on a full-mode LOOK once its gate flags are set');
-  } else fail('Holmes approach fires once its gate flags are set', JSON.stringify({ apHolmes, flags: r.flagsUpdate }));
-
-  // 16. Holmes authored approach in the acts-2/3 forbidFlags band:
+  // Holmes authored approach in the acts-2/3 forbidFlags band:
   // 'holmes_watson_fatigue' (acts: [2], forbidFlags:
   // ['talked_to_tumblety_at_h_division_station']) should fire at a location
   // other than h_division_station in Act 2 when that flag is unset — the
@@ -2406,11 +2378,10 @@ function runTakeSetsFlag() {
   console.log('\n=== TAKE sets a took_<loc>_<obj> flag ===');
 
   // pawn_ticket is takeable at baker_street in Act 0 (see TAKEABLE_OBJECTS),
-  // but is now visibility-gated behind world_event_kemp_arrives (Task 6) —
-  // the flag must be set or the object isn't there to take.
+  // and physical transfer is gated until Watson resolves the Kemp choice.
   const snap = buildSnapshot({
     location: 'baker_street', currentAct: 0,
-    flags: { world_event_kemp_arrives: true },
+    flags: { world_event_kemp_arrives: true, act0_kemp_choice_resolved: true },
   });
   const r = gameEngine.resolve(parseIntent('take the pawn ticket'), snap);
 
@@ -2438,7 +2409,7 @@ function runTakeSetsFlag() {
     location: 'baker_street',
     currentAct: 0,
     inventory: ["Nell's Pawn Ticket"],
-    flags: { world_event_kemp_arrives: true },
+    flags: { world_event_kemp_arrives: true, act0_kemp_choice_resolved: true },
   });
   const heldResult = gameEngine.resolve(parseIntent('take the pawn ticket'), heldSnap);
   if (heldResult.actionSuccess && heldResult.flagsUpdate?.['took_baker_street_pawn_ticket'] === true) {
@@ -2628,85 +2599,153 @@ function runPresenceGating() {
   }
 }
 
-// ── Scripted beats: one blockquote per turn ──────────────────────────────────
+// ── Action-triggered story events (Act 0 pilot) ─────────────────────────
 
-function runScriptedBeats() {
-  console.log('\n=== SCENARIO: scripted opening beats ===');
+function runStoryEvents() {
+  console.log('\n=== SCENARIO: action-triggered Act 0 story events ===');
 
-  // Walk Act 0's authored opening the way the hook does: turnCount is 1-based
-  // for player actions, and each turn's flags carry forward.
-  let flags: Record<string, boolean> = {};
-  const seen: Array<{ turn: number; style?: string; hint: string; notice?: string }> = [];
-  for (let turn = 1; turn <= 6; turn++) {
-    const r = gameEngine.resolve(
-      parseIntent('examine the violin case'),
-      buildSnapshot({ location: 'baker_street', currentAct: 0, flags, turnCount: turn }),
-    );
-    const beat = r.aiContext.scriptedBeat;
-    seen.push({ turn, style: beat?.style, hint: r.aiContext.blockquoteHint, notice: beat?.notice });
-    flags = { ...flags, ...(r.flagsUpdate ?? {}) };
+  const eventId = (r: ReturnType<typeof gameEngine.resolve>) =>
+    (r.aiContext as any).storyEvent?.id as string | undefined;
+
+  // The old turn-indexed sequence advanced on any input. The pilot must wait
+  // indefinitely for the authored action at each hinge.
+  let s = buildSnapshot({ location: 'baker_street', currentAct: 0 });
+  for (const input of ['examine the violin case', 'inventory', 'help', 'wait']) {
+    const r = gameEngine.resolve(parseIntent(input), s);
+    if (!r.flagsUpdate?.['act0_caller_noticed'] && !eventId(r)) pass(`unrelated "${input}" does not notice the caller`);
+    else fail(`unrelated "${input}" does not notice the caller`, JSON.stringify(r.flagsUpdate));
   }
 
-  // Turns 1-5 each carry exactly one beat (spec phases A and B); turn 6 carries
-  // none — the opening sequence is spent and the player has the controls. All
-  // five are 'prose' now — none uses 'blockquote' (see the file header for why).
-  const styles = seen.map(x => x.style ?? '-').join(',');
-  styles === 'prose,prose,prose,prose,prose,-'
-    ? pass('ScriptedBeats: one beat per turn, in authored order, then none')
-    : fail('ScriptedBeats: wrong beat sequence', styles);
+  const earlyCrowdQuestion = gameEngine.resolve(parseIntent('ask holmes about the crowd'), s);
+  const earlyCrowdText = JSON.stringify(earlyCrowdQuestion.aiContext.targetNpcInterview ?? {});
+  if (!earlyCrowdQuestion.flagsUpdate?.['act0_closing_complete'] &&
+      !/remembered by none|hundred thousand/i.test(earlyCrowdText)) {
+    pass('asking about the crowd cannot spend the closing thesis at the opening');
+  } else fail('asking about the crowd cannot spend the closing thesis at the opening', earlyCrowdText);
 
-  // ANY scripted beat — not just a blockquote-styled one — must suppress the
-  // model's own blockquote, or a prose beat's authored dialogue competes with
-  // an unrelated "Watson's inner thought" aside for the same turn's one quoted
-  // block. The single-sample check above is too weak to trust as a regression
-  // guard on its own: blockquoteHint's compact-mode branch is `Math.random() <
-  // 0.3 ? 'inner_thought' : 'none'`, so a broken build still prints 'none' on
-  // any turn that didn't happen to roll under 0.3 — roughly a 1-in-6 chance of
-  // the single-pass version above missing a real regression across 5 turns.
-  // Hammering one scripted-beat turn 40 times drops that to astronomically
-  // unlikely (0.7^40) while staying a plain assertion, no test-only seam.
-  let leakyRolls = 0;
-  for (let i = 0; i < 40; i++) {
-    const r = gameEngine.resolve(
-      parseIntent('examine the violin case'),
-      buildSnapshot({ location: 'baker_street', currentAct: 0, flags: {}, turnCount: 1 }),
-    );
-    if (r.aiContext.scriptedBeat && r.aiContext.blockquoteHint !== 'none') leakyRolls++;
+  let r = gameEngine.resolve(parseIntent('talk to holmes'), s);
+  if (eventId(r) === 'act0_caller_noticed' && r.flagsUpdate?.['act0_caller_noticed'] && !r.flagsUpdate?.['act0_bell_rang']) {
+    pass('bare TALK Holmes notices the caller without ringing the bell');
+  } else fail('bare TALK Holmes notices the caller without ringing the bell', JSON.stringify(r));
+  const callerEventFlags = Object.keys(r.flagsUpdate ?? {}).filter(flag => flag.startsWith('story_event_'));
+  if (callerEventFlags.length === 1) pass('a pivotal action selects exactly one main story event');
+  else fail('a pivotal action selects exactly one main story event', JSON.stringify(callerEventFlags));
+  s = applyResult(s, r);
+
+  // Unrelated successful actions still do not ring the bell, even forever.
+  for (let i = 0; i < 4; i++) {
+    r = gameEngine.resolve(parseIntent('examine the chemistry table'), s);
+    s = applyResult(s, r);
   }
-  leakyRolls === 0
-    ? pass('ScriptedBeats: any scripted beat forces blockquoteHint=none (40 rolls)')
-    : fail('ScriptedBeats: a beat left the model free to add its own blockquote',
-        `${leakyRolls}/40 rolls leaked a blockquote`);
+  if (!s.flags['act0_bell_rang']) pass('bell waits indefinitely through unrelated successful actions');
+  else fail('bell waits indefinitely through unrelated successful actions');
 
-  // Beat 3 (the bell) carries its own mechanical notice, same register as an
-  // arrival/departure line — there is no engine-level presence signal for a
-  // doorbell the way there is for an NPC.
-  const bellTurn = seen.find(x => x.turn === 3);
-  bellTurn?.notice === '**Door bell** is ringing.'
-    ? pass('ScriptedBeats: the bell beat carries its doorbell notice')
-    : fail('ScriptedBeats: the bell beat carries its doorbell notice', JSON.stringify(bellTurn));
+  r = gameEngine.resolve(parseIntent('look at the street'), s);
+  if (eventId(r) === 'act0_bell_rang' && r.flagsUpdate?.['act0_bell_rang'] &&
+      (r.aiContext as any).storyEvent?.notice === '**Door bell** is ringing.') {
+    pass('street alias rings the bell with the deterministic notice');
+  } else fail('street alias rings the bell with the deterministic notice', JSON.stringify(r));
+  s = applyResult(s, r);
 
-  // Beat 4 admits Mrs. Kemp on the SAME turn it fires — presence and object
-  // visibility both read the post-beat flags.
-  const arrival = gameEngine.resolve(
-    parseIntent('examine the violin case'),
-    buildSnapshot({
-      location: 'baker_street', currentAct: 0, turnCount: 4,
-      flags: {
-        beat_act0_holmes_reads_the_crowd: true,
-        beat_act0_holmes_notices_the_caller: true,
-        beat_act0_the_bell: true,
-      },
-      previousNpcIds: ['holmes'],
-    }),
-  );
-  arrival.aiContext.npcsPresent.some(n => n.npcId === 'mrs_kemp')
-    ? pass('ScriptedBeats: the admitting beat puts Mrs. Kemp in the room the same turn')
-    : fail('ScriptedBeats: caller not present on her arrival turn',
-        JSON.stringify(arrival.aiContext.npcsPresent));
-  arrival.aiContext.npcsArrived?.includes('Mrs. Kemp')
-    ? pass('ScriptedBeats: arrival notice fires on the same turn')
-    : fail('ScriptedBeats: no arrival notice', JSON.stringify(arrival.aiContext.npcsArrived));
+  // Once rung, the bell also waits indefinitely for an explicit door action.
+  for (let i = 0; i < 4; i++) {
+    r = gameEngine.resolve(parseIntent('examine the concluded case'), s);
+    s = applyResult(s, r);
+  }
+  if (!s.flags['world_event_kemp_arrives']) pass('door waits indefinitely through unrelated successful actions');
+  else fail('door waits indefinitely through unrelated successful actions');
+
+  // "open the door" resolves to the wrong generic door object and is blocked;
+  // the authored event is authoritative, without counting its own arrival.
+  r = gameEngine.resolve(parseIntent('open the door'), { ...s, previousNpcIds: ['holmes'] });
+  const arrivalBeats = ((r.aiContext as any).storyEvent?.beats ?? []) as string[];
+  if (r.actionSuccess && eventId(r) === 'act0_kemp_arrives' && r.flagsUpdate?.['world_event_kemp_arrives'] &&
+      r.aiContext.npcsPresent.some(n => n.npcId === 'mrs_kemp') &&
+      !/sister|nell|disappear|business/i.test(arrivalBeats.join(' ')) &&
+      !r.flagsUpdate?.['act0_kemp_fallback_action_1']) {
+    pass('OPEN door admits Kemp without stating business or counting the arrival turn');
+  } else fail('OPEN door admits Kemp without stating business or counting the arrival turn', JSON.stringify(r));
+  s = applyResult(s, r);
+
+  // Failed, meta, and unrecognised turns never advance the two-action fallback.
+  for (const input of ['inventory', 'notebook', 'deduce that holmes did it', 'what time is it', 'xyzzy']) {
+    r = gameEngine.resolve(parseIntent(input), s);
+    if (!r.flagsUpdate?.['act0_kemp_fallback_action_1'] && !r.flagsUpdate?.['act0_kemp_fallback_action_2']) {
+      pass(`fallback excludes "${input}"`);
+    } else fail(`fallback excludes "${input}"`, JSON.stringify(r.flagsUpdate));
+  }
+
+  // Boots may be analysed before Kemp explains herself. This is the first
+  // eligible local action, so it also records fallback action one.
+  r = gameEngine.resolve(parseIntent('smell the boots'), s);
+  const bootsText = JSON.stringify((r.aiContext as any).storyEvent ?? {});
+  if (eventId(r) === 'act0_boots_analyzed' && r.flagsUpdate?.['act0_boots_analyzed'] &&
+      r.flagsUpdate?.['act0_kemp_fallback_action_1'] &&
+      ['oak bark', 'lime', 'river silt', 'Bermondsey'].every(term => bootsText.toLowerCase().includes(term.toLowerCase()))) {
+    pass('boots can precede business and carry the full Bermondsey choreography');
+  } else fail('boots can precede business and carry the full Bermondsey choreography', JSON.stringify(r));
+  s = applyResult(s, r);
+
+  // The second eligible action schedules a distinct follow-up context. Its
+  // event effect sets the semantic business flag; it must not become a second
+  // main event or smuggle unrelated semantic effects into the follow-up.
+  r = gameEngine.resolve(parseIntent('open the workbox'), s);
+  const followUp = (r as any).followUpEvent;
+  if (eventId(r) === undefined && followUp?.storyEvent?.id === 'act0_kemp_business_fallback' &&
+      r.flagsUpdate?.['act0_kemp_fallback_action_2'] && r.flagsUpdate?.['act0_kemp_business_heard'] &&
+      Object.keys(followUp.effects ?? { act0_kemp_business_heard: true }).length === 1) {
+    pass('second eligible action schedules only the separate business follow-up');
+  } else fail('second eligible action schedules only the separate business follow-up', JSON.stringify(r));
+  s = applyResult(s, r);
+
+  // The event flags are one-shot; repeating a trigger never overlaps a second
+  // event, and pivotal turns suppress all optional narration furniture.
+  r = gameEngine.resolve(parseIntent('smell the boots'), s);
+  if (!eventId(r) && !(r as any).followUpEvent) pass('story events are once-only');
+  else fail('story events are once-only', JSON.stringify(r));
+
+  const stalled = gameEngine.resolve(parseIntent('open the workbox'), {
+    ...s, turnsAtLocationWithoutProgress: 30, turnCount: 30,
+  });
+  const stalledOptionalText = [
+    ...((stalled.aiContext as any).npcScriptedLines ?? []),
+    (stalled.aiContext as any).watsonHint ?? '',
+  ].join(' ');
+  if (!/box|table/i.test(stalledOptionalText)) {
+    pass('Act 0 has no workbox safety-net nudge');
+  } else fail('Act 0 has no workbox safety-net nudge', JSON.stringify(stalled.aiContext));
+
+  // Ticket examination records evidence but leaves the physical ticket on the
+  // table. Taking remains blocked until one of the three choices resolves.
+  r = gameEngine.resolve(parseIntent('examine the pawn ticket'), s);
+  if (r.flagsUpdate?.['examined_baker_street_pawn_ticket'] && !r.inventoryAdd?.includes("Nell's Pawn Ticket")) {
+    pass('examining the ticket does not transfer it');
+  } else fail('examining the ticket does not transfer it', JSON.stringify(r.inventoryAdd));
+  const readTicket = gameEngine.resolve(parseIntent('read the pawn ticket'), s);
+  if (readTicket.flagsUpdate?.['examined_baker_street_pawn_ticket'] &&
+      !readTicket.inventoryAdd?.includes("Nell's Pawn Ticket")) {
+    pass('reading the ticket also leaves the physical ticket on the table');
+  } else fail('reading the ticket also leaves the physical ticket on the table', JSON.stringify(readTicket));
+  s = applyResult(s, r);
+  r = gameEngine.resolve(parseIntent('take the pawn ticket'), s);
+  if (!r.actionSuccess && !r.flagsUpdate?.['took_baker_street_pawn_ticket']) pass('ticket take is blocked before the choice');
+  else fail('ticket take is blocked before the choice', JSON.stringify(r));
+
+  const earlyReconstruction = gameEngine.resolve(parseIntent('ask holmes about the card'), s);
+  const earlyText = earlyReconstruction.aiContext.actionResultNote;
+  if (!earlyReconstruction.flagsUpdate?.['act0_reconstruction_complete'] &&
+      !/pregnan|bermondsey|marchant|address/i.test(earlyText)) {
+    pass('early reconstruction attempt stays non-spoiling');
+  } else fail('early reconstruction attempt stays non-spoiling', earlyText);
+
+  const earlyClosing = gameEngine.resolve(parseIntent('ask holmes about crime'), {
+    ...s,
+    flags: { ...s.flags, act0_reconstruction_complete: true },
+  });
+  const earlyClosingText = JSON.stringify(earlyClosing.aiContext.targetNpcInterview ?? {});
+  if (!earlyClosing.flagsUpdate?.['act0_closing_complete'] && !/arithmetic|everything is a sum/i.test(earlyClosingText)) {
+    pass('crime arithmetic remains sealed until the final closing');
+  } else fail('crime arithmetic remains sealed until the final closing', earlyClosingText);
 }
 
 // ── 'other' intents are never full mode ──────────────────────────────────────
@@ -2731,33 +2770,25 @@ function runOtherIsNeverFull() {
     : fail('unrecognized "other" input (no targetRaw) resolves to compact mode',
         gibberish.aiContext.narrationMode);
 
-  // The KEEP_PHRASES match (Act 0's withhold choice) also carries targetRaw
-  // but no targetId, so it hit the same bug — and a deliberate, consequential
-  // choice deserves a targeted compact reply even less than gibberish does.
+  // Act 0's authored withhold phrase remains an `other` intent at the parser
+  // boundary, but the story-event layer gives it a targeted compact reply.
   const withhold = gameEngine.resolve(parseIntent('say nothing'), buildSnapshot({
     location: 'baker_street', currentAct: 0,
-    flags: { showed_charity_card_to_holmes: true, world_event_kemp_arrives: true },
+    flags: { act0_reconstruction_complete: true, world_event_kemp_arrives: true },
   }));
   withhold.aiContext.narrationMode === 'compact'
-    ? pass('the KEEP_PHRASES withhold choice resolves to compact mode')
-    : fail('the KEEP_PHRASES withhold choice resolves to compact mode', withhold.aiContext.narrationMode);
+    ? pass('the authored withhold choice resolves to compact mode')
+    : fail('the authored withhold choice resolves to compact mode', withhold.aiContext.narrationMode);
 
-  // The specific collision: on Mrs. Kemp's admitting turn, unrecognized input
-  // must not describe her as present in the model's own prose ahead of her
-  // arrival beat. Compact mode carries no "who's present" paragraph at all,
-  // so this is really re-proving the mode fix from the caller's own turn.
+  // Unrelated input remains compact while the caller is waiting downstairs.
   const collision = gameEngine.resolve(parseIntent('answer the door'), buildSnapshot({
-    location: 'baker_street', currentAct: 0, turnCount: 4,
-    flags: {
-      beat_act0_holmes_reads_the_crowd: true,
-      beat_act0_holmes_notices_the_caller: true,
-      beat_act0_the_bell: true,
-    },
+    location: 'baker_street', currentAct: 0,
+    flags: { act0_caller_noticed: true, act0_bell_rang: true },
     previousNpcIds: ['holmes'],
   }));
   collision.aiContext.narrationMode === 'compact'
-    ? pass('unrecognized input on Mrs. Kemp\'s admitting turn stays compact (no premature mention)')
-    : fail('unrecognized input on Mrs. Kemp\'s admitting turn stays compact', collision.aiContext.narrationMode);
+    ? pass('unrecognized input while Kemp waits downstairs stays compact')
+    : fail('unrecognized input while Kemp waits downstairs stays compact', collision.aiContext.narrationMode);
 }
 
 function runSafetyNetLadder() {
@@ -2844,23 +2875,28 @@ function runKempChoice() {
     inventory: ["A Subscriber's Card"],
     flags: {
       world_event_kemp_arrives: true,
+      act0_kemp_business_heard: true,
       opened_baker_street_nells_workbox: true,
-      showed_charity_card_to_holmes: true,
+      act0_reconstruction_complete: true,
     },
   };
 
   const gave = gameEngine.resolve(parseIntent('give the card to mrs kemp'), buildSnapshot(base));
-  if (gave.actionSuccess && gave.flagsUpdate?.['showed_charity_card_to_mrs_kemp']) {
-    pass('giving the card resolves');
+  if (gave.actionSuccess && gave.flagsUpdate?.['showed_charity_card_to_mrs_kemp'] &&
+      gave.flagsUpdate?.['act0_kemp_choice_resolved'] &&
+      !gave.flagsUpdate?.['asked_mrs_kemp_about_kemp_why_she_hid'] &&
+      !gave.flagsUpdate?.['withheld_address'] &&
+      !gave.aiContext.npcsPresent.some(n => n.npcId === 'mrs_kemp')) {
+    pass('giving the card resolves exactly one branch and Kemp departs');
   } else {
-    fail('giving the card resolves', JSON.stringify(gave.flagsUpdate));
+    fail('giving the card resolves exactly one branch and Kemp departs', JSON.stringify(gave));
   }
 
   // Giving the card must not skip Holmes's reconstruction — without
   // showed_charity_card_to_holmes, the SHOW should be blocked, not succeed.
   const gaveWithoutHolmes = gameEngine.resolve(parseIntent('give the card to mrs kemp'), buildSnapshot({
     ...base,
-    flags: { ...base.flags, showed_charity_card_to_holmes: false },
+    flags: { ...base.flags, act0_reconstruction_complete: false },
   }));
   if (!gaveWithoutHolmes.actionSuccess && !gaveWithoutHolmes.flagsUpdate?.['showed_charity_card_to_mrs_kemp']) {
     pass('giving the card is blocked before Holmes has the reconstruction');
@@ -2869,18 +2905,43 @@ function runKempChoice() {
   }
 
   const asked = gameEngine.resolve(parseIntent('ask mrs kemp why she hid'), buildSnapshot(base));
-  if (asked.actionSuccess && asked.flagsUpdate?.['asked_mrs_kemp_about_kemp_why_she_hid']) {
-    pass('asking her first resolves');
+  if (asked.actionSuccess && asked.flagsUpdate?.['asked_mrs_kemp_about_kemp_why_she_hid'] &&
+      asked.flagsUpdate?.['act0_kemp_choice_resolved'] &&
+      !asked.flagsUpdate?.['showed_charity_card_to_mrs_kemp'] &&
+      !asked.flagsUpdate?.['withheld_address'] &&
+      !asked.aiContext.npcsPresent.some(n => n.npcId === 'mrs_kemp')) {
+    pass('asking her first resolves exactly one branch and Kemp departs');
   } else {
-    fail('asking her first resolves', JSON.stringify(asked.flagsUpdate));
+    fail('asking her first resolves exactly one branch and Kemp departs', JSON.stringify(asked));
   }
 
-  for (const phrase of ['keep the card', 'say nothing']) {
+  for (const phrase of [
+    'keep the card', 'keep it', "keep the subscriber's card", 'say nothing',
+    'stay silent', 'hold my tongue', 'pocket the card',
+  ]) {
     const kept = gameEngine.resolve(parseIntent(phrase), buildSnapshot(base));
-    if (kept.flagsUpdate?.['withheld_address'] === true) {
-      pass(`"${phrase}" records the withhold`);
+    if (kept.flagsUpdate?.['withheld_address'] === true &&
+        kept.flagsUpdate?.['act0_kemp_choice_resolved'] &&
+        !kept.flagsUpdate?.['showed_charity_card_to_mrs_kemp'] &&
+        !kept.flagsUpdate?.['asked_mrs_kemp_about_kemp_why_she_hid'] &&
+        !kept.aiContext.npcsPresent.some(n => n.npcId === 'mrs_kemp')) {
+      pass(`"${phrase}" records only the withhold branch and Kemp departs`);
     } else {
-      fail(`"${phrase}" records the withhold`, JSON.stringify(kept.flagsUpdate));
+      fail(`"${phrase}" records only the withhold branch and Kemp departs`, JSON.stringify(kept));
+    }
+  }
+
+  for (const question of [
+    'ask holmes whether i should keep it',
+    'ask mrs kemp if she wants to keep the card',
+  ]) {
+    const advice = gameEngine.resolve(parseIntent(question), buildSnapshot(base));
+    if (!advice.flagsUpdate?.['withheld_address'] &&
+        !advice.flagsUpdate?.['act0_kemp_choice_resolved'] &&
+        advice.aiContext.npcsPresent.some(n => n.npcId === 'mrs_kemp')) {
+      pass(`addressed question does not resolve the withhold choice: "${question}"`);
+    } else {
+      fail(`addressed question does not resolve the withhold choice: "${question}"`, JSON.stringify(advice));
     }
   }
 
@@ -2895,33 +2956,26 @@ function runKempChoice() {
   }
 }
 
-// ── Scenario: Act 0's full six-flag gate, played in its own hinted order ──────
-// Regression coverage for the softlock found in Task 10 review: EXAMINE
-// auto-adds a takeable object to inventory (examine.ts), and the pawn ticket's
-// EXAMINE gate flag (#2) fires before its TAKE gate flag (#5) in the intended
-// play order — so by the time the player reaches TAKE, the ticket is already
-// held. resolveTake's "already carrying it" branch used to short-circuit
-// before setting any flag or checking act progression, which meant
-// took_baker_street_pawn_ticket could never be set via the hinted order and
-// Act 0 was unwinnable. This scripts the exact intended sequence end-to-end
-// and asserts the act actually advances on the final action.
+// ── Scenario: Act 0's full action-triggered gate ─────────────────────────────
 function runAct0CompletesTheGate() {
-  console.log('\n=== Act 0 completes via its own six-flag gate, in hinted order ===');
+  console.log('\n=== Act 0 completes through action-triggered events ===');
 
-  let s = buildSnapshot({ location: 'baker_street', currentAct: 0, flags: { world_event_kemp_arrives: true } });
-  s = step('Act0Gate', s, 'ask mrs kemp about her sister', { expectSuccess: true, expectFlag: 'asked_mrs_kemp_about_kemp_sister_missing' });
+  let s = buildSnapshot({ location: 'baker_street', currentAct: 0 });
+  s = step('Act0Gate', s, 'talk to holmes', { expectSuccess: true, expectFlag: 'act0_caller_noticed' });
+  s = step('Act0Gate', s, 'examine the woman', { expectSuccess: true, expectFlag: 'act0_bell_rang' });
+  s = step('Act0Gate', s, 'open the door', { expectSuccess: true, expectFlag: 'world_event_kemp_arrives' });
+  s = step('Act0Gate', s, 'talk to mrs kemp', { expectSuccess: true, expectFlag: 'act0_kemp_business_heard' });
   s = step('Act0Gate', s, 'examine the ticket', { expectSuccess: true, expectFlag: 'examined_baker_street_pawn_ticket' });
+  s = step('Act0Gate', s, 'examine the boots', { expectSuccess: true, expectFlag: 'act0_boots_analyzed' });
   s = step('Act0Gate', s, 'open the workbasket', { expectSuccess: true, expectFlag: 'opened_baker_street_nells_workbox' });
-  // The card must be examined (which auto-adds it, like every other takeable
-  // object) before it can be shown — SHOW requires the item in inventory.
+  s = step('Act0Gate', s, "examine nell's letters", { expectSuccess: true, expectFlag: 'examined_baker_street_nells_letters' });
   s = step('Act0Gate', s, 'examine the card', { expectSuccess: true, expectFlag: 'examined_baker_street_charity_card' });
-  s = step('Act0Gate', s, 'show the card to holmes', { expectSuccess: true, expectFlag: 'showed_charity_card_to_holmes' });
-  // The ticket is already in inventory from the EXAMINE two steps back — this
-  // is the exact step that was broken.
+  s = step('Act0Gate', s, 'show the card to holmes', { expectSuccess: true, expectFlag: 'act0_reconstruction_complete' });
+  s = step('Act0Gate', s, 'hold my tongue', { expectSuccess: true, expectFlag: 'act0_kemp_choice_resolved' });
   s = step('Act0Gate', s, 'take the pawn ticket', { expectSuccess: true, expectFlag: 'took_baker_street_pawn_ticket' });
-  s = step('Act0Gate', s, 'ask holmes about the criminal classes', {
+  s = step('Act0Gate', s, 'examine the street', {
     expectSuccess: true,
-    expectFlag: 'asked_holmes_about_holmes_crime_grown_dull',
+    expectFlag: 'act0_closing_complete',
     expectAct: 1,
   });
 }
@@ -2952,7 +3006,7 @@ try {
   runOpenVerb();
   runPresenceGating();
   runSafetyNetLadder();
-  runScriptedBeats();
+  runStoryEvents();
   runOtherIsNeverFull();
   runKempChoice();
   runAct0CompletesTheGate();

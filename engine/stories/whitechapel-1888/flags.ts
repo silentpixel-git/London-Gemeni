@@ -84,6 +84,15 @@ type LiteralFlag =
   | 'true_ending'        // deduction outcome recorded by the endings flow
   | 'withheld_address'   // Act 0 choice: Watson keeps the card. The other two
                          // branches are recorded by their own SHOW/TALK flags.
+  | 'act0_caller_noticed'
+  | 'act0_bell_rang'
+  | 'act0_kemp_business_heard'
+  | 'act0_kemp_fallback_action_1'
+  | 'act0_kemp_fallback_action_2'
+  | 'act0_boots_analyzed'
+  | 'act0_reconstruction_complete'
+  | 'act0_kemp_choice_resolved'
+  | 'act0_closing_complete'
   | '__advance_via_correct_deduction_only__'; // Act 5 sentinel (excluded from lead pips)
 
 /** Every flag name that may legally appear in authored story data. */

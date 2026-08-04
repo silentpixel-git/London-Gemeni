@@ -1,7 +1,7 @@
 // Shared type definitions for all story manifests.
 // Each story's data files import from here.
 
-import type { HintTarget, HintVerb, TimePeriod } from '../../types';
+import type { HintTarget, HintVerb, IntentType, StoryEventPayload, TimePeriod } from '../../types';
 
 // Flag-bearing interfaces take an optional flag-name type parameter (default
 // string). The engine consumes them un-parameterized; story data files
@@ -55,6 +55,9 @@ export interface NPCDefinition<F extends string = string> {
   /** Offstage until this flag is set, regardless of scheduleByAct. For NPCs who
    *  arrive mid-scene rather than being in the room at curtain-up. */
   presenceRequiresFlag?: F;
+  /** Once this flag is true the NPC is offstage, even if their schedule still
+   *  names the location. Used for deterministic mid-act departures. */
+  presenceForbidFlag?: F;
   // NPC placement — derived per turn from (act, timePeriod). `default` is the
   // act's anchor spot (the old canonicalLocationByAct value); byPeriod entries
   // move the NPC by time of day (e.g. evening at the pub). An act with NO
@@ -156,30 +159,45 @@ export interface WorldEventDefinition {
   text: string;            // the beat itself — spoiler-guarded by qa:validate
 }
 
-// ── Scripted beats ───────────────────────────────────────────────────────────
-// Authored staging keyed to the PLAYER-TURN index rather than the clock, for a
-// sequence that must land one beat per action no matter what the player types.
-// World events cannot do this: they fire on the in-game clock, and since verbs
-// cost different amounts of time (talk 5 minutes, take 1) a single action can
-// cross several fire times at once and dump the whole sequence in one turn.
-//
-// Rendered mechanically, never handed to the model to paraphrase, so authored
-// dialogue survives verbatim and its formatting is under the author's control:
-// 'prose' for anything a character says aloud, 'blockquote' for atmosphere and
-// Watson's interiority. (Speech set in a blockquote reads as a pulled quote.)
-export interface ScriptedBeat<F extends string = string> {
-  id: string;              // unique, snake_case; delivery is tracked as beat_<id>
+// ── Action-triggered story events ────────────────────────────────
+
+export interface StoryEventTrigger<F extends string = string> {
+  intentTypes: IntentType[];
+  targetIds?: string[];
+  npcIds?: string[];
+  topicIds?: string[];
+  topicPhrases?: string[];
+  topicAbsent?: boolean;
+  rawPhrases?: string[];
+  rawPhraseMatch?: 'contains' | 'exact';
+  requireFlags?: F[];
+  forbidFlags?: F[];
+  locationId?: string;
+  /** The resolved base action may be blocked/unrecognised; this authored
+   *  trigger is authoritative and may replace it with a successful event. */
+  replacesBlocked?: boolean;
+}
+
+export interface StoryEventFallback<F extends string = string> {
+  id: string;
+  afterEligibleActions: number;
+  eligibleIntentTypes: IntentType[];
+  counterFlags: F[];
+  setFlags: F[];
+  locationId?: string;
+  requireFlags?: F[];
+  forbidFlags?: F[];
+  beats: string[];
+  maxWords: number;
+}
+
+export interface StoryEventDefinition<F extends string = string> extends StoryEventPayload {
   act: number;
-  atTurn: number;          // 1 = the player's first action after the opening scene
-  style: 'prose' | 'blockquote';
-  text: string;
-  /** Extra flag to set when this beat lands — e.g. admitting an NPC to the room. */
-  setsFlag?: F;
-  /** Optional mechanical notice rendered under the beat's own text, same
-   *  register as "**X** has arrived." — for an event a player should be told
-   *  about plainly rather than only through prose (a bell ringing, a door
-   *  opening). Author supplies their own markdown (bold subject etc.). */
-  notice?: string;
+  triggers: StoryEventTrigger<F>[];
+  setFlags: F[];
+  actionDescription: string;
+  actionResultNote: string;
+  fallback?: StoryEventFallback<F>;
 }
 
 // ── Rumor propagation (Phase 4b) ─────────────────────────────────────────────
@@ -426,6 +444,8 @@ export interface StoryManifest {
    *  object id, same shape as objectVisibility, since a container's id is
    *  already unique across the story. */
   containerOpenNotes?: Record<string, string>;
+  /** Takeable objects that EXAMINE records but deliberately leaves in place. */
+  examineDoesNotTake: string[];
   /** Optional grant: talking to this NPC (keyed by npcId) adds the named
    *  takeable object to inventory, once, the first time the talk succeeds —
    *  for testimony/notes that exist only because the NPC gave them, not
@@ -464,8 +484,9 @@ export interface StoryManifest {
   // World events (Phase 4a)
   worldEvents: WorldEventDefinition[];
 
-  // Turn-indexed authored staging (see ScriptedBeat)
-  scriptedBeats: ScriptedBeat[];
+  // Player-action-triggered pivotal staging. File order is priority order;
+  // the runtime selects at most one main event per action.
+  storyEvents: StoryEventDefinition[];
 
   // Rumor propagation (Phase 4b)
   rumors: RumorDefinition[];

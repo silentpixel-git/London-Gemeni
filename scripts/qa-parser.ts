@@ -377,11 +377,10 @@ interface IntentFixture {
     | { type: 'wait' }
     | { type: 'query' }
     | { type: 'none' } // AI must decline to act (no_action → null intent)
-    // Act 0's withhold branch (KEEP_PHRASES, see intentParser.ts) — the regex
-    // parse resolves this deterministically, but needsAiParse routes every
-    // type:'other' intent to the AI tier unconditionally (see the fixtures
-    // below for why that tier can never actually confirm this one).
-    | { type: 'other'; targetRaw: string };
+    // Act 0's withhold branch is authored in story-event data. The generic
+    // parser leaves it as `other`; needsAiParse keeps a manifest raw-phrase
+    // trigger on the deterministic path.
+    | { type: 'other'; targetRaw?: string };
 }
 
 const INTENT_FIXTURES: IntentFixture[] = [
@@ -534,20 +533,17 @@ const INTENT_FIXTURES: IntentFixture[] = [
   // ABSENT from the current scene, not when it's genuinely here. Offline.
   { scene: { location: 'lusk_office', act: 4 }, input: 'open the box',
     expect: { type: 'open', targetId: 'parcel_box' } },
-  // Act 0's withhold branch (KEEP_PHRASES) — offline. parseIntent resolves
-  // this deterministically to type:'other' with the phrase itself as
-  // targetRaw, and needsAiParse now carves out a KEEP_PHRASES exception (see
-  // engine/parseFallback.ts) so this stays on the free offline path rather
-  // than being routed to the AI tier, where the tool-calling schema has no
-  // equivalent of "other" and — worse — a `take` tool that could plausibly
-  // reinterpret "keep the card" as picking the card up instead of withholding
-  // it (the charity card is a valid `take` candidate at this exact moment).
+  // Act 0's withhold branch — offline via story-event rawPhrases, not a
+  // story-specific constant in the generic parser.
   { scene: { location: 'baker_street', act: 0, inventory: ["A Subscriber's Card"] },
     input: 'keep the card',
-    expect: { type: 'other', targetRaw: 'keep the card' } },
+    expect: { type: 'other', targetRaw: undefined } },
   { scene: { location: 'baker_street', act: 0, inventory: ["A Subscriber's Card"] },
     input: 'say nothing',
-    expect: { type: 'other', targetRaw: 'say nothing' } },
+    expect: { type: 'other', targetRaw: undefined } },
+  { scene: { location: 'baker_street', act: 0, inventory: ["A Subscriber's Card"] },
+    input: 'hold my tongue',
+    expect: { type: 'other', targetRaw: undefined } },
   // Regression guard: bare "look" (no target) stays a look-around EXAMINE.
   { scene: { location: 'baker_street', act: 0 }, input: 'look',
     expect: { type: 'examine' } },

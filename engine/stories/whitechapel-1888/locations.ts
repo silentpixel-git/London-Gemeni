@@ -16,13 +16,9 @@ const LOCATIONS_DATA = {
     act: 0,
     timeframe: 'present',
     atmosphere: 'Warm lamplight and warmer air, both windows thrown up to the street, and the holiday coming up off the pavement in waves. Holmes\' sitting room on the one evening of the year when the whole of London is somewhere else.',
-    // Holmes is AT THE WINDOW and occupied — reading the crowd for practice.
-    // Do not restore the earlier "restlessness of a man with nothing to occupy
-    // him": the act must open on an activity, not on boredom (see
-    // docs/act-structure-design-doc.md §2). His complaint about dull crime is
-    // the act's CLOSING beat, earned by the reconstruction, and stating it here
-    // spends it before he has proved it.
-    description: 'Both windows stand open to the Bank Holiday noise, and the sound of the crowds carries all the way up from the pavement. The room is tidier than Watson has seen it in months: a concluded case bundled on the side table, the violin shut in its case, the chemistry bench wiped down and abandoned. Holmes stands at the left-hand window with his back to the room, picking strangers out of the crowd below and taking them apart aloud, for no reason but the pleasure of it.',
+    // Holmes studies the street silently until the player engages with him or
+    // the view; the first action-triggered event owns his demonstration.
+    description: 'Both windows stand open to the Bank Holiday noise, and the sound of the crowds carries all the way up from the pavement. The room is tidier than Watson has seen it in months: a concluded case bundled on the side table, the violin shut in its case, the chemistry bench wiped down and abandoned. Holmes stands at the left-hand window with his back to the room, studying the street below in complete silence.',
     exits: ['dorset_street'],
     interactables: [
       'open_window',
@@ -32,7 +28,6 @@ const LOCATIONS_DATA = {
     locationExaminedFlag: 'examined_baker_street',
     timeOfDay: 'night',
     vignettes: [
-      { text: 'Mrs Hudson looks in to ask whether the gentlemen will want anything further tonight, and takes the answer as she finds it. She leaves the landing door ajar on her way out, for the air.', act: 0 },
       // Act-scoped away from Act 0 deliberately. Un-scoped, this fired during
       // the prologue's opening turn, and a caller at the street door is exactly
       // what Act 0's staged arrival spends four beats building to — the model
@@ -449,8 +444,8 @@ export type ObjectId = keyof typeof OBJECT_DISPLAY_NAMES_DATA;
 export const OBJECT_DISPLAY_NAMES: Record<string, string> = OBJECT_DISPLAY_NAMES_DATA;
 
 // Objects that are not present in their location from the start of the act.
-// `world_event_kemp_arrives` fires on the player's first substantive turn of
-// Act 0 (see events.ts); `opened_baker_street_nells_workbox` is set by the
+// `world_event_kemp_arrives` fires when the player answers the bell via the
+// Act 0 story-event runtime; `opened_baker_street_nells_workbox` is set by the
 // OPEN resolver once the box is opened.
 export const OBJECT_VISIBILITY: Record<string, string> = {
   pawn_ticket: 'world_event_kemp_arrives',

@@ -58,6 +58,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const npc = NPCS[s.npcId];
     // Mirrors npcLocationAt's gate check in engine/presence.ts — keep in sync.
     if (npc?.presenceRequiresFlag && flags[npc.presenceRequiresFlag] !== true) return false;
+    if (npc?.presenceForbidFlag && flags[npc.presenceForbidFlag] === true) return false;
     const npcLoc = s.currentLocation || (INITIAL_NPC_STATES[s.npcId]?.currentLocation);
     return npcLoc === location && s.status !== 'deceased';
   });

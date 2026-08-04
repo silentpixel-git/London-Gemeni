@@ -96,10 +96,14 @@ export function resolveExamine(story: StoryManifest, intent: ParsedIntent, sessi
 
   // Flag-gated takeable: the object is physically listed here but Watson has
   // no cause to examine it closely yet (e.g. a witness's account that isn't
-  // a real note until he's given it). Blocks the whole EXAMINE — mirrors
-  // resolveTake's equivalent gate — so there's no side door around it.
+  // a real note until he's given it). Normally blocks the whole EXAMINE — the
+  // manifest may exempt evidence that can be inspected before it is takeable.
   const takeGateFlag = story.takeableRequiresFlag[targetId];
-  if (takeGateFlag && session.flags[takeGateFlag] !== true) {
+  if (
+    takeGateFlag &&
+    !story.examineDoesNotTake.includes(targetId) &&
+    session.flags[takeGateFlag] !== true
+  ) {
     const objectName = story.objectDisplayNames[targetId] || intent.targetRaw;
     return blocked(story,
       intent,
@@ -132,7 +136,9 @@ export function resolveExamine(story: StoryManifest, intent: ParsedIntent, sessi
   // (examined flag stays set, so re-examining could never re-add it), breaking
   // DROP's promise that "He can retrieve it if he returns".
   const inventoryAdd: string[] = [];
-  if (story.takeableObjects[targetId] && !session.inventory.includes(story.takeableObjects[targetId])) {
+  if (story.takeableObjects[targetId] &&
+      !story.examineDoesNotTake.includes(targetId) &&
+      !session.inventory.includes(story.takeableObjects[targetId])) {
     inventoryAdd.push(story.takeableObjects[targetId]);
   }
 
@@ -226,7 +232,11 @@ export function resolveRead(story: StoryManifest, intent: ParsedIntent, session:
         // Same gate as resolveExamine — a flag-gated takeable with authored
         // document text must not be readable before its gate flag is set either.
         const takeGateFlag = story.takeableRequiresFlag[targetId];
-        if (takeGateFlag && session.flags[takeGateFlag] !== true) {
+        if (
+          takeGateFlag &&
+          !story.examineDoesNotTake.includes(targetId) &&
+          session.flags[takeGateFlag] !== true
+        ) {
           const objectName = story.objectDisplayNames[targetId] ?? intent.targetRaw ?? targetId;
           return blocked(story, intent, session,
             `Watson's eye passes over it without particular notice — there is nothing there yet worth his closer attention.`,
@@ -249,7 +259,9 @@ export function resolveRead(story: StoryManifest, intent: ParsedIntent, session:
           ...(locationFlag ? { [locationFlag]: true } : {}),
         };
 
-        if (story.takeableObjects[targetId] && !session.inventory.includes(story.takeableObjects[targetId])) {
+        if (story.takeableObjects[targetId] &&
+            !story.examineDoesNotTake.includes(targetId) &&
+            !session.inventory.includes(story.takeableObjects[targetId])) {
           inventoryAdd = [story.takeableObjects[targetId]];
         }
 

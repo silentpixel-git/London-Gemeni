@@ -32,7 +32,7 @@ import { selectHint, OBJECTIVES } from './hints';
 import { isRequiredFlag, clueGateFlag, leadContextFor, detectSilentLeadFlags } from './diaryLeads';
 import { FACTS } from './facts';
 import { WORLD_EVENTS } from './events';
-import { SCRIPTED_BEATS } from './scriptedBeats';
+import { STORY_EVENTS } from './storyEvents';
 import { RUMORS } from './rumors';
 import { APPROACHES } from './approaches';
 
@@ -77,34 +77,6 @@ const ACT_SAFETY_NETS: ActSafetyNet[] = [
     when: s => !s.inventory.includes(TAKEABLE_OBJECTS['from_hell_letter']),
     instruction: 'Watson never copied the From Hell letter. Holmes notes, with mild impatience, that a comparison wants both documents — and the letter still sits in Lusk\'s office. He suggests Watson return there and take the text down word for word. Do not say what the comparison will reveal.',
   },
-  // Act 0's consequential choice: Mrs. Kemp must not leave before Watson has
-  // resolved the card one way or another (gave it, asked first, or withheld it).
-  {
-    act: 0,
-    requiresNpcPresent: 'mrs_kemp',
-    when: s => s.flags['showed_charity_card_to_holmes'] === true
-      && !s.flags['showed_charity_card_to_mrs_kemp']
-      && !s.flags['asked_mrs_kemp_about_kemp_why_she_hid']
-      && !s.flags['withheld_address'],
-    instruction: [
-      'Mrs. Kemp is at the door and has not gone. Watson is holding the card. Do not resolve this for him.',
-      'She is still at the door. The card is still in Watson\'s hand.',
-      'She waits. Watson has the card, and Holmes has given her the district but not the address.',
-    ],
-  },
-  {
-    act: 0,
-    requiresNpcPresent: 'holmes',
-    when: s => s.currentAct === 0
-      && s.flags['world_event_kemp_arrives'] === true
-      && !s.flags['opened_baker_street_nells_workbox'],
-    instruction: [
-      'Holmes, without turning round: she has not brought everything she brought for nothing. He does not name the box.',
-      'Holmes indicates the table. "The table, Watson." Nothing further.',
-      'Holmes, drier: "The box."',
-      'Holmes, drier still: "The box is not locked, Watson." He will say versions of this indefinitely and will never open it himself.',
-    ],
-  },
 ];
 
 export const WHITECHAPEL_MANIFEST: StoryManifest = {
@@ -123,6 +95,7 @@ export const WHITECHAPEL_MANIFEST: StoryManifest = {
   objectVisibility: OBJECT_VISIBILITY,
   containerContents: CONTAINER_CONTENTS,
   containerOpenNotes: CONTAINER_OPEN_NOTES,
+  examineDoesNotTake: ['pawn_ticket'],
   talkGrantsItem: TALK_GRANTS_ITEM,
   useInteractions: USE_INTERACTIONS,
   showInteractions: SHOW_INTERACTIONS,
@@ -147,7 +120,7 @@ export const WHITECHAPEL_MANIFEST: StoryManifest = {
 
   worldEvents: WORLD_EVENTS,
 
-  scriptedBeats: SCRIPTED_BEATS,
+  storyEvents: STORY_EVENTS,
 
   rumors: RUMORS,
 

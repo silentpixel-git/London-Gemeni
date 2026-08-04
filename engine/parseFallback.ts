@@ -7,7 +7,7 @@
  * The gateway op itself lives in server/parseAction.ts + server/aiCore.ts.
  */
 
-import { KEEP_PHRASES, type ParsedIntent } from './intentParser';
+import type { ParsedIntent } from './intentParser';
 import type { ParseCandidates, NPCState } from '../types';
 import { LOCATIONS, NPCS, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS } from './gameData';
 import { getPresentNpcIds, timePeriodFor } from './GameEngine';
@@ -31,18 +31,20 @@ const SOFT_MISS_VERBS = new Set<ParsedIntent['type']>(['examine', 'open', 'read'
 
 /**
  * Should this regex-parse result be routed through the AI parse?
- * Misses are: 'other' (unless a confirmed KEEP_PHRASES match), 'unresolved_target',
+ * Misses are: 'other' (unless a story-event raw phrase owns it), 'unresolved_target',
  * verb-with-unresolved-target, and the soft miss (an examine/open/read target that
  * resolved to a real object id, but one that is neither present here nor carried).
  * Queries never route — world questions belong to narration.
  */
 export function needsAiParse(intent: ParsedIntent, location: string, inventory: string[], flags: Record<string, boolean>): boolean {
   if (intent.type === 'other') {
-    // Already deterministically resolved via KEEP_PHRASES (Act 0's withhold
-    // choice) — nothing for the AI tier to add, and routing it there risks
-    // the model reinterpreting "keep the card" as a TAKE action instead
-    // (the charity card is a valid `take` candidate at that exact moment).
-    return !KEEP_PHRASES.includes(intent.targetRaw ?? '');
+    const raw = intent.raw.toLowerCase().replace(/[’]/g, "'").replace(/[^a-z0-9'\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    const isStoryEventPhrase = WHITECHAPEL_MANIFEST.storyEvents.some(event =>
+      event.triggers.some(trigger => trigger.rawPhrases?.some(phrase => {
+        const authored = phrase.toLowerCase().replace(/[’]/g, "'").replace(/[^a-z0-9'\s]/g, ' ').replace(/\s+/g, ' ').trim();
+        return raw === authored || raw.includes(authored);
+      })));
+    return !isStoryEventPhrase;
   }
   if (intent.type === 'unresolved_target') return true;
   if (

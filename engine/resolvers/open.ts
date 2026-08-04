@@ -47,6 +47,19 @@ export function resolveOpen(story: StoryManifest, intent: ParsedIntent, session:
   // container (story.containerOpenNotes), never on the re-open.
   const openNote = !alreadyOpen ? story.containerOpenNotes?.[targetId] : undefined;
 
+  const aiContext = buildNarrationContext(story, intent, session, {
+    success: true,
+    actionDescription: `Watson opened the ${objectName}.`,
+    actionResultNote: alreadyOpen
+      ? `SUCCESS — the ${objectName} is already open. Inside: ${revealed}. Watson looks again at what is already before him; no new discovery. One sentence.`
+      : `SUCCESS — the ${objectName} is now open. Inside: ${revealed}. Describe only these contents and nothing else.${openNote ? ` ${openNote}` : ''}`,
+    newClueDefs: [],
+  });
+  aiContext.availableObjects = visibleInteractables(story, session.location, {
+    ...session.flags,
+    ...flagsUpdate,
+  }).map(id => story.objectDisplayNames[id] ?? id);
+
   return {
     actionSuccess: true,
     actionType: 'open',
@@ -54,13 +67,6 @@ export function resolveOpen(story: StoryManifest, intent: ParsedIntent, session:
     newAct: actCheck.newAct,
     gameOver: actCheck.gameOver,
     discoveredClueIds: [],
-    aiContext: buildNarrationContext(story, intent, session, {
-      success: true,
-      actionDescription: `Watson opened the ${objectName}.`,
-      actionResultNote: alreadyOpen
-        ? `SUCCESS — the ${objectName} is already open. Inside: ${revealed}. Watson looks again at what is already before him; no new discovery. One sentence.`
-        : `SUCCESS — the ${objectName} is now open. Inside: ${revealed}. Describe only these contents and nothing else.${openNote ? ` ${openNote}` : ''}`,
-      newClueDefs: [],
-    }),
+    aiContext,
   };
 }

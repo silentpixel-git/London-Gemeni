@@ -120,33 +120,6 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
   // carry a disabling flag at all; it pins its location away from
   // goulston_street instead, which removes the collision at the source.
   {
-    // ACT 0 BEAT — Holmes at the open window, watching the holiday crowd.
-    // He means it as a complaint about the tedium of scale; it is the killer's
-    // entire thesis, stated before the killer exists. Guaranteed and one-shot
-    // so the irony cannot be missed. locationId 'any' resolves to wherever
-    // Watson is, which in Act 0 can only be Baker Street (exits are act-gated).
-    // Displaces holmes_watson_revolver, which moves to Act 1 as ambient below.
-    id: 'holmes_invisible_in_a_crowd',
-    npcId: 'holmes',
-    locationId: 'any',
-    acts: [0],
-    // Once both flags are true, this still only fires on a full-mode turn (a
-    // move or a bare LOOK) — selectApproach (engine/approaches.ts) is
-    // deliberately full-mode-only, after an earlier version that also fired on
-    // TALK turns silently dropped the beat's prose (the one-shot flag burned,
-    // but compact mode's narration budget was already spent elsewhere). The
-    // strict minimal path through Act 0's gate — show card, take ticket, talk
-    // to Holmes about crime — has no full-mode turn between the gate closing
-    // and the act completing, so a player who never pauses to LOOK can finish
-    // Act 0 without seeing this beat. Accepted tradeoff, not a bug: do not add
-    // scaffolding to force it into the minimal path, and do not touch
-    // selectApproach's full-mode gating to "fix" this.
-    requireFlags: ['showed_charity_card_to_holmes', 'took_baker_street_pawn_ticket'],
-    actBeat: true,
-    kind: 'mundane',
-    text: 'Holmes crosses to the open window and stands looking down at the holiday crowd. The whole city is turned out of doors tonight, he says, a hundred thousand of them at the least, and a man might walk through the whole of that and not one soul afterwards able to say he had passed. He says it as a complaint against the tedium of scale, and turns back into the room without waiting to be answered.',
-  },
-  {
     // Displaced from Act 0 by the window beat, and the better for it: arming
     // himself before a pre-dawn cab into Whitechapel fits the line far better
     // than the drawing room ever did. Ambient, not the act beat — Act 1's

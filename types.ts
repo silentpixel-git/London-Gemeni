@@ -232,6 +232,19 @@ export interface EngineResult {
   // NPC alias-system flags (npc_introduced_*) for the hook to apply.
   introductionFlagsUpdate?: Record<string, boolean>;
 
+  // Topic fact selected by TALK. Story-event matching consumes this stable id
+  // instead of re-interpreting the player's words after resolution.
+  resolvedTopicId?: string;
+
+  // A due follow-up is narrated as its own feed item after the action's main
+  // narration. Its effects are already merged into flagsUpdate on this result;
+  // the payload is presentation-only and cannot mutate state a second time.
+  followUpEvent?: {
+    storyEvent: StoryEventPayload;
+    effects: Record<string, boolean>;
+    aiContext: NarrationContext;
+  };
+
   // Context passed to AIService for narration (verified facts only)
   aiContext: NarrationContext;
 }
@@ -286,9 +299,13 @@ export interface NarrationContext {
   // no previous turn for; buildNarrationContext always sets both.
   npcsArrived?: string[];
   npcsDeparted?: string[];
-  // An authored beat due on this player turn (see ScriptedBeat). Rendered
-  // verbatim under the prose, not paraphrased by the model.
+  // Legacy presentation field retained until the Task 2 streaming/prompt
+  // migration lands; the engine no longer produces scripted beats.
   scriptedBeat?: { text: string; style: 'prose' | 'blockquote'; notice?: string };
+  // Deterministically selected pivotal event. Task 2 teaches the server prompt
+  // to integrate these ordered semantic beats; the engine owns their identity,
+  // order, effects and word ceiling now.
+  storyEvent?: StoryEventPayload;
   availableObjects: string[];     // Display names of interactable objects
   availableExits: string[];       // Display names of accessible exits
   inventory: string[];
@@ -413,6 +430,13 @@ export interface NarrationContext {
   // enough that the standard budget would force cutting its essential content
   // (e.g. a full reconstruction). Additive, opt-in — most turns leave this unset.
   extraWordBudget?: number;
+}
+
+export interface StoryEventPayload {
+  id: string;
+  beats: string[];
+  maxWords: number;
+  notice?: string;
 }
 
 /** Summary passed to AIService.generateJournalEntry() when an act closes */

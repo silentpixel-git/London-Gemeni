@@ -531,7 +531,9 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
 // (No entries currently authored — see TALK_GRANTS_ITEM for the pattern used
 // when an item should exist only because an NPC gave it, not as scenery.)
 // ─────────────────────────────────────────────────────────────────────────────
-export const TAKEABLE_REQUIRES_FLAG: Record<string, StoryFlag> = {};
+export const TAKEABLE_REQUIRES_FLAG: Record<string, StoryFlag> = {
+  pawn_ticket: 'act0_kemp_choice_resolved',
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TALK GRANTS ITEM — talking to this NPC adds a takeable object straight to
@@ -678,15 +680,19 @@ export const SHOW_INTERACTIONS: Record<string, Record<string, ShowInteraction>> 
   },
   'charity_card': {
     'holmes': {
-      requireFlags: ['opened_baker_street_nells_workbox'],
-      blockedNote: "Watson does not yet have the card in hand to show him.",
+      requireFlags: [
+        'examined_baker_street_pawn_ticket',
+        'act0_boots_analyzed',
+        'examined_baker_street_nells_letters',
+      ],
+      blockedNote: "Watson turns the card once between his fingers, but Holmes has not yet had every part of the little collection before him. Better not invite a conclusion from an incomplete account.",
       // Tuned via live playtest, not a guess: 170 still dropped the "Marchant"
       // reveal in some generations; 220 landed both reveals consistently.
       extraWordBudget: 220,
       resultNote: "SUCCESS — \"Sixteen weeks of shillings, and eleven letters that grow poorer as they go. A dead pair of boots that spent their last hundred miles in Bermondsey, and pawned the day before she went. Three Tuesdays south of the river she never named, and a departure on a fourth. A subscription to a lying-in charity under a name that is not hers, in a hand that is.\" He set the card down beside the boots. \"And a spring of sickness in the mornings, madam, which you assured her was the fish.\" Mrs. Kemp had gone very white. \"Your sister is not lost. She is five months gone with child. She has spent every one of those months walking near four miles each way rather than part with an omnibus fare, in order to buy herself a bed and a midwife in December, in a parish where nobody knows her face. She left Pentonville on the thirty-first because by the end of July she could no longer be looked at.\" On the box: \"Observe that she packed with great care. Everything she took, she chose. She left this because it was heavy and belonged to the life she was quitting, and she forgot what was inside it.\" He closed the lid. \"She left nothing behind her by accident but this. It is therefore the only honest object in the room.\" \"One further point of interest. The name she gave the charity was Marchant.\" \"That was...\" Her voice failed her. \"That was our mother's name.\" \"Yes,\" said Holmes. \"She wanted something of her family with her. She merely wanted it without the rest of you.\"",
     },
     'mrs_kemp': {
-      requireFlags: ['showed_charity_card_to_holmes'],
+      requireFlags: ['act0_reconstruction_complete'],
       blockedNote: "Watson has not yet laid the card before Holmes.",
       resultNote: "SUCCESS — Watson puts the card into her hand. Holmes has given her the district and the nature of the place; he has not given her this. She looks at it a long moment. She takes it without a word, or with one word only. Watson has done what Holmes would not.",
     },

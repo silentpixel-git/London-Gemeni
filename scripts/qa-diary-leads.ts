@@ -72,7 +72,7 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
 // 5) isRequiredFlag: true only for real gate flags of the given act; excludes
 //    the Act 5 sentinel and flags belonging to other acts.
 {
-  isRequiredFlag(0, 'asked_holmes_about_holmes_crime_grown_dull')
+  isRequiredFlag(0, 'act0_closing_complete')
     ? pass('isRequiredFlag: true for a real Act 0 gate flag')
     : fail('isRequiredFlag should be true for a real Act 0 gate flag');
   isRequiredFlag(5, SENTINEL)
@@ -92,26 +92,24 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
     : fail('clueGateFlag mismatch', clueGateFlag(def));
 }
 
-// 7) detectSilentLeadFlags: an Act 0 turn setting all four gate flags at once
-//    excludes the decision-covered ones (the ticket examine and the SHOW to
-//    Holmes both have DECISION_DIARY entries), returning exactly the two
-//    currently-silent leads. Act 0 yields no clue, so nothing is clue-covered.
+// 7) detectSilentLeadFlags: reconstruction has an authored decision entry,
+//    while the caller and closing semantic gates need generated lead entries.
 {
   const silent = detectSilentLeadFlags({
     actNumber: 0,
     flagsUpdate: {
-      asked_mrs_kemp_about_kemp_sister_missing: true,
+      act0_caller_noticed: true,
       examined_baker_street_pawn_ticket: true,
-      showed_pawn_ticket_to_holmes: true,
-      asked_holmes_about_holmes_crime_grown_dull: true,
+      act0_reconstruction_complete: true,
+      act0_closing_complete: true,
     },
     priorFlags: {},
     discoveredClueIds: [],
   });
   const set = new Set(silent);
   (set.size === 2
-    && set.has('asked_mrs_kemp_about_kemp_sister_missing')
-    && set.has('asked_holmes_about_holmes_crime_grown_dull'))
+    && set.has('act0_caller_noticed')
+    && set.has('act0_closing_complete'))
     ? pass('detectSilentLeadFlags: Act 0 turn returns exactly the 2 uncovered leads')
     : fail('detectSilentLeadFlags returned the wrong set', silent.join(','));
 }
@@ -120,8 +118,8 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
 {
   const silent = detectSilentLeadFlags({
     actNumber: 0,
-    flagsUpdate: { asked_holmes_about_holmes_crime_grown_dull: true },
-    priorFlags: { asked_holmes_about_holmes_crime_grown_dull: true },
+    flagsUpdate: { act0_closing_complete: true },
+    priorFlags: { act0_closing_complete: true },
     discoveredClueIds: [],
   });
   silent.length === 0

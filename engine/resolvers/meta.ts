@@ -1,12 +1,10 @@
 import { EngineResult } from '../../types';
-import { ParsedIntent, KEEP_PHRASES } from '../intentParser';
+import { ParsedIntent } from '../intentParser';
 import type { StoryManifest } from '../stories/types';
 import type { SessionSnapshot } from '../session';
 import { buildNarrationContext, blocked } from '../narrationContext';
 import { computeTimePeriod, minutesToNextPeriodBoundary, resolveActDay } from '../time';
 import { visibleInteractables } from '../visibility';
-import { periodOf } from './support';
-import { getPresentNpcIds } from '../presence';
 
 // --------------------------------------------------------
 // WAIT (Phase 4a: advances the clock to the next time period)
@@ -139,37 +137,6 @@ export function resolveUnresolvedTarget(story: StoryManifest, intent: ParsedInte
 // --------------------------------------------------------
 
 export function resolveOther(story: StoryManifest, intent: ParsedIntent, session: SessionSnapshot): EngineResult {
-  const currentLoc = story.locations[session.location];
-
-  // Act-0-specific: the "keep the card" / "say nothing" branch of the act's one
-  // consequential choice. Only live once Holmes has done the reconstruction —
-  // otherwise there's no address yet to withhold — and only with Mrs. Kemp
-  // actually in the room to withhold it from.
-  if (
-    session.currentAct === 0 &&
-    session.flags['showed_charity_card_to_holmes'] === true &&
-    intent.targetRaw !== undefined &&
-    KEEP_PHRASES.includes(intent.targetRaw)
-  ) {
-    const presentNpcIds = getPresentNpcIds(story.npcs, session.location, session.npcStates,
-      session.currentAct, periodOf(story, session), session.flags);
-    if (presentNpcIds.includes('mrs_kemp')) {
-      return {
-        actionSuccess: true,
-        actionType: 'other',
-        flagsUpdate: { withheld_address: true },
-        discoveredClueIds: [],
-        aiContext: buildNarrationContext(story, intent, session, {
-          success: true,
-          actionDescription: 'Watson chose to say nothing and kept the card in his pocket.',
-          actionResultNote:
-            'SUCCESS — Watson says nothing. The card stays in his pocket. Mrs. Kemp waits a moment longer, then understands, and does not ask again.',
-          newClueDefs: [],
-        }),
-      };
-    }
-  }
-
   return {
     actionSuccess: true,
     actionType: 'other',

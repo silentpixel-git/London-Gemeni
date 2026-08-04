@@ -20,12 +20,9 @@ export const WORLD_EVENTS: WorldEventDefinition[] = [
     // happened, and the holiday is simply a holiday.
     text: 'Midnight comes over London in a slow relay of church bells, each parish a half-beat behind the last. Tonight not one of them can make itself heard over the holiday, which shows no sign whatever of going home.',
   },
-  // Mrs. Kemp's arrival is NOT a world event. It is the four-beat opening
-  // sequence in scriptedBeats.ts, which lands one beat per player action. A
-  // clock-timed event could not do that: verbs cost different amounts of time,
-  // so a single 5-minute TALK crosses several fire times at once and delivered
-  // the whole arrival in one lump. `world_event_kemp_arrives` remains the flag
-  // that admits her and her belongings; the last scripted beat sets it.
+  // Mrs. Kemp's arrival is not clock-timed. The action-triggered Act 0 event
+  // sets `world_event_kemp_arrives`, preserving the established presence and
+  // object-visibility flag without allowing unrelated turns to admit her.
   {
     id: 'act2_church_bells',
     act: 2,

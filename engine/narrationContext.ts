@@ -81,25 +81,10 @@ export function buildNarrationContext(
   for (const { e } of firedEvents) worldEventFlagsUpdate[`world_event_${e.id}`] = true;
   const worldEvents = firedEvents.length > 0 ? firedEvents.map(({ e }) => e.text) : undefined;
 
-  // Authored staging keyed to the player-turn index (see ScriptedBeat). At most
-  // one lands per turn by construction — that is the whole point of the
-  // mechanism — and it is delivered once, tracked as beat_<id>.
-  const scriptedBeatFlagsUpdate: Record<string, boolean> = {};
-  const firedBeat = story.scriptedBeats.find(b =>
-    b.act === session.currentAct &&
-    b.atTurn === session.turnCount &&
-    !session.flags[`beat_${b.id}`]);
-  if (firedBeat) {
-    scriptedBeatFlagsUpdate[`beat_${firedBeat.id}`] = true;
-    if (firedBeat.setsFlag) scriptedBeatFlagsUpdate[firedBeat.setsFlag] = true;
-  }
-  const scriptedBeat = firedBeat ? { text: firedBeat.text, style: firedBeat.style, notice: firedBeat.notice } : undefined;
-
-  /** Flags as they stand AFTER this turn's world events and scripted beat —
-   *  what the room looks like now. A beat that admits an NPC must be visible to
-   *  the presence and object-visibility reads below, or the prose is told the
-   *  room is empty on the very turn the caller walks into it. */
-  const flagsNow = { ...session.flags, ...worldEventFlagsUpdate, ...scriptedBeatFlagsUpdate };
+  /** Flags as they stand after this turn's clock events. Action-triggered story
+   *  effects are matched post-resolution and refresh the state-derived context
+   *  fields in engine/storyEvents.ts. */
+  const flagsNow = { ...session.flags, ...worldEventFlagsUpdate };
 
   // Determine which NPCs are in this location after any movements
   const resolvedNpcStates = { ...session.npcStates };
@@ -306,9 +291,7 @@ export function buildNarrationContext(
     // blockquote budget — a prose beat is already the turn's substance, so
     // asking the model for its own quoted aside on top invites the same
     // wall-of-text problem this whole mechanism exists to bound.
-    scriptedBeat
-      ? 'none'
-      : narrationMode === 'full'
+    narrationMode === 'full'
         ? 'world_event'
         : Math.random() < 0.3 ? 'inner_thought' : 'none';
 
@@ -457,7 +440,6 @@ export function buildNarrationContext(
     npcsPresent,
     npcsArrived,
     npcsDeparted,
-    scriptedBeat,
     availableObjects,
     availableExits,
     inventory: session.inventory,
@@ -490,12 +472,9 @@ export function buildNarrationContext(
     _vignetteFlagsUpdate: Object.keys(vignetteFlagsUpdate).length > 0
       ? vignetteFlagsUpdate
       : undefined,
-    // World-event and scripted-beat once-only flags — lifted onto
-    // result.flagsUpdate in resolve(). They share this channel because they are
-    // the same kind of thing: authored beats that fire once and must be
-    // recorded, or they re-fire on the next turn.
-    _worldEventFlagsUpdate: Object.keys({ ...worldEventFlagsUpdate, ...scriptedBeatFlagsUpdate }).length > 0
-      ? { ...worldEventFlagsUpdate, ...scriptedBeatFlagsUpdate }
+    // World-event once-only flags — lifted onto result.flagsUpdate in resolve().
+    _worldEventFlagsUpdate: Object.keys(worldEventFlagsUpdate).length > 0
+      ? worldEventFlagsUpdate
       : undefined,
     // Rumor-ack once-only flags — lifted onto result.flagsUpdate in resolve()
     _rumorAckFlagsUpdate: Object.keys(rumorAckFlagsUpdate).length > 0

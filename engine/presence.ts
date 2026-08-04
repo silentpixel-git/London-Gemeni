@@ -84,6 +84,8 @@ export function npcLocationAt(
   if (!npc) return 'offstage';
   // Not yet arrived: offstage no matter what the schedule says.
   if (npc.presenceRequiresFlag && flags[npc.presenceRequiresFlag] !== true) return 'offstage';
+  // Already departed: offstage even if the act schedule still names the room.
+  if (npc.presenceForbidFlag && flags[npc.presenceForbidFlag] === true) return 'offstage';
   const sched = npc.scheduleByAct[act];
   const scheduled = sched ? (sched.byPeriod?.[timePeriod] ?? sched.default) : undefined;
   const stored = npcStates[npcId]?.currentLocation;

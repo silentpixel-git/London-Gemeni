@@ -12,8 +12,8 @@
  * flag, facts askable before they are earned.
  *
  * KNOWN LIMITS of the fidelity — do not read these as covered:
- *  - turnsAtLocationWithoutProgress is NOT advanced, so act safety nets
- *    (the workbox nag, the at-the-door card nag) never fire in a golden run.
+ *  - turnsAtLocationWithoutProgress is NOT advanced, so act safety nets are
+ *    not exercised in a golden run.
  *  - ITEM_SPENT_AFTER_ACT pruning happens in the hook, not here, so a
  *    post-transition snapshot still carries items live play has taken away.
  *  - Narration prose is never inspected; these are mechanical assertions.
@@ -147,11 +147,10 @@ interface GoldenChecks {
   expectNpcAbsent?: string[];
   expectVisible?: string[];        // case-insensitive substrings of aiContext.availableObjects
   expectHidden?: string[];
-  expectBeat?: boolean;            // a scripted beat fired this turn
-  expectNoticeIncludes?: string;   // substring of the beat payload
-  expectApproachNpc?: string | null; // npcApproach fired (by npcId) / explicitly none
+  expectEvent?: string | null;      // storyEvent id, or explicitly none
+  expectNoticeIncludes?: string;   // substring of the event payload
   expectItemGained?: string;       // exact inventory entry present after the turn
-  expectWordBudget?: number;       // aiContext.extraWordBudget — playtest-tuned, load-bearing
+  expectWordBudget?: number;       // storyEvent.maxWords — playtest-tuned, load-bearing
 }
 
 function goldenStep(label: string, snap: SessionSnapshot, input: string, checks: GoldenChecks = {}): SessionSnapshot {
@@ -220,28 +219,16 @@ function goldenStep(label: string, snap: SessionSnapshot, input: string, checks:
         : fail(`${prefix} → object "${sub}" visible before its gate`, JSON.stringify(objects));
     }
   }
-  if (checks.expectBeat !== undefined) {
-    const beat = result.aiContext.scriptedBeat;
-    !!beat === checks.expectBeat
-      ? pass(`${prefix} → scripted beat ${checks.expectBeat ? 'fired' : 'did not fire'}`)
-      : fail(`${prefix} → expected scriptedBeat=${checks.expectBeat}, got ${JSON.stringify(beat)}`);
+  if (checks.expectEvent !== undefined) {
+    const event = result.aiContext.storyEvent;
+    event?.id === checks.expectEvent || (checks.expectEvent === null && !event)
+      ? pass(`${prefix} → story event ${checks.expectEvent ?? 'did not fire'}`)
+      : fail(`${prefix} → expected storyEvent=${checks.expectEvent}, got ${JSON.stringify(event)}`);
   }
   if (checks.expectNoticeIncludes !== undefined) {
-    JSON.stringify(result.aiContext.scriptedBeat ?? {}).includes(checks.expectNoticeIncludes)
-      ? pass(`${prefix} → beat carries "${checks.expectNoticeIncludes}"`)
-      : fail(`${prefix} → beat payload missing "${checks.expectNoticeIncludes}"`, JSON.stringify(result.aiContext.scriptedBeat));
-  }
-  if (checks.expectApproachNpc !== undefined) {
-    const approach = (result.aiContext as any).npcApproach;
-    if (checks.expectApproachNpc === null) {
-      !approach
-        ? pass(`${prefix} → no NPC approach`)
-        : fail(`${prefix} → unexpected approach`, JSON.stringify(approach));
-    } else {
-      approach?.npcId === checks.expectApproachNpc
-        ? pass(`${prefix} → approach from "${checks.expectApproachNpc}"`)
-        : fail(`${prefix} → expected approach from "${checks.expectApproachNpc}"`, JSON.stringify(approach));
-    }
+    JSON.stringify(result.aiContext.storyEvent ?? {}).includes(checks.expectNoticeIncludes)
+      ? pass(`${prefix} → event carries "${checks.expectNoticeIncludes}"`)
+      : fail(`${prefix} → event payload missing "${checks.expectNoticeIncludes}"`, JSON.stringify(result.aiContext.storyEvent));
   }
   if (checks.expectItemGained !== undefined) {
     next.inventory.includes(checks.expectItemGained)
@@ -249,10 +236,10 @@ function goldenStep(label: string, snap: SessionSnapshot, input: string, checks:
       : fail(`${prefix} → inventory missing "${checks.expectItemGained}"`, JSON.stringify(next.inventory));
   }
   if (checks.expectWordBudget !== undefined) {
-    const budget = (result.aiContext as any).extraWordBudget;
+    const budget = result.aiContext.storyEvent?.maxWords;
     budget === checks.expectWordBudget
-      ? pass(`${prefix} → extraWordBudget=${checks.expectWordBudget}`)
-      : fail(`${prefix} → expected extraWordBudget=${checks.expectWordBudget}, got ${budget}`);
+      ? pass(`${prefix} → storyEvent.maxWords=${checks.expectWordBudget}`)
+      : fail(`${prefix} → expected storyEvent.maxWords=${checks.expectWordBudget}, got ${budget}`);
   }
   return next;
 }
@@ -290,7 +277,7 @@ function probe(label: string, snap: SessionSnapshot, input: string, expect: {
 
 // ── Act 0 — The Bank Holiday (score: docs/act0-bank-holiday-spec.md) ─────────
 //
-// Canonical give-branch run. Scenes A–H; six-flag gate across five verbs.
+// Canonical give-branch run through the action-triggered event chain.
 
 function runGoldenAct0(): void {
   console.log('\n=== GOLDEN: Act 0 — The Bank Holiday (give branch) ===');
@@ -302,83 +289,81 @@ function runGoldenAct0(): void {
   probe(A0, s, 'examine the pawn ticket', { blocked: true, flagNotSet: 'examined_baker_street_pawn_ticket' });
   probe(A0, s, 'go to dorset street', { blocked: true });
 
-  // Scene A — the window. Beats 1–3 stage the opening, one per action.
-  s = goldenStep(A0, s, 'look out the window', {
+  // Scene A — Holmes reads the crowd only when Watson engages him or it.
+  s = goldenStep(A0, s, 'examine the chemistry table', {
     expectSuccess: true,
-    expectFlags: ['examined_baker_street_open_window', 'examined_baker_street', 'beat_act0_holmes_reads_the_crowd'],
-    expectBeat: true,
+    expectFlags: ['examined_baker_street_holmes_chemistry_table'],
+    expectNotFlags: ['act0_caller_noticed'],
+    expectEvent: null,
     expectNpcs: ['holmes'],
     expectHidden: ['pawn', 'workbasket', 'boots'],
   });
-  s = goldenStep(A0, s, 'examine the concluded case', {
+  s = goldenStep(A0, s, 'talk to holmes', {
     expectSuccess: true,
-    expectFlags: ['examined_baker_street_concluded_case_file', 'beat_act0_holmes_notices_the_caller'],
-    expectBeat: true,
+    expectFlags: ['act0_caller_noticed', 'story_event_act0_caller_noticed'],
+    expectNotFlags: ['act0_bell_rang'],
+    expectEvent: 'act0_caller_noticed',
     expectNpcs: ['holmes'],
   });
-  s = goldenStep(A0, s, 'examine the chemistry table', {
+  s = goldenStep(A0, s, 'examine the concluded case', {
     expectSuccess: true,
-    expectFlags: ['examined_baker_street_holmes_chemistry_table', 'beat_act0_the_bell'],
-    expectBeat: true,
+    expectNotFlags: ['act0_bell_rang'],
+    expectEvent: null,
+  });
+  s = goldenStep(A0, s, 'examine the woman', {
+    expectSuccess: true,
+    expectFlags: ['act0_bell_rang', 'story_event_act0_bell_rang'],
+    expectEvent: 'act0_bell_rang',
     expectNoticeIncludes: 'Door bell',
   });
 
-  // Scene B — the arrival (beat 4 sets the presence flag) and the account.
+  // Scene B — the caller waits for an explicit door action.
   s = goldenStep(A0, s, 'look', {
     expectSuccess: true,
-    expectFlags: ['beat_act0_kemp_shown_up', 'world_event_kemp_arrives'],
-    expectBeat: true,
+    expectNotFlags: ['world_event_kemp_arrives'],
+    expectEvent: null,
+    expectNpcs: ['holmes'],
+  });
+  s = goldenStep(A0, s, 'answer the door', {
+    expectSuccess: true,
+    expectFlags: ['world_event_kemp_arrives', 'story_event_act0_kemp_arrives'],
+    expectNotFlags: ['act0_kemp_business_heard'],
+    expectEvent: 'act0_kemp_arrives',
     expectNpcs: ['holmes', 'mrs_kemp'],
     expectVisible: ['pawn', 'workbasket', 'boots'],
     expectHidden: ['correspondence', 'subscriber'],
   });
-  s = goldenStep(A0, s, 'ask mrs kemp about her sister', {
+  s = goldenStep(A0, s, 'talk to mrs kemp', {
     expectSuccess: true,
-    expectFlags: ['asked_mrs_kemp_about_kemp_sister_missing', 'talked_to_mrs_kemp_at_baker_street', 'beat_act0_holmes_opening_account'],
-    expectBeat: true, // beat 5 — the last scripted beat; control handed over
+    expectFlags: ['act0_kemp_business_heard', 'talked_to_mrs_kemp_at_baker_street', 'story_event_act0_kemp_business'],
+    expectEvent: 'act0_kemp_business',
   });
 
   // Scene C — the ticket and the boots.
   s = goldenStep(A0, s, 'examine the pawn ticket', {
     expectSuccess: true,
-    expectFlags: ['examined_baker_street_pawn_ticket', 'filed_pawn_ticket'],
-    expectItemGained: "Nell's Pawn Ticket",
-    expectBeat: false, // turns 6+ are beat-free
+    expectFlags: ['examined_baker_street_pawn_ticket'],
+    expectEvent: null,
   });
   s = goldenStep(A0, s, 'examine the boots', {
     expectSuccess: true,
-    expectFlags: ['examined_baker_street_nells_boots'],
-    expectBeat: false,
-  });
-  s = goldenStep(A0, s, 'show the ticket to holmes', {
-    expectSuccess: true,
-    expectFlags: ['showed_pawn_ticket_to_holmes'],
+    expectFlags: ['examined_baker_street_nells_boots', 'act0_boots_analyzed', 'story_event_act0_boots_analyzed'],
+    expectEvent: 'act0_boots_analyzed',
   });
 
-  // Scene D — the workbox. Examining is not opening; the card can't be shown yet.
-  probe(A0, s, 'show the card to holmes', { blocked: true, flagNotSet: 'showed_charity_card_to_holmes' });
+  // Scene D — all three evidence prerequisites are required for reconstruction.
+  probe(A0, s, 'ask holmes about the card', { flagNotSet: 'act0_reconstruction_complete' });
   probe(A0, s, 'examine the workbox', { flagNotSet: 'opened_baker_street_nells_workbox' });
   s = goldenStep(A0, s, 'open the workbox', {
     expectSuccess: true,
     expectFlags: ['opened_baker_street_nells_workbox'],
-    // Deliberate, and NOT a bug — asserted so the reason stays on the record.
-    // The contents are absent from availableObjects for exactly this one turn:
-    // flagsNow (engine/narrationContext.ts:102) merges world-event and
-    // scripted-beat flags but not the resolver's own flagsUpdate. The prose is
-    // still correct, because resolveOpen's own note names them outright —
-    // "Inside: Nell's Correspondence, A Subscriber's Card. Describe only these
-    // contents and nothing else" (engine/resolvers/open.ts:42,62) — and an OPEN
-    // turn is compact mode, where the player-facing "Objects of interest" line
-    // is not emitted at all. Do NOT "fix" this by folding outcome.flagsUpdate
-    // into flagsNow: that same bag feeds NPC presence (line 112) and the
-    // knowledge envelope (line 366), so it would pull NPCs onstage a turn early
-    // and unseal all six of Holmes's gated facts on the turn the card is shown.
-    expectHidden: ['correspondence', 'subscriber'],
+    expectVisible: ['correspondence', 'subscriber'],
+    expectEvent: null,
   });
   s = goldenStep(A0, s, "examine nell's letters", {
     expectSuccess: true,
     expectFlags: ['examined_baker_street_nells_letters'],
-    expectVisible: ['correspondence', 'subscriber'], // present from the turn after the open
+    expectVisible: ['correspondence', 'subscriber'],
   });
   s = goldenStep(A0, s, 'examine the card', {
     expectSuccess: true,
@@ -386,41 +371,34 @@ function runGoldenAct0(): void {
     expectItemGained: "A Subscriber's Card",
   });
 
-  // Scene E — the reconstruction. The closing fact is sealed until it fires.
-  probe(A0, s, 'ask holmes about the criminal classes', { flagNotSet: 'asked_holmes_about_holmes_crime_grown_dull' });
+  // Scene E — the reconstruction is one bounded story event.
   s = goldenStep(A0, s, 'show the card to holmes', {
     expectSuccess: true,
-    expectFlags: ['showed_charity_card_to_holmes'],
-    // The reconstruction needs room for both reveals — 170 dropped the
-    // "Marchant" turn of the screw in live generations (clues.ts). Without this
-    // assertion the budget can be deleted and the suite stays green.
-    expectWordBudget: 220,
+    expectFlags: ['showed_charity_card_to_holmes', 'act0_reconstruction_complete', 'story_event_act0_reconstruction'],
+    expectEvent: 'act0_reconstruction',
+    expectWordBudget: 300,
   });
 
   // Scene F — the choice (give branch) and the ticket she leaves behind.
   s = goldenStep(A0, s, 'give the card to mrs kemp', {
     expectSuccess: true,
-    expectFlags: ['showed_charity_card_to_mrs_kemp'],
+    expectFlags: ['showed_charity_card_to_mrs_kemp', 'act0_kemp_choice_resolved', 'story_event_act0_give_card'],
+    expectEvent: 'act0_give_card',
+    expectNpcAbsent: ['mrs_kemp'],
   });
   s = goldenStep(A0, s, 'take the ticket', {
     expectSuccess: true,
     expectFlags: ['took_baker_street_pawn_ticket'],
-    expectAct: 0, // 5/6 gate flags — the closing ask is still owed
+    expectItemGained: "Nell's Pawn Ticket",
+    expectAct: 0,
   });
   probe(A0, s, 'examine the chemistry table', { noActAdvance: true });
 
-  // Scene G — the window again (the guaranteed act beat, full-mode turn).
-  s = goldenStep(A0, s, 'look', {
+  // Scene G — Watson deliberately returns to Holmes and the window.
+  s = goldenStep(A0, s, 'talk to holmes', {
     expectSuccess: true,
-    expectFlags: ['approach_holmes_invisible_in_a_crowd'],
-    expectApproachNpc: 'holmes',
-    expectAct: 0,
-  });
-
-  // Scene H — crime grown dull: gate flag 6/6, act advance, anchor cut.
-  s = goldenStep(A0, s, 'ask holmes about the criminal classes', {
-    expectSuccess: true,
-    expectFlags: ['asked_holmes_about_holmes_crime_grown_dull', 'act_1_started'],
+    expectFlags: ['act0_closing_complete', 'story_event_act0_closing', 'act_1_started'],
+    expectEvent: 'act0_closing',
     expectAct: 1,
     expectLocation: 'dorset_street',
     expectNpcPresent: ['holmes'],   // follows_watson carries him through the cut
@@ -442,24 +420,26 @@ function runGoldenAct0Withhold(): void {
 
   // Fast-forward through the settled canonical path (asserted in the run above).
   for (const input of [
-    'look out the window', 'examine the concluded case', 'examine the chemistry table', 'look',
-    'ask mrs kemp about her sister', 'examine the pawn ticket', 'examine the boots',
-    'show the ticket to holmes', 'open the workbox', "examine nell's letters",
+    'talk to holmes', 'examine the woman', 'answer the door', 'talk to mrs kemp',
+    'examine the pawn ticket', 'examine the boots', 'open the workbox', "examine nell's letters",
     'examine the card', 'show the card to holmes',
   ]) {
     s = goldenStep(A0W, s, input);
   }
 
   s = goldenStep(A0W, s, 'say nothing', {
-    expectFlags: ['withheld_address'],
+    expectFlags: ['withheld_address', 'act0_kemp_choice_resolved', 'story_event_act0_withhold_card'],
     expectNotFlags: ['showed_charity_card_to_mrs_kemp'],
+    expectEvent: 'act0_withhold_card',
+    expectNpcAbsent: ['mrs_kemp'],
   });
   s = goldenStep(A0W, s, 'take the ticket', {
     expectFlags: ['took_baker_street_pawn_ticket'],
     expectAct: 0,
   });
-  s = goldenStep(A0W, s, 'ask holmes about the criminal classes', {
-    expectFlags: ['asked_holmes_about_holmes_crime_grown_dull'],
+  s = goldenStep(A0W, s, 'examine the street', {
+    expectFlags: ['act0_closing_complete', 'story_event_act0_closing'],
+    expectEvent: 'act0_closing',
     expectAct: 1,
     expectLocation: 'dorset_street',
   });

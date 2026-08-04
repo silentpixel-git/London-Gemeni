@@ -29,7 +29,8 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
   }
 }
 
-// 2) Act 0 prerequisite chain: workbox unopened → the card is not yet showable.
+// 2) Act 0 prerequisite chain: opening the workbox reveals two explicit
+//    evidence actions, but reconstruction remains gated on the whole set.
 {
   const before = state({ currentAct: 0, location: 'baker_street',
     flags: { world_event_kemp_arrives: true },
@@ -39,8 +40,9 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
     } });
   const pool = OBJECTIVES.filter(o => o.act === 0 && !o.done(before) && o.available(before));
   const ids = pool.map(o => o.id);
-  ids.includes('a0_ticket') && ids.includes('a0_workbox') && !ids.includes('a0_card')
-    ? pass('act0: examine-ticket and examine-workbox available, show-card not (workbox unopened)')
+  ids.includes('a0_ticket') && ids.includes('a0_workbox') && ids.includes('a0_boots') &&
+      !ids.includes('a0_card') && !ids.includes('a0_reconstruction')
+    ? pass('act0: table evidence available, workbox contents and reconstruction still gated')
     : fail('act0 prereq gating wrong', ids.join(','));
 
   const after = state({ currentAct: 0, location: 'baker_street',
@@ -50,8 +52,9 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
       mrs_kemp: { currentLocation: 'baker_street', status: 'alive' },
     } });
   const ids2 = OBJECTIVES.filter(o => o.act === 0 && !o.done(after) && o.available(after)).map(o => o.id);
-  ids2.includes('a0_card') && !ids2.includes('a0_workbox')
-    ? pass('act0: with workbox opened, show-card available, examine-workbox done')
+  ids2.includes('a0_card') && ids2.includes('a0_letters') && !ids2.includes('a0_workbox') &&
+      !ids2.includes('a0_reconstruction')
+    ? pass('act0: open workbox exposes card and letters, not premature reconstruction')
     : fail('act0 show gating wrong', ids2.join(','));
 }
 

@@ -26,6 +26,7 @@ import { resolveTake, resolveUse, resolveDrop, resolveInventory } from './resolv
 import { resolveDeduce, resolveNotebook } from './resolvers/deduce';
 import { resolveWait, resolveHelp, resolveQuery, resolveUnresolvedTarget, resolveOther } from './resolvers/meta';
 import { selectApproach } from './approaches';
+import { applyStoryEvents } from './storyEvents';
 
 // Re-export for existing consumers (useGameState, parseFallback, qa scripts).
 export { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor, resolveActDay, rollForwardCalendarLabel };
@@ -95,13 +96,16 @@ export class GameEngine {
       }
     }
 
-    // Act progression for talk/show — these resolvers set gate flags
-    // (talked_to_*, showed_*) but do not run their own progression check.
-    if (
-      (result.actionType === 'talk' || result.actionType === 'show') &&
-      result.actionSuccess &&
-      result.newAct === undefined
-    ) {
+    // Pivotal authored events match the already-resolved action. Their effects
+    // are deterministic and merge before progression; a trigger explicitly
+    // marked replacesBlocked may authoritatively turn a base refusal into the
+    // successful story action the player's words requested.
+    result = applyStoryEvents(this.story, intent, session, result);
+
+    // Re-check progression after event effects for every successful action.
+    // Individual resolvers may already have checked their base flags, but they
+    // cannot see semantic event effects that are matched post-resolution.
+    if (result.actionSuccess && result.newAct === undefined) {
       const mergedFlags = { ...session.flags, ...(result.flagsUpdate ?? {}) };
       const actCheck = checkActProgression(this.story, session, mergedFlags);
       if (actCheck.newAct !== undefined) {
@@ -165,7 +169,8 @@ export class GameEngine {
     }
 
     // Proactive Watson hint — fires once per location when the player is stuck.
-    if (this.shouldFireHolmesNudge(session, result)) {
+    const pivotalTurn = !!result.aiContext.storyEvent || !!result.followUpEvent;
+    if (!pivotalTurn && this.shouldFireHolmesNudge(session, result)) {
       result.aiContext.watsonHint = this.story.selectHint(session);
       result.flagsUpdate = {
         ...result.flagsUpdate,
@@ -203,7 +208,7 @@ export class GameEngine {
 
     // NPC approach (see engine/approaches.ts) — after all outcome handling,
     // so suppression rules can see the whole turn.
-    const approach = selectApproach(this.story, session, result);
+    const approach = pivotalTurn ? null : selectApproach(this.story, session, result);
     if (approach) {
       result.aiContext.npcApproach = approach.npcApproach;
       result.flagsUpdate = { ...result.flagsUpdate, ...approach.flagsUpdate };

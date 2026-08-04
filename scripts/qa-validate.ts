@@ -29,7 +29,7 @@ import {
 import { ACT_PROGRESSION, ACT_TIME_CONFIG, ACT_ANCHORS } from '../engine/stories/whitechapel-1888/acts';
 import { computeTimePeriod, npcLocationAt, PERIOD_ORDER } from '../engine/GameEngine';
 import { WORLD_EVENTS } from '../engine/stories/whitechapel-1888/events';
-import { SCRIPTED_BEATS } from '../engine/stories/whitechapel-1888/scriptedBeats';
+import { STORY_EVENTS } from '../engine/stories/whitechapel-1888/storyEvents';
 import { SUSPECT_PROFILES } from '../engine/stories/whitechapel-1888/suspects';
 import { FACTS } from '../engine/stories/whitechapel-1888/facts';
 import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
@@ -75,6 +75,11 @@ const explicitSettableFlags = new Set<string>([
   ...Object.values(LOCATIONS).map(l => l.locationExaminedFlag),
   ...Object.keys(DECISION_BY_FLAG),
   'asylum_unlocked', // set by the engine on a correct deduction
+  ...STORY_EVENTS.flatMap(event => [
+    ...event.setFlags,
+    ...(event.fallback?.counterFlags ?? []),
+    ...(event.fallback?.setFlags ?? []),
+  ]),
 ]);
 
 /**
@@ -740,40 +745,50 @@ section('World events (Phase 4a)');
   pass(`${WORLD_EVENTS.length} world events structurally valid`);
 }
 
-section('Scripted beats');
+section('Action-triggered story events');
 {
   const seen = new Set<string>();
-  const takenTurns = new Map<string, string>(); // "act:turn" → beat id
-  for (const b of SCRIPTED_BEATS) {
-    if (seen.has(b.id)) fail(`scripted beat "${b.id}": duplicate id`);
-    seen.add(b.id);
-    if (!ACT_TIME_CONFIG[b.act]) fail(`scripted beat "${b.id}": act ${b.act} has no time config`);
-    if (!Number.isInteger(b.atTurn) || b.atTurn < 1) {
-      fail(`scripted beat "${b.id}": atTurn ${b.atTurn} must be a whole number from 1`,
-        'turn 0 is the scene-entry render (opening / act arrival / resume), which must stay unscripted');
+  const fallbackActs = new Set<number>();
+  for (const event of STORY_EVENTS) {
+    if (seen.has(event.id)) fail(`story event "${event.id}": duplicate id`);
+    seen.add(event.id);
+    if (!ACT_TIME_CONFIG[event.act]) fail(`story event "${event.id}": act ${event.act} has no time config`);
+    if (!event.triggers.length) fail(`story event "${event.id}": no triggers`);
+    if (!event.setFlags.length) fail(`story event "${event.id}": no semantic effects`);
+    if (!event.beats.length || event.beats.some(beat => !beat.trim())) fail(`story event "${event.id}": empty narration beats`);
+    if (!Number.isInteger(event.maxWords) || event.maxWords < 1) fail(`story event "${event.id}": invalid maxWords ${event.maxWords}`);
+    for (const trigger of event.triggers) {
+      for (const flag of [...(trigger.requireFlags ?? []), ...(trigger.forbidFlags ?? [])]) {
+        const reason = flagUnreachableReason(flag);
+        if (reason) fail(`story event "${event.id}": trigger flag "${flag}" can never be set`, reason);
+      }
+      for (const npcId of trigger.npcIds ?? []) if (!npcIds.has(npcId)) fail(`story event "${event.id}": unknown NPC "${npcId}"`);
+      for (const targetId of trigger.targetIds ?? []) {
+        if (!allObjectIds.has(targetId) && !npcIds.has(targetId)) fail(`story event "${event.id}": unknown target "${targetId}"`);
+      }
     }
-    if (!b.text.trim()) fail(`scripted beat "${b.id}": empty text`);
-    // The engine picks at most one beat per turn with .find(), so a second beat
-    // on the same act+turn would be silently dropped rather than queued.
-    const key = `${b.act}:${b.atTurn}`;
-    const clash = takenTurns.get(key);
-    if (clash) {
-      fail(`scripted beat "${b.id}": act ${b.act} turn ${b.atTurn} is already taken by "${clash}"`,
-        'only one beat fires per turn — the later one would never be delivered');
-    }
-    takenTurns.set(key, b.id);
-    // Beats are unconditional narration, exactly like world events.
-    if (/halward/i.test(b.text)) {
-      fail(`scripted beat "${b.id}" names the killer`, `"${b.text.slice(0, 80)}…"`);
-    }
-    // Dialogue in a blockquote reads as a pulled quote — the format split is the
-    // whole reason ScriptedBeat carries a style.
-    if (b.style === 'blockquote' && /["“”]/.test(b.text)) {
-      fail(`scripted beat "${b.id}": blockquote style contains quoted speech`,
-        "blockquotes are for atmosphere and Watson's interiority — use style 'prose' for dialogue");
+    const prose = event.beats.join(' ');
+    if (/halward|ripper|murder/i.test(prose)) fail(`story event "${event.id}": Act 0 prose foreshadows the later murders`);
+    if (event.fallback) {
+      if (fallbackActs.has(event.act)) fail(`story event "${event.id}": more than one fallback is authored for act ${event.act}`);
+      fallbackActs.add(event.act);
+      if (event.fallback.counterFlags.length !== event.fallback.afterEligibleActions) {
+        fail(`story event "${event.id}": fallback counter count does not equal afterEligibleActions`);
+      }
+      if (!event.fallback.beats.length) fail(`story event "${event.id}": fallback has no beats`);
+      if (event.fallback.locationId && !locationIds.has(event.fallback.locationId)) {
+        fail(`story event "${event.id}": fallback location "${event.fallback.locationId}" does not resolve`);
+      }
+      for (const flag of [...(event.fallback.requireFlags ?? []), ...(event.fallback.forbidFlags ?? [])]) {
+        const reason = flagUnreachableReason(flag);
+        if (reason) fail(`story event "${event.id}": fallback flag "${flag}" can never be set`, reason);
+      }
+      if (/halward|ripper|murder/i.test(event.fallback.beats.join(' '))) {
+        fail(`story event "${event.id}": fallback prose foreshadows the later murders`);
+      }
     }
   }
-  pass(`${SCRIPTED_BEATS.length} scripted beats structurally valid`);
+  pass(`${STORY_EVENTS.length} story events structurally valid`);
 }
 
 section('Schedule guard rail: gate NPCs findable at act start (Phase 4a)');
@@ -809,16 +824,15 @@ section('Schedule guard rail: gate NPCs findable at act start (Phase 4a)');
         // still fails below.
         //
         // Both sources count: an NPC may be admitted by a clock-timed world
-        // event or by a turn-indexed scripted beat (Act 0's caller is the
-        // latter — see engine/stories/whitechapel-1888/scriptedBeats.ts).
+        // event or by an action-triggered story event.
         if (npc.presenceRequiresFlag.startsWith('world_event_')) {
           const eventId = npc.presenceRequiresFlag.slice('world_event_'.length);
           const event = WORLD_EVENTS.find(e => e.id === eventId);
           if (event && event.act === act) gateFlags[npc.presenceRequiresFlag] = true;
         }
-        const admittingBeat = SCRIPTED_BEATS.find(
-          b => b.act === act && b.setsFlag === npc.presenceRequiresFlag);
-        if (admittingBeat) gateFlags[npc.presenceRequiresFlag] = true;
+        const admittingEvent = STORY_EVENTS.find(
+          event => event.act === act && event.setFlags.includes(npc.presenceRequiresFlag as any));
+        if (admittingEvent) gateFlags[npc.presenceRequiresFlag] = true;
       }
       const atStart = npcLocationAt(NPCS, npcId, act, startPeriod, {}, gateFlags);
       checked++;
@@ -948,7 +962,8 @@ section('NPC approaches (Phase 5)');
   // conditional. An act beat that can be gated off, mis-pinned, or crowded by a
   // second beat is not guaranteed, which is the whole point of the flag.
   const beatFailsBefore = fails;
-  const actNumbers = Object.keys(ACT_TIME_CONFIG).map(Number).sort((x, y) => x - y);
+  // Act 0's designed moments are action-triggered story events, not approaches.
+  const actNumbers = Object.keys(ACT_TIME_CONFIG).map(Number).filter(act => act !== 0).sort((x, y) => x - y);
   const beats = APPROACHES.filter(a => a.actBeat);
   for (const a of beats) {
     const label = `act beat ${a.id}`;

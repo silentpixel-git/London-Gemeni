@@ -121,6 +121,7 @@ const NPCS_DATA = {
       0: { default: 'baker_street' },
     },
     presenceRequiresFlag: 'world_event_kemp_arrives',
+    presenceForbidFlag: 'act0_kemp_choice_resolved',
     // She is onstage for the whole of a single-room act, so this pool carries
     // every turn she is not being interviewed. Three was far too few. Every beat
     // is a seated caller's: nothing that touches the room or its furniture, or

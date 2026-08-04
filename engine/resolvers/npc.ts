@@ -69,6 +69,7 @@ export function resolveTalk(story: StoryManifest, intent: ParsedIntent, session:
   return {
     actionSuccess: true,
     actionType: 'talk',
+    resolvedTopicId: matched?.id,
     flagsUpdate,
     discoveredClueIds: [],
     inventoryAdd,

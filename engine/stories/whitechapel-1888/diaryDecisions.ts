@@ -22,7 +22,7 @@ export const DECISION_DIARY: Record<string, DecisionDiaryEntry> = {
     diaryNote: "The ticket on the table is for a pair of boots, pledged a week ago at a shop in Pentonville and redeemed, by her own hand, this very morning, before she had any cause yet to think her sister missing. I do not know what to make of the timing of it.",
   },
   the_reconstruction: {
-    flag: 'showed_charity_card_to_holmes',
+    flag: 'act0_reconstruction_complete',
     name: 'The Reconstruction',
     diaryNote: "He took the whole of it apart in front of me: the mud, the postmarks, the shillings, and had an answer before I had finished laying the last piece on the table. A woman's whole secret life, and it came to him as easily as a sum. I do not think I shall ever get used to watching him do that.",
   },

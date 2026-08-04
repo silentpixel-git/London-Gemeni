@@ -106,14 +106,6 @@ const WAIT_VERBS = [
   'wait', 'pass the time', 'linger', 'rest a while', 'bide',
 ];
 
-// Act 0's withhold branch — a deliberate non-action still needs to be a typed
-// action (see the 3c block below). Exported so engine/resolvers/meta.ts can
-// recognise the same phrases without duplicating the list.
-export const KEEP_PHRASES = [
-  'keep the card', 'keep it', 'keep the subscriber\'s card', 'say nothing',
-  'stay silent', 'hold my tongue', 'pocket the card',
-];
-
 // Inventory trigger words
 const INVENTORY_VERBS = [
   'inventory', 'what am i carrying', "what's in my bag", 'my items',
@@ -698,15 +690,6 @@ export function parseIntent(rawInput: string): ParsedIntent {
     }
   }
 
-  // 3c. Act 0's withhold branch. A deliberate non-action needs to be a typed
-  // action, or "keep it" is only reachable by failing to do anything, and a
-  // player who never thought of the choice gets it recorded against them.
-  for (const phrase of KEEP_PHRASES) {
-    if (norm === phrase || norm.startsWith(phrase + ' ')) {
-      return { type: 'other', targetRaw: phrase, raw: rawInput };
-    }
-  }
-
   // 3. Movement
   for (const verb of MOVE_VERBS.sort((a, b) => b.length - a.length)) {
     if (norm.startsWith(verb + ' ') || norm === verb) {
@@ -898,6 +881,13 @@ export function parseIntent(rawInput: string): ParsedIntent {
   const QUESTION_PREFIXES = /^(what|how|why|where|when|which|who|does|is|are|can|tell me|describe)/;
   if (QUESTION_PREFIXES.test(norm)) {
     return { type: 'query', targetRaw: rawInput, raw: rawInput };
+  }
+
+  // Spoken declarations are not implicit object examinations. In particular,
+  // a phrase such as "say nothing" must not fuzzy-match "Burned Clothing"
+  // merely because its final word is close to "clothing".
+  if (/^say\b/.test(norm)) {
+    return { type: 'other', raw: rawInput };
   }
 
   // 9. Typo correction: if no verb matched, try fixing a misspelled verb in
