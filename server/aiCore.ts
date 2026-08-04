@@ -104,7 +104,7 @@ NpcIds: holmes, abberline, bond, edmund, lusk, diemschutz, superintendent, hutch
 // NARRATION RESPONSE SCHEMA (minimal — no state mutations)
 // ============================================================
 
-const NARRATION_SCHEMA = {
+export const NARRATION_SCHEMA = {
   type: Type.OBJECT,
   properties: {
     markdownOutput: {
@@ -127,6 +127,7 @@ const NARRATION_SCHEMA = {
         tumblety: { type: Type.STRING },
         pizer: { type: Type.STRING },
         barmaid: { type: Type.STRING },
+        mrs_kemp: { type: Type.STRING },
       },
     },
     stimUpdate: {

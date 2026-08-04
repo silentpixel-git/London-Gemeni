@@ -25,6 +25,7 @@ import { ACT_ROMAN } from '../constants';
 import {
   buildNarrationPrompt,
   finalizeNarrationResponse,
+  NARRATION_SCHEMA,
   parseFinalNarrationResponse,
 } from '../server/aiCore';
 import {
@@ -202,6 +203,12 @@ const baseInterviewCtx: NarrationContext = {
 // ── Action-triggered story-event prompt contract ────────────────────────────
 
 {
+  const npcMemorySchema = NARRATION_SCHEMA.properties.npcMemoryUpdate as {
+    properties?: Record<string, unknown>;
+  };
+  check('structured narration schema accepts Mrs Kemp memory updates',
+    Boolean(npcMemorySchema.properties?.mrs_kemp));
+
   const eventCtx = {
     ...baseInterviewCtx,
     targetNpcInterview: undefined,
