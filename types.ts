@@ -325,6 +325,12 @@ export interface NarrationContext {
   actionSuccess: boolean;
   actionDescription: string;       // e.g. "Watson examined the burned clothing"
   actionResultNote: string;        // e.g. "SUCCESS — found evidence of killer's confidence" or "BLOCKED — ..."
+  // The player's literal typed input, verbatim. Distinct from actionDescription,
+  // which a matched story event overwrites with its own canned string — losing
+  // what the player actually asked for and leaving the reply reading as a non
+  // sequitur. This field is never overwritten, so narration can always open by
+  // connecting to the thing the player actually did.
+  playerInput?: string;
   newCluesDiscovered: Array<{      // Newly triggered clues for this action
     name: string;
     description: string;

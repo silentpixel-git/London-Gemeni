@@ -16,7 +16,7 @@
  */
 
 import { LOCATIONS, OBJECT_VISIBILITY, CONTAINER_CONTENTS } from '../engine/stories/whitechapel-1888/locations';
-import { NPCS } from '../engine/stories/whitechapel-1888/npcs';
+import { NPCS, NPC_DISPLAY_NAMES, NPC_ALIASES } from '../engine/stories/whitechapel-1888/npcs';
 import {
   CLUE_DEFINITIONS,
   CLUE_TRIGGERS,
@@ -32,7 +32,7 @@ import { WORLD_EVENTS } from '../engine/stories/whitechapel-1888/events';
 import { STORY_EVENTS } from '../engine/stories/whitechapel-1888/storyEvents';
 import { SUSPECT_PROFILES } from '../engine/stories/whitechapel-1888/suspects';
 import { FACTS } from '../engine/stories/whitechapel-1888/facts';
-import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
+import { deriveKnowledgeEnvelope, matchTopic } from '../engine/stories/knowledge';
 import { DECISION_BY_FLAG } from '../engine/stories/whitechapel-1888/diaryDecisions';
 import { INITIAL_INVENTORY } from '../constants';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
@@ -546,6 +546,40 @@ section('Facts');
     pass(`${askable}/${FACTS.length} facts are askable: topics lowercase, non-trivial, no per-NPC collisions`);
   }
 
+  // Partial-match theft: matchTopic prefers substring containment when no
+  // exact match exists, so one fact's authored topic can silently steal a
+  // phrase belonging to another fact once both are simultaneously askable —
+  // the exact-duplicate check above can't catch this, since the two strings
+  // are never identical (e.g. holmes_boots_bermondsey's "the boots" vs
+  // holmes_heath_road_dust's "his boots" — two different boots entirely, a
+  // live playtest asked "the boots" post-reconstruction and got the wrong
+  // one). Runs the real production matchTopic against a maximal-flags
+  // scenario (every requireFlags-gated fact simultaneously open) — the
+  // worst-case collision window a live playthrough can actually reach —
+  // and asserts every fact's own topic phrase still resolves back to itself.
+  {
+    const maximalFlags: Record<string, boolean> = {};
+    for (const f of FACTS) for (const flag of f.requireFlags ?? []) maximalFlags[flag] = true;
+
+    let stealOk = true;
+    for (const npcId of npcIds) {
+      for (const act of Object.keys(ACT_TIME_CONFIG).map(Number)) {
+        for (const f of FACTS) {
+          if (!f.knownBy.includes(npcId) || f.visibleFromAct > act || !f.topics?.length) continue;
+          for (const t of f.topics) {
+            const resolved = matchTopic(FACTS, npcId, act, t, maximalFlags);
+            if (resolved && resolved.id !== f.id) {
+              fail(`npc ${npcId} act ${act}: fact "${f.id}"'s own topic "${t}" resolves to "${resolved.id}" instead`,
+                'another fact\'s topic partially matches and wins — the authored topic can never actually be reached; add an exact phrase to the winning fact or narrow the losing one');
+              stealOk = false;
+            }
+          }
+        }
+      }
+    }
+    if (stealOk) pass('every fact\'s own topic phrase resolves back to itself (no partial-match theft)');
+  }
+
   // Act gates that ask for a topic must be answerable in the act that gates on
   // them: if the fact's own visibleFromAct is later than the gating act, the
   // gate can never open. This is the silent break the flag grammar can't see.
@@ -570,6 +604,101 @@ section('Facts');
     }
     if (gateOk) pass('every asked_ act gate is answerable in the act that requires it');
   }
+}
+
+// ── 4c. Story-event topic coverage ───────────────────────────────────────────
+// Mechanizes the standing rule stated in facts.ts: "a player who reads [a
+// proper noun in the act's own prose] and asks about it must not hit
+// silence." Story-event beats are scripted, player-facing prose the way
+// authored fact statements are — but nothing previously checked that a name
+// they introduce (a place, an object, a person) is actually askable. This
+// caught "Heath-road": named in a beat, asked about by a live playtester,
+// and met with Holmes denying he'd ever heard of it.
+//
+// Heuristic, not exact — WARN, never FAIL. Proper-noun extraction from free
+// prose is inherently noisy (sentence-initial capitals, mid-sentence titles),
+// so this only flags candidates for a human to glance at, scoped to story
+// events (10 today, all Act 0) rather than every fact statement in the game.
+section('Story-event topic coverage');
+{
+  // Anything already always in context — NPC names/aliases, location names,
+  // and calendar words — would never actually "hit silence" the way a fresh
+  // clue name would, so they're excluded rather than flagged every run.
+  const ambientAllowlist = new Set<string>();
+  for (const name of Object.values(NPC_DISPLAY_NAMES)) {
+    for (const word of name.replace(/[.'']/g, '').split(/\s+/)) ambientAllowlist.add(word.toLowerCase());
+  }
+  for (const alias of Object.values(NPC_ALIASES)) ambientAllowlist.add(alias.toLowerCase());
+  for (const loc of Object.values(LOCATIONS)) {
+    for (const word of loc.name.replace(/[.'']/g, '').split(/\s+/)) ambientAllowlist.add(word.toLowerCase());
+  }
+  for (const w of [
+    'watson', 'london', 'hudson', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+    'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september',
+    'october', 'november', 'december', 'bank', 'holiday', 'street', 'yard', 'road',
+  ]) ambientAllowlist.add(w);
+
+  const allTopicPhrases = FACTS.flatMap(f => f.topics ?? []).map(t => t.toLowerCase());
+  const isCovered = (phrase: string) => {
+    const p = phrase.toLowerCase();
+    return allTopicPhrases.some(t => t.includes(p) || p.includes(t));
+  };
+
+  // Ordinary sentence-openers that happen to be capitalized but are never
+  // themselves a proper noun. Dropped outright, wherever they appear, so a
+  // sentence like "When Watson..." yields the candidate "Watson" rather than
+  // the false positive "When Watson".
+  const SENTENCE_OPENER_STOPWORDS = new Set([
+    'when', 'while', 'before', 'after', 'if', 'but', 'and', 'or', 'so', 'yet',
+    'she', 'he', 'they', 'it', 'her', 'his', 'their', 'this', 'that', 'these', 'those',
+    'once', 'though', 'although', 'having', 'beyond', 'without', 'within',
+  ]);
+
+  // Extract capitalized-word runs, dropping a lone sentence-initial word
+  // (ordinary capitalization, not a proper noun) unless it chains into a
+  // second capitalized word right after it ("Mrs Hudson" at a sentence start
+  // must still be caught).
+  function candidatePhrases(text: string): string[] {
+    const out: string[] = [];
+    for (const sentence of text.split(/(?<=[.!?;:])\s+/)) {
+      const words = sentence.trim().split(/\s+/);
+      const runs: string[][] = [];
+      let current: string[] = [];
+      words.forEach((raw, i) => {
+        const w = raw.replace(/^[“"‘'(]+|[,.;:!?)”"’']+$/g, '');
+        if (SENTENCE_OPENER_STOPWORDS.has(w.toLowerCase())) {
+          if (current.length) runs.push(current);
+          current = [];
+          return;
+        }
+        const isCap = /^[A-Z][A-Za-z'-]*$/.test(w);
+        if (isCap && !(i === 0 && (words[1] === undefined || !/^[A-Z]/.test(words[1] ?? '')))) {
+          current.push(w);
+        } else {
+          if (current.length) runs.push(current);
+          current = [];
+        }
+      });
+      if (current.length) runs.push(current);
+      for (const run of runs) out.push(run.join(' '));
+    }
+    return out;
+  }
+
+  let coverageOk = true;
+  for (const event of STORY_EVENTS) {
+    for (const [i, beat] of event.beats.entries()) {
+      for (const phrase of candidatePhrases(beat)) {
+        const words = phrase.toLowerCase().split(/\s+/);
+        if (words.every(w => ambientAllowlist.has(w))) continue;
+        if (isCovered(phrase)) continue;
+        warn(`story event "${event.id}" beat ${i + 1}: "${phrase}" is named but no fact topic covers it`,
+          'a player who asks about it will hit a flat "I know nothing of it" — add a topic, or add it to the allowlist if it is truly ambient');
+        coverageOk = false;
+      }
+    }
+  }
+  if (coverageOk) pass(`every proper noun in the ${STORY_EVENTS.length} story events' beats is either ambient or askable`);
 }
 
 // ── 5. Spoiler guard ─────────────────────────────────────────────────────────

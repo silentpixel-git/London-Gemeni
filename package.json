@@ -12,11 +12,12 @@
     "qa:engine": "npx tsx scripts/qa-engine.ts",
     "qa:golden": "npx tsx scripts/qa-golden.ts",
     "qa:parser": "npx tsx scripts/qa-parser.ts",
+    "qa:topics": "npx tsx scripts/qa-topics.ts",
     "qa:hints": "npx tsx scripts/qa-hints.ts",
     "qa:diary-leads": "npx tsx scripts/qa-diary-leads.ts",
     "qa:narration-inject": "npx tsx scripts/qa-narration-inject.ts",
     "story:map": "npx tsx scripts/build-story-map.ts",
-    "qa:all": "npm run lint && npm run qa:engine && npm run qa:golden && npm run qa:parser && npm run qa:hints && npm run qa:diary-leads && npm run qa:validate"
+    "qa:all": "npm run lint && npm run qa:engine && npm run qa:golden && npm run qa:parser && npm run qa:topics && npm run qa:hints && npm run qa:diary-leads && npm run qa:validate"
   },
   "dependencies": {
     "@google/genai": "^1.33.0",

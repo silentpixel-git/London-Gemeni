@@ -2,6 +2,8 @@
 
 How an act goes from idea to done. The companion skill (`.claude/skills/act-authoring/`) enforces this; this doc is the rationale and the reference.
 
+**Start here:** copy `docs/act-spec-template.md` to `docs/act<N>-<slug>-spec.md` and fill it. This doc explains *why* each field exists; the template is what you actually fill in.
+
 ## Why this exists
 
 Act 0 had an approved 400-line narrative spec before a line of code was written — and still took roughly twenty fix commits. The spec specified the *story*; every fix landed in a dimension it never pinned down:
@@ -13,6 +15,18 @@ Act 0 had an approved 400-line narrative spec before a line of code was written 
 5. **Narration-mode interaction** — reveals dropped by word budget; beats needing a full-mode turn that the minimal path never produces.
 
 A narrative spec cannot catch these. A **mechanical score** and a **golden playthrough test** can. Both are cheap next to a playtest-fix cycle.
+
+### The second generation (Act 0 polish, 2026-08-12)
+
+The five classes above are all about **engine state**. A later polish pass produced a distinct family, all about **words** — and the score as originally specified caught none of them:
+
+6. **Trigger phrasing gaps** — `answer the door` was authored; a player typed `answer door` and the scene was simply dead, falling through to the unrecognised-input handler (which then hallucinated a departure). The alias sweep covered object *display names*, never story-event `rawPhrases`.
+7. **Silence on a named thing** — Holmes says "Heath-road" aloud, the player asks about it, and he denies knowing it. Any proper noun the act's own prose introduces must be askable.
+8. **Topic collision** — one fact's topic phrase silently stealing another's (`the boots`, `the work`). The exact-duplicate check could not see it; the theft is by *partial* match.
+9. **Cross-turn identity loss** — Holmes called Mrs Kemp "a man" because that turn's beat named no gender and narration calls are single-shot with no memory of prior turns.
+10. **Fabricated specifics** — a beat reading "well over a week" became "no rain for nine days"; a page-boy called "Billy" arrived from the wider Doyle canon.
+
+Classes 6–10 are why `docs/act-spec-template.md` has sections F–I, and why `qa:topics`, the partial-match check in `qa:validate`, and `qa:invention` exist. **Every one of these was found by playing, not by a harness** — `qa:all` was green throughout. Goldens verify the path the author chose to write; they cannot tell you a player would word it differently.
 
 ## The pipeline
 
@@ -40,6 +54,10 @@ One row per beat. Every column must be filled — a blank cell is an undesigned 
 | Objects visible — display name **and aliases** | 3 |
 | Facts newly askable | 1 |
 | Diary / Documents-tab consequence | 4 |
+| **Trigger phrasings** — every natural wording incl. short forms (`answer door`, not only `answer the door`) | 6 |
+| **Subjects made askable** — every proper noun this beat's prose introduces, with its topic phrases | 7, 8 |
+| **Identity anchors** — how this beat's *own text* establishes who each not-yet-named person is | 9 |
+| **Quantities** — every number stated, or explicitly `none`; never a vague measure that invites precision | 10 |
 
 Plus, once per act: the gate-flag table (flag → verb → scene), the choice and its branches (flags + every downstream read), an NPC schedule row per participant (`scheduleByAct` entry or `presenceRequiresFlag`), and the act-entry anchor + epilogue decision.
 
@@ -49,6 +67,9 @@ Plus, once per act: the gate-flag table (flag → verb → scene), the choice an
 - **Flag grammar** — every flag in the score follows a resolver grammar `qa:validate` can see.
 - **Presence** — every NPC in a beat has a `scheduleByAct` entry or a `presenceRequiresFlag`, and the score says which.
 - **Chronology** — every date/duration stated in the score appears once, in a canonical-facts block; prose in phase 4 cites it rather than restating it.
+- **Trigger phrasing probe** — run every wording in the score's *Trigger phrasings* column through `parseIntent` and confirm it reaches the intended event. Class 6; this is the check that would have caught `answer door`.
+- **Topic sweep** — `npm run qa:topics` (every authored phrase reaches its own fact, gated at 100%) plus `qa:validate`'s proper-noun coverage and partial-match-theft checks. Classes 7–8.
+- **Prose home** — all authored prose lands in story data (`acts.ts`, `diary*.ts`, `storyEvents.ts`), never in a hook or component. The Act 0 opening line lived in two files, drifted, and an edit landed in the dead copy.
 
 ## The golden test
 

@@ -28,6 +28,8 @@ import { GoogleGenAI, Type, FunctionCallingConfigMode } from '@google/genai';
 import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod, HintTarget, HintVerb, STIMEntry, ParseCandidates } from '../types.js';
 import { ATMOSPHERIC_SEEDS } from '../engine/gameData.js';
 import { buildParseTools, buildParsePrompt, toolCallToIntent, type ToolCallOutcome } from './parseAction.js';
+import { buildTopicSchema, buildTopicPrompt, validateTopicChoice } from './parseTopic.js';
+import type { TopicCandidate } from '../engine/topicFallback.js';
 
 // ============================================================
 // MODEL CONFIG
@@ -79,20 +81,20 @@ function logPromptSize(label: string, system: string, prompt: string): void {
 const NARRATION_SYSTEM_PROMPT = `You narrate "London Bleeds: The Whitechapel Diaries" — a Victorian detective mystery, London, 1888. You write solely as Dr. John H. Watson in Arthur Conan Doyle's style: first-person past tense, analytical, restrained, quietly emotional. You are a narrator, not a game engine.
 
 ABSOLUTE RULES:
-1. VERIFIED STATE ONLY — never invent exits, items, characters, locations, or scenery/props (furniture, fixtures, objects, apparatus) beyond what the context lists. Dr. Bond's autopsy ledger and specimen cabinet exist only at the mortuary — never place them, or any other unlisted prop, in a location where the context does not give them. The reverse also holds: never narrate that Watson cannot leave, has no exits, or that "departure is out of the question" when the verified exits list is non-empty.
+1. VERIFIED STATE ONLY — never invent exits, items, characters, locations, or scenery/props (furniture, fixtures, objects, apparatus) beyond what the context lists. Dr. Bond's autopsy ledger and specimen cabinet exist only at the mortuary — never place them, or any other unlisted prop, in a location where the context does not give them. The reverse also holds: never narrate that Watson cannot leave, has no exits, or that "departure is out of the question" when the verified exits list is non-empty. Never invent a named servant, page-boy, cabman, or other staff member — Mrs Hudson is the only household staff this story ever gives you. In particular, do not reach into your own knowledge of the wider Conan Doyle canon for a name (e.g. a page-boy called Billy) — this story's cast is exactly and only who the context lists, nothing borrowed from elsewhere in the mythos. If an unnamed hand is needed (someone answering a door, fetching something), leave them unnamed ("a servant", "someone below") rather than inventing an identity.
 2. TIME — match the verified time of day exactly (no morning bustle at night; no gas-lit darkness at noon).
 3. VOICE — first-person PAST TENSE, always, in every mode. Military doctor: medical and forensic specificity, measured authority, never melodramatic. State an emotion or sensation once; do not amplify or explain it — end the sentence before the elaboration. Occasionally dry; not every moment is dark. VARY YOUR OPENINGS — do not begin with fog, weather, or windows more than rarely; open instead on people, actions, objects, sounds, or Watson's thoughts. NEVER open with "I returned to…". OVER-USED IMAGERY (each may appear at most once per act): fire crackling in the grate/hearth, dancing or flickering shadows, fog pressing at the panes, "wreathed in smoke", "silhouetted against". OVER-USED WORD: "restless"/"restlessly" — it is your default for impatience and it shows; reach for the specific behaviour instead, or simply let the action carry it. BANNED PHRASE: "a profound sense of [emotion]" — show feeling through observed physical detail, never a labeled abstraction. Prefer fresh sensory channels — sound, smell, touch, small human details.
 3b. PUNCTUATION AND CADENCE — the em dash is the single clearest marker of machine-written prose. Use AT MOST ONE in a reply, and never a pair bracketing an aside. Reach instead for a full stop, a comma, a colon, or a semicolon; Victorian prose has all four and Watson is not breathless. Likewise do not fall into the three-beat list ("squalid, small, and explains itself") as a default cadence — use three items only when the content genuinely has three, not to round out a rhythm. Vary sentence length: a short flat sentence after a long one is worth more than another subordinate clause.
 4. ALIASES (critical) — each NPC carries a label and an isIntroduced flag. If isIntroduced is false, use ONLY the label; never the real name, even in Watson's private thoughts. Bond's assistant is never introduced by anyone and never introduces himself — his name appears only via the forensic note. Until then: "Bond's assistant" or "the quiet young man", background only, never initiating.
-5. HOLMES — at most one brief, cryptic observation per FULL turn. He never accuses the assistant before Act VI.
+5. HOLMES — at most one brief, cryptic observation per FULL turn. He never accuses the assistant before Act VI. Every deduction or remark Holmes makes MUST be rendered as a direct quotation with a dialogue tag ("...," Holmes said/observed/remarked) — never as Watson summarizing what Holmes concluded in reported speech. When Holmes shifts focus between different subjects or people, start a new paragraph for each.
 6. NO RAW LISTS — weave exits, objects, and people into prose.
 7. BLOCKED ACTIONS — narrate the attempt failing in character; never "invalid command."
 8. CLUES — weave discoveries naturally into the prose; never quote a clue title literally.
 9. DEDUCTIONS — correct: Holmes agrees and notes the want of legal proof. If the result note says COLD CASE: write a ~150-word sombre diary epilogue — Watson closes the case unsolved and shuts his diary.
 10. REGISTER — follow the TEMPORAL FRAMING note in each prompt (present = live investigation; reconstruction = cold scene worked from written reports), plus any register note it carries (e.g. the Baker Street sanctuary).
 11. TYPOS IN WATSON'S SPEECH — if Watson's quoted words contain a near-miss of an established name (a victim, suspect, or NPC already in context), treat it as that established name in the reply; never invent a new person or nickname to explain the mismatch.
-12. THE CONTEXT IS THE WHOLE WORLD (critical) — narrate only the people, places, objects and happenings the context names. Never bring in one from outside it, whatever you may know of this period or this story from elsewhere, and never state or imply that a person the context has named is secretly someone else: a person named here has that name and no other. Such an invention can destroy a revelation the story has spent whole acts preparing. (Stated as a positive on purpose: do not reason about what is excluded, simply write from what is given.)
-13. NO INVENTED SPECIFICS — never state a date, weekday, clock time, quantity, sum or proper name the context does not give. Where the context supplies a figure, use it exactly as given: "nine days" stays nine days and must not become a weekday, a calendar date, or a different reckoning, and must not acquire a second, more precise version later in the scene. If you do not have a specific, write around it as a person genuinely would ("some days past") rather than inventing one.
+12. THE CONTEXT IS THE WHOLE WORLD (critical) — narrate only the people, places, objects and happenings the context names. Never bring in one from outside it, whatever you may know of this period or this story from elsewhere, and never state or imply that a person the context has named is secretly someone else: a person named here has that name and no other. Such an invention can destroy a revelation the story has spent whole acts preparing. This applies equally when BOTH figures are still unnamed: if the story has established two distinct people in the same scene (e.g. a passerby's daughter, and separately the actual caller at the door), a detail belonging to one must never bleed into or replace the other just because neither has a name yet. RECENT NPC INTERACTIONS is memory of past turns, not this turn's facts — before writing, check what THIS turn's own ACTION/Result/beats say is happening and to whom, and do not let an earlier turn's subject quietly take over the current one. (Stated as a positive on purpose: do not reason about what is excluded, simply write from what is given.)
+13. NO INVENTED SPECIFICS — never state a date, weekday, clock time, quantity, sum or proper name the context does not give. Where the context supplies a figure, use it exactly as given: "nine days" stays nine days and must not become a weekday, a calendar date, or a different reckoning, and must not acquire a second, more precise version later in the scene. If you do not have a specific, write around it as a person genuinely would ("some days past") rather than inventing one. This includes gender and pronoun: never assign "he"/"she"/"man"/"woman" to a person the context has not gendered in this turn's own text (do not rely on memory of an earlier turn — you do not have one). If a beat or note describes someone only as "the caller" or "the figure" with no gendered word anywhere in it, mirror that: "the caller", "they", or the same noun again — never guess.
 
 OUTPUT — return a JSON object:
 - "markdownOutput": the narrative text (Markdown, real line breaks — never a literal "\\n"). Each prompt states its own paragraph count and word limit — follow that line exactly; it is the authority (a turn carrying an extra required beat raises it).
@@ -204,6 +206,17 @@ ${ctx.storyEvent.beats.map((beat, index) => `${index + 1}. ${beat}`).join('\n')}
     ? ctx.npcsPresent.map(n => n.label).join(', ')
     : 'None';
 
+  // The player's own words, carried verbatim and separately from
+  // actionDescription — a matched story event overwrites that field with its
+  // canned string, so on exactly the turns that matter most (the pivotal ones)
+  // the reply had no idea what the player actually typed and opened on the
+  // event instead, reading as a non sequitur. Requiring the connection here
+  // rather than trusting actionDescription also survives the word budget being
+  // spent on required beats, which is what made it skippable before.
+  const playerInputLine = ctx.playerInput
+    ? `\nThe player typed, verbatim: "${ctx.playerInput}"\nOpen by connecting to what they actually did — the attempt, the thing addressed, or what Watson turned his attention to — before anything else in this turn unfolds. One clause is enough; do not quote their words back or restate the command, and do not let this delay a required story beat. If what follows interrupts or overtakes the attempt, show the attempt beginning first, then the interruption.`
+    : '';
+
   const timeSection = `\nCURRENT TIME: ${ctx.timeLabel} (${ctx.timePeriod}). WEATHER: ${ctx.weather.label}. Your prose must be fully consistent with this time of day and this weather.\n`;
   // Register guidance moved out of the system prompt (token diet) — injected
   // here only when the relevant register applies.
@@ -290,7 +303,7 @@ Atmosphere: ${ctx.locationAtmosphere}
 Description: ${ctx.locationDescription}
 
 === ACTION ===
-${ctx.actionDescription}
+${ctx.actionDescription}${playerInputLine}
 Result: ${ctx.actionResultNote}
 ${storyEventSection}
 
@@ -399,7 +412,7 @@ Watson's state — Medical: ${ctx.watsonStats.medicalPoints}pts | Moral: ${ctx.w
 Watson's inventory: ${ctx.inventory.length > 0 ? ctx.inventory.join(', ') : 'empty'}
 ${memorySection}
 === ACTION ===
-${ctx.actionDescription}
+${ctx.actionDescription}${playerInputLine}
 Result: ${ctx.actionResultNote}
 ${storyEventSection}
 ${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${ambientExtraSection}${clueSection}${synthesisSection}
@@ -440,7 +453,7 @@ Scenery here (verified — the only objects/props present; do not introduce any 
 Watson's inventory (verified — never narrate him lacking or searching for these): ${ctx.inventory.length > 0 ? ctx.inventory.join(', ') : 'empty'}
 ${memorySection}${atmosphericNoteSection}
 === ACTION ===
-${ctx.actionDescription}
+${ctx.actionDescription}${playerInputLine}
 Result: ${ctx.actionResultNote}
 ${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${clueSection}${synthesisSection}`;
 
@@ -535,8 +548,8 @@ Do not wander to other subjects, and do not append a list of what else Watson mi
     } else if (topicMissed) {
       compactPrompt += `
 
-WATSON HAS ASKED ABOUT: "${topicMissed}" — a subject this character has nothing to offer on.
-Have them say so in character: a shrug, an apology, a deflection to what they do know, or plain ignorance, according to their manner. They must NOT invent an answer, and must NOT pretend the subject is forbidden or significant — it is simply outside what they know. Watson takes the refusal without pressing.`;
+WATSON HAS ASKED ABOUT: "${topicMissed}" — no further authored detail exists on this subject beyond what this turn's context already shows.
+Have them decline in character: a shrug, a deflection to what they do know, or a plain "there is nothing more to it," according to their manner. CRITICAL — if this subject (or the thing it names) was already stated anywhere in THIS turn's own context above (the ACTION/Result lines, a REQUIRED STORY EVENT beat, their own dialogue this scene), they must NOT claim not to recognise it, deny knowing it, or act as though the name means nothing to them — that would flatly contradict what was just established and break the scene. In that case have them acknowledge it but decline to add anything further ("I have told you what it signifies, Watson" / a repeat of the little that is known), never blank ignorance of their own recent words. They must NOT invent a new answer, and must NOT pretend the subject is forbidden or significant. Watson takes the refusal without pressing.`;
     } else if (suggestedTopics && suggestedTopics.length > 0) {
       compactPrompt += `
 
@@ -561,7 +574,15 @@ NO blockquote this turn.`;
     }
   } else {
     compactPrompt += `
-Narrate only this specific action, broken into 2 short paragraphs separated by a blank line for legibility (a trivial blocked action may stay a single line). If talking: the NPC's spoken response as the first paragraph, then Watson's reaction as the second. If examining: Watson's direct observation, then its forensic implication or his reflection. If blocked: why Watson could not proceed, in character.`;
+Narrate only this specific action, broken into 2 short paragraphs separated by a blank line for legibility (a trivial blocked action may stay a single line). If talking: the NPC's spoken response as the first paragraph, then Watson's reaction as the second. If examining: Watson's direct observation, then its forensic implication or his reflection. If blocked: why Watson could not proceed, in character.
+
+WHEN HOLMES IS PRESENT AND MAKING DEDUCTIONS — THIS IS A HARD REQUIREMENT, NOT A STYLE PREFERENCE:
+- Every deduction or observation Holmes makes MUST appear as a direct quotation inside quotation marks, attributed with a dialogue tag ("...," Holmes said / observed / remarked). It is a FORMAT VIOLATION to summarize what Holmes concluded in Watson's third-person narration instead of quoting Holmes's actual words.
+- WRONG (reported speech — do not do this): Holmes remarked that the fellow had walked from Hampstead to save the fare.
+- RIGHT (direct quotation — do this): "He walked from Hampstead to save the fare," Holmes remarked.
+- Invent Holmes's exact wording fresh each time — do not reuse or lightly reword any example scenario from these instructions; the deduction's subject and content are yours to invent from the verified context, only the FORMAT (a quoted line) is fixed.
+- When Holmes shifts focus between different people or observations, start a new paragraph for each — never chain two separate deductions in one paragraph.
+- Watson may frame or briefly react to a deduction, but the deduction itself must be Holmes's quoted words, not Watson's paraphrase of them.`;
 
     if (ctx.blockquoteHint === 'inner_thought') {
       compactPrompt += `
@@ -1049,6 +1070,38 @@ Write a short diary entry recording this. First-person past tense, Watson's voic
       );
     } catch {
       return { intent: null, invalidArgs: false };
+    }
+  }
+
+  /**
+   * TALK-topic recovery: map a subject the player typed onto one the story has
+   * actually authored for this NPC right now. Selection only — the enum is the
+   * candidate list, so a fact outside it (or spoiler-gated out of it) cannot be
+   * reached. Returns null for no confident match, which the caller treats as an
+   * ordinary miss and deflects in character.
+   */
+  async parseTopic(
+    playerPhrase: string,
+    npcLabel: string,
+    candidates: TopicCandidate[],
+  ): Promise<{ phrase: string; factId: string } | null> {
+    if (candidates.length === 0) return null;
+    try {
+      const prompt = buildTopicPrompt(playerPhrase, npcLabel, candidates);
+      logPromptSize('parseTopic', '', prompt);
+      const response = await this.ai.models.generateContent({
+        model: MODEL_ID,
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          thinkingConfig: { thinkingBudget: 0 },
+          responseMimeType: 'application/json',
+          responseSchema: buildTopicSchema(candidates) as never,
+        },
+      });
+      const parsed = JSON.parse(response.text ?? '{}') as { topic?: unknown };
+      return validateTopicChoice(parsed.topic, candidates);
+    } catch {
+      return null;
     }
   }
 }

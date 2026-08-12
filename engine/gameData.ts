@@ -39,6 +39,7 @@ export type { ShowInteraction, UseCombination } from './stories/whitechapel-1888
 export {
   ACT_NAMES,
   ACT_BRIDGES,
+  OPENING_FIXED_LINE,
   ACT_PROGRESSION,
   ACT_ANCHORS,
   ACT_TIME_CONFIG,

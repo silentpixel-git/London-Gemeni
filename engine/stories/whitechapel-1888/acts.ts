@@ -96,6 +96,26 @@ export const ACT_NAMES: Record<number, string> = {
   6: 'The Confrontation',
 };
 
+// The game's authored first sentences, injected after the act heading (see
+// injectAfterHeading / qa-narration-inject) — act 0's counterpart to the
+// ACT_BRIDGES entries below, which is why act 0 has no bridge of its own.
+// Retrospective frame, but it withholds everything: on 6 August nothing has
+// happened, and the closing clause must read as ordinary on a first play and
+// as dread on a second. Do NOT reintroduce a date, a victim, or the word
+// Ripper here.
+// Holmes is SILENT here. His demonstration belongs to the first matching
+// player-triggered story event rather than the opening: putting the whole
+// exchange here met the player with a wall of dialogue before they had typed
+// anything. The opening just puts him at the window and lets the player move
+// first.
+// Lives here rather than in the narration hook so that every piece of authored
+// prose has one home — a near-duplicate of these lines also sits in
+// diaryLocations.ts (baker_street), and when the two drifted apart an edit
+// landed in the wrong copy and appeared to do nothing.
+export const OPENING_FIXED_LINE =
+  "Looking back, I can fix the date precisely: the sixth of August, 1888, the evening of the Bank Holiday, with half of London out of doors and nothing whatever yet occurred. It was the last such evening either of us would have for some time.\n\n" +
+  "I called to find Holmes with no case to occupy him. He stood at the left-hand window with his back to the room, reading the pavement below as another man might read a newspaper.\n\n";
+
 // Authored bridge line for each act arrival — the connective tissue between the
 // curtain and the scene. Days pass and the anchor changes between acts (see
 // ACT_TIME_CONFIG / ACT_ANCHORS), so without this the player is dropped into a

@@ -426,7 +426,7 @@ function runActGateBoundary() {
       // act0_closing_complete missing
     },
   });
-  const r0 = gameEngine.resolve(parseIntent('examine the violin case'), s0);
+  const r0 = gameEngine.resolve(parseIntent('examine pawn ticket'), s0);
   r0.newAct === undefined || r0.newAct <= 0
     ? pass('Act0 gate — held without the closing event (expected)')
     : fail('Act0 gate — advanced before the closing event');
@@ -439,9 +439,10 @@ function runActGateBoundary() {
     flags: {
       examined_whitechapel_mortuary: true,
       examined_bucks_row: true,
+      world_event_kemp_arrives: true,
     },
   });
-  const r2 = gameEngine.resolve(parseIntent('examine the violin case'), s2);
+  const r2 = gameEngine.resolve(parseIntent('examine pawn ticket'), s2);
   r2.newAct === undefined || r2.newAct <= 2
     ? pass('Act2 gate — held with 2/3 flags (expected)')
     : fail('Act2 gate — advanced with 2/3 flags (missing examined_hanbury_street)');
@@ -885,7 +886,7 @@ function runTypoCorrection() {
   console.log('\n=== SCENARIO: typo-correction ===');
 
   const cases: Array<{ input: string; type: string; targetId?: string; label: string }> = [
-    { input: 'exmaine the chemistry table', type: 'examine', targetId: 'holmes_chemistry_table', label: 'transposed examine resolves target' },
+    { input: 'exmaine the workbox', type: 'examine', targetId: 'nells_workbox', label: 'transposed examine resolves target' },
     { input: 'spek to holmes', type: 'talk', targetId: 'holmes', label: 'misspelled speak → talk' },
     { input: 'shwo letter to holmes', type: 'show', targetId: 'from_hell_letter', label: 'transposed show keeps show intent (not implicit examine)' },
     { input: 'dorp letter', type: 'drop', targetId: 'from_hell_letter', label: 'transposed drop keeps drop intent' },
@@ -998,7 +999,9 @@ function runInventoryAwareness() {
   const sCarrying = buildSnapshot({
     currentAct: 4,
     location: 'lusk_office',
-    inventory: ["Nell's Pawn Ticket"],
+    // Must match TAKEABLE_OBJECTS.pawn_ticket exactly — the item was renamed
+    // from "Nell's Pawn Ticket" and this fixture was not updated with it.
+    inventory: ['Pawn Ticket'],
   });
   const r4 = gameEngine.resolve(parseIntent('examine the pawn ticket'), sCarrying);
   r4.actionSuccess && r4.aiContext.actionResultNote.includes('medical bag')
@@ -1136,18 +1139,18 @@ function runShowDative() {
 function runPartialObjectMatching() {
   console.log('\n=== SCENARIO: partial-object-matching ===');
 
-  // "examine chemistry table" should resolve to holmes_chemistry_table
-  // (2 words match "Holmes' Chemistry Table")
-  const s = buildSnapshot();
-  const r1 = gameEngine.resolve(parseIntent('examine chemistry table'), s);
+  // "examine workbox" should resolve to nells_workbox
+  // (1 word matches "Workbasket")
+  const s = buildSnapshot({ flags: { world_event_kemp_arrives: true } });
+  const r1 = gameEngine.resolve(parseIntent('examine workbox'), s);
   r1.aiContext.actionResultNote.includes('SUCCESS') && r1.actionSuccess
-    ? pass('PartialMatch: "examine chemistry table" resolves to holmes_chemistry_table')
-    : fail(`PartialMatch: "examine chemistry table" did not resolve — actionSuccess=${r1.actionSuccess} note=${r1.aiContext.actionResultNote.slice(0, 80)}`);
+    ? pass('PartialMatch: "examine workbox" resolves to nells_workbox')
+    : fail(`PartialMatch: "examine workbox" did not resolve — actionSuccess=${r1.actionSuccess} note=${r1.aiContext.actionResultNote.slice(0, 80)}`);
 
-  // "examine holmes chemistry table" (full name) should still work
-  const r2 = gameEngine.resolve(parseIntent('examine holmes chemistry table'), s);
+  // "examine nells workbox" (full name) should still work
+  const r2 = gameEngine.resolve(parseIntent('examine nells workbox'), s);
   r2.actionSuccess
-    ? pass('PartialMatch: full name "examine holmes chemistry table" still resolves')
+    ? pass('PartialMatch: full name "examine nells workbox" still resolves')
     : fail('PartialMatch: full name broke after partial matching change');
 
   // Words that don't match any object's word set should not resolve to an object
@@ -1898,9 +1901,9 @@ function testEnvelopeAndNudge() {
 console.log('\n── Multi-day acts ──');
 {
   // Synthetic, like the epilogue cut: no production act authors day steps yet.
-  // Any settable flag will do; the violin case is a plain Baker Street examine
+  // Any settable flag will do; the open window is a plain Baker Street examine
   // with no clue and no inventory grant, so it isolates the day-step mechanic.
-  const STEP_FLAG = 'examined_baker_street_violin_case';
+  const STEP_FLAG = 'examined_baker_street_open_window';
   const dayCfg = {
     ...WHITECHAPEL_MANIFEST.actTimeConfig,
     1: {
@@ -1931,7 +1934,7 @@ console.log('\n── Multi-day acts ──');
 
   // 3. The turn that sets the step flag carries the interstitial and reports the
   //    advance, so the hook can reset elapsed time to the new day's base.
-  let r = dayEngine.resolve(parseIntent('examine violin case'),
+  let r = dayEngine.resolve(parseIntent('examine window'),
     buildSnapshot({ currentAct: 1, location: 'baker_street' }));
   r.dayStepAdvanced === 0 && (r.aiContext as any).dayStepNote === 'TEST — two days later.'
     ? pass('day step reports the advance and carries its authored interstitial')
@@ -2429,15 +2432,20 @@ function runTakeSetsFlag() {
 function runObjectVisibility() {
   console.log('\n=== Flag-gated object visibility ===');
 
-  // A synthetic manifest: 'violin_case' at baker_street is hidden until a flag.
+  // A synthetic manifest: 'nells_letters' at baker_street is hidden until a flag.
+  // Deliberately an object with NO story-event trigger: open_window/crowd/
+  // nells_boots/charity_card all sit behind Act 0 triggers whose replacesBlocked
+  // turns a blocked examine into a success, which defeats a visibility test.
+  // (The original fixture, violin_case, was pruned from the room and silently
+  // took three assertions with it.)
   const gated = new GameEngine({
     ...WHITECHAPEL_MANIFEST,
-    objectVisibility: { violin_case: 'test_reveal_flag' },
+    objectVisibility: { nells_letters: 'test_reveal_flag' },
     containerContents: {},
   });
 
   const hiddenSnap = buildSnapshot({ location: 'baker_street', currentAct: 0 });
-  const hiddenResult = gated.resolve(parseIntent('examine the violin case'), hiddenSnap);
+  const hiddenResult = gated.resolve(parseIntent('examine the correspondence'), hiddenSnap);
   if (!hiddenResult.actionSuccess) {
     pass('gated object cannot be examined before its flag');
   } else {
@@ -2445,7 +2453,7 @@ function runObjectVisibility() {
   }
 
   const objectsWhileHidden = (hiddenResult.aiContext as any).availableObjects as string[];
-  if (!objectsWhileHidden.some(n => n.toLowerCase().includes('violin'))) {
+  if (!objectsWhileHidden.some(n => n.toLowerCase().includes('correspondence'))) {
     pass('gated object absent from availableObjects before its flag');
   } else {
     fail('gated object absent from availableObjects', JSON.stringify(objectsWhileHidden));
@@ -2456,16 +2464,19 @@ function runObjectVisibility() {
     currentAct: 0,
     flags: { test_reveal_flag: true },
   });
-  const shownResult = gated.resolve(parseIntent('examine the violin case'), shownSnap);
+  const shownResult = gated.resolve(parseIntent('examine the correspondence'), shownSnap);
   const objectsWhenShown = (shownResult.aiContext as any).availableObjects as string[];
-  if (shownResult.actionSuccess && objectsWhenShown.some(n => n.toLowerCase().includes('violin'))) {
+  if (shownResult.actionSuccess && objectsWhenShown.some(n => n.toLowerCase().includes('correspondence'))) {
     pass('gated object appears once its flag is set');
   } else {
     fail('gated object appears once its flag is set', JSON.stringify(objectsWhenShown));
   }
 
   // Ungated objects are unaffected.
-  const plain = gameEngine.resolve(parseIntent('examine the violin case'),
+  // open_window, not nells_letters: the latter is genuinely gated in the real
+  // manifest (it appears only once the workbox is opened), so it cannot stand in
+  // for "ungated" here.
+  const plain = gameEngine.resolve(parseIntent('examine the open window'),
     buildSnapshot({ location: 'baker_street', currentAct: 0 }));
   if (plain.actionSuccess) {
     pass('ungated objects are unaffected by the visibility table');
@@ -2488,16 +2499,13 @@ function runOpenVerb() {
   if (parseIntent('look').type === 'examine') pass('"look" is still a look-around');
   else fail('"look" is still a look-around', parseIntent('look').type);
 
-  // A synthetic container: violin_case at baker_street holds two objects.
-  const withContainer = new GameEngine({
-    ...WHITECHAPEL_MANIFEST,
-    containerContents: { violin_case: ['holmes_chemistry_table'] },
-    objectVisibility: { holmes_chemistry_table: 'opened_baker_street_violin_case' },
-  });
+  // A synthetic container: nells_workbox at baker_street holds letters and card.
+  // This uses the real Act 0 manifest which already has containerContents for workbox.
+  const withContainer = new GameEngine(WHITECHAPEL_MANIFEST);
 
-  const snap = buildSnapshot({ location: 'baker_street', currentAct: 0 });
-  const opened = withContainer.resolve(parseIntent('open the violin case'), snap);
-  if (opened.actionSuccess && opened.flagsUpdate?.['opened_baker_street_violin_case'] === true) {
+  const snap = buildSnapshot({ location: 'baker_street', currentAct: 0, flags: { world_event_kemp_arrives: true } });
+  const opened = withContainer.resolve(parseIntent('open the workbox'), snap);
+  if (opened.actionSuccess && opened.flagsUpdate?.['opened_baker_street_nells_workbox'] === true) {
     pass('OPEN sets opened_<loc>_<obj>');
   } else {
     fail('OPEN sets opened_<loc>_<obj>', JSON.stringify(opened.flagsUpdate));
@@ -2506,8 +2514,8 @@ function runOpenVerb() {
   else fail('OPEN returns actionType open', opened.actionType);
 
   // Opening a non-container is blocked, not silently successful.
-  const notAContainer = withContainer.resolve(parseIntent('open the chemistry table'),
-    buildSnapshot({ location: 'baker_street', currentAct: 0, flags: { opened_baker_street_violin_case: true } }));
+  const notAContainer = withContainer.resolve(parseIntent('open the pawn ticket'),
+    buildSnapshot({ location: 'baker_street', currentAct: 0, flags: { world_event_kemp_arrives: true, opened_baker_street_nells_workbox: true } }));
   if (!notAContainer.actionSuccess) pass('OPEN on a non-container is blocked');
   else fail('OPEN on a non-container is blocked', 'succeeded');
 
@@ -2517,23 +2525,23 @@ function runOpenVerb() {
   else fail('OPEN on an absent object is blocked', 'succeeded');
 
   // Re-opening an open container succeeds without re-firing progression.
-  const reopen = withContainer.resolve(parseIntent('open the violin case'),
-    buildSnapshot({ location: 'baker_street', currentAct: 0, flags: { opened_baker_street_violin_case: true } }));
+  const reopen = withContainer.resolve(parseIntent('open the workbox'),
+    buildSnapshot({ location: 'baker_street', currentAct: 0, flags: { world_event_kemp_arrives: true, opened_baker_street_nells_workbox: true } }));
   if (reopen.actionSuccess && reopen.newAct === undefined) pass('re-opening is idempotent');
   else fail('re-opening is idempotent', JSON.stringify({ ok: reopen.actionSuccess, act: reopen.newAct }));
 
   // EXAMINE of an unopened container must warn the model off inventing
   // contents. A live playtest caught the model describing "spools of dark
   // thread, a silver thimble" inside a box nothing had opened yet.
-  const examineClosed = withContainer.resolve(parseIntent('examine the violin case'), snap);
+  const examineClosed = withContainer.resolve(parseIntent('examine the workbox'), snap);
   examineClosed.aiContext.actionResultNote.includes('CLOSED container')
     ? pass('EXAMINE of an unopened container warns against describing contents')
     : fail('EXAMINE of an unopened container warns against describing contents',
         examineClosed.aiContext.actionResultNote);
 
   // Once opened, EXAMINE goes back to normal — no closed-container warning.
-  const examineOpened = withContainer.resolve(parseIntent('examine the violin case'),
-    buildSnapshot({ location: 'baker_street', currentAct: 0, flags: { opened_baker_street_violin_case: true } }));
+  const examineOpened = withContainer.resolve(parseIntent('examine the workbox'),
+    buildSnapshot({ location: 'baker_street', currentAct: 0, flags: { world_event_kemp_arrives: true, opened_baker_street_nells_workbox: true } }));
   !examineOpened.aiContext.actionResultNote.includes('CLOSED container')
     ? pass('EXAMINE of an OPENED container carries no closed-container warning')
     : fail('EXAMINE of an OPENED container carries no closed-container warning',
@@ -2610,7 +2618,7 @@ function runStoryEvents() {
   // The old turn-indexed sequence advanced on any input. The pilot must wait
   // indefinitely for the authored action at each hinge.
   let s = buildSnapshot({ location: 'baker_street', currentAct: 0 });
-  for (const input of ['examine the violin case', 'inventory', 'help', 'wait']) {
+  for (const input of ['inventory', 'help', 'wait', 'look']) {
     const r = gameEngine.resolve(parseIntent(input), s);
     if (!r.flagsUpdate?.['act0_caller_noticed'] && !eventId(r)) pass(`unrelated "${input}" does not notice the caller`);
     else fail(`unrelated "${input}" does not notice the caller`, JSON.stringify(r.flagsUpdate));
@@ -2641,13 +2649,13 @@ function runStoryEvents() {
 
   // Unrelated successful actions still do not ring the bell, even forever.
   for (let i = 0; i < 4; i++) {
-    r = gameEngine.resolve(parseIntent('examine the chemistry table'), s);
+    r = gameEngine.resolve(parseIntent('wait'), s);
     s = applyResult(s, r);
   }
   if (!s.flags['act0_bell_rang']) pass('bell waits indefinitely through unrelated successful actions');
   else fail('bell waits indefinitely through unrelated successful actions');
 
-  r = gameEngine.resolve(parseIntent('look at the street'), s);
+  r = gameEngine.resolve(parseIntent('examine the woman'), s);
   if (eventId(r) === 'act0_bell_rang' && r.flagsUpdate?.['act0_bell_rang'] &&
       (r.aiContext as any).storyEvent?.notice === '**Door bell** is ringing.') {
     pass('street alias rings the bell with the deterministic notice');
@@ -2656,7 +2664,7 @@ function runStoryEvents() {
 
   // Once rung, the bell also waits indefinitely for an explicit door action.
   for (let i = 0; i < 4; i++) {
-    r = gameEngine.resolve(parseIntent('examine the concluded case'), s);
+    r = gameEngine.resolve(parseIntent('wait'), s);
     s = applyResult(s, r);
   }
   if (!s.flags['world_event_kemp_arrives']) pass('door waits indefinitely through unrelated successful actions');

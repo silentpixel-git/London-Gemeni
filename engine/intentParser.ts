@@ -446,9 +446,6 @@ export const objectAliases: Record<string, string> = {
   'pawn ticket': 'pawn_ticket',
   'pawnbroker\'s ticket': 'pawn_ticket',
   'pledge': 'pawn_ticket',
-  'case file': 'concluded_case_file',
-  'concluded case': 'concluded_case_file',
-  'last case': 'concluded_case_file',
   'notes': 'edmund_forensic_note',
   "edmund's note": 'edmund_forensic_note',
   "halward's note": 'edmund_forensic_note',
@@ -458,11 +455,6 @@ export const objectAliases: Record<string, string> = {
   'specimens': 'specimen_jars',
   'records': 'patient_records',
   'diary': 'watson_diary',
-  // Repointed from a dangling 'holmes_violin' when Act 0 gained a real
-  // violin_case object. ('watson_diary' above is likewise not an object id —
-  // pre-existing, left alone.)
-  'violin': 'violin_case',
-  'violin case': 'violin_case',
   'alley': 'alleyways',
   'escape routes': 'alleyways',
   'lantern': 'police_lanterns',

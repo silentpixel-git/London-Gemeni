@@ -24,6 +24,7 @@ import {
   ACT_NAMES,
 } from '../engine/gameData';
 import { buildAct0NarrationContexts } from './qa-narration-fixtures';
+import { findInventions } from './qa-invention';
 
 // ── Base fixture factory ──────────────────────────────────────────────────────
 
@@ -399,6 +400,28 @@ for (const event of buildAct0NarrationContexts()) {
   });
 }
 
+// ── Pronoun regression tripwire ────────────────────────────────────────────
+// A live playtest caught the model inventing "A man of wavering resolution"
+// for Mrs Kemp at act0_bell_rang, because that turn's context carries no NPC
+// entry for her yet (npcsPresent is gated on world_event_kemp_arrives) and
+// Gemini calls are single-shot with no memory of the wording two turns prior
+// (see act0_caller_noticed, which established her correctly).
+//
+// This only checks for the unambiguous noun-phrase form ("a/the man",
+// "gentleman") rather than any masculine pronoun ("he"/"his"/"him") —
+// Holmes is present and legitimately male in this scene, so a bare pronoun
+// regex false-positives on "Holmes... inclining his head" constantly. The
+// noun-phrase form is exactly what the real bug produced and has no
+// legitimate referent other than the caller, since Holmes is never
+// described that way.
+const GENDER_CHECK_LABELS = ['story-event-act0_bell_rang'];
+const WRONG_GENDER_PATTERN = /\b(a man|the man|gentleman)\b/i;
+function checkCallerGender(label: string, output: string): string | null {
+  if (!GENDER_CHECK_LABELS.includes(label)) return null;
+  const match = output.match(WRONG_GENDER_PATTERN);
+  return match ? `misgendered the caller ("${match[0]}") — she must read as a woman in every turn's own text, never inferred from an earlier turn` : null;
+}
+
 // ── Repetition analysis (3 sequential narrations, n-gram overlap) ─────────────
 
 function extractOpening(markdown: string): string {
@@ -560,6 +583,9 @@ async function main() {
     '',
   ];
 
+  const genderCheckFailures: string[] = [];
+  const inventionWarnings: string[] = [];
+
   // Group by rubric
   const rubrics = ['2a_historical_accuracy', '2b_spoiler_containment', '2c_writing_quality'];
   const rubricLabels: Record<string, string> = {
@@ -598,6 +624,21 @@ async function main() {
       lines.push(output);
       lines.push('```');
       lines.push('');
+      const genderIssue = checkCallerGender(fixture.label, output);
+      if (genderIssue) {
+        lines.push(`**AUTOMATED CHECK — FAIL:** ${genderIssue}`);
+        genderCheckFailures.push(`${fixture.label}: ${genderIssue}`);
+        lines.push('');
+      }
+      // Invention detector — WARNING level, not a gate. Measured 0 false
+      // positives and 1 true catch across the Act 0 fixtures, but it has not
+      // yet run against Acts 1-6, so it reports rather than fails the build.
+      const inventions = findInventions(output, fixture.ctx);
+      if (inventions.length) {
+        lines.push(`**AUTOMATED CHECK — WARNING (invented specifics):** ${inventions.map(i => `${i.kind} "${i.token}"`).join(', ')} — present in the narration but in no field of this turn's context.`);
+        inventionWarnings.push(`${fixture.label}: ${inventions.map(i => i.token).join(', ')}`);
+        lines.push('');
+      }
       lines.push('**QA Agent findings:** _(fill in)_');
       lines.push('');
       lines.push('---');
@@ -616,6 +657,17 @@ async function main() {
   fs.writeFileSync(reportPath, report, 'utf8');
   console.log(`\nReport written to: ${reportPath}`);
   console.log('QA agent: read qa-narration-report.md and fill in findings for each section.');
+
+  if (inventionWarnings.length > 0) {
+    console.warn('\n! Invented specifics (warning, not a gate):');
+    inventionWarnings.forEach(w => console.warn(`  - ${w}`));
+  }
+
+  if (genderCheckFailures.length > 0) {
+    console.error('\n✗ Automated pronoun check FAILED:');
+    genderCheckFailures.forEach(f => console.error(`  - ${f}`));
+    process.exitCode = 1;
+  }
 }
 
 main().catch(err => {

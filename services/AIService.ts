@@ -20,6 +20,7 @@
 import { NarrationContext, NarrationResponse, ActJournalSummary, HintTarget, HintVerb } from '../types';
 import type { ParseCandidates } from '../types';
 import type { ParsedIntent } from '../engine/intentParser';
+import type { TopicCandidate } from '../engine/topicFallback';
 
 const GATEWAY_URL = '/api/ai';
 
@@ -156,6 +157,27 @@ export class AIService {
       return await postJson<{ intent: ParsedIntent | null }>({ op: 'parseAction', rawInput, candidates });
     } catch {
       return { intent: null };
+    }
+  }
+
+  /**
+   * TALK-topic recovery. Maps a subject the player typed onto one the story has
+   * authored for this NPC, selecting only from the supplied candidates. null =
+   * no confident match, which the caller treats as an ordinary in-character
+   * miss. Never throws into the turn loop.
+   */
+  async parseTopic(
+    playerPhrase: string,
+    npcLabel: string,
+    candidates: TopicCandidate[],
+  ): Promise<{ phrase: string; factId: string } | null> {
+    try {
+      const { match } = await postJson<{ match: { phrase: string; factId: string } | null }>({
+        op: 'parseTopic', playerPhrase, npcLabel, candidates,
+      });
+      return match;
+    } catch {
+      return null;
     }
   }
 }

@@ -21,7 +21,7 @@ export const LOCATION_DIARY: Record<string, LocationDiaryEntry> = {
   // no case and no wall to pin one to, and nothing here may anticipate either.
   baker_street: {
     name: '221B Baker Street',
-    diaryNote: "I came round to Baker Street on the evening of the Bank Holiday, and found the windows standing open on the noise of the crowds and Holmes with nothing in the world to occupy him. A woman was waiting in the chair by the door. She had come a long way by the look of her, and did not appear to expect that anyone would listen.",
+    diaryNote: "Looking back, I can fix the date precisely: the sixth of August, 1888, the evening of the Bank Holiday. I called at Baker Street to find Holmes with no case to occupy him — only the street below, and whatever small mysteries he could invent to fill the silence. It was the last such evening either of us would have for some time.",
   },
   dorset_street: {
     name: 'Dorset Street',

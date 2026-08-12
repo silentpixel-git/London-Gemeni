@@ -23,7 +23,6 @@ const LOCATIONS_DATA = {
     interactables: [
       'open_window',
       'pawn_ticket', 'nells_boots', 'nells_workbox', 'nells_letters', 'charity_card',
-      'concluded_case_file', 'holmes_chemistry_table', 'violin_case',
     ],
     locationExaminedFlag: 'examined_baker_street',
     timeOfDay: 'night',
@@ -355,23 +354,19 @@ const OBJECT_DISPLAY_NAMES_DATA = {
   // NOT gated in OBJECT_VISIBILITY: it is the one thing in the room before Mrs.
   // Kemp arrives, so looking out of it is the opening's obvious first move.
   open_window: 'The Open Window',
-  pawn_ticket: "Nell's Pawn Ticket",
-  nells_boots: "Nell's Boots",
+  pawn_ticket: 'Pawn Ticket',
+  nells_boots: 'Boots',
   // Display names deliberately avoid "box" / "letter(s)" as raw substrings —
   // engine/intentParser.ts's matchObjectId does an unanchored substring scan
   // over OBJECT_DISPLAY_NAMES in insertion order, ahead of its hardcoded
   // single-word aliases ('box' → parcel_box, 'letter' → from_hell_letter).
-  // "Nell's Workbox" would shadow parcel_box (Lusk Office, Act 4/5) and
-  // "Nell's Letters" would shadow from_hell_letter (the signature clue) for
-  // any player typing "the box" / "the letter". Object id, CONTAINER_CONTENTS,
-  // OBJECT_VISIBILITY and ATMOSPHERIC_NOTES prose are unaffected — only these
-  // two short labels changed.
-  nells_workbox: "Nell's Workbasket",
-  nells_letters: "Nell's Correspondence",
+  // "Workbox" would shadow parcel_box (Lusk Office, Act 4/5) and "Letters"
+  // would shadow from_hell_letter (the signature clue) for any player typing
+  // "the box" / "the letter". Object id, CONTAINER_CONTENTS, OBJECT_VISIBILITY
+  // and ATMOSPHERIC_NOTES prose are unaffected.
+  nells_workbox: 'Workbasket',
+  nells_letters: 'Correspondence',
   charity_card: "A Subscriber's Card",
-  concluded_case_file: 'The Concluded Case',
-  holmes_chemistry_table: "Holmes' Chemistry Table",
-  violin_case: 'The Violin Case',
   // Dorset Street
   police_barricade: 'Police Barricade',
   street_lamps: 'Street Lamps',

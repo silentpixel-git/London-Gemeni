@@ -33,7 +33,7 @@ import {
 } from '../constants';
 import { GameHistoryItem, Investigation, NPCState, STIMEntry, ActJournalSummary, NarrationContext, PendingActTransition, DiaryEntry, TimePeriod, ThemeMode, RumorEvents } from '../types';
 import { stripLeadingActHeading } from '../services/narrationFormat';
-import { AI_PARSER_ENABLED, resolveIntentWithAI } from './gameState/aiParse';
+import { AI_PARSER_ENABLED, resolveIntentWithAI, resolveTopicWithAI } from './gameState/aiParse';
 import {
   cloudPersistOutcome,
   extractOpeningSentence,
@@ -410,6 +410,20 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // is the emergency kill switch (regex-only parsing).
       if (AI_PARSER_ENABLED) {
         intent = await resolveIntentWithAI(intent, location, inventory, npcStates, currentAct, introducedNpcs, elapsedMinutes, flags);
+      }
+
+      // STEP 1b: Recover a named TALK subject the deterministic matcher missed.
+      // Runs after the parse above has settled which NPC is being addressed;
+      // rewrites topicRaw to an authored phrase so the engine still resolves it
+      // deterministically. No-op on hits, on bare TALK, and on any other verb.
+      if (intent.type === 'talk' && intent.targetId) {
+        intent = await resolveTopicWithAI(
+          intent,
+          intent.targetId,
+          NPC_DISPLAY_NAMES[intent.targetId] ?? intent.targetId,
+          currentAct,
+          flags,
+        );
       }
 
       // STEP 2: Build session snapshot from current React state

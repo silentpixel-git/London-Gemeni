@@ -5,7 +5,7 @@ import { aiService } from '../../services/AIService';
 import { injectAfterHeading, stripLeadingActHeading, formatActHeading } from '../../services/narrationFormat';
 import { gameEngine, SessionSnapshot } from '../../engine/GameEngine';
 import { parseIntent } from '../../engine/intentParser';
-import { ACT_BRIDGES, ITEM_SPENT_AFTER_ACT, formatGameClock } from '../../engine/gameData';
+import { ACT_BRIDGES, OPENING_FIXED_LINE, ITEM_SPENT_AFTER_ACT, formatGameClock } from '../../engine/gameData';
 import {
   INITIAL_LOCATION,
   INITIAL_ACT,
@@ -130,18 +130,8 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
         return next;
       });
 
-      // The game's authored first sentence, injected after the act heading (see
-      // injectAfterHeading / qa-narration-inject). Retrospective frame, but it
-      // withholds everything: on 6 August nothing has happened, and the closing
-      // clause must read as ordinary on a first play and as dread on a second.
-      // Do NOT reintroduce a date, a victim, or the word Ripper here.
-      // Holmes is SILENT here. His demonstration belongs to the first matching
-      // player-triggered story event rather than the opening: putting the whole
-      // exchange here met the player with a wall of dialogue before they had
-      // typed anything. The opening just puts him at the window and lets the
-      // player move first.
-      const OPENING_FIXED_LINE = "I called at Baker Street on the evening of the sixth of August, 1888. It was the Bank Holiday, half of London was out of doors, and nothing whatever had happened yet.\n\n" +
-        "Holmes stood at the left-hand window with his back to the room, reading the pavement below as another man might read a newspaper.\n\n";
+      // OPENING_FIXED_LINE is authored story data (acts.ts), not hook state —
+      // see the note there before editing the prose.
       let lastText = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening', blockquoteHint: 'none' })) {
         if (update.narrative) {

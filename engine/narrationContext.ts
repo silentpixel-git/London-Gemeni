@@ -442,6 +442,7 @@ export function buildNarrationContext(
     actionSuccess: outcome.success,
     actionDescription: outcome.actionDescription,
     actionResultNote: outcome.actionResultNote,
+    playerInput: intent.raw,
     newCluesDiscovered: outcome.newClueDefs.map(c => ({
       name: c.name,
       description: c.description,

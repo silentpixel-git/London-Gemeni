@@ -305,9 +305,6 @@ export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
     nells_workbox: [],
     nells_letters: [],
     charity_card: [],
-    concluded_case_file: [],
-    holmes_chemistry_table: [],
-    violin_case: [],
   },
   millers_court: {
     burned_clothing: ['clue_01_killer_confidence'],
@@ -517,7 +514,7 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
   // It is a memento, not a puzzle piece: no USE combination resolves it and no
   // later act pays it off. It is filed on transfer, then removed from carried
   // inventory at the Act 0→1 transition while remaining reviewable.
-  pawn_ticket: "Nell's Pawn Ticket",
+  pawn_ticket: 'Pawn Ticket',
   charity_card: "A Subscriber's Card",
   // Not a location interactable — granted directly by TALK (see
   // TALK_GRANTS_ITEM below). Kept here for its display name and so

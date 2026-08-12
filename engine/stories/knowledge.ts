@@ -101,6 +101,39 @@ function canonicalisePersons(s: string): string {
     .trim();
 }
 
+/**
+ * Conversational lead-ins the player wraps a subject in. Stripped before
+ * matching so "tell me about the boots" stays as deterministic as "the boots" —
+ * without this the specificity gate below reads the padding as query length and
+ * pushes clear input into the AI tier for no reason.
+ * Longest-first so "tell me more about" is consumed before "tell me about".
+ */
+const TOPIC_LEAD_INS = [
+  'tell me more about', 'tell me about', 'do you know anything about',
+  'do you know about', 'what do you know about', 'what do you make of',
+  'what about', 'ask about', 'more about',
+];
+
+function stripLeadIn(s: string): string {
+  for (const lead of TOPIC_LEAD_INS) {
+    if (s.startsWith(lead + ' ')) return s.slice(lead.length + 1).trim();
+  }
+  return s;
+}
+
+/**
+ * How much of the player's query an authored topic must cover before a
+ * containment match counts, in the direction where the player typed MORE than
+ * the topic. Below this the topic is being *mentioned* rather than asked about
+ * — "where nell was lodging" is not a question about Nell-is-missing just
+ * because it contains "nell" — and the turn is better served by the AI tier,
+ * which can weigh the whole sentence. Applies only to that direction: a player
+ * typing LESS than the authored phrase ("graffiti" for "the goulston street
+ * graffiti") is a normal abbreviation and stays deterministic.
+ * 0.30 measured against qa:topics: tier-1 accuracy is unchanged at 618/618.
+ */
+const MIN_QUERY_COVERAGE = 0.30;
+
 export function matchTopic(
   facts: StoryFact[],
   npcId: string,
@@ -109,7 +142,8 @@ export function matchTopic(
   flags: Record<string, boolean> = {},
 ): StoryFact | undefined {
   const q = canonicalisePersons(
-    topicRaw.toLowerCase().replace(/^(the|a|an|his|her|their|that|this)\s+/, '').trim());
+    stripLeadIn(topicRaw.toLowerCase().trim())
+      .replace(/^(the|a|an|his|her|their|that|this)\s+/, '').trim());
   // A bare pronoun names no fact by itself. Let scene-local story events own
   // phrases such as "ask Holmes about them" instead of guessing whichever
   // authored topic happens to contain a person token.
@@ -124,10 +158,16 @@ export function matchTopic(
       const t = canonicalisePersons(raw.toLowerCase().replace(/^(the|a|an)\s+/, '').trim());
       if (!t) continue;
       if (t === q) { exact ??= f; continue; }
-      // Either direction: the player may type less than the authored topic
-      // ("graffiti" for "the goulston street graffiti") or more of a sentence
-      // than it ("that business with the graffiti").
-      if (t.includes(q) || q.includes(t)) {
+      // Player typed LESS than the authored topic ("graffiti" for "the goulston
+      // street graffiti") — a normal abbreviation, always accepted.
+      if (t.includes(q)) {
+        if (!partial || t.length > partial.len) partial = { fact: f, len: t.length };
+        continue;
+      }
+      // Player typed MORE than the topic. Accept only if the topic accounts for
+      // a real share of what they said; otherwise it is an incidental mention
+      // and the AI tier should arbitrate (see MIN_QUERY_COVERAGE).
+      if (q.includes(t) && t.length / q.length >= MIN_QUERY_COVERAGE) {
         if (!partial || t.length > partial.len) partial = { fact: f, len: t.length };
       }
     }

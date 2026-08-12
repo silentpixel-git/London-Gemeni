@@ -37,27 +37,28 @@ export const STORY_EVENTS: StoryEventDefinition<StoryFlag>[] = [
     setFlags: ['act0_bell_rang'],
     maxWords: 70,
     notice: '**Door bell** is ringing.',
-    actionDescription: 'The hesitant caller finally rang the bell below.',
-    actionResultNote: 'STORY EVENT — the street-door bell rings once. The caller is still downstairs and has not yet been admitted.',
+    actionDescription: "Watson turned his attention to the caller below, and got the bell for an answer before he learned anything more of her.",
+    actionResultNote: 'STORY EVENT — the street-door bell rings once. The woman is still downstairs and has not yet been admitted.',
     beats: [
-      'The bell goes at last: one short pull, as though the hand that made it had been persuaded into the act and might yet repent of it.',
+      'The bell goes at last: one short pull, as though the hand that made it — the same woman Holmes marked at the railings — had been persuaded into the act and might yet repent of it.',
     ],
   },
   {
     id: 'act0_kemp_arrives',
     act: 0,
     triggers: [
-      { intentTypes: ['other', 'open', 'examine'], rawPhrases: ['answer the door', 'open the door', 'attend to the door', 'attend the door', 'check the door'], requireFlags: ['act0_bell_rang'], forbidFlags: ['world_event_kemp_arrives'], locationId: 'baker_street', replacesBlocked: true },
+      { intentTypes: ['other', 'open', 'examine', 'take'], rawPhrases: ['answer the door', 'answer door', 'open the door', 'open door', 'attend to the door', 'attend to door', 'attend the door', 'attend door', 'check the door', 'check door', 'get the door', 'get door'], requireFlags: ['act0_bell_rang'], forbidFlags: ['world_event_kemp_arrives'], locationId: 'baker_street', replacesBlocked: true },
     ],
     setFlags: ['world_event_kemp_arrives'],
-    maxWords: 160,
-    actionDescription: 'Watson attended the bell and Mrs Hudson showed the caller into the sitting room.',
-    actionResultNote: 'STORY EVENT — Mrs Hudson introduces Mrs Kemp. Kemp lays the boots, workbox and pawn ticket on the table but does not yet state her business.',
+    maxWords: 180,
+    actionDescription: 'Watson rose to answer the door himself.',
+    actionResultNote: 'STORY EVENT — Watson moves to answer it, but Mrs Hudson beats him to the stairs and introduces Mrs Kemp by name with one vague line about her reason for calling. Kemp lays the boots, workbox and pawn ticket on the table but does not yet state her actual business.',
     beats: [
-      'Mrs Hudson, only lately returned from her Bank Holiday outing and still in her good hat, shows Mrs Kemp up and withdraws.',
+      'Watson is out of his chair to answer it himself, but Mrs Hudson is already on the stairs.',
+      'Mrs Hudson, only lately returned from her Bank Holiday outing and still in her good hat, announces a Mrs Kemp — "a family matter," is all she says of it — shows her up, and withdraws.',
       'Watson observes a woman of about thirty-four, still gloved in the warm room and dressed for an appointment that did not occur.',
       'Mrs Kemp sets down a bundle containing worn boots and a closed tin workbox, then keeps hold of a pawn ticket before finally laying it beside them.',
-      'She gives her name but does not volunteer why she has come; the room waits for Watson to address her.',
+      'Beyond what Mrs Hudson announced, she volunteers nothing further; the room waits for Watson to ask.',
     ],
   },
   {
@@ -115,7 +116,12 @@ export const STORY_EVENTS: StoryEventDefinition<StoryFlag>[] = [
     beats: [
       'Watson examines or smells the crust in the boot welts and identifies the sharp trace of oak bark used in tanning.',
       'A pale, caustic dust worked into the same seams is lime, not ordinary road dust.',
-      'Holmes adds the dark south-bank river silt and notes that London has had no rain in well over a week, so the deposit belongs to a wet trade yard rather than the street.',
+      // Phrased without a quantity on purpose. "well over a week" invited the
+      // model to supply the precision it implies — it repeatedly rendered this
+      // as "no rain for nine days", a figure no context field supplies (caught
+      // by qa-invention). Leave the dryness unmeasured; nothing here needs a
+      // number, and any number in the output is fabricated.
+      'Holmes adds the dark south-bank river silt and notes that the streets have been bone-dry all summer, so the deposit belongs to a wet trade yard rather than the street.',
       'Oak bark, lime and river silt together narrow the boots to the tanyards of Bermondsey; their wear shows repeated long walks there.',
     ],
   },

@@ -1,5 +1,7 @@
 import { aiService } from '../../services/AIService';
 import { needsAiParse, buildParseCandidates } from '../../engine/parseFallback';
+import { needsTopicAiParse, buildTopicCandidates } from '../../engine/topicFallback';
+import { WHITECHAPEL_MANIFEST } from '../../engine/stories/whitechapel-1888/manifest';
 import { type ParsedIntent } from '../../engine/intentParser';
 import { NPCState } from '../../types';
 
@@ -41,4 +43,46 @@ export async function resolveIntentWithAI(
   }
   // null = no confident match → keep the regex intent (engine misses in character).
   return resolved ?? intent;
+}
+
+// ── TALK-topic AI fallback ───────────────────────────────────────────────────
+// The subject after "about" is matched by pure string containment (matchTopic),
+// which cannot cover every natural phrasing an author didn't anticipate — and a
+// miss there is worse than an object miss, because the NPC answers by denying
+// knowledge of a subject they may have raised themselves. This recovers the
+// miss by mapping the player's phrasing onto an authored topic, then rewriting
+// topicRaw to that authored phrase so the engine resolves it deterministically,
+// exactly as if the player had typed it. Same kill switch as the action parser.
+const parseTopicCache = new Map<string, string | null>();
+
+export async function resolveTopicWithAI(
+  intent: ParsedIntent,
+  npcId: string | undefined,
+  npcLabel: string,
+  currentAct: number,
+  flags: Record<string, boolean>,
+): Promise<ParsedIntent> {
+  const facts = WHITECHAPEL_MANIFEST.facts;
+  if (!AI_PARSER_ENABLED) return intent;
+  if (!npcId || !needsTopicAiParse(facts, intent, npcId, currentAct, flags)) return intent;
+
+  const phrase = intent.topicRaw!.trim();
+  // Flags participate in the key: the same phrase can be a miss before a gate
+  // opens and a hit after it, so caching on npc+act alone would pin the wrong
+  // answer for the rest of the session.
+  const gateKey = Object.keys(flags).filter(f => flags[f]).sort().join(',');
+  const key = `topic::${npcId}::${currentAct}::${gateKey}::${phrase.toLowerCase()}`;
+
+  let authored: string | null;
+  if (parseTopicCache.has(key)) {
+    authored = parseTopicCache.get(key)!;
+  } else {
+    const candidates = buildTopicCandidates(facts, npcId, currentAct, flags);
+    const match = await aiService.parseTopic(phrase, npcLabel, candidates);
+    authored = match?.phrase ?? null;
+    parseTopicCache.set(key, authored);
+  }
+  // null = no confident match → leave topicRaw alone so the engine produces its
+  // ordinary in-character deflection.
+  return authored ? { ...intent, topicRaw: authored } : intent;
 }

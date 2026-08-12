@@ -304,25 +304,12 @@ function runGoldenAct0(): void {
   probe(A0, s, 'go to dorset street', { blocked: true });
 
   // Scene A — Holmes reads the crowd only when Watson engages him or it.
-  s = goldenStep(A0, s, 'examine the chemistry table', {
-    expectSuccess: true,
-    expectFlags: ['examined_baker_street_holmes_chemistry_table'],
-    expectNotFlags: ['act0_caller_noticed'],
-    expectEvent: null,
-    expectNpcs: ['holmes'],
-    expectHidden: ['pawn', 'workbasket', 'boots'],
-  });
   s = goldenStep(A0, s, 'talk to holmes', {
     expectSuccess: true,
     expectFlags: ['act0_caller_noticed', 'story_event_act0_caller_noticed'],
     expectNotFlags: ['act0_bell_rang'],
     expectEvent: 'act0_caller_noticed',
     expectNpcs: ['holmes'],
-  });
-  s = goldenStep(A0, s, 'examine the concluded case', {
-    expectSuccess: true,
-    expectNotFlags: ['act0_bell_rang'],
-    expectEvent: null,
   });
   s = goldenStep(A0, s, 'examine the woman', {
     expectSuccess: true,
@@ -403,10 +390,9 @@ function runGoldenAct0(): void {
   s = goldenStep(A0, s, 'take the ticket', {
     expectSuccess: true,
     expectFlags: ['took_baker_street_pawn_ticket'],
-    expectItemGained: "Nell's Pawn Ticket",
+    expectItemGained: 'Pawn Ticket',
     expectAct: 0,
   });
-  probe(A0, s, 'examine the chemistry table', { noActAdvance: true });
 
   // Scene G — Watson deliberately returns to Holmes and the window.
   s = goldenStep(A0, s, 'talk to holmes', {
@@ -494,7 +480,7 @@ function runGoldenAct0AskReconstruction(): void {
   s = goldenStep(A0A, s, 'take the ticket', {
     expectSuccess: true,
     expectFlags: ['took_baker_street_pawn_ticket'],
-    expectItemGained: "Nell's Pawn Ticket",
+    expectItemGained: 'Pawn Ticket',
     expectAct: 0,
   });
   s = goldenStep(A0A, s, 'talk to holmes', {

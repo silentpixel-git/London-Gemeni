@@ -15,7 +15,7 @@ export const FACTS: StoryFact[] = [
   // front of the player: the ticket names Pentonville, and the statements
   // below name six days and the Tuesday. A player who reads one of those and
   // asks about it must not hit silence.
-  { id: 'kemp_sister_missing', statement: 'Her sister Nell has not been seen for six days, since the Tuesday. Nell would not go off without saying, whatever the gentleman may think of women in that quarter; the two of them have never gone a week without a word', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['your sister', 'nell', 'six days', 'the tuesday', 'when you last saw her', 'why you have come', 'what brings you here'] },
+  { id: 'kemp_sister_missing', statement: 'Her sister Nell has not been seen for six days, since the Tuesday. Nell would not go off without saying, whatever the gentleman may think of women in that quarter; the two of them have never gone a week without a word', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['your sister', 'nell', 'ellen', 'six days', 'the tuesday', 'when you last saw her', 'why you have come', 'what brings you here', 'her visit', 'your visit', 'why she is here', 'why you are here', 'what brought her here', 'what brought you here', 'the purpose of her visit', 'why she has come', 'her reason for coming', 'what she wants', 'what you want'] },
   { id: 'kemp_pawn_ticket', statement: 'The only thing she has to show is Nell\'s ticket for a pair of boots, pledged at a Pentonville shop. She fetched them back herself this very morning, before the dinner that never happened, thinking her sister should have them if she came. A woman does not fetch back boots she meant to be rid of unless she means them for someone', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['the ticket', 'the boots', 'the pawnbroker', 'pentonville', 'the pawnshop'] },
   { id: 'kemp_police_wont_look', statement: 'She went to the police. They took the name down in a book. That was the whole of it, and she has heard nothing since', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['the police', 'what they said'] },
   { id: 'kemp_sister_sickly_spring', statement: 'Nell was poorly in the mornings through the spring. She told her at the time it was the fish', knownBy: ['mrs_kemp'], visibleFromAct: 0, topics: ['her health', 'the spring', 'she was poorly', 'the sickness'] },
@@ -49,6 +49,22 @@ export const FACTS: StoryFact[] = [
   { id: 'holmes_dear_boss_hoax', statement: 'Considers the published "Dear Boss" letters a journalist\'s invention — misdirection, like much else in this case', knownBy: ['holmes'], visibleFromAct: 2, topics: ['the letters', 'dear boss', 'the press letters'] },
   // Timeless character, not campaign knowledge — safe from Act 0.
   { id: 'holmes_knowing_vs_proving', statement: 'Refuses to name a suspect without evidence that would satisfy a court — "knowing and proving are not the same act"', knownBy: ['holmes'], visibleFromAct: 0, topics: ['proof', 'the evidence', 'knowing and proving'] },
+  // The crowd-reading demonstration (act0_caller_noticed beats 1-2) is the one
+  // scene in Act 0 built to invite a follow-up question — Holmes has just
+  // performed a deduction in front of Watson. Gated on the flag the story
+  // event itself sets, so none of this is askable before he has actually said
+  // it. Every proper noun and object his demonstration names (Heath-road,
+  // Hampstead, the dust, the victualler, his daughter, the coat) needs a
+  // topic here, per the standing rule above: a player who reads a name in the
+  // prose and asks about it must not hit silence.
+  // "his boots" deliberately absent from this topic list: once Mrs Kemp's
+  // reconstruction is reached, holmes_boots_bermondsey's "the boots" wins
+  // that bare phrase by design (Nell's boots are the evidence actually on
+  // the table; this stranger's boots are a stale callback to an earlier,
+  // unrelated demonstration). Reachable here only by the specific phrasing.
+  { id: 'holmes_heath_road_dust', statement: 'Heath-road gravel is chalk-pale, unlike anything nearer the city, and four miles of walking on a dry August evening presses it into a boot\'s welt in a way no cab ride ever would — that is why he named Hampstead and not merely "somewhere north"', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['act0_caller_noticed'], topics: ['heath road', 'heath-road', 'the heath road', 'hampstead', 'the dust', 'the white dust', 'the man from hampstead', 'the fare'] },
+  { id: 'holmes_victualler_deduction', statement: 'The coat was good cloth once, kept rather than replaced — a tradesman\'s economy, not a gentleman\'s. The girl beside him walked with the easy, unhurried step of a daughter out with her father on a holiday, not a stranger\'s company. Clothes and bearing together; nothing more mysterious than that', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['act0_caller_noticed'], topics: ['the victualler', 'the licensed victualler', 'his daughter', 'the man in the blue coat', 'the coat'] },
+  { id: 'holmes_observation_vs_inference', statement: 'The dust on a boot is what the eye records — that is observation, and Watson could have named it himself. That the man walked from Hampstead is what the mind builds from the dust — that is inference, and wants practice before it wants confidence', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['act0_caller_noticed'], topics: ['observation', 'inference', 'how did you know', 'how you knew', 'the difference'] },
   // Act 0 — the Bank Holiday. The irony the act is built on: Holmes declares
   // crime finished, hours before Tabram. None of these may hint at a murder.
   // Gated on the reconstruction: this is the act's CLOSING beat and it is only
@@ -77,7 +93,12 @@ export const FACTS: StoryFact[] = [
   { id: 'holmes_no_case_here', statement: 'On the woman who called: he has found her sister exactly, and there is no crime in it. She has arranged her own affairs with more foresight than most of his clients manage, and gone to considerable expense to be somewhere her sister is not. What her sister does with that knowledge is not a problem for him to solve; it is a decision, and hers alone. His tone is flat and perfectly reasonable, and he is wrong. Pressed on whether he might have delivered it more gently, he allows that he might — and adds that she would only have understood it the less for it', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['act0_reconstruction_complete'], topics: ['mrs kemp', 'the woman who called', 'her sister', 'why you refused', 'why you will not help'] },
   { id: 'holmes_concluded_case', statement: 'The matter he has just finished is concluded and already forgotten. He names nothing and no one about it and declines to be drawn; it was solved in an afternoon and was not worth the afternoon', knownBy: ['holmes'], visibleFromAct: 0, topics: ['the case you have just closed', 'your last case'] },
   { id: 'holmes_invisible_in_a_crowd', statement: 'At the open window, watching the holiday crowd: the whole city is turned out of doors tonight, a hundred thousand of them at the least, and a man might pass through the whole of that and be remembered by none. He means it as a complaint about the tedium of scale', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['act0_closing_complete'], topics: ['the crowd', 'the holiday', 'the window'] },
-  { id: 'holmes_boots_bermondsey', statement: 'Oak bark, lime, and south-bank river silt, caked into a pair of boots in a dry August. Four streets in London could put all three on one sole, and every one of them is a tanyard in Bermondsey', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['act0_reconstruction_complete'], topics: ['the mud', 'bermondsey'] },
+  // "the boots" must resolve here, not to holmes_heath_road_dust's "his boots"
+  // (a different pair entirely — a Hampstead passerby's, from the earlier
+  // crowd demonstration). matchTopic prefers an exact match over a partial
+  // one, so registering the bare phrase here wins the tie deterministically
+  // rather than leaving it to substring-length luck.
+  { id: 'holmes_boots_bermondsey', statement: 'Oak bark, lime, and south-bank river silt, caked into a pair of boots in a dry August. Four streets in London could put all three on one sole, and every one of them is a tanyard in Bermondsey', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['act0_reconstruction_complete'], topics: ['the mud', 'bermondsey', 'the boots', 'her boots', "nell's boots", 'the worn boots'] },
   { id: 'holmes_letters_tuesdays', statement: 'Three consecutive Tuesdays with a postmark south of the river, and not one word of them in eleven letters. She left on a fourth Tuesday, and did not come home', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['act0_reconstruction_complete'], topics: ['the postmarks', 'tuesday'] },
   { id: 'holmes_honest_object', statement: 'Everything she took, she chose. The workbox is the one thing she did not think about, and is therefore the only honest object in the room', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['act0_reconstruction_complete'], topics: ['what she left behind', 'the honest object'] },
   { id: 'holmes_mothers_name', statement: 'She took her mother\'s name with her and left the rest of her family behind it', knownBy: ['holmes'], visibleFromAct: 0, requireFlags: ['act0_reconstruction_complete'], topics: ['marchant', 'the name she gave the charity'] },
@@ -89,7 +110,10 @@ export const FACTS: StoryFact[] = [
   { id: 'holmes_preserving_hand', statement: 'Whoever sent the kidney preserved it first, in spirits of wine, and preserving is a habit of the hands — the letters may be hoaxes, but the hand that kept that organ is still somewhere in this business', knownBy: ['holmes'], visibleFromAct: 4, topics: ['the preserving hand', 'the kidney', 'the spirits of wine'] },
 
   // ── abberline ───────────────────────────────────────────────────────────────
-  { id: 'abberline_leads_investigation', statement: 'Leads the Metropolitan Police investigation from Commercial Street station', knownBy: ['abberline'], visibleFromAct: 0, topics: ['the investigation', 'your work', 'the yard'] },
+  { id: 'abberline_leads_investigation', statement: 'Leads the Metropolitan Police investigation from Commercial Street station', knownBy: ['abberline'], visibleFromAct: 0, // 'the work' registered explicitly: without it, a bare "work" partial-matches
+  // 'the dock workers' on abberline_political_pressure, which is the longer
+  // substring and therefore wins. Exact match takes precedence over partial.
+  topics: ['the investigation', 'your work', 'the work', 'the yard'] },
   { id: 'abberline_five_victims', statement: 'Five victims: Mary Ann Nichols (31 Aug), Annie Chapman (8 Sep), Elizabeth Stride and Catherine Eddowes (30 Sep, double event), Mary Jane Kelly (9 Nov)', knownBy: ['abberline'], visibleFromAct: 0, topics: ['the victims', 'the five', 'the murders'] },
   { id: 'abberline_double_event', statement: 'The double event on 30 September was the worst night — two murders in 45 minutes, two different police jurisdictions', knownBy: ['abberline'], visibleFromAct: 0, topics: ['the double event', 'the thirtieth of september'] },
   { id: 'abberline_city_police_coordination', statement: 'City Police handled Eddowes at Mitre Square — inter-force coordination has been problematic throughout', knownBy: ['abberline'], visibleFromAct: 0, topics: ['the city police', 'mitre square', 'the jurisdictions'] },

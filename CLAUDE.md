@@ -34,11 +34,13 @@ Individual QA harnesses (all `npx tsx scripts/qa-*.ts`, exit 1 on FAIL, no brows
 |---|---|---|
 | `npm run qa:engine` | Drives `gameEngine.resolve()` with scripted intents; validates state transitions, act-gate logic, exit graph | No |
 | `npm run qa:parser` | Free-text → intent accuracy (exact/alias/typo/paraphrase) against every clue-bearing object; regression-gated against a recorded baseline | No (hybrid AI-fallback pass only if key present) |
+| `npm run qa:topics` | The same question for **TALK subjects**: every authored topic phrase (plus article variants) must resolve to its own fact, gated at 100%. Catches partial-match theft — one fact's phrase silently stealing another's. Tier 2 runs hand-written paraphrases through the live `parseTopic` fallback and hard-fails if a *decoy* gets a confident wrong answer | No (tier-2 paraphrase pass only if key present) |
 | `npm run qa:hints` | The Watson hint selector (`hints.ts` / `selectHint`) | No |
 | `npm run qa:diary-leads` | The silent-diary-lead detection system | No |
 | `npm run qa:validate` | Story-data referential integrity: dangling clue connections, trigger objects missing from their location, progression flags nothing can set, NPC placement gaps, spoiler leaks into public knowledge | No |
 | `npm run qa:narration-inject` | The mechanical seam that splices authored opening/act-bridge lines into streamed narration (`narrationFormat.ts` / `injectAfterHeading`) — **not** part of `qa:all`, run it directly after touching that seam | No |
-| `npx tsx scripts/qa-narration.ts` | Generates `qa-narration-report.md` from crafted `NarrationContext` fixtures for manual/agent review of prose quality, historical accuracy, spoiler containment | **Yes** |
+| `npx tsx scripts/qa-narration.ts` | Generates `qa-narration-report.md` from crafted `NarrationContext` fixtures for manual/agent review of prose quality, historical accuracy, spoiler containment. Also runs the invention detector below over every fixture (warning-level) | **Yes** |
+| `npx tsx scripts/qa-invention.ts` | Self-test for the **invented-specifics detector** (`findInventions`): flags proper nouns and numeric specifics present in narration but in **no field of that turn's own context**. Catches the two live bugs prompt rules missed — a name borrowed from wider Doyle canon, and a fabricated quantity. Imported by `qa:narration`; run directly to verify the detector itself | No (self-test only) |
 
 There is no unit-test framework (no jest/vitest) — correctness is enforced by `tsc --noEmit` plus these scripted QA harnesses. When changing `engine/`, `intentParser.ts`, or any `engine/stories/whitechapel-1888/*` data file, run the relevant `qa:*` script(s) directly rather than asking the user to.
 
@@ -78,6 +80,15 @@ NarrativeFeed.tsx         — renders streamed markdown with typewriter animatio
 `GEMINI_API_KEY` must never reach the browser bundle. The actual Gemini prompts, schemas, and calls live in **`server/aiCore.ts`** (imports `@google/genai` directly) and **`server/parseAction.ts`** (pure, offline-testable candidate-validation logic for the tool-calling parse fallback). This runs only where the key is a real server env var: the Vercel function `api/ai.ts`, the Vite dev-server middleware defined in `vite.config.ts` (`aiDevGateway`, mounted at `/api/ai` so `npm run dev` works without `vercel dev`), and the Node `qa:*` scripts.
 
 `services/AIService.ts` (client-side) is a thin `fetch` wrapper around `/api/ai` with the same public method signatures as the server core — never import `server/aiCore.ts` from client code.
+
+### The two AI recovery tiers (both selection-only)
+
+The deterministic parse is layer one; when it misses, two narrow AI ops recover the turn. Both **select from a supplied candidate list and can never invent**, which is why they don't breach the engine/AI contract — and both are killed by `VITE_AI_PARSER='off'`.
+
+- **`parseAction`** (`server/parseAction.ts` + `engine/parseFallback.ts`) — resolves the *verb and target* when regex can't ("examine the thingy").
+- **`parseTopic`** (`server/parseTopic.ts` + `engine/topicFallback.ts`) — resolves the *subject after "about"* when `matchTopic`'s string containment can't ("ask kemp about her visit"). It rewrites `intent.topicRaw` to the winning **authored** phrase, so the engine then resolves it deterministically as if the player had typed it. Returning `none` is a normal outcome and falls through to the in-character deflection: **a confident wrong answer is worse than an honest miss**, and `qa:topics` hard-fails if a decoy gets one.
+
+Topic misses used to have no recovery at all, which made them the single biggest source of content bugs — an NPC denying knowledge of something they had just said aloud. Both tiers are orchestrated from `hooks/gameState/aiParse.ts`, the layer where engine and AI legitimately meet.
 
 ### Story data is a swappable manifest
 
