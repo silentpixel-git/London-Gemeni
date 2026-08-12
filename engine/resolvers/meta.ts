@@ -67,7 +67,8 @@ export function resolveHelp(story: StoryManifest, intent: ParsedIntent, session:
       actionResultNote:
         `HELP — Remind Watson of his available actions, in character. ` +
         `Available commands: LOOK (survey surroundings), GO [place] (move to a location), ` +
-        `EXAMINE [object/person] (inspect something closely), TALK TO [person] (speak with someone), ` +
+        `EXAMINE [object/person] (inspect something closely), TALK TO [person] (open a conversation), ` +
+        `ASK [person] ABOUT [subject] (put a specific question — this is how testimony is drawn out; a general word with someone rarely settles anything), ` +
         `TAKE [object] (add evidence to your bag), OPEN [container] (look inside something), USE [object] (interact with something), ` +
         `INVENTORY (check your bag), NOTEBOOK (review discovered clues and case progress), ` +
         `DEDUCE / SOLVE (name the killer — requires ${story.deductionThreshold} clues; ` +
