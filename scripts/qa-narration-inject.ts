@@ -19,10 +19,27 @@
  */
 
 import { injectAfterHeading, stripLeadingActHeading, formatActHeading } from '../services/narrationFormat';
+import { readFileSync } from 'node:fs';
 import { ACT_BRIDGES, ACT_NAMES } from '../engine/gameData';
 import { ACT_ROMAN } from '../constants';
-import { buildNarrationPrompt } from '../server/aiCore';
-import type { NarrationContext } from '../types';
+import {
+  buildNarrationPrompt,
+  finalizeNarrationResponse,
+  NARRATION_SCHEMA,
+  parseFinalNarrationResponse,
+} from '../server/aiCore';
+import {
+  cloudPersistOutcome,
+  mergeNarrationContinuity,
+  narrationCloudPersisted,
+  streamFollowUpNarration,
+} from '../hooks/gameState/narration';
+import { buildAct0NarrationContexts } from './qa-narration-fixtures';
+import { applyStoryEvents } from '../engine/storyEvents';
+import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
+import type { SessionSnapshot } from '../engine/session';
+import type { StoryManifest } from '../engine/stories/types';
+import type { EngineResult, GameHistoryItem, NarrationContext } from '../types';
 
 let passed = 0;
 const failures: string[] = [];
@@ -35,6 +52,13 @@ function check(label: string, cond: boolean) {
 const HEADING = '### ACT I: The Last Murder\n\n';
 const SCENE = 'The drizzle coated the cobbles of Dorset Street.';
 const LINE = 'A bridge sentence.';
+
+{
+  const guide = readFileSync(new URL('../docs/act-authoring-process.md', import.meta.url), 'utf8');
+  check('story event authoring guide: Act 0 pilot is scoped to compact action turns',
+    /Act 0 pilot.*compact action turns only/i.test(guide) &&
+    !/Narration:\s*compact\/full/i.test(guide));
+}
 
 // 1. Complete heading: line becomes its own paragraph between heading and scene.
 {
@@ -110,7 +134,7 @@ const LINE = 'A bridge sentence.';
 // ── formatActHeading (feed chrome string — CSS uppercases it) ─────────────────
 {
   check('formatActHeading: prologue',
-    formatActHeading(0) === 'Prologue: The Baker Street Vigil');
+    formatActHeading(0) === 'Prologue: The Bank Holiday');
   check('formatActHeading: act 3 roman numeral',
     formatActHeading(3) === 'Act III: The Double Event');
   check('formatActHeading: unknown act degrades gracefully',
@@ -174,6 +198,454 @@ const baseInterviewCtx: NarrationContext = {
     targetNpcInterview: { ...baseInterviewCtx.targetNpcInterview!, recentlyHeard: undefined },
   } as NarrationContext);
   check('recentlyHeard: section absent when not set', !without.includes('RECENTLY HEARD'));
+}
+
+// ── Action-triggered story-event prompt contract ────────────────────────────
+
+{
+  const npcMemorySchema = NARRATION_SCHEMA.properties.npcMemoryUpdate as {
+    properties?: Record<string, unknown>;
+  };
+  check('structured narration schema accepts Mrs Kemp memory updates',
+    Boolean(npcMemorySchema.properties?.mrs_kemp));
+
+  const eventCtx = {
+    ...baseInterviewCtx,
+    targetNpcInterview: undefined,
+    storyEvent: { id: 'test_event', maxWords: 70, beats: ['The event completes.'] },
+  } as NarrationContext;
+  let malformedError = '';
+  try {
+    parseFinalNarrationResponse(eventCtx, '{"markdownOutput":"Only a partial beat', 'Only a partial beat');
+  } catch (error) {
+    malformedError = error instanceof Error ? error.message : String(error);
+  }
+  check('story event final response: malformed JSON throws instead of accepting partial prose',
+    /invalid.*story event narration/i.test(malformedError));
+
+  for (const [label, json] of [
+    ['missing prose', '{}'],
+    ['empty prose', '{"markdownOutput":"   "}'],
+  ] as const) {
+    let finalError = '';
+    try {
+      parseFinalNarrationResponse(eventCtx, json, 'A partial streamed beat');
+    } catch (error) {
+      finalError = error instanceof Error ? error.message : String(error);
+    }
+    check(`story event final response: ${label} throws instead of using streamed fallback`,
+      /missing.*story event narration/i.test(finalError));
+  }
+
+  const ordinaryMissing = parseFinalNarrationResponse(
+    { ...baseInterviewCtx, targetNpcInterview: undefined },
+    '{}',
+    'The ordinary streamed narration survives.',
+  );
+  const ordinaryEmpty = parseFinalNarrationResponse(
+    { ...baseInterviewCtx, targetNpcInterview: undefined },
+    '{"markdownOutput":""}',
+    '',
+  );
+  const ordinaryWhitespace = parseFinalNarrationResponse(
+    { ...baseInterviewCtx, targetNpcInterview: undefined },
+    '{"markdownOutput":"   ","npcMemoryUpdate":{"mrs_kemp":"Metadata survives fallback."}}',
+    '   ',
+  );
+  check('ordinary final response: missing prose retains the streamed fallback',
+    ordinaryMissing.markdownOutput === 'The ordinary streamed narration survives.');
+  check('ordinary final response: empty prose retains the ink fallback',
+    ordinaryEmpty.markdownOutput === 'The ink on Watson\'s pen ran dry.');
+  check('ordinary final response: whitespace prose retains the ink fallback',
+    ordinaryWhitespace.markdownOutput === 'The ink on Watson\'s pen ran dry.');
+  check('ordinary final response: whitespace prose fallback preserves parsed metadata',
+    ordinaryWhitespace.npcMemoryUpdate?.mrs_kemp === 'Metadata survives fallback.');
+}
+
+{
+  const prompt = buildNarrationPrompt({
+    ...baseInterviewCtx,
+    targetNpcInterview: undefined,
+    storyEvent: {
+      id: 'act0_bell_rang',
+      maxWords: 70,
+      beats: [
+        'The bell goes at last.',
+        'Watson recognises the caller has committed herself to entering.',
+      ],
+      notice: '**Door bell** is ringing.',
+    },
+  });
+
+  check('story event: prompt has a required numbered section',
+    prompt.includes('=== REQUIRED STORY EVENT ===') &&
+    prompt.includes('1. The bell goes at last.') &&
+    prompt.includes('2. Watson recognises the caller has committed herself to entering.'));
+  check('story event: prompt requires exact once-only authored order in one response',
+    /every semantic beat exactly once and in the numbered order/i.test(prompt) &&
+    /one Watson response/i.test(prompt));
+  check('story event: prompt preserves relationships and forbids connective invention',
+    /complete each numbered beat before beginning the next/i.test(prompt) &&
+    /preserve who did what/i.test(prompt) &&
+    /not present in the verified Result or numbered beats/i.test(prompt));
+  check('story event: negative beats forbid partial answers or speculative dialogue',
+    /hard constraints/i.test(prompt) &&
+    /no partial answer, explanation, speculation, motive, hint, promise, or plan/i.test(prompt));
+  check('story event: concealed contents cannot leak through connective prose',
+    /never name or describe a container's contents/i.test(prompt) &&
+    /verified scenery, inventory, Result, or numbered beats/i.test(prompt));
+  check('story event: unsupplied NPC roles cannot be inferred',
+    /do not assign a role, title, occupation, or relationship/i.test(prompt) &&
+    /use only their verified label/i.test(prompt));
+  check('story event: event word ceiling governs the turn',
+    /max 70 words total/i.test(prompt));
+
+  const eventInterviewPrompt = buildNarrationPrompt({
+    ...baseInterviewCtx,
+    targetNpcInterview: {
+      ...baseInterviewCtx.targetNpcInterview!,
+      topic: { label: 'an unrelated topic', statement: 'EXTRA TOPIC FACT MUST NOT COMPETE' },
+    },
+    storyEvent: {
+      id: 'act0_kemp_business',
+      maxWords: 130,
+      beats: ['Mrs Kemp explains the purpose of her visit.'],
+    },
+  });
+  check('story event: ordinary interview directives cannot compete with ordered beats',
+    !eventInterviewPrompt.includes('=== NPC INTERVIEW ===') &&
+    !eventInterviewPrompt.includes('EXTRA TOPIC FACT MUST NOT COMPETE'));
+  check('story event: speaker identity and manner survive interview suppression',
+    eventInterviewPrompt.includes('=== STORY EVENT CHARACTER ===') &&
+    eventInterviewPrompt.includes('Divisional Surgeon') &&
+    eventInterviewPrompt.includes('Speaking style: measured') &&
+    eventInterviewPrompt.includes('Personality: precise'));
+
+  const fallbackCharacterPrompt = buildNarrationPrompt({
+    ...baseInterviewCtx,
+    targetNpcInterview: undefined,
+    storyEventCharacter: {
+      label: 'Mrs. Kemp',
+      isIntroduced: true,
+      role: 'A caller and guest, never a servant',
+      speakingStyle: 'Plain and unhurried; she does not plead.',
+      personality: ['Plain-spoken', 'Tired', 'Not pitiable'],
+    },
+    storyEvent: {
+      id: 'act0_kemp_business_fallback',
+      maxWords: 130,
+      beats: ['Mrs Kemp states why she has come.'],
+    },
+  } as NarrationContext);
+  check('story event fallback: sanitized speaker profile preserves character voice',
+    fallbackCharacterPrompt.includes('=== STORY EVENT CHARACTER ===') &&
+    fallbackCharacterPrompt.includes('A caller and guest, never a servant') &&
+    fallbackCharacterPrompt.includes('Plain and unhurried; she does not plead.'));
+}
+
+{
+  const legacyAuthoredPassage = 'AUTHORED PASSAGE MUST NOT BE APPENDED';
+  const ctx = {
+    ...baseInterviewCtx,
+    targetNpcInterview: undefined,
+    scriptedBeat: { text: legacyAuthoredPassage, style: 'prose' as const },
+    storyEvent: {
+      id: 'act0_bell_rang',
+      maxWords: 70,
+      beats: ['The bell goes at last.'],
+      notice: '**Door bell** is ringing.',
+    },
+  } as NarrationContext & { scriptedBeat: { text: string; style: 'prose' } };
+  const final = finalizeNarrationResponse(ctx, { markdownOutput: 'Gemini integrated prose.' });
+
+  check('story event: generated prose receives no mechanically appended authored passage',
+    !final.markdownOutput.includes(legacyAuthoredPassage));
+  check('story event: deterministic notice may follow generated prose',
+    final.markdownOutput === 'Gemini integrated prose.\n\n**Door bell** is ringing.');
+}
+
+{
+  let history: GameHistoryItem[] = [
+    { role: 'user', text: 'examine the workbox' },
+    { role: 'assistant', text: 'Main action narration.' },
+  ];
+  const streamedContexts: NarrationContext[] = [];
+  const followUp: NonNullable<EngineResult['followUpEvent']> = {
+    storyEvent: {
+      id: 'act0_kemp_business_fallback',
+      maxWords: 130,
+      beats: ['Mrs Kemp can bear the delay no longer and explains her business.'],
+    },
+    effects: { act0_kemp_business_heard: true },
+    aiContext: {
+      ...baseInterviewCtx,
+      targetNpcInterview: undefined,
+      storyEvent: {
+        id: 'act0_kemp_business_fallback',
+        maxWords: 130,
+        beats: ['Mrs Kemp can bear the delay no longer and explains her business.'],
+      },
+    },
+  };
+  const stream = (ctx: NarrationContext) => {
+    streamedContexts.push(ctx);
+    return (async function* () {
+      yield { narrative: 'Fallback partial', fullJson: '', isComplete: false };
+      yield {
+        narrative: 'Fallback complete.',
+        fullJson: '',
+        isComplete: true,
+        parsed: { markdownOutput: 'Fallback complete.' },
+      };
+    })();
+  };
+
+  await streamFollowUpNarration(followUp, stream, update => { history = update(history); });
+
+  check('story event fallback: streams its own narration context',
+    streamedContexts.length === 1 &&
+    streamedContexts[0] === followUp.aiContext &&
+    streamedContexts[0].storyEvent?.id === 'act0_kemp_business_fallback');
+  check('story event fallback: appends a distinct feed item after the main action',
+    history.length === 3 &&
+    history[1].text === 'Main action narration.' &&
+    history[2].role === 'assistant' &&
+    history[2].text === 'Fallback complete.');
+
+  let incompleteError = '';
+  try {
+    await streamFollowUpNarration(
+      followUp,
+      () => (async function* () {
+        yield { narrative: 'Only a partial response', fullJson: '', isComplete: false };
+      })(),
+      update => { history = update(history); },
+    );
+  } catch (error) {
+    incompleteError = error instanceof Error ? error.message : String(error);
+  }
+  check('story event fallback: an incomplete stream reaches the generic-error path',
+    /ended before a complete response/i.test(incompleteError));
+}
+
+{
+  const syntheticNpcs = { ...WHITECHAPEL_MANIFEST.npcs };
+  const sourceSpeaker = syntheticNpcs.mrs_kemp;
+  delete syntheticNpcs.mrs_kemp;
+  syntheticNpcs.archivist = {
+    ...sourceSpeaker,
+    id: 'archivist',
+    displayName: 'The Archivist',
+    role: 'A visiting records keeper',
+    speakingStyle: 'Precise and economical.',
+    personality: ['Methodical'],
+    presenceRequiresFlag: undefined,
+    presenceForbidFlag: undefined,
+    scheduleByAct: { 0: { default: 'baker_street' } },
+  };
+  const syntheticStory = {
+    ...WHITECHAPEL_MANIFEST,
+    id: 'synthetic-archive-story',
+    npcs: syntheticNpcs,
+    npcAliases: { ...WHITECHAPEL_MANIFEST.npcAliases, archivist: 'The Archivist' },
+    npcDisplayNames: { ...WHITECHAPEL_MANIFEST.npcDisplayNames, archivist: 'The Archivist' },
+    storyEvents: [{
+      id: 'synthetic_carrier',
+      act: 0,
+      triggers: [],
+      setFlags: [],
+      maxWords: 1,
+      beats: [],
+      actionDescription: 'unused',
+      actionResultNote: 'unused',
+      fallback: {
+        id: 'synthetic_archivist_fallback',
+        afterEligibleActions: 1,
+        eligibleIntentTypes: ['examine'],
+        counterFlags: ['synthetic_fallback_action_1'],
+        setFlags: ['synthetic_fallback_complete'],
+        speakerNpcId: 'archivist',
+        actionDescription: 'The archivist supplied the missing catalogue note.',
+        actionResultNote: 'FOLLOW-UP STORY EVENT — the archivist states the verified catalogue fact.',
+        beats: ['The Archivist states that the ledger is complete.'],
+        maxWords: 45,
+      },
+    }],
+  } as StoryManifest;
+  const snapshot: SessionSnapshot = {
+    location: 'baker_street', inventory: [], flags: {}, npcStates: {}, currentAct: 0,
+    medicalPoints: 0, moralPoints: 0, discoveredClueIds: [],
+    turnsAtLocationWithoutProgress: 0, elapsedMinutes: 0,
+    introducedNpcs: ['holmes', 'archivist'], locationVisitCounts: {}, turnCount: 0,
+    rumorEvents: {},
+  };
+  const result: EngineResult = {
+    actionSuccess: true,
+    actionType: 'examine',
+    aiContext: {
+      ...baseInterviewCtx,
+      act: 0,
+      actName: 'The Archive Test',
+      locationName: 'Archive Room',
+      targetNpcInterview: undefined,
+      npcsPresent: [{ npcId: 'archivist', label: 'The Archivist', isIntroduced: true }],
+      actionType: 'examine',
+    },
+  };
+
+  let resolved: EngineResult | undefined;
+  let syntheticError = '';
+  try {
+    resolved = applyStoryEvents(
+      syntheticStory,
+      { type: 'examine', targetId: 'ledger', raw: 'examine ledger' },
+      snapshot,
+      result,
+    );
+  } catch (error) {
+    syntheticError = error instanceof Error ? error.message : String(error);
+  }
+
+  check('story event fallback: synthetic manifest has no Kemp dependency',
+    syntheticError === '' &&
+    resolved?.followUpEvent?.aiContext.storyEventCharacter?.label === 'The Archivist' &&
+    resolved.followUpEvent.aiContext.actionDescription ===
+      'The archivist supplied the missing catalogue note.' &&
+    resolved.followUpEvent.aiContext.actionResultNote ===
+      'FOLLOW-UP STORY EVENT — the archivist states the verified catalogue fact.');
+
+  const missingSpeakerStory = {
+    ...syntheticStory,
+    storyEvents: syntheticStory.storyEvents.map(event => ({
+      ...event,
+      fallback: event.fallback ? { ...event.fallback, speakerNpcId: 'missing_archivist' } : undefined,
+    })),
+  } as StoryManifest;
+  const missingSpeakerResult: EngineResult = {
+    actionSuccess: true,
+    actionType: 'examine',
+    aiContext: {
+      ...baseInterviewCtx,
+      act: 0,
+      actName: 'The Archive Test',
+      locationName: 'Archive Room',
+      targetNpcInterview: undefined,
+      npcsPresent: [],
+      actionType: 'examine',
+    },
+  };
+  let missingResolved: EngineResult | undefined;
+  let missingSpeakerError = '';
+  try {
+    missingResolved = applyStoryEvents(
+      missingSpeakerStory,
+      { type: 'examine', targetId: 'ledger', raw: 'examine ledger' },
+      snapshot,
+      missingSpeakerResult,
+    );
+  } catch (error) {
+    missingSpeakerError = error instanceof Error ? error.message : String(error);
+  }
+  check('story event fallback: missing manifest speaker degrades without a character profile',
+    missingSpeakerError === '' &&
+    missingResolved?.followUpEvent?.aiContext.storyEventCharacter === undefined &&
+    missingResolved?.followUpEvent?.aiContext.actionDescription ===
+      'The archivist supplied the missing catalogue note.');
+}
+
+{
+  const initial = {
+    npcStates: {
+      mrs_kemp: {
+        npcId: 'mrs_kemp', disposition: 50, status: 'alive', memory: ['Earlier memory'],
+      },
+    },
+    stim: {},
+  };
+  const afterMain = mergeNarrationContinuity(initial, {
+    markdownOutput: 'Main action.',
+    npcMemoryUpdate: { mrs_kemp: 'Main action summary' },
+    stimUpdate: {
+      kemp_gloves: { summary: 'Her gloves stayed tightly clasped in her lap.', scope: 'npc', turnCreated: 0 },
+    },
+  }, 12);
+  const afterFollowUp = mergeNarrationContinuity(afterMain, {
+    markdownOutput: 'Fallback response.',
+    npcMemoryUpdate: { mrs_kemp: 'Fallback business summary' },
+    stimUpdate: {
+      kemp_gloves: { summary: 'A conflicting later observation.', scope: 'npc', turnCreated: 0 },
+      kemp_voice: { summary: 'Her voice remained plain, low, and perfectly controlled.', scope: 'npc', turnCreated: 0 },
+    },
+  }, 12);
+
+  check('narration continuity: main and follow-up NPC memories merge in stream order',
+    JSON.stringify(afterFollowUp.npcStates.mrs_kemp.memory) ===
+      JSON.stringify(['Fallback business summary', 'Main action summary', 'Earlier memory']));
+  check('narration continuity: first STIM observation wins across both responses',
+    afterFollowUp.stim.kemp_gloves.summary === 'Her gloves stayed tightly clasped in her lap.' &&
+    afterFollowUp.stim.kemp_voice.turnCreated === 12);
+}
+
+{
+  const fixtures = new Map(buildAct0NarrationContexts().map(fixture => [fixture.id, fixture.ctx]));
+  const arrival = fixtures.get('act0_kemp_arrives')!;
+  const reconstruction = fixtures.get('act0_reconstruction')!;
+  const give = fixtures.get('act0_give_card')!;
+  const withhold = fixtures.get('act0_withhold_card')!;
+  const fallback = fixtures.get('act0_kemp_business_fallback')!;
+
+  check('story event fixtures: arrival cannot see evidence that is still concealed',
+    !arrival.availableObjects.some(label => /letter|correspondence|subscriber|charity card/i.test(label)) &&
+    !arrival.inventory.some(label => /letter|correspondence|subscriber|charity card/i.test(label)));
+  check('story event fixtures: reconstruction exposes the discovered subscriber card',
+    [...reconstruction.availableObjects, ...reconstruction.inventory]
+      .some(label => /subscriber|charity card/i.test(label)));
+  check('story event fixtures: post-choice context carries the card in inventory',
+    withhold.inventory.some(label => /subscriber|charity card/i.test(label)));
+  check('story event fixtures: giving the card removes it from Watson inventory',
+    !give.inventory.some(label => /subscriber|charity card/i.test(label)));
+  check('story event fixtures: a departing character does not create an alone-cast contradiction',
+    !buildNarrationPrompt(give).includes('The cast of this scene is exactly two'));
+  check('story event fixtures: pivotal turns suppress competing atmospheric notes',
+    reconstruction.atmosphericNote === undefined &&
+    give.atmosphericNote === undefined);
+  check('story event fixtures: fallback is a distinct sanitized speaker context',
+    fallback.storyEvent?.id === 'act0_kemp_business_fallback' &&
+    fallback.targetNpcInterview === undefined &&
+    fallback.storyEventCharacter?.label === 'Mrs. Kemp');
+  check('story event fixtures: post-open fallback keeps engine-derived contents truthful',
+    fallback.availableObjects.some(label => /correspondence/i.test(label)) &&
+    fallback.availableObjects.some(label => /subscriber.*card/i.test(label)));
+  check('story event fixtures: fallback adds no closed or concealed contradiction',
+    !/closed tin|conceal|must not be named/i.test(buildNarrationPrompt(fallback)) &&
+    /Holmes.*(?:asks|invites).*Mrs Kemp/i.test(fallback.storyEvent?.beats[0] ?? ''));
+}
+
+{
+  check('narration cloud persistence: both writes must succeed',
+    narrationCloudPersisted(true, true));
+  check('narration cloud persistence: failed NPC continuity write fails the turn sync',
+    !narrationCloudPersisted(false, true));
+  check('narration cloud persistence: failed full-state save fails the turn sync',
+    !narrationCloudPersisted(true, false));
+  check('cloud failure streak: later success cannot clear an earlier same-turn failure',
+    JSON.stringify(cloudPersistOutcome(false, [false, true, true])) ===
+      JSON.stringify({ failed: true, shouldNotify: true }));
+  check('cloud failure streak: a continuing later-phase failure does not notify again',
+    JSON.stringify(cloudPersistOutcome(true, [true, true, false])) ===
+      JSON.stringify({ failed: true, shouldNotify: false }));
+  check('cloud failure streak: only an entirely successful turn clears the streak',
+    JSON.stringify(cloudPersistOutcome(true, [true, true, true])) ===
+      JSON.stringify({ failed: false, shouldNotify: false }));
+  check('cloud failure streak: main-stream throw finalizes earlier false persistence',
+    JSON.stringify(cloudPersistOutcome(false, [false, true], false)) ===
+      JSON.stringify({ failed: true, shouldNotify: true }));
+  check('cloud failure streak: follow-up throw marks an otherwise successful write sequence incomplete',
+    JSON.stringify(cloudPersistOutcome(false, [true, true], false)) ===
+      JSON.stringify({ failed: true, shouldNotify: true }));
+  check('cloud failure streak: narration throw cannot clear an existing streak',
+    JSON.stringify(cloudPersistOutcome(true, [true, true], false)) ===
+      JSON.stringify({ failed: true, shouldNotify: false }));
 }
 
 // ── Report ────────────────────────────────────────────────────────────────────

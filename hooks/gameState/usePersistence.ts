@@ -65,6 +65,19 @@ export interface PersistenceDeps {
   streamResumeScene: (resume: { location: string; act: number; inventory: string[]; flags: Record<string, boolean>; npcStates: Record<string, NPCState>; medicalPoints: number; moralPoints: number; introducedNpcs: string[]; elapsedMinutes: number; investigationId?: string }) => Promise<void>;
 }
 
+export interface SaveGameOverrides {
+  location?: string;
+  inventory?: string[];
+  medicalPoints?: number;
+  moralPoints?: number;
+  npcStates?: Record<string, NPCState>;
+  flags?: Record<string, boolean>;
+  stim?: Record<string, STIMEntry>;
+  introducedNpcs?: string[];
+  currentAct?: number;
+  rumorEvents?: RumorEvents;
+}
+
 export function usePersistence(deps: PersistenceDeps) {
   const {
     user,
@@ -233,22 +246,36 @@ export function usePersistence(deps: PersistenceDeps) {
     setNotification({ message: 'Investigation Resumed!', type: 'success' });
   }, [generateOpeningScene, streamResumeScene]);
 
-  const handleSaveGame = useCallback(async (silent = false) => {
+  const handleSaveGame = useCallback(async (
+    silent = false,
+    overrides: SaveGameOverrides = {},
+  ): Promise<boolean> => {
     setIsSaving(true);
+
+    const savedLocation = overrides.location ?? location;
+    const savedInventory = overrides.inventory ?? inventory;
+    const savedMedicalPoints = overrides.medicalPoints ?? medicalPoints;
+    const savedMoralPoints = overrides.moralPoints ?? moralPoints;
+    const savedNpcStates = overrides.npcStates ?? npcStates;
+    const savedFlags = overrides.flags ?? flags;
+    const savedStim = overrides.stim ?? stim;
+    const savedIntroducedNpcs = overrides.introducedNpcs ?? introducedNpcs;
+    const savedCurrentAct = overrides.currentAct ?? currentAct;
+    const savedRumorEvents = overrides.rumorEvents ?? rumorEvents;
 
     const gameState: GameState = {
       history,
-      location,
-      inventory,
-      medicalPoints,
-      moralPoints,
-      npcStates,
-      flags,
+      location: savedLocation,
+      inventory: savedInventory,
+      medicalPoints: savedMedicalPoints,
+      moralPoints: savedMoralPoints,
+      npcStates: savedNpcStates,
+      flags: savedFlags,
       journalNotes,
       diaryEntries,
-      introducedNpcs,
-      currentAct,
-      rumorEvents,
+      introducedNpcs: savedIntroducedNpcs,
+      currentAct: savedCurrentAct,
+      rumorEvents: savedRumorEvents,
       timestamp: new Date().toLocaleString(),
     };
 
@@ -257,18 +284,22 @@ export function usePersistence(deps: PersistenceDeps) {
 
       if (user && activeInvestigation) {
         const updated = await GameRepository.updateInvestigation(activeInvestigation.id, {
-          currentLocation: location,
-          medicalPoints,
-          moralPoints,
-          currentAct,
-          inventory,
-          globalFlags: flags,
+          currentLocation: savedLocation,
+          medicalPoints: savedMedicalPoints,
+          moralPoints: savedMoralPoints,
+          currentAct: savedCurrentAct,
+          inventory: savedInventory,
+          globalFlags: savedFlags,
           journalNotes,
-          stim,
-          introducedNpcs,
-          rumorEvents,
+          stim: savedStim,
+          introducedNpcs: savedIntroducedNpcs,
+          rumorEvents: savedRumorEvents,
         });
-        if (updated) setActiveInvestigation(updated as Investigation);
+        if (!updated) {
+          if (!silent) setNotification({ message: 'Failed to save game.', type: 'error' });
+          return false;
+        }
+        setActiveInvestigation(updated as Investigation);
         // Safety net: upsert the whole diary (idempotent by id) so any entry
         // captured before activeInvestigation was set still reaches the DB.
         if (diaryEntries.length > 0) {
@@ -278,9 +309,11 @@ export function usePersistence(deps: PersistenceDeps) {
       } else {
         if (!silent) setNotification({ message: 'Game Saved Locally!', type: 'success' });
       }
+      return true;
     } catch (e) {
       console.error('Save failed', e);
       if (!silent) setNotification({ message: 'Failed to save game.', type: 'error' });
+      return false;
     } finally {
       setIsSaving(false);
     }

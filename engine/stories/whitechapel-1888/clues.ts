@@ -4,24 +4,13 @@ import type { StoryFlag } from './flags';
 export type { ShowInteraction, UseCombination } from '../types';
 
 const CLUE_DEFINITIONS_DATA = {
-  // GROUP 0 — Prologue: Baker Street framework clue
-  // REWEAVE: the prologue is the EVE of Kelly — four victims, then six weeks
-  // of silence since the double event. The wall also carries the loud-suspect
-  // landscape (Tumblety in custody, "Leather Apron", a gentleman of rumour)
-  // and, unremarked, one note reading "Bond — police surgeon — & assistant."
-  clue_00_campaign_timeline: {
-    id: 'clue_00_campaign_timeline',
-    name: 'The Silence Since September',
-    diaryNote: "Holmes's wall holds four names and then six weeks of silence. He insists the quiet is not an ending but a held breath — and that the man we want is one no witness can ever remember.",
-    description: "Watson reads the case files wall. Four names in chronological order: Nichols. Chapman. Stride. Eddowes. Four murders in five weeks — two of them in a single night — and then nothing: six weeks of silence since the thirtieth of September. Pinned around the cards, the public's suspects: an American doctor taken into custody this week; the 'Leather Apron' the papers conjured; a gentleman of rumour. And one unremarkable note in Holmes's hand: 'Bond — police surgeon — & assistant.' Beside the timeline Holmes has written: 'The silence is data. Such appetites do not retire.'",
-    holmesDeduction: "Four murders in five weeks, Watson, and then six weeks of nothing. Not compulsion — calculation. And mark this above all: in the whole campaign, not one reliable witness. The man we want is a man no one remembers. That is the only thing we know of him — and it is a great deal.",
-    locationFound: 'baker_street',
-    triggerObject: 'case_files_wall',
-    connections: ['clue_02b_campaign_pattern'],
-    clueGroup: 0,
-    medicalPoints: 0,
-    moralPoints: 5,
-  },
+  // GROUP 0 — RETIRED (chronological rework, slice spec §5).
+  // clue_00_campaign_timeline read Holmes's case-files wall: four victims and
+  // six weeks of silence. Act 0 is now the Bank Holiday evening of 6 August
+  // 1888 — no murder has happened and none may be hinted at, so there is no
+  // campaign to chart and no wall to read. To be re-authored for a later act
+  // once the reworked chronology has a campaign to pin up.
+
   // GROUP 1 — Victim Approach Pattern
   clue_01_respectable_approach: {
     id: 'clue_01_respectable_approach',
@@ -305,12 +294,17 @@ export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = CLUE_DEFINITIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
+  // Act 0 yields no clue. Nothing has happened yet — the act's work is the
+  // tutorial chain (examine the ticket, take it, show it to Holmes) and the
+  // refusal it earns, not evidence. clue_06_prasarved_spelling is also found
+  // here, but only via USE_COMBINATIONS, so it has no trigger entry.
   baker_street: {
-    case_files_wall: ['clue_00_campaign_timeline'],
-    whitechapel_map: [],
-    holmes_chemistry_table: [],
-    telegrams_pile: [],
-    newspaper_pile: [],
+    open_window: [],
+    pawn_ticket: [],
+    nells_boots: [],
+    nells_workbox: [],
+    nells_letters: [],
+    charity_card: [],
   },
   millers_court: {
     burned_clothing: ['clue_01_killer_confidence'],
@@ -401,21 +395,41 @@ export const CLUE_TRIGGERS: Record<string, Record<string, string[]>> = {
 
 export const ATMOSPHERIC_NOTES: Record<string, Record<string, string>> = {
   baker_street: {
-    // Act-keyed: in the prologue (act 0) the wall holds FOUR victims — Kelly
-    // is still alive tonight. From Act 1 onward the base entry (five) applies.
-    'case_files_wall@0': 'Four locations. Four names. Four dates — and then five weeks of silence since the double event of September. Holmes has pinned them in chronological order with coloured threads connecting each to the next. At the centre, a blank card with a question mark. Watson looks at it for a long moment.',
-    case_files_wall: 'Five locations. Five names. Five dates. Holmes has pinned them in chronological order with coloured threads connecting each to the next — the Kelly card newest, its ink still dark. At the centre, a blank card with a question mark. Watson looks at it for a long moment.',
-    whitechapel_map: 'A large-scale map of Whitechapel and Spitalfields, marked with red pins. They cluster in a radius of perhaps half a mile. Whoever did this never strayed far from home.',
-    holmes_chemistry_table: "The chemistry table is uncharacteristically abandoned — beakers rinsed, equipment pushed to one side. Holmes has not been experimenting. He has been thinking. Watson finds this more unsettling than the map.",
-    telegrams_pile: "A stack of telegrams from Abberline, the most recent dated this evening. Warren's resignation; the American in custody; the press. Holmes has underlined a single word in pencil: 'intolerable.'",
-    // NOTE: do not narrate Watson cutting/taking the clipping here — acquisition
-    // is narrated via itemsGained (first examine only). This note also fires on
-    // RE-examines, when the clipping is already in his bag.
-    newspaper_pile: "The Star, the Evening Standard, the Times. Every front page from August onward. Headlines grow more hysterical with each passing week: ANOTHER OUTRAGE IN WHITECHAPEL. POLICE BAFFLED. IS JACK THE RIPPER A DOCTOR? Near the top of the pile, the Star has reprinted the 'Dear Boss' letter in facsimile — the letter that gave the killer his name.",
-    // Act-keyed press evolution — the pile changes as the case unfolds
-    'newspaper_pile@1': "Today's editions sit atop the old pile, ink barely dry: HORROR IN MILLER'S COURT. THE RIPPER'S MOST AWFUL CRIME. The Star has a sketch of Dorset Street that gets the lamp-posts wrong. Beneath the fresh hysteria, ten weeks of older headlines lie like sediment.",
-    'newspaper_pile@3': 'The pile has shifted in character — less horror now, more accusation. LEATHER APRON. THE FOREIGN QUARTER. WHAT ARE THE POLICE HIDING? The press has stopped describing the murders and begun assigning them. Watson notes how few of the named men could survive the naming.',
-    'newspaper_pile@4': "The kidney has reached the papers: FROM HELL — THE LUSK LETTER. HALF OF IT, FRIED AND EATEN, the Star says, with relish it does not bother to disguise. Tumblety's flight shares the front page. The pile has become a chronicle of a city feeding on its own fear.",
+    // NOTE: do not narrate Watson taking the ticket here. Examination records
+    // its evidence but leaves it on the table; explicit TAKE transfers it only
+    // after Mrs Kemp's choice has resolved. This note also fires on re-examine.
+    // Deliberately yields nothing. Holmes has just read three strangers out of
+    // this crowd; Watson looks at the same crowd and sees a crowd. The act's
+    // one clean opportunity to notice nothing, and the whole point of the beat
+    // — do not add a detail here that rewards the look.
+    open_window: "Watson leans out into the warm air. Baker Street is full of people who have been out of doors since ten in the morning: a barrel organ two streets off, somebody's cornet, a great deal of laughing. He looks for a while and can make nothing of any of it. They are simply people, going home or not going home.",
+    pawn_ticket: "A pawnbroker's ticket, soft at the folds from being carried about. Dated Monday the thirtieth of July, from a shop in Pentonville. One pair of women's boots, pledged for two shillings. The redemption stamp is today's, fresh ink over old creases.",
+    nells_boots: "A worn pair of woman's boots, twice resoled already; the uppers have given at the flex, and a third resoling would not be worth the leather. The wear runs heaviest along the outer edge of the right heel. Caked into the welt, a crust of mud still dark and damp, though London has not seen rain in well over a week.",
+    // Kemp's reluctance is described rather than quoted, matching every other
+    // atmospheric note (they get expanded/paraphrased in Watson's voice, not
+    // reproduced verbatim — see the ATMOSPHERIC NOTE prompt instruction). The
+    // spec has her actually say "It is her private box"; kept as the fact
+    // underneath the description instead, since a quote embedded here would
+    // just get rewritten anyway.
+    //
+    // Two live-playtest bugs fixed here in turn. First: an allusive draft
+    // ("her stillness leaves no doubt whose property it still is") led the
+    // model to invent the box being ABSENT rather than merely unopened —
+    // reaching for a reason to explain the tension instead of reporting it.
+    // Second, worse, and specific to this note being the ONLY container the
+    // game has (so this exact failure mode had never been exercised before):
+    // with the box merely described as closed, the model twice invented its
+    // CONTENTS anyway — "spools of dark thread, a silver thimble" — despite
+    // CONTAINER_CONTENTS gating them behind OPEN. EXAMINE's generic framing
+    // ("Watson's direct observation") apparently reads a closed container as
+    // an invitation to describe what's inside it. The line below now says
+    // outright that Watson does not know and cannot describe what is inside.
+    nells_workbox: "A tin box, japanned black, its lid catch stiff with disuse. It is shut, not locked, and Watson has not opened it — he cannot see or guess at what is inside, only the outside of the tin. It belongs to Nell, not to the woman watching him look at it, and Mrs. Kemp says nothing about whether he should open it.",
+    nells_letters: "Eleven letters, April through July, tied with a thread that has since come loose. Chatty and affectionate at first; the hand thins as the months go on, and the last three are written on visibly cheaper paper.",
+    charity_card: "A printed subscriber's card. St. Saviour's Lying-in Charity, Snowsfields. Sixteen weekly entries of one shilling, ticked off in a clerk's copperplate, the last dated the twenty-fourth of July. The subscriber is named as Mrs. A. Marchant. On the reverse, a second and smaller hand has marked off the same dates again, as though to be certain of them.",
+    concluded_case_file: "The case Holmes has just finished, bundled in string and already pushed to the far edge of the table. Watson unties it out of politeness and finds it every bit as dull as Holmes has been complaining: a disputed inheritance, a clerk, a great deal of arithmetic. It was solved in an afternoon. Holmes has not mentioned it since.",
+    holmes_chemistry_table: "The chemistry table has been wiped down and abandoned. Beakers stand rinsed and inverted, the burner is cold, and the whole bench has been pushed into a tidiness entirely unlike him. Holmes has not been experimenting. Watson finds the neatness more unsettling than any disorder.",
+    violin_case: "The violin lies in its case beside the chair, the bow strapped into the lid. Watson has long read the instrument as a barometer of its owner: played badly, Holmes is thinking; played well, he has finished thinking; and left in the case, as it is tonight, there is nothing whatever to think about.",
   },
   dorset_street: {
     police_barricade: "A pair of constables stand at the entrance to Miller's Court, turning back the curious. Their faces are professionally blank. Watson shows his credentials and is admitted without comment.",
@@ -495,9 +509,13 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
   kidney_parcel: 'Kidney Examination Notes',
   medical_reports: 'Forensic Reports Summary',
   autopsy_ledger: 'Autopsy Ledger Notes',
-  // Prologue: examining the newspapers yields the clipping of the published
-  // "Dear Boss" letter — the object the player SHOWS to Holmes (tutorial beat).
-  newspaper_pile: 'Newspaper Clipping (the "Dear Boss" letter)',
+  // Act 0: examining the ticket records its evidence but leaves it on the
+  // table. Explicit TAKE after Mrs Kemp's choice moves it to Watson's pocket.
+  // It is a memento, not a puzzle piece: no USE combination resolves it and no
+  // later act pays it off. It is filed on transfer, then removed from carried
+  // inventory at the Act 0→1 transition while remaining reviewable.
+  pawn_ticket: 'Pawn Ticket',
+  charity_card: "A Subscriber's Card",
   // Not a location interactable — granted directly by TALK (see
   // TALK_GRANTS_ITEM below). Kept here for its display name and so
   // USE/SHOW's inventory-possession checks resolve it.
@@ -505,11 +523,12 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAKEABLE GATES — object may only be taken once this flag is set.
-// (No entries currently authored — see TALK_GRANTS_ITEM for the pattern used
-// when an item should exist only because an NPC gave it, not as scenery.)
+// TAKEABLE GATES — object may only be taken once this flag is set. The pawn
+// ticket remains on Mrs Kemp's table until Watson resolves what to tell her.
 // ─────────────────────────────────────────────────────────────────────────────
-export const TAKEABLE_REQUIRES_FLAG: Record<string, StoryFlag> = {};
+export const TAKEABLE_REQUIRES_FLAG: Record<string, StoryFlag> = {
+  pawn_ticket: 'act0_kemp_choice_resolved',
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TALK GRANTS ITEM — talking to this NPC adds a takeable object straight to
@@ -531,9 +550,12 @@ export const TALK_GRANTS_ITEM: Record<string, string> = {
 // Value N = "still needed through Act N; drop when entering Act N+1".
 // ─────────────────────────────────────────────────────────────────────────────
 export const ITEM_SPENT_AFTER_ACT: Record<string, number> = {
-  // The "Dear Boss" clipping is a one-time prologue prop (shown to Holmes).
-  // Spent once the investigation proper begins.
-  'Newspaper Clipping (the "Dear Boss" letter)': 0,
+  // Both Act 0 papers are act-0-specific mementos: filed to Documents (see
+  // the filed_<objectId> mechanism in GameEngine.ts) the moment they were
+  // taken, so dropping them from live inventory here loses nothing — they
+  // stay reviewable in the Documents tab for the rest of the game.
+  "Nell's Pawn Ticket": 0,
+  "A Subscriber's Card": 0,
   // The account is Act 1 business only — spent once Act 1 closes.
   "Hutchinson's Account (Watson's note)": 1,
 };
@@ -573,10 +595,8 @@ export const USE_INTERACTIONS: Record<string, Record<string, string>> = {
       "Watson opens each folder in sequence. The photographs are not in this copy — Bond keeps those separately. But the written descriptions are sufficient. Watson closes the last folder and stands still for a moment.",
   },
   baker_street: {
-    case_files_wall:
-      "Watson reads Holmes' case map carefully. The five murder sites, the dates, the connecting threads. A note in Holmes' hand reads: 'Access to victims — non-threatening. Knowledge of organs — studied but not qualified. Present at investigation — professional role.' Beside the last line, a question mark.",
-    newspaper_pile:
-      "Watson reads the progression of newspaper coverage: confusion, then panic, then the naming of 'Jack the Ripper' — a name the police never used, invented by a letter-writer who was almost certainly not the killer. Holmes has annotated the margins: 'Misdirection. Public panic serves the killer's anonymity.'",
+    pawn_ticket:
+      "Watson reads the ticket again, more slowly. Two shillings, a Pentonville shop, a date a week old, and a fresh redemption stamp laid over it. He finds himself doing the arithmetic a doctor does without being asked: a woman does not fetch back a pair of boots she meant to be rid of unless she needs them for someone else's sake, that same day. She got them ready for a dinner her sister never came to.",
   },
 };
 
@@ -587,14 +607,20 @@ export const USE_INTERACTIONS: Record<string, Record<string, string>> = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const SHOW_INTERACTIONS: Record<string, Record<string, ShowInteraction>> = {
-  // Prologue tutorial beat: SHOW the newspaper clipping TO Holmes.
-  // Sets showed_newspaper_pile_to_holmes (engine flag name keys on the object id)
-  // — an Act 0 gate flag. Plants the misdirection theme.
-  'newspaper_pile': {
+  // Act 0 — Holmes reads each object Watson shows him. The refusal itself now
+  // lives in the TALK fact holmes_no_case_here, not here; these four SHOW
+  // entries are the evidentiary readings that build toward the reconstruction,
+  // which charity_card triggers.
+  'pawn_ticket': {
     'holmes': {
-      resultNote: "SUCCESS — Holmes glances at the clipping of the published letter and hands it back almost at once. 'A journalist's invention, Watson. The hand is theatrical, the menace is rehearsed, and the name — Jack the Ripper — was coined to sell papers, not to sign crimes. Remember it: this case is littered with noise. The genuine article, when we meet it, will not perform for us.' He returns to the window.",
+      resultNote: "SUCCESS — \"She pawned them on the Monday and left on the Tuesday. Note the order, Watson. She did not pawn them because she was in want. She pawned them because she was going, and they were not worth the carrying.\" He handed it back. \"You have redeemed a pair of boots your sister took some trouble to be rid of. I am sorry to tell you it was two shillings badly spent.\"",
     },
   },
+  // No nells_boots / nells_letters entries: both were unreachable here (SHOW
+  // refuses non-takeables before it consults this table) and both readings now
+  // live where they can actually be delivered — the boots in the
+  // act0_boots_analyzed story event, the Tuesday postmarks in the beats of
+  // act0_reconstruction. SHOW of the boots routes to that event.
   // SHOW forensic note TO abberline / holmes (Act 5 gather).
   // NEITHER yields the smoking gun — the convergence belongs to Baker Street,
   // and to the player. Both redirect without resolving.
@@ -642,6 +668,25 @@ export const SHOW_INTERACTIONS: Record<string, Record<string, ShowInteraction>> 
       resultNote: "SUCCESS — Watson reads the statement back to him, slowly, and then asks — gently, as one asks a patient — how the lamp across the street showed him a tie-pin. Hutchinson's eagerness collapses by degrees. He did see a man, he says. Well-dressed — he thinks. The rest he... filled in, after, so they would take him seriously at the station. But he stood there the three-quarters of an hour, that part is gospel — he knew Mary three years, she'd have let him sleep on the floor, night like that. He looks at the archway rather than at Watson. 'I keep thinking, if I'd only stopped where I was till morning.' He has nothing else. He is not the man. He is only the last of her friends.",
     },
   },
+  'charity_card': {
+    'holmes': {
+      requireFlags: [
+        'examined_baker_street_pawn_ticket',
+        'act0_boots_analyzed',
+        'examined_baker_street_nells_letters',
+      ],
+      blockedNote: "Watson turns the card once between his fingers, but Holmes has not yet had every part of the little collection before him. Better not invite a conclusion from an incomplete account.",
+      // Tuned via live playtest, not a guess: 170 still dropped the "Marchant"
+      // reveal in some generations; 220 landed both reveals consistently.
+      extraWordBudget: 220,
+      resultNote: "SUCCESS — \"Sixteen weeks of shillings, and eleven letters that grow poorer as they go. A dead pair of boots that spent their last hundred miles in Bermondsey, and pawned the day before she went. Three Tuesdays south of the river she never named, and a departure on a fourth. A subscription to a lying-in charity under a name that is not hers, in a hand that is.\" He set the card down beside the boots. \"And a spring of sickness in the mornings, madam, which you assured her was the fish.\" Mrs. Kemp had gone very white. \"Your sister is not lost. She is five months gone with child. She has spent every one of those months walking near four miles each way rather than part with an omnibus fare, in order to buy herself a bed and a midwife in December, in a parish where nobody knows her face. She left Pentonville on the thirty-first because by the end of July she could no longer be looked at.\" On the box: \"Observe that she packed with great care. Everything she took, she chose. She left this because it was heavy and belonged to the life she was quitting, and she forgot what was inside it.\" He closed the lid. \"She left nothing behind her by accident but this. It is therefore the only honest object in the room.\" \"One further point of interest. The name she gave the charity was Marchant.\" \"That was...\" Her voice failed her. \"That was our mother's name.\" \"Yes,\" said Holmes. \"She wanted something of her family with her. She merely wanted it without the rest of you.\"",
+    },
+    'mrs_kemp': {
+      requireFlags: ['act0_reconstruction_complete'],
+      blockedNote: "Watson has not yet laid the card before Holmes.",
+      resultNote: "SUCCESS — Watson puts the card into her hand. Holmes has given her the district and the nature of the place; he has not given her this. She looks at it a long moment. She takes it without a word, or with one word only. Watson has done what Holmes would not.",
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -684,13 +729,8 @@ export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = 
       resultNote: "SUCCESS — Watson reads the letter's boast against Bond's examination notes, line by line. The papers printed every crude word of the letter, but the notes hold what was never published: the organ's condition, the attached inch of artery. The letter contradicts nothing Bond recorded — and a hoaxer working only from newsprint would have had nothing else to work from. Watson sets the pages down convinced the writer had handled the thing, not merely read about it.",
     },
   },
-  // USE forensic reports WITH case files wall
-  // Watson integrates Bond's reports into Holmes's case map
-  'medical_reports': {
-    'case_files_wall': {
-      resultNote: "SUCCESS — Watson pins the forensic summary beside the case map. The pattern clarifies: the same surgical approach across all five murders, the same efficiency, the same anatomical confidence. Holmes watches from his chair. 'You are beginning to see it,' he says. 'Now ask yourself: who was present at every post-mortem?'",
-    },
-  },
+  // (The medical_reports × case_files_wall combination was retired with the
+  //  case-files wall itself — see the Act 0 note at the head of this file.)
   // USE hutchinson's account WITH the court archway (Act 1 witness test).
   // The USE X WITH Y rehearsal — teaches the convergence's verb at low stakes.
   'hutchinson_account': {
@@ -708,18 +748,50 @@ export const USE_COMBINATIONS: Record<string, Record<string, UseCombination>> = 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const DOCUMENT_TEXT: Record<string, string> = {
-  // The published facsimile of the "Dear Boss" letter — the piece of press
-  // theatre that gave the killer his public name. Historical text, verbatim.
-  newspaper_pile: `*The Star — facsimile reprint, "Dear Boss" letter.*
+  // Act 0. Two documents, both deliberately mundane: a pledge, a sum, a date.
+  // Both are filed away at the Act 0→1 transition rather than carried the
+  // whole game. Nell is never found, never named again, and never confirmed
+  // connected to anything — nothing here may hint otherwise.
+  pawn_ticket: `*Pledge ticket. Pentonville.*
 
-Dear Boss,
+No. 4471
+Pledged: one pair women's boots, black, mended.
+Advanced: two shillings.
+Date: 30 July 1888.
+Name: N. Rendell.
 
-I keep on hearing the police have caught me but they wont fix me just yet. I have laughed when they look so clever and talk about being on the right track. That joke about Leather Apron gave me real fits. I am down on whores and I shant quit ripping them till I do get buckled. Grand work the last job was. I gave the lady no time to squeal. How can they catch me now. I love my work and want to start again. You will soon hear of me with my funny little games. I saved some of the proper red stuff in a ginger beer bottle over the last job to write with but it went thick like glue and I cant use it. Red ink is fit enough I hope ha. ha. The next job I do I shall clip the ladys ears off and send to the police officers just for jolly wouldnt you. Keep this letter back till I do a bit more work, then give it out straight. My knife's so nice and sharp I want to get to work right away if I get a chance. Good luck.
+*Redeemed this day. Redeemable within twelve months of pledge. Interest at
+the usual rate. Pledges not redeemed within that term become the property
+of the broker.*`,
 
-Yours truly
-Jack the Ripper
+  charity_card: `*St. Saviour's Lying-in Charity, Snowsfields.*
 
-Dont mind me giving the trade name`,
+Subscriber's Card
+
+Mrs. A. Marchant
+
+10 Apr   1s.
+17 Apr   1s.
+24 Apr   1s.
+1 May    1s.
+8 May    1s.
+15 May   1s.
+22 May   1s.
+29 May   1s.
+5 Jun    1s.
+12 Jun   1s.
+19 Jun   1s.
+26 Jun   1s.
+3 Jul    1s.
+10 Jul   1s.
+17 Jul   1s.
+24 Jul   1s.
+
+*A bed and attendance secured for December, upon completion of the full
+subscription.*
+
+On the reverse, in a second and smaller hand: the same sixteen dates,
+ticked off again.`,
 
   from_hell_letter: `*From Hell.*
 
@@ -742,50 +814,8 @@ Injuries consistent with prior cases. Organ removal: uterus, heart, portions of 
 
 *E. Halward*`,
 
-  // The pile as it stands on the evening of 8 November — the prologue vigil.
-  // Historically exact: Tumblety arrested 7 Nov; Warren resigned 8 Nov;
-  // Kelly is still alive tonight, so no telegram can mention her.
-  telegrams_pile: `*Telegrams received at Baker Street, October–November 1888.*
-
-Oct 19 — Abberline to Holmes: Lusk received kidney parcel. Examining. City & Met coordinating.
-
-Oct 29 — Abberline to Holmes: Bond confirms kidney human, female, matching Eddowes. Preserved to laboratory standard. No arrest imminent.
-
-Nov 7 — Abberline to Holmes: American doctor TUMBLETY taken on indecency charges. Some here fancy him for the murders — specimens, hatred of women. Holding him while we look.
-
-Nov 8 — Abberline to Holmes: Warren has resigned. The force is without a head and the press without mercy. Six weeks of quiet and no nearer. Come when you can. The quiet does not feel like an ending.`,
-
-  // Act-keyed: the wall on the night of the vigil — four victims, the suspect
-  // landscape, and one unremarkable note. (Base entry below = Act 1 onward.)
-  'case_files_wall@0': `*Holmes's summary of the Whitechapel murders — evening, 8 November 1888.*
-
-Polly Nichols — Buck's Row, 31 Aug. Throat cut. Abdominal injuries. No uterus.
-Annie Chapman — Hanbury St, 8 Sep. Uterus removed. Rings taken.
-Elizabeth Stride — Dutfield's Yard, 30 Sep. Throat only — interrupted.
-Catherine Eddowes — Mitre Square, 30 Sep. Kidney and uterus. Message at Goulston St.
-
-*Five weeks of murder. Six weeks of silence. The silence is data.*
-
-Pinned at the margin — the public's suspects:
-— Tumblety, American "doctor". In custody since the 7th. Specimens; hatred of women. LOUD.
-— "Leather Apron" (Pizer). Press invention. Alibied in September. The mob nearly had him.
-— A gentleman of rumour — erratic, lately dismissed. Unverified.
-— Bond — police surgeon — & assistant. (Forensic access, all scenes.)
-
-*Question: access to victims — professional? Social?*
-*Question: in eleven weeks, why has no one once remembered him?*`,
-
-  case_files_wall: `*Holmes's summary of the Whitechapel murders, November 1888.*
-
-Polly Nichols — Buck's Row, 31 Aug. Throat cut. Abdominal injuries. No uterus.
-Annie Chapman — Hanbury St, 8 Sep. Uterus removed. Rings taken.
-Elizabeth Stride — Dutfield's Yard, 30 Sep. Throat only — interrupted.
-Catherine Eddowes — Mitre Square, 30 Sep. Kidney and uterus. Message at Goulston St.
-Mary Jane Kelly — Miller's Court, 9 Nov. Most extensive. Several hours.
-
-*Pattern: acceleration. Increasing confidence. Decreasing caution.*
-*Question: access to victims — professional? Social?*
-*Question: present at investigation — same man?*`,
+  // (The telegrams pile and both case-files-wall texts were retired with the
+  //  Act 0 rework — see the GROUP 0 note at the head of this file.)
 
   autopsy_ledger: `*Whitechapel Mortuary Post-Mortem Ledger — Dr. Thomas Bond, 1888.*
 

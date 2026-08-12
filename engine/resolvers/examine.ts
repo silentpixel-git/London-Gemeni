@@ -5,6 +5,7 @@ import type { SessionSnapshot } from '../session';
 import { periodOf, triggerClues, checkActProgression } from './support';
 import { buildNarrationContext, blocked, absentNpcBlocked } from '../narrationContext';
 import { npcLocationAt } from '../presence';
+import { visibleInteractables } from '../visibility';
 
 // --------------------------------------------------------
 // EXAMINE
@@ -36,10 +37,10 @@ export function resolveExamine(story: StoryManifest, intent: ParsedIntent, sessi
   }
 
   // Is the object actually in this location?
-  if (!currentLoc.interactables.includes(targetId)) {
+  if (!visibleInteractables(story, session.location, session.flags).includes(targetId)) {
     // Check if it's an NPC — organic physical examination rather than talk redirect
     if (story.npcs[targetId]) {
-      const npcLoc = npcLocationAt(story.npcs, targetId, session.currentAct, periodOf(story, session), session.npcStates);
+      const npcLoc = npcLocationAt(story.npcs, targetId, session.currentAct, periodOf(story, session), session.npcStates, session.flags);
       const npcName = story.npcDisplayNames[targetId] || targetId;
 
       if (npcLoc !== session.location) {
@@ -95,10 +96,14 @@ export function resolveExamine(story: StoryManifest, intent: ParsedIntent, sessi
 
   // Flag-gated takeable: the object is physically listed here but Watson has
   // no cause to examine it closely yet (e.g. a witness's account that isn't
-  // a real note until he's given it). Blocks the whole EXAMINE — mirrors
-  // resolveTake's equivalent gate — so there's no side door around it.
+  // a real note until he's given it). Normally blocks the whole EXAMINE — the
+  // manifest may exempt evidence that can be inspected before it is takeable.
   const takeGateFlag = story.takeableRequiresFlag[targetId];
-  if (takeGateFlag && session.flags[takeGateFlag] !== true) {
+  if (
+    takeGateFlag &&
+    !story.examineDoesNotTake.includes(targetId) &&
+    session.flags[takeGateFlag] !== true
+  ) {
     const objectName = story.objectDisplayNames[targetId] || intent.targetRaw;
     return blocked(story,
       intent,
@@ -131,11 +136,25 @@ export function resolveExamine(story: StoryManifest, intent: ParsedIntent, sessi
   // (examined flag stays set, so re-examining could never re-add it), breaking
   // DROP's promise that "He can retrieve it if he returns".
   const inventoryAdd: string[] = [];
-  if (story.takeableObjects[targetId] && !session.inventory.includes(story.takeableObjects[targetId])) {
+  if (story.takeableObjects[targetId] &&
+      !story.examineDoesNotTake.includes(targetId) &&
+      !session.inventory.includes(story.takeableObjects[targetId])) {
     inventoryAdd.push(story.takeableObjects[targetId]);
   }
 
   const objectName = story.objectDisplayNames[targetId] || intent.targetRaw;
+
+  // A closed container is scenery until OPEN reveals it. A live playtest
+  // caught the model inventing contents anyway — "spools of dark thread, a
+  // silver thimble" for a box nothing had opened — despite EXAMINE never
+  // having been told what was inside. Generic and container-shape-driven
+  // (story.containerContents), not keyed to any one object id, so it guards
+  // every closed container any story built on this engine ever adds, not just
+  // the one that happened to expose the bug.
+  const isUnopenedContainer = !!story.containerContents[targetId]?.length && !session.flags[openFlagFor(session.location, targetId)];
+  const closedContainerNote = isUnopenedContainer
+    ? ` This is a CLOSED container — Watson has not opened it. Do not describe, list, or guess at anything inside it; describe only its outside.`
+    : '';
 
   return {
     actionSuccess: true,
@@ -150,15 +169,22 @@ export function resolveExamine(story: StoryManifest, intent: ParsedIntent, sessi
     aiContext: buildNarrationContext(story, intent, session, {
       success: true,
       actionDescription: `Watson examined the ${objectName} at ${currentLoc.name}.`,
-      actionResultNote: newClueIds.length > 0
+      actionResultNote: (newClueIds.length > 0
         ? `SUCCESS — Watson discovered ${newClueIds.length} new clue(s).`
         : alreadyExamined
         ? `SUCCESS — Watson re-examined the ${objectName}. (Previously examined — no new clues.${story.takeableObjects[targetId] && session.inventory.includes(story.takeableObjects[targetId]) ? ` Watson already carries ${story.takeableObjects[targetId]} — do NOT narrate him taking or copying it again.` : ''})`
-        : `SUCCESS — Watson examined the ${objectName}.`,
+        : `SUCCESS — Watson examined the ${objectName}.`) + closedContainerNote,
       newClueDefs,
       itemsGained: inventoryAdd,
     }),
   };
+}
+
+/** Shared with resolveOpen's own flag naming — kept local since only these two
+ *  resolvers need to compute it, and importing across resolvers for one string
+ *  template would be more indirection than the string itself. */
+function openFlagFor(locationId: string, objectId: string): string {
+  return `opened_${locationId}_${objectId}`;
 }
 
 // --------------------------------------------------------
@@ -183,7 +209,7 @@ export function resolveRead(story: StoryManifest, intent: ParsedIntent, session:
   if (docText) {
     // Item must be in inventory OR in the current location
     const currentLoc = story.locations[session.location];
-    const inLocation = currentLoc.interactables.includes(targetId);
+    const inLocation = visibleInteractables(story, session.location, session.flags).includes(targetId);
     const inInventory = story.takeableObjects[targetId] && session.inventory.includes(story.takeableObjects[targetId]);
 
     if (inLocation || inInventory) {
@@ -206,7 +232,11 @@ export function resolveRead(story: StoryManifest, intent: ParsedIntent, session:
         // Same gate as resolveExamine — a flag-gated takeable with authored
         // document text must not be readable before its gate flag is set either.
         const takeGateFlag = story.takeableRequiresFlag[targetId];
-        if (takeGateFlag && session.flags[takeGateFlag] !== true) {
+        if (
+          takeGateFlag &&
+          !story.examineDoesNotTake.includes(targetId) &&
+          session.flags[takeGateFlag] !== true
+        ) {
           const objectName = story.objectDisplayNames[targetId] ?? intent.targetRaw ?? targetId;
           return blocked(story, intent, session,
             `Watson's eye passes over it without particular notice — there is nothing there yet worth his closer attention.`,
@@ -229,7 +259,9 @@ export function resolveRead(story: StoryManifest, intent: ParsedIntent, session:
           ...(locationFlag ? { [locationFlag]: true } : {}),
         };
 
-        if (story.takeableObjects[targetId] && !session.inventory.includes(story.takeableObjects[targetId])) {
+        if (story.takeableObjects[targetId] &&
+            !story.examineDoesNotTake.includes(targetId) &&
+            !session.inventory.includes(story.takeableObjects[targetId])) {
           inventoryAdd = [story.takeableObjects[targetId]];
         }
 

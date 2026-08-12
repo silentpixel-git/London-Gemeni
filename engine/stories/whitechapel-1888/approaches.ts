@@ -8,6 +8,13 @@ import type { StoryFlag } from './flags';
 //   happening ⇒ acts starts no earlier than that act.
 // - Edmund must have mundane approaches like everyone else (recession rule:
 //   an approach system where only the innocent initiate contact is a tell).
+//
+// ACT BEATS: exactly one entry per act carries `actBeat: true` — a designed
+// story moment rather than ambient texture. It is selected ahead of ambient
+// entries and ignores the approach cooldown, and must be pinned to a single act
+// at a location that act's spine requires Watson to visit (its anchor, in
+// practice) with the NPC verifiably present there. qa:validate enforces all of
+// this; qa:engine asserts the priority and cooldown-exemption behavior.
 export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
   // ── Seeds (Task 1) ──────────────────────────────────────────────────────────
   // The original two proof-of-concept entries — one mundane texture beat, one
@@ -15,10 +22,13 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
   // category below.
 
   {
+    // ACT 1 BEAT — dorset_street is the act's anchor and Hutchinson stands it
+    // all night; the first voice to reach Watson unbidden is a witness's.
     id: 'hutchinson_dorset_weather',
     npcId: 'hutchinson',
     locationId: 'dorset_street',
     acts: [1],
+    actBeat: true,
     kind: 'mundane',
     text: 'A man detaches himself from the crowd to remark that he has stood this corner half the night, and that the rain has only now thought to stop.',
   },
@@ -49,18 +59,38 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
   // questions, never volunteers curiosity."
 
   {
+    // ACT 2 BEAT — the mortuary is the act's anchor, and the recession rule
+    // wants Edmund's first unprompted contact to be a kindness. Narrowed from
+    // acts [2,3] to a single act so it can be the act-2 beat; act 3 keeps its
+    // own Edmund ambient entry below so his coverage is unchanged.
     id: 'edmund_mortuary_tea',
     npcId: 'edmund',
     locationId: 'whitechapel_mortuary',
-    acts: [2, 3],
+    acts: [2],
+    actBeat: true,
     kind: 'mundane',
     text: "He sets a cup of tea at Watson's elbow without a word — the mortuary keeps a kettle going for visitors who linger past noon.",
   },
   {
+    // Replaces the act-3 half of edmund_mortuary_tea's old range. Flat and
+    // warm, no light remark — the motif's Act 3 sounding is authored content,
+    // not something an ambient beat may spend.
+    id: 'edmund_mortuary_hat',
+    npcId: 'edmund',
+    locationId: 'whitechapel_mortuary',
+    acts: [3],
+    kind: 'mundane',
+    text: "He moves Watson's hat from the wet edge of the bench to a dry shelf, and says nothing about having done it.",
+  },
+  {
+    // ACT 5 BEAT — bond_office is the act's anchor, and this is the act where
+    // Edmund is regularized as "Bond's assistant": his beat should read as a
+    // man comfortably at home in the room.
     id: 'edmund_bond_office_stove',
     npcId: 'edmund',
     locationId: 'bond_office',
     acts: [5],
+    actBeat: true,
     kind: 'mundane',
     text: "He clears a stack of files from the second chair before Watson can ask, and remarks that the office holds the cold badly this time of year — Watson would do better nearer the stove.",
   },
@@ -77,21 +107,27 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
   // his live position from the follower's stored location — see presence.ts).
   //
   // His scriptedLines fire at h_division_station/act2 (triggerFlag
-  // talked_to_tumblety_at_h_division_station), goulston_street/act3
+  // asked_tumblety_about_tumblety_theatrical_denial), goulston_street/act3
   // (triggerFlag examined_goulston_street), lusk_office/act4, and
-  // bond_office+baker_street/act5. Two entries below (acts 0, 1, 6) sidestep
+  // bond_office+baker_street/act5. Three entries below (acts 0, 1, 6) sidestep
   // collision entirely by using acts where Holmes has no scriptedLines at
-  // all. The other two (acts 2, 3) use `forbidFlags` on the exact
-  // triggerFlag instead of avoiding the whole act — the only real collision
-  // risk is this approach firing at literally h_division_station/goulston_street
-  // once that specific flag is true (scriptedLines fire on every turn at
-  // that location once their flag is set, not just once), so forbidFlags
-  // closes that window precisely rather than forfeiting acts 2-3 entirely.
+  // all. The act-2 entry uses `forbidFlags` on the exact triggerFlag instead
+  // of avoiding the whole act — the only real collision risk is this approach
+  // firing at literally h_division_station once that specific flag is true
+  // (scriptedLines fire on every turn at that location once their flag is set,
+  // not just once), so forbidFlags closes that window precisely rather than
+  // forfeiting the act entirely. The act-3 entry is an act beat and so may not
+  // carry a disabling flag at all; it pins its location away from
+  // goulston_street instead, which removes the collision at the source.
   {
+    // Displaced from Act 0 by the window beat, and the better for it: arming
+    // himself before a pre-dawn cab into Whitechapel fits the line far better
+    // than the drawing room ever did. Ambient, not the act beat — Act 1's
+    // designed beat belongs to Edmund at the mortuary.
     id: 'holmes_watson_revolver',
     npcId: 'holmes',
     locationId: 'any',
-    acts: [0],
+    acts: [1],
     kind: 'mundane',
     text: 'Holmes glances up from his own preparations to observe, with the faint approval he rarely troubles to voice, that Watson has remembered the revolver, and not merely the intention of bringing it.',
   },
@@ -110,26 +146,34 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
     acts: [2],
     // Dodges only his h_division_station scriptedLine, not the whole act —
     // see the section note above.
-    forbidFlags: ['talked_to_tumblety_at_h_division_station'],
+    forbidFlags: ['asked_tumblety_about_tumblety_theatrical_denial'],
     kind: 'mundane',
     text: 'Holmes studies Watson a moment longer than the conversation requires, then observes, unprompted, that Watson has slept badly for three nights running and eaten less than that — he offers no remedy, only the observation, and lets the subject drop.',
   },
   {
+    // ACT 3 BEAT — pinned to dutfields_yard, the act's anchor and the only
+    // act-3 location where an NPC is reliably present (Holmes, as a follower).
+    // The old `forbidFlags: ['examined_goulston_street']` guarded against
+    // colliding with his goulston_street scriptedLine; pinning the location
+    // away from goulston_street removes the collision at the source, and a
+    // guaranteed act beat must not carry a flag that can permanently disable it.
     id: 'holmes_discarded_theories',
     npcId: 'holmes',
-    locationId: 'any',
+    locationId: 'dutfields_yard',
     acts: [3],
-    // Dodges only his goulston_street scriptedLine, not the whole act — see
-    // the section note above.
-    forbidFlags: ['examined_goulston_street'],
+    actBeat: true,
     kind: 'mundane',
     text: "Holmes remarks, watching the crowd rather than Watson, that he has discarded nine theories this week before breakfast could interrupt him — and does not seem to consider that a poor morning's work.",
   },
   {
+    // ACT 6 BEAT — Holmes follows Watson, so 'any' resolves to wherever the
+    // act's spine has taken him; Holmes has no act-6 scriptedLines to collide
+    // with. The admission belongs in the act that earns it.
     id: 'holmes_patience_admission',
     npcId: 'holmes',
     locationId: 'any',
     acts: [6],
+    actBeat: true,
     kind: 'mundane',
     text: 'Holmes remarks, without any apparent wish to be excused for it, that he was slower about this business than he cares to admit — the facts wanted more patience than his temperament generally allows. He does not dwell on it further.',
   },
@@ -153,7 +197,7 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
     text: 'Lusk waits until the door has swung shut behind them before repeating something recently passed to him.',
   },
   {
-    // rumorId 'bond_was_broken_by_kelly' (trigger 'talked_to_bond_at_millers_court',
+    // rumorId 'bond_was_broken_by_kelly' (trigger 'asked_bond_about_bond_kelly_findings',
     // Act 1) → spread entry for 'phillips', delayPeriods 1. Matured well before
     // Phillips comes onstage in Act 2.
     id: 'rumor_delivery_phillips_bond_broken',
@@ -166,6 +210,21 @@ export const APPROACHES: ApproachDefinition<StoryFlag>[] = [
 
   // ── Mundane texture ─────────────────────────────────────────────────────────
 
+  {
+    // ACT 4 BEAT — authored because act 4 had no mundane candidate at all: its
+    // anchor is lusk_office, and the only approach reaching that room was the
+    // rumor delivery below, which depends on maturation and so can never be a
+    // guaranteed beat. Lusk in his own office, on the Committee's own business.
+    // The reward subscription is Vigilance Committee routine, not a datable
+    // happening — no world-event gate needed beyond the act pin.
+    id: 'lusk_subscription_list',
+    npcId: 'lusk',
+    locationId: 'lusk_office',
+    acts: [4],
+    actBeat: true,
+    kind: 'mundane',
+    text: "He pushes the Committee's subscription list across the desk unasked — shopkeepers' names, shillings against most of them — and says the total is a figure he would rather not read aloud to a gentleman.",
+  },
   {
     // Second Hutchinson beat, later act and a different location/register
     // than the Dorset Street seed.

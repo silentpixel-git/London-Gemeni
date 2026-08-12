@@ -4,21 +4,37 @@ const LOCATIONS_DATA = {
 
   // ── PRESENT-DAY LOCATIONS ─────────────────────────────────────────────────
 
+  // CHRONOLOGICAL REWORK: dressed for the Bank Holiday evening of 6 August 1888.
+  // The case-files wall, Whitechapel map, telegrams pile and newspaper clipping
+  // were November furniture — there is no campaign to chart in August, so they
+  // are retired rather than re-homed (slice spec §2 / §5). They will be
+  // re-authored for a later act once there is a campaign to pin to a wall.
   baker_street: {
     id: 'baker_street',
     name: '221B Baker Street',
     shortName: 'Baker Street',
     act: 0,
     timeframe: 'present',
-    atmosphere: 'Warm lamplight, tobacco smoke, and the familiar disorder of a working mind. Holmes\' sitting room in the grip of an urgent case.',
-    description: 'The sitting room is barely recognisable. Case files have colonised the mantelpiece, the armchairs, and most of the floor. A large map of Whitechapel is pinned to the wall with coloured threads running between locations. Holmes stands at the window, his back to the room.',
+    atmosphere: 'Warm lamplight and warmer air, both windows thrown up to the street, and the holiday coming up off the pavement in waves. Holmes\' sitting room on the one evening of the year when the whole of London is somewhere else.',
+    // Holmes studies the street silently until the player engages with him or
+    // the view; the first action-triggered event owns his demonstration.
+    description: 'Both windows stand open to the Bank Holiday noise, and the sound of the crowds carries all the way up from the pavement. The room is tidier than Watson has seen it in months: a concluded case bundled on the side table, the violin shut in its case, the chemistry bench wiped down and abandoned. Holmes stands at the left-hand window with his back to the room, studying the street below in complete silence.',
     exits: ['dorset_street'],
-    interactables: ['whitechapel_map', 'holmes_chemistry_table', 'telegrams_pile', 'newspaper_pile', 'case_files_wall'],
+    interactables: [
+      'open_window',
+      'pawn_ticket', 'nells_boots', 'nells_workbox', 'nells_letters', 'charity_card',
+    ],
     locationExaminedFlag: 'examined_baker_street',
     timeOfDay: 'night',
     vignettes: [
-      { text: 'Mrs Hudson leaves a supper tray outside the door without knocking — she has learned the rhythm of a case. The tea goes cold where she left it.', act: 0 },
-      { text: 'A telegraph boy hammers at the street door, hands up a wire, and is gone before it can be signed for. Holmes reads it once and feeds it to the fire.' },
+      // Act-scoped away from Act 0 deliberately. Un-scoped, this fired during
+      // the prologue's opening turn, and a caller at the street door is exactly
+      // what Act 0's staged arrival spends four beats building to — the model
+      // read "hammers at the street door" straight into "a sharp ring below,
+      // signalling a visitor", pre-empting the bell and inventing a caller no
+      // amount of prompt wording could talk it out of. It also dangled a
+      // telegram the player could never examine.
+      { text: 'A telegraph boy hammers at the street door, hands up a wire, and is gone before it can be signed for. Holmes reads it once and puts it aside without comment.', act: 5 },
     ],
   },
 
@@ -333,12 +349,24 @@ export type LocationId = keyof typeof LOCATIONS_DATA;
 export const LOCATIONS: Record<string, LocationDefinition> = LOCATIONS_DATA;
 
 const OBJECT_DISPLAY_NAMES_DATA = {
-  // Baker Street
-  case_files_wall: 'Case Files Wall',
-  whitechapel_map: 'Whitechapel Map',
-  holmes_chemistry_table: "Holmes' Chemistry Table",
-  telegrams_pile: 'Telegrams from Abberline',
-  newspaper_pile: 'Newspaper Pile',
+  // Baker Street (Act 0 — the Bank Holiday)
+  // The act opens and closes at this window (spec phases A and G). Deliberately
+  // NOT gated in OBJECT_VISIBILITY: it is the one thing in the room before Mrs.
+  // Kemp arrives, so looking out of it is the opening's obvious first move.
+  open_window: 'The Open Window',
+  pawn_ticket: 'Pawn Ticket',
+  nells_boots: 'Boots',
+  // Display names deliberately avoid "box" / "letter(s)" as raw substrings —
+  // engine/intentParser.ts's matchObjectId does an unanchored substring scan
+  // over OBJECT_DISPLAY_NAMES in insertion order, ahead of its hardcoded
+  // single-word aliases ('box' → parcel_box, 'letter' → from_hell_letter).
+  // "Workbox" would shadow parcel_box (Lusk Office, Act 4/5) and "Letters"
+  // would shadow from_hell_letter (the signature clue) for any player typing
+  // "the box" / "the letter". Object id, CONTAINER_CONTENTS, OBJECT_VISIBILITY
+  // and ATMOSPHERIC_NOTES prose are unaffected.
+  nells_workbox: 'Workbasket',
+  nells_letters: 'Correspondence',
+  charity_card: "A Subscriber's Card",
   // Dorset Street
   police_barricade: 'Police Barricade',
   street_lamps: 'Street Lamps',
@@ -409,3 +437,29 @@ const OBJECT_DISPLAY_NAMES_DATA = {
 export type ObjectId = keyof typeof OBJECT_DISPLAY_NAMES_DATA;
 
 export const OBJECT_DISPLAY_NAMES: Record<string, string> = OBJECT_DISPLAY_NAMES_DATA;
+
+// Objects that are not present in their location from the start of the act.
+// `world_event_kemp_arrives` fires when the player answers the bell via the
+// Act 0 story-event runtime; `opened_baker_street_nells_workbox` is set by the
+// OPEN resolver once the box is opened.
+export const OBJECT_VISIBILITY: Record<string, string> = {
+  pawn_ticket: 'world_event_kemp_arrives',
+  nells_boots: 'world_event_kemp_arrives',
+  nells_workbox: 'world_event_kemp_arrives',
+  nells_letters: 'opened_baker_street_nells_workbox',
+  charity_card: 'opened_baker_street_nells_workbox',
+};
+
+// Containers and what OPEN reveals.
+export const CONTAINER_CONTENTS: Record<string, string[]> = {
+  nells_workbox: ['nells_letters', 'charity_card'],
+};
+
+// First-open beats — see containerOpenNotes on StoryManifest. Spec phase D:
+// "the player's first intrusion and the first real action in the game" —
+// opening a stranger's private property, without her permission, because the
+// man at the window wants it open. Instructional, not literal dialogue,
+// because it's an interior beat of Watson's rather than something said aloud.
+export const CONTAINER_OPEN_NOTES: Record<string, string> = {
+  nells_workbox: 'This is a stranger\'s private property, opened without her leave, because Holmes wants it open and Watson does what Holmes wants. Mrs. Kemp says neither yes nor no. In no more than one sentence, let Watson register the discomfort of doing it anyway — do not moralise on it, and do not let the moment slow the scene down.',
+};

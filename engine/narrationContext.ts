@@ -10,11 +10,12 @@
 import { EngineResult, NarrationContext, NPCState } from '../types';
 import { ParsedIntent } from './intentParser';
 import type { StoryManifest, NPCDefinition } from './stories/types';
-import { deriveKnowledgeEnvelope } from './stories/knowledge';
-import { computeTimePeriod, formatTimeLabel } from './time';
+import { deriveKnowledgeEnvelope, suggestTopics } from './stories/knowledge';
+import { computeTimePeriod, formatTimeLabel, resolveActDay } from './time';
 import { getPresentNpcIds, maturedSpreadsFor, npcLocationAt, returnsPeriodFor } from './presence';
 import type { SessionSnapshot } from './session';
 import { periodOf } from './resolvers/support';
+import { visibleInteractables } from './visibility';
 
 /** The verified outcome a resolver hands to buildNarrationContext. */
 export interface NarrationOutcome {
@@ -29,6 +30,15 @@ export interface NarrationOutcome {
   isDeduction?: boolean;
   deductionCorrect?: boolean;
   extraMinutes?: number;
+  // Topic-scoped TALK: resolved by the TALK resolver against the story's fact
+  // graph before narration is built. Exactly one of these is set on a TALK turn
+  // that named a subject; a bare TALK sets neither and gets suggestedTopics.
+  topicFact?: { label: string; statement: string };
+  topicMissed?: string;
+  /** Extra words beyond the normal compact-mode ceiling — threaded from an
+   *  authored ShowInteraction.extraWordBudget when its resultNote is long
+   *  enough that the standard budget would force cutting essential content. */
+  extraWordBudget?: number;
 }
 
 /** An NPC's introduction mode; absent = self-introduces on first TALK. */
@@ -50,6 +60,32 @@ export function buildNarrationContext(
   const locationId = outcome.targetLocationId || session.location;
   const loc = story.locations[locationId] || story.locations[session.location];
 
+  // World events (Phase 4a) — authored broadcasts whose fire time the clock
+  // has passed this act. atClockMinutes earlier than the act's start means
+  // the next day (the vigil's midnight, the following dawn). Delivered
+  // once via world_event_* flags, lifted onto flagsUpdate in resolve().
+  //
+  // Computed HERE, ahead of presence and object visibility, because an event
+  // that brings someone into the room (Act 0's caller) sets the very flag those
+  // two gate on. Reading session.flags for them would hold both back a turn:
+  // the sidebar showed the visitor and her belongings while the prose was still
+  // being told the room was empty.
+  const actTimeCfgForEvents = resolveActDay(story.actTimeConfig[session.currentAct] ?? story.actTimeConfig[1], session.flags);
+  const clockNow = actTimeCfgForEvents.canonicalMinutes + session.elapsedMinutes + (outcome.extraMinutes ?? 0);
+  const firedEvents = story.worldEvents
+    .filter(e => e.act === session.currentAct && !session.flags[`world_event_${e.id}`])
+    .map(e => ({ e, fireAt: e.atClockMinutes >= actTimeCfgForEvents.canonicalMinutes ? e.atClockMinutes : e.atClockMinutes + 1440 }))
+    .filter(({ fireAt }) => clockNow >= fireAt)
+    .sort((a, b) => a.fireAt - b.fireAt);
+  const worldEventFlagsUpdate: Record<string, boolean> = {};
+  for (const { e } of firedEvents) worldEventFlagsUpdate[`world_event_${e.id}`] = true;
+  const worldEvents = firedEvents.length > 0 ? firedEvents.map(({ e }) => e.text) : undefined;
+
+  /** Flags as they stand after this turn's clock events. Action-triggered story
+   *  effects are matched post-resolution and refresh the state-derived context
+   *  fields in engine/storyEvents.ts. */
+  const flagsNow = { ...session.flags, ...worldEventFlagsUpdate };
+
   // Determine which NPCs are in this location after any movements
   const resolvedNpcStates = { ...session.npcStates };
   if (outcome.newNpcUpdates) {
@@ -58,7 +94,7 @@ export function buildNarrationContext(
     }
   }
 
-  const presentNPCEntries = getPresentNpcIds(story.npcs, locationId, resolvedNpcStates, session.currentAct, periodOf(story, session, outcome.extraMinutes ?? 0))
+  const presentNPCEntries = getPresentNpcIds(story.npcs, locationId, resolvedNpcStates, session.currentAct, periodOf(story, session, outcome.extraMinutes ?? 0), flagsNow)
     .map(npcId => [npcId, story.npcs[npcId]] as const);
 
   // Build alias-aware NPC list for NarrationContext
@@ -74,6 +110,25 @@ export function buildNarrationContext(
   // Legacy flat arrays kept for internal engine use (NPC memory lookup etc.)
   const npcIds = presentNPCEntries.map(([id]) => id);
 
+  // Who came or went since last turn. Departures are labelled from the NPC
+  // record rather than from npcsPresent (they are, by definition, no longer in
+  // it), and use the same alias-aware rule so a departing stranger is not
+  // suddenly named.
+  const previousNpcIds = session.previousNpcIds;
+  const npcsArrived = previousNpcIds === undefined
+    ? []
+    : npcsPresent.filter(n => !previousNpcIds.includes(n.npcId)).map(n => n.label);
+  const npcsDeparted = previousNpcIds === undefined
+    ? []
+    : previousNpcIds
+        .filter(id => !npcIds.includes(id))
+        .map(id => {
+          const npc = story.npcs[id];
+          if (!npc) return id;
+          const isIntroduced = !npc.requiresIntroduction || session.introducedNpcs.includes(id);
+          return isIntroduced ? npc.displayName : (npc.alias ?? story.npcAliases[id] ?? npc.displayName);
+        });
+
   // Scripted NPC presence moments — fire when NPC present + location matches + flag satisfied.
   // These are directorial instructions injected into the AI prompt; no state changes.
   const npcScriptedLines: Array<{ npcId: string; label: string; instruction: string }> = [];
@@ -88,24 +143,73 @@ export function buildNarrationContext(
     }
   }
 
-  // Act safety nets — story-authored failure-path nudges. Fire when the
-  // act matches, the named NPC is present, and the condition holds.
-  for (const net of story.actSafetyNets) {
-    if (net.act !== session.currentAct) continue;
-    if (!net.when(session)) continue;
-    const present = npcsPresent.find(n => n.npcId === net.requiresNpcPresent);
-    if (!present) continue;
-    npcScriptedLines.push({ npcId: present.npcId, label: present.label, instruction: net.instruction });
+  // Everything below is ONE priority chain, first match wins — at most a
+  // single npcScriptedLines entry leaves this function. Four independent
+  // sources used to each push unconditionally (only the idle beat checked
+  // `length === 0`), which let e.g. a safety net AND the companion demeanour
+  // both land in the same compact turn on top of the turn's own action, and
+  // in Act 0 — no clues, no reachable exits, so turnsAtLocationWithoutProgress
+  // only ever increases — the safety net pinned to its final, most insistent
+  // rung by ~turn 6 and re-emitted it every turn thereafter. A live playtest
+  // showed the resulting wall of text.
+
+  // Act safety nets — story-authored failure-path nudges. Only when the
+  // player is GENUINELY stalled (a handful of turns, not one), and then only
+  // on a cadence rather than every qualifying turn — this is a safety net,
+  // not per-turn narration. `break` after the first match: at most one net
+  // fires even if several qualify the same turn.
+  const STALL_THRESHOLD = 3;
+  const STALL_CADENCE = 3;
+  const TURNS_PER_RUNG = 2;
+  if (npcScriptedLines.length === 0
+      && session.turnsAtLocationWithoutProgress >= STALL_THRESHOLD
+      && session.turnsAtLocationWithoutProgress % STALL_CADENCE === 0) {
+    for (const net of story.actSafetyNets) {
+      if (net.act !== session.currentAct) continue;
+      if (!net.when(session)) continue;
+      const present = npcsPresent.find(n => n.npcId === net.requiresNpcPresent);
+      if (!present) continue;
+      const rungs = Array.isArray(net.instruction) ? net.instruction : [net.instruction];
+      const rung = Math.min(
+        Math.floor(session.turnsAtLocationWithoutProgress / TURNS_PER_RUNG),
+        rungs.length - 1,
+      );
+      npcScriptedLines.push({ npcId: present.npcId, label: present.label, instruction: rungs[rung] });
+      break;
+    }
   }
 
-  // Idle beat — at most ONE flat ambient beat per turn across ALL present
-  // NPCs, and none on a turn where a scripted moment or safety net fired
-  // (those are the scene's texture that round). The NPC is chosen round-robin
-  // by turn count so no one hogs the background; within the chosen NPC,
-  // location-scoped beats (props that live here) win over portable quirks.
-  // The beat index strides by the round-robin QUOTIENT, not turnCount itself —
-  // with a shared counter, gcd(eligible.length, beats.length) > 1 would lock
-  // each NPC to a fixed subset of their beats forever.
+  // Companion case-state demeanor — derived, no new state. Only if nothing
+  // above fired, and only every other turn: this fires on every turn the
+  // companion is present and not interviewed, so its wording reaches the
+  // model more than anything else in the prompt. Without BOTH the cadence and
+  // the caveat below, the model echoes its vocabulary back turn after turn —
+  // a playtest found "restless" in 12 of 20 replies, traced to the single
+  // word in the Act 0 catch-all variant. `break`: at most one demeanour.
+  if (npcScriptedLines.length === 0 && session.turnCount % 2 === 0) {
+    for (const cd of story.companionDemeanors) {
+      if (outcome.targetNpcId === cd.npcId) continue;
+      const present = npcsPresent.find(n => n.npcId === cd.npcId);
+      if (!present) continue;
+      const variant = cd.variants.find(v => v.when(session));
+      if (variant) {
+        npcScriptedLines.push({
+          npcId: cd.npcId,
+          label: present.label,
+          instruction: `Demeanor note (a register for how to play him this scene, NOT a line to render — never reuse its wording, and vary how it shows from turn to turn): ${variant.text}`,
+        });
+        break;
+      }
+    }
+  }
+
+  // Idle beat — lowest priority, only when nothing above fired. The NPC is
+  // chosen round-robin by turn count so no one hogs the background; within
+  // the chosen NPC, location-scoped beats (props that live here) win over
+  // portable quirks. The beat index strides by the round-robin QUOTIENT, not
+  // turnCount itself — with a shared counter, gcd(eligible.length,
+  // beats.length) > 1 would lock each NPC to a fixed subset of their beats
+  // forever.
   if (npcScriptedLines.length === 0) {
     const eligible = npcsPresent
       .filter(({ npcId }) => npcId !== outcome.targetNpcId)
@@ -122,20 +226,11 @@ export function buildNarrationContext(
       const beatIndex = Math.floor(session.turnCount / eligible.length) % beats.length;
       npcScriptedLines.push({
         npcId, label,
-        instruction: `Background only, no emphasis: ${beats[beatIndex].text}`,
+        // "Once" is explicit because the model was restating the same piece of
+        // business two and three times within a single reply, which made a
+        // rotating pool look far smaller than it is.
+        instruction: `Background only, no emphasis. Give it one clause and do not restate it later in the reply: ${beats[beatIndex].text}`,
       });
-    }
-  }
-
-  // Companion case-state demeanor — derived, no new state. First matching
-  // variant wins; injected only when the NPC is present and not interviewed.
-  for (const cd of story.companionDemeanors) {
-    if (outcome.targetNpcId === cd.npcId) continue;
-    const present = npcsPresent.find(n => n.npcId === cd.npcId);
-    if (!present) continue;
-    const variant = cd.variants.find(v => v.when(session));
-    if (variant) {
-      npcScriptedLines.push({ npcId: cd.npcId, label: present.label, instruction: `Demeanor note: ${variant.text}` });
     }
   }
 
@@ -148,7 +243,7 @@ export function buildNarrationContext(
     .map(exitId => story.locations[exitId]?.shortName || exitId);
 
   // Available objects
-  const availableObjects = (loc.interactables || [])
+  const availableObjects = visibleInteractables(story, locationId, flagsNow)
     .map(id => story.objectDisplayNames[id] || id);
 
   // Recent NPC memory for NPCs present (keyed by label — alias or displayName)
@@ -165,24 +260,36 @@ export function buildNarrationContext(
   // blocked move (invalid/unavailable destination) must stay 'compact' too —
   // the full template has no instruction to acknowledge a failed action, so a
   // blocked move rendered in full mode silently reads as a normal look-around.
+  //
+  // 'other' is NEVER full mode. It used to read `type === 'other' &&
+  // !intent.targetId` — but intent.targetId is never set for 'other' at all
+  // (only intent.targetRaw sometimes is, for the KEEP_PHRASES match), so that
+  // condition was actually unconditional: every 'other' intent got the full
+  // "arrival" treatment (atmosphere, who's present, objects), including
+  // genuinely unrecognized input, where resolveOther's own actionResultNote
+  // asks the model to respond "briefly." A live playtest hit this two ways at
+  // once: "answer the door" got a long room re-description instead of a short
+  // in-character non-sequitur, and the full-mode "who's present" paragraph
+  // could describe Mrs. Kemp before her arrival action had landed.
   const narrationMode: 'full' | 'compact' =
     (intent.type === 'move' && outcome.success) ||
-    (intent.type === 'examine' && !intent.targetId) ||
-    (intent.type === 'other' && !intent.targetId)
+    (intent.type === 'examine' && !intent.targetId)
       ? 'full'
       : 'compact';
 
   // Full mode always gets a world_event blockquote.
   // Compact mode gets an inner_thought ~30% of the time — less frequent so each one lands harder.
+  //
+  // ONE blockquote per turn, always.
   const blockquoteHint: NarrationContext['blockquoteHint'] =
     narrationMode === 'full'
-      ? 'world_event'
-      : Math.random() < 0.3 ? 'inner_thought' : 'none';
+        ? 'world_event'
+        : Math.random() < 0.3 ? 'inner_thought' : 'none';
 
   // Compute current in-game time — anchored to the act's canonical start,
   // advanced by the minutes elapsed this act (tracked in the hook).
   const act = session.currentAct;
-  const actTimeCfg   = story.actTimeConfig[act] ?? story.actTimeConfig[1];
+  const actTimeCfg   = resolveActDay(story.actTimeConfig[act] ?? story.actTimeConfig[1], session.flags);
   const totalMinutes = actTimeCfg.canonicalMinutes + session.elapsedMinutes + (outcome.extraMinutes ?? 0);
 
   // Dynamic Witness Interrogation — include NPC knowledge envelope for talk actions
@@ -230,10 +337,18 @@ export function buildNarrationContext(
       personality: npc.personality,
       knowledgeEnvelope: [
         ...matured.map(m => m.statement),
-        ...deriveKnowledgeEnvelope(story.facts, outcome.targetNpcId, session.currentAct),
+        ...deriveKnowledgeEnvelope(story.facts, outcome.targetNpcId, session.currentAct, flagsNow),
       ],
       recentlyHeard,
       playerQuestion: intent.raw,
+      topic: outcome.topicFact,
+      topicMissed: outcome.topicMissed,
+      // Only a bare TALK offers subjects. Once the player has named one, the
+      // reply belongs to that subject alone — trailing a list of alternatives
+      // after an answer reads as a menu and undoes the free-text illusion.
+      suggestedTopics: !outcome.topicFact && !outcome.topicMissed && intent.type === 'talk'
+        ? suggestTopics(story.facts, outcome.targetNpcId, session.currentAct, session.flags)
+        : undefined,
     };
   }
 
@@ -298,20 +413,6 @@ export function buildNarrationContext(
     ? loc.extras[(locationVisitCount - 1) % loc.extras.length]
     : undefined;
 
-  // World events (Phase 4a) — authored broadcasts whose fire time the clock
-  // has passed this act. atClockMinutes earlier than the act's start means
-  // the next day (the vigil's midnight, the following dawn). Delivered
-  // once via world_event_* flags, lifted onto flagsUpdate in resolve().
-  const worldEventFlagsUpdate: Record<string, boolean> = {};
-  const clockNow = totalMinutes; // already includes extraMinutes (WAIT spans deliver what they cross)
-  const firedEvents = story.worldEvents
-    .filter(e => e.act === act && !session.flags[`world_event_${e.id}`])
-    .map(e => ({ e, fireAt: e.atClockMinutes >= actTimeCfg.canonicalMinutes ? e.atClockMinutes : e.atClockMinutes + 1440 }))
-    .filter(({ fireAt }) => clockNow >= fireAt)
-    .sort((a, b) => a.fireAt - b.fireAt);
-  for (const { e } of firedEvents) worldEventFlagsUpdate[`world_event_${e.id}`] = true;
-  const worldEvents = firedEvents.length > 0 ? firedEvents.map(({ e }) => e.text) : undefined;
-
   return {
     locationName: loc.name,
     locationAtmosphere: loc.atmosphere,
@@ -328,6 +429,8 @@ export function buildNarrationContext(
     worldEvents,
     ambientExtra,
     npcsPresent,
+    npcsArrived,
+    npcsDeparted,
     availableObjects,
     availableExits,
     inventory: session.inventory,
@@ -339,6 +442,7 @@ export function buildNarrationContext(
     actionSuccess: outcome.success,
     actionDescription: outcome.actionDescription,
     actionResultNote: outcome.actionResultNote,
+    playerInput: intent.raw,
     newCluesDiscovered: outcome.newClueDefs.map(c => ({
       name: c.name,
       description: c.description,
@@ -350,6 +454,7 @@ export function buildNarrationContext(
     targetNpcInterview,
     narrationMode,
     blockquoteHint,
+    extraWordBudget: outcome.extraWordBudget,
     npcScriptedLines: npcScriptedLines.length > 0 ? npcScriptedLines : undefined,
     // Pass introduction flags so useGameState can update introducedNpcs
     _introductionFlagsUpdate: Object.keys(introductionFlagsUpdate).length > 0
@@ -359,7 +464,7 @@ export function buildNarrationContext(
     _vignetteFlagsUpdate: Object.keys(vignetteFlagsUpdate).length > 0
       ? vignetteFlagsUpdate
       : undefined,
-    // World-event once-only flags — lifted onto result.flagsUpdate in resolve()
+    // World-event once-only flags — lifted onto result.flagsUpdate in resolve().
     _worldEventFlagsUpdate: Object.keys(worldEventFlagsUpdate).length > 0
       ? worldEventFlagsUpdate
       : undefined,
@@ -417,7 +522,7 @@ export function absentNpcBlocked(
   const label = introduced
     ? npc.displayName
     : (npc.alias ?? story.npcAliases[npcId] ?? npc.displayName);
-  const whereId = npcLocationAt(story.npcs, npcId, session.currentAct, period, session.npcStates);
+  const whereId = npcLocationAt(story.npcs, npcId, session.currentAct, period, session.npcStates, session.flags);
   const where = story.locations[whereId];
   const returns = returnsPeriodFor(npc, session.currentAct, session.location, period);
   const currentLocName = story.locations[session.location].name;

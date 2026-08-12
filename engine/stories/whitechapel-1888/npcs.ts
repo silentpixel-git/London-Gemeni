@@ -26,7 +26,7 @@ const NPCS_DATA = {
       {
         locationId: 'h_division_station',
         act: 2,
-        triggerFlag: 'talked_to_tumblety_at_h_division_station',
+        triggerFlag: 'asked_tumblety_about_tumblety_theatrical_denial',
         instruction: 'Holmes, having observed the American in his cell, delivers his first crack in the Mad Doctor theory — quietly, to Watson: the man is everything London wishes the murderer to be — loud, foreign, mad — but the hand that did this work was quiet, patient, and practised. This man is a performance. Holmes does not raise his voice.',
       },
       {
@@ -38,7 +38,7 @@ const NPCS_DATA = {
       {
         locationId: 'lusk_office',
         act: 4,
-        triggerFlag: 'talked_to_abberline_at_lusk_office',
+        triggerFlag: 'asked_abberline_about_abberline_barrister_file',
         instruction: 'Holmes, weighing the fled American and the vanished gentleman, observes that two men have obligingly removed themselves from view, and the public will pick whichever culprit it prefers. But the hand that preserved that kidney did not flee and did not vanish — it is still here, keeping its specimens, exactly as it always has.',
       },
       {
@@ -59,14 +59,81 @@ const NPCS_DATA = {
     idleBeats: [
       // 221B props — only fire at Baker Street (Holmes follows Watson everywhere,
       // so unscoped these would put the violin in the mortuary).
-      { locationId: 'baker_street', text: 'Holmes draws a single long note from the violin, then sets it down unfinished' },
-      { locationId: 'baker_street', text: 'Holmes re-pins a thread on the case map a quarter-inch to the left, studies it, moves it back' },
+      //
+      // POOL SIZE MATTERS HERE. When any location-scoped beat applies, the
+      // portable beats below are excluded outright (see narrationContext), so
+      // this list alone carries every turn Watson spends at 221B. Act 0 never
+      // leaves the room, and a blind playtest of twenty turns saw the same two
+      // beats six and five times each. Keep this list long, and season-neutral:
+      // it also serves the November acts.
+      { locationId: 'baker_street', text: 'Holmes takes a book down from the shelf, reads half a page standing up, and puts it back in the wrong place' },
       { locationId: 'baker_street', text: 'Holmes stands at the window with his hands behind his back, perfectly still' },
       { locationId: 'baker_street', text: 'Holmes leafs through his index of criminal records, not appearing to read it' },
-      // Portable — pocket props and habits that travel with him.
+      { locationId: 'baker_street', text: 'Holmes straightens a picture on the wall by a fraction, considers it, and leaves it crooked' },
+      { locationId: 'baker_street', text: 'Holmes checks his watch against the clock on the mantel and appears dissatisfied with both' },
+      { locationId: 'baker_street', text: 'Holmes begins a remark, thinks better of it, and does not finish' },
+      { locationId: 'baker_street', text: 'Holmes moves a chair a couple of inches and sits in it as though it were now correct' },
+      // The violin is act-split. Act 0's authored object note has it shut in its
+      // case ("left in the case, as it is tonight, there is nothing whatever to
+      // think about"), and a beat that has him playing contradicted that inside
+      // a single turn — the playtest caught the case described as occupied and
+      // empty in the same breath. He touches it and leaves it in August; he
+      // plays it in the November acts, where the note does not apply.
+      { locationId: 'baker_street', act: 0, text: 'Holmes rests two fingers on the closed violin case as he passes it, and does not open it' },
+      { locationId: 'baker_street', act: 5, text: 'Holmes draws a single long note from the violin, then sets it down unfinished' },
+      { locationId: 'baker_street', act: 6, text: 'Holmes draws a single long note from the violin, then sets it down unfinished' },
+      // Portable — pocket props and habits that travel with him. These fire
+      // only where no location-scoped beat applies, i.e. everywhere but 221B.
       { text: 'Holmes turns his lens over in his fingers without raising it to anything' },
       { text: 'Holmes fills his pipe from his pouch with great care, then does not light it' },
       { text: 'Holmes closes his eyes for the space of three breaths — cataloguing, not resting' },
+    ],
+  },
+
+  // ── CHRONOLOGICAL REWORK: Act 0, the Bank Holiday ─────────────────────────
+  // The caller Holmes turns away. She is onstage for Act 0 only and offstage
+  // every act after — an NPC with no scheduleByAct entry for an act is offstage
+  // by construction, so her disappearance needs no mechanic. She stays in the
+  // room for the whole act after the refusal, which reads correctly: she
+  // lingers, and then the act ends and she is gone.
+  //
+  // Her sister Nell is NEVER found, never named again, and never confirmed
+  // connected to anything. No clue points at her; no later act resolves her.
+  // She is not Martha Tabram and the game must never imply she is.
+  mrs_kemp: {
+    id: 'mrs_kemp',
+    displayName: 'Mrs. Kemp',
+    alias: 'Mrs. Kemp',
+    requiresIntroduction: false, // she gave her name at the door
+    // Reaches the prompt as "speaking with: Mrs. Kemp (<role>)". The clothing
+    // is here rather than in `description` because the model was repeatedly
+    // defaulting her to an apron and to tidying the room, which reads as the
+    // housekeeper and undercuts a woman who has dressed to be taken seriously.
+    role: 'A caller from Bethnal Green, in her visiting best and gloves — a guest in this room, never a servant of it, and never in an apron',
+    // NOTE: `description` is authoring metadata and is NOT sent to the AI (only
+    // role, speakingStyle, personality and the fact envelope are). Anything the
+    // narration must obey belongs in `role` or `personality`, not here.
+    description: 'A woman of about four and thirty who has come across London on an omnibus to ask a favour she does not expect to be granted. Her sister Ellen, called Nell — eight years her junior — has not been seen in six days. She is plain and tired and entirely without self-pity. She states her business, answers what she is asked, and does not plead.',
+    speakingStyle: 'Plain and unhurried. Answers the question put to her and stops. She does not embroider and she does not weep, and if she is conscious of taking up the gentlemen\'s evening she does not apologise for it.',
+    personality: ['Plain-spoken', 'Tired', 'Not pitiable', 'Expects to be dismissed', 'Certain about her sister'],
+    followingRule: 'fixed',
+    scheduleByAct: {
+      0: { default: 'baker_street' },
+    },
+    presenceRequiresFlag: 'world_event_kemp_arrives',
+    presenceForbidFlag: 'act0_kemp_choice_resolved',
+    // She is onstage for the whole of a single-room act, so this pool carries
+    // every turn she is not being interviewed. Three was far too few. Every beat
+    // is a seated caller's: nothing that touches the room or its furniture, or
+    // she reads as the housekeeper rather than a guest.
+    idleBeats: [
+      { text: 'Mrs. Kemp sits forward on the edge of the chair, as though she has not been asked to sit in it' },
+      { text: 'Mrs. Kemp turns her gloves over in her lap, once, and then leaves them alone' },
+      { text: 'Mrs. Kemp glances at the open window and the noise coming up from the street, and says nothing about it' },
+      { text: 'Mrs. Kemp looks at the clock on the mantel, works something out about the last omnibus, and does not mention it' },
+      { text: 'Mrs. Kemp keeps her reticule closed on her knee with both hands, as though it might be asked for' },
+      { text: 'Mrs. Kemp follows Holmes with her eyes when he crosses the room, and looks away before he turns' },
+      { text: 'Mrs. Kemp starts to say something further, decides it will not help her, and stops' },
     ],
   },
 
@@ -82,8 +149,9 @@ const NPCS_DATA = {
     personality: ['Practical', 'Honest', 'Determined', 'Fatigued', 'Privately broken by this case'],
     followingRule: 'location_based',
     scheduleByAct: {
+      // No act-0 entry: Act 0 is the Bank Holiday evening at Baker Street, and
+      // nobody but Holmes and the caller is onstage (chronological rework).
       // A policeman's day ends at the pub across from the station.
-      0: { default: 'h_division_station', byPeriod: { night: 'whitechapel_pub', lateNight: 'whitechapel_pub' } },
       1: { default: 'dorset_street' },
       2: { default: 'h_division_station', byPeriod: { evening: 'whitechapel_pub' } },
       3: { default: 'working_mens_club' },
@@ -118,8 +186,8 @@ const NPCS_DATA = {
     personality: ['Clinical', 'Professional', 'Reserved', 'Thorough'],
     followingRule: 'location_based',
     scheduleByAct: {
-      // Acts 0-3: Bond is at the mortuary — his proper domain
-      0: { default: 'whitechapel_mortuary' },
+      // No act-0 entry (chronological rework — see mrs_kemp).
+      // Acts 1-3: Bond is at the mortuary — his proper domain
       1: { default: 'millers_court' },
       // The mortuary keeps visiting hours; evenings he retreats to his office.
       2: { default: 'whitechapel_mortuary', byPeriod: { evening: 'bond_office', night: 'bond_office', lateNight: 'bond_office' } },
@@ -184,8 +252,8 @@ const NPCS_DATA = {
     followsUntilAct: 5,
     scheduleByAct: {
       // Edmund follows Bond. Where Bond is not present at reconstruction
-      // locations (Acts 2-3), Edmund is also absent.
-      0: { default: 'whitechapel_mortuary' },
+      // locations (Acts 2-3), Edmund is also absent. No act-0 entry
+      // (chronological rework — see mrs_kemp).
       1: { default: 'millers_court' },
       2: { default: 'whitechapel_mortuary' },
       3: { default: 'whitechapel_mortuary' },
@@ -437,6 +505,7 @@ export const NPC_DISPLAY_NAMES: Record<string, string> = {
   edmund: 'Edmund Halward',
   lusk: 'George Lusk',
   diemschutz: 'Louis Diemschutz',
+  mrs_kemp: 'Mrs. Kemp',
   superintendent: 'Asylum Superintendent',
   hutchinson: 'George Hutchinson',
   phillips: 'Dr. George Bagster Phillips',

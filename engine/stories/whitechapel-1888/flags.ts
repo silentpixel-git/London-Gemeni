@@ -26,11 +26,32 @@ type ExaminedFlag =
   | `examined_${LocationId}`
   | `examined_${LocationId}_${ObjectId}`;
 
-/** Spoke to an NPC at a specific location. */
+/**
+ * Spoke to an NPC at a specific location. Records that a conversation happened
+ * — it is NOT an interview. Act progression hangs on AskedAboutFlag instead, so
+ * that walking up to a witness and saying nothing in particular cannot satisfy
+ * a gate. Still read by hints and rumor acks.
+ */
 type TalkedToFlag = `talked_to_${NpcId}_at_${LocationId}`;
+
+/**
+ * Asked an NPC about a specific subject and got the answer: `ask bond about the
+ * mutilations` resolved to a fact in the graph (see engine/stories/knowledge.ts
+ * matchTopic). The suffix is the StoryFact id, loosely typed because fact ids
+ * aren't preserved as literals in facts.ts — qa:validate's
+ * flagUnreachableReason cross-checks the npc/fact pair against FACTS, including
+ * that the NPC actually knows the fact and that it carries topics to match on.
+ */
+type AskedAboutFlag = `asked_${NpcId}_about_${string}`;
 
 /** Showed an inventory item/object to an NPC. */
 type ShowedFlag = `showed_${ObjectId}_to_${NpcId}`;
+
+/** Took an object into inventory from a location. */
+type TookFlag = `took_${LocationId}_${ObjectId}`;
+
+/** Opened a container at a location. */
+type OpenedFlag = `opened_${LocationId}_${ObjectId}`;
 
 /** Used one item with another (USE combination). */
 type UsedFlag = `used_${ObjectId}_with_${ObjectId}`;
@@ -50,6 +71,9 @@ type VisitedFlag = `visited_${LocationId}`;
  */
 type WorldEventFlag = `world_event_${string}`;
 
+/** The act-epilogue cut has fired for an act (see computeActEpilogue). */
+type EpilogueCutFlag = `act_${number}_epilogue_cut`;
+
 /**
  * One-off story flags that don't follow a template convention.
  * Add here deliberately — anything else is treated as a typo.
@@ -58,13 +82,28 @@ type LiteralFlag =
   | 'asylum_unlocked'    // set on correct deduction; gates travel to the asylum
   | 'deduction_correct'  // set via Edmund's successFlags; read by the Act 6 hint objective
   | 'true_ending'        // deduction outcome recorded by the endings flow
+  | 'withheld_address'   // Act 0 choice: Watson keeps the card. The other two
+                         // branches are recorded by their own SHOW/TALK flags.
+  | 'act0_caller_noticed'
+  | 'act0_bell_rang'
+  | 'act0_kemp_business_heard'
+  | 'act0_kemp_fallback_action_1'
+  | 'act0_kemp_fallback_action_2'
+  | 'act0_boots_analyzed'
+  | 'act0_reconstruction_complete'
+  | 'act0_kemp_choice_resolved'
+  | 'act0_closing_complete'
   | '__advance_via_correct_deduction_only__'; // Act 5 sentinel (excluded from lead pips)
 
 /** Every flag name that may legally appear in authored story data. */
 export type StoryFlag =
   | ExaminedFlag
+  | EpilogueCutFlag
   | TalkedToFlag
+  | AskedAboutFlag
   | ShowedFlag
+  | TookFlag
+  | OpenedFlag
   | UsedFlag
   | VisitedFlag
   | WorldEventFlag

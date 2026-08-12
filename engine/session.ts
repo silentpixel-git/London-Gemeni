@@ -36,6 +36,11 @@ export interface SessionSnapshot {
   // In-game clock value (act canonical start + elapsed) of the last NPC
   // approach — drives the 30-minute cooldown. Optional: absent on old saves.
   lastApproachAtMinutes?: number;
+  // Who was present at the end of the previous turn, so this turn can report
+  // who has since arrived or gone. Undefined means "no prior turn to compare
+  // against" (opening scene, resumed save) — which correctly reports nothing
+  // rather than announcing the whole room as having just arrived.
+  previousNpcIds?: string[];
   // Note: sanity has been removed. Watson's prose register is now fixed
   // at the professional-composure baseline defined in the AI system prompt.
 }

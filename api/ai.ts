@@ -86,6 +86,15 @@ export async function POST(request: Request): Promise<Response> {
           await aiService.parseAction(body.rawInput as never, body.candidates as never),
         );
 
+      case 'parseTopic':
+        return Response.json({
+          match: await aiService.parseTopic(
+            body.playerPhrase as never,
+            body.npcLabel as never,
+            body.candidates as never,
+          ),
+        });
+
       default:
         return Response.json({ error: `Unknown op: ${String(body.op)}` }, { status: 400 });
     }

@@ -29,23 +29,32 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
   }
 }
 
-// 2) Act 0 prerequisite chain: clipping not yet in hand → examine pile, not show.
+// 2) Act 0 prerequisite chain: opening the workbox reveals two explicit
+//    evidence actions, but reconstruction remains gated on the whole set.
 {
   const before = state({ currentAct: 0, location: 'baker_street',
-    npcStates: { holmes: { currentLocation: 'baker_street', status: 'alive' } } });
+    flags: { world_event_kemp_arrives: true },
+    npcStates: {
+      holmes: { currentLocation: 'baker_street', status: 'alive' },
+      mrs_kemp: { currentLocation: 'baker_street', status: 'alive' },
+    } });
   const pool = OBJECTIVES.filter(o => o.act === 0 && !o.done(before) && o.available(before));
   const ids = pool.map(o => o.id);
-  ids.includes('a0_newspile_examine') && !ids.includes('a0_newspile_show')
-    ? pass('act0: examine-pile available, show-clipping not (no clipping yet)')
+  ids.includes('a0_ticket') && ids.includes('a0_workbox') && ids.includes('a0_boots') &&
+      !ids.includes('a0_card') && !ids.includes('a0_reconstruction')
+    ? pass('act0: table evidence available, workbox contents and reconstruction still gated')
     : fail('act0 prereq gating wrong', ids.join(','));
 
   const after = state({ currentAct: 0, location: 'baker_street',
-    inventory: ['Newspaper Clipping (the "Dear Boss" letter)'],
-    flags: { examined_baker_street_newspaper_pile: true },
-    npcStates: { holmes: { currentLocation: 'baker_street', status: 'alive' } } });
+    flags: { world_event_kemp_arrives: true, opened_baker_street_nells_workbox: true },
+    npcStates: {
+      holmes: { currentLocation: 'baker_street', status: 'alive' },
+      mrs_kemp: { currentLocation: 'baker_street', status: 'alive' },
+    } });
   const ids2 = OBJECTIVES.filter(o => o.act === 0 && !o.done(after) && o.available(after)).map(o => o.id);
-  ids2.includes('a0_newspile_show') && !ids2.includes('a0_newspile_examine')
-    ? pass('act0: with clipping in hand, show-clipping available, examine done')
+  ids2.includes('a0_card') && ids2.includes('a0_letters') && !ids2.includes('a0_workbox') &&
+      !ids2.includes('a0_reconstruction')
+    ? pass('act0: open workbox exposes card and letters, not premature reconstruction')
     : fail('act0 show gating wrong', ids2.join(','));
 }
 
@@ -63,9 +72,11 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
 // 4) selectHint never returns a done/unavailable step; returns FALLBACK when empty.
 {
   const allDone = state({ currentAct: 2, location: 'whitechapel_mortuary', flags: {
-    examined_whitechapel_mortuary: true, talked_to_phillips_at_whitechapel_mortuary: true,
+    examined_whitechapel_mortuary: true,
+    asked_phillips_about_phillips_watched_not_qualified: true,
     examined_bucks_row: true, examined_hanbury_street: true,
-    talked_to_tumblety_at_h_division_station: true, talked_to_holmes_at_h_division_station: true } });
+    asked_tumblety_about_tumblety_theatrical_denial: true,
+    asked_holmes_about_holmes_tumblety_performance: true } });
   const t = selectHint(allDone);
   t.verb === 'reflect' ? pass('empty pool → reflect fallback')
                        : fail('expected reflect fallback', t.verb);

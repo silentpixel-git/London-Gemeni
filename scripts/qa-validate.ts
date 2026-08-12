@@ -15,8 +15,8 @@
  * Exit code 1 if any FAIL.
  */
 
-import { LOCATIONS } from '../engine/stories/whitechapel-1888/locations';
-import { NPCS } from '../engine/stories/whitechapel-1888/npcs';
+import { LOCATIONS, OBJECT_VISIBILITY, CONTAINER_CONTENTS } from '../engine/stories/whitechapel-1888/locations';
+import { NPCS, NPC_DISPLAY_NAMES, NPC_ALIASES } from '../engine/stories/whitechapel-1888/npcs';
 import {
   CLUE_DEFINITIONS,
   CLUE_TRIGGERS,
@@ -26,17 +26,19 @@ import {
   USE_COMBINATIONS,
   DOCUMENT_TEXT,
 } from '../engine/stories/whitechapel-1888/clues';
-import { ACT_PROGRESSION, ACT_TIME_CONFIG } from '../engine/stories/whitechapel-1888/acts';
+import { ACT_PROGRESSION, ACT_TIME_CONFIG, ACT_ANCHORS } from '../engine/stories/whitechapel-1888/acts';
 import { computeTimePeriod, npcLocationAt, PERIOD_ORDER } from '../engine/GameEngine';
 import { WORLD_EVENTS } from '../engine/stories/whitechapel-1888/events';
+import { STORY_EVENTS } from '../engine/stories/whitechapel-1888/storyEvents';
 import { SUSPECT_PROFILES } from '../engine/stories/whitechapel-1888/suspects';
 import { FACTS } from '../engine/stories/whitechapel-1888/facts';
-import { deriveKnowledgeEnvelope } from '../engine/stories/knowledge';
+import { deriveKnowledgeEnvelope, matchTopic } from '../engine/stories/knowledge';
 import { DECISION_BY_FLAG } from '../engine/stories/whitechapel-1888/diaryDecisions';
 import { INITIAL_INVENTORY } from '../constants';
 import { WHITECHAPEL_MANIFEST } from '../engine/stories/whitechapel-1888/manifest';
 import { RUMORS } from '../engine/stories/whitechapel-1888/rumors';
 import { APPROACHES } from '../engine/stories/whitechapel-1888/approaches';
+import { objectAliases, matchObjectId } from '../engine/intentParser';
 
 // ── Logging helpers (same conventions as qa-engine.ts) ──────────────────────
 
@@ -49,6 +51,17 @@ function fail(label: string, detail?: string) { console.error(`[FAIL] ${label}${
 function warn(label: string, detail?: string) { console.warn(`[WARN] ${label}${detail ? ` — ${detail}` : ''}`); warns++; }
 
 function section(title: string) { console.log(`\n── ${title} ${'─'.repeat(Math.max(0, 56 - title.length))}`); }
+
+function fallbackSpeakerReferenceErrors(
+  events: ReadonlyArray<{ id: string; fallback?: { speakerNpcId: string } }>,
+  knownNpcIds: ReadonlySet<string>,
+): string[] {
+  return events.flatMap(event => {
+    const speakerNpcId = event.fallback?.speakerNpcId;
+    if (!speakerNpcId || knownNpcIds.has(speakerNpcId)) return [];
+    return [`story event "${event.id}": fallback speaker "${speakerNpcId}" does not resolve`];
+  });
+}
 
 // ── Derived lookup sets ──────────────────────────────────────────────────────
 
@@ -73,6 +86,11 @@ const explicitSettableFlags = new Set<string>([
   ...Object.values(LOCATIONS).map(l => l.locationExaminedFlag),
   ...Object.keys(DECISION_BY_FLAG),
   'asylum_unlocked', // set by the engine on a correct deduction
+  ...STORY_EVENTS.flatMap(event => [
+    ...event.setFlags,
+    ...(event.fallback?.counterFlags ?? []),
+    ...(event.fallback?.setFlags ?? []),
+  ]),
 ]);
 
 /**
@@ -125,6 +143,26 @@ function flagUnreachableReason(flag: string): string | null {
     return 'no known npc id matches this talked_to_ flag';
   }
 
+  // asked_<npcId>_about_<factId> — the topic-scoped TALK gate. Both halves must
+  // resolve, the NPC must actually know the fact, and the fact must carry topics
+  // (a fact with none can never be named by a player, so a gate on it is a dead
+  // end). npcId is matched by prefix because both ids contain underscores.
+  if (flag.startsWith('asked_')) {
+    for (const npcId of npcIds) {
+      const prefix = `asked_${npcId}_about_`;
+      if (!flag.startsWith(prefix)) continue;
+      const factId = flag.slice(prefix.length);
+      const fact = FACTS.find(f => f.id === factId);
+      if (!fact) return `no fact with id "${factId}"`;
+      if (!fact.knownBy.includes(npcId)) return `${npcId} does not know fact "${factId}"`;
+      if (!fact.topics?.length) {
+        return `fact "${factId}" has no topics — a player can never name it, so this gate cannot open`;
+      }
+      return null;
+    }
+    return 'no known npc id matches this asked_ flag';
+  }
+
   if (flag.startsWith('showed_')) {
     const rest = flag.slice('showed_'.length);
     const sep = rest.lastIndexOf('_to_');
@@ -134,6 +172,36 @@ function flagUnreachableReason(flag: string): string | null {
     if (!npcIds.has(npcId)) return `unknown npc "${npcId}"`;
     if (!allObjectIds.has(objId)) return `unknown object "${objId}"`;
     return null;
+  }
+
+  // opened_<locationId>_<objectId> — set by the OPEN resolver (engine/resolvers/open.ts)
+  // when a container at that location is opened.
+  if (flag.startsWith('opened_')) {
+    for (const locId of locationIds) {
+      const prefix = `opened_${locId}_`;
+      if (flag.startsWith(prefix)) {
+        const objId = flag.slice(prefix.length);
+        if (CONTAINER_CONTENTS[objId]?.length) return null;
+        if (allObjectIds.has(objId)) return `object "${objId}" exists but has no CONTAINER_CONTENTS entry (not a container)`;
+        return `no object "${objId}" at ${locId}`;
+      }
+    }
+    return 'no known location id matches this opened_ flag';
+  }
+
+  // took_<locationId>_<objectId> — set by the TAKE resolver (engine/resolvers/items.ts)
+  // when a portable object at that location is taken.
+  if (flag.startsWith('took_')) {
+    for (const locId of locationIds) {
+      const prefix = `took_${locId}_`;
+      if (flag.startsWith(prefix)) {
+        const objId = flag.slice(prefix.length);
+        if (!LOCATIONS[locId].interactables.includes(objId)) return `no object "${objId}" at ${locId}`;
+        if (!TAKEABLE_OBJECTS[objId]) return `object "${objId}" exists at ${locId} but has no TAKEABLE_OBJECTS entry (not portable)`;
+        return null;
+      }
+    }
+    return 'no known location id matches this took_ flag';
   }
 
   if (flag.startsWith('used_')) {
@@ -153,6 +221,7 @@ function flagUnreachableReason(flag: string): string | null {
 
   if (flag.startsWith('vignette_')) return null;
   if (/^act_\d+_started$/.test(flag)) return null;
+  if (/^act_\d+_epilogue_cut$/.test(flag)) return null;
   if (flag.startsWith('holmes_nudged_at_')) return null;
 
   if (flag.startsWith('world_event_')) {
@@ -301,6 +370,37 @@ section('Takeable gates + gated SHOW interactions');
   if (showGateOk) pass('every SHOW_INTERACTIONS requireFlags entry is settable');
 }
 
+// ── Object visibility + containers ────────────────────────────────────────────
+
+section('Object visibility + containers');
+{
+  for (const [objId, gateFlag] of Object.entries(OBJECT_VISIBILITY)) {
+    if (!allInteractables.has(objId)) {
+      fail(`objectVisibility: '${objId}' is not an interactable at any location`);
+    } else {
+      pass(`objectVisibility: '${objId}' exists`);
+    }
+    if (!gateFlag || typeof gateFlag !== 'string') {
+      fail(`objectVisibility: '${objId}' has no gate flag`);
+    }
+  }
+
+  for (const [containerId, contents] of Object.entries(CONTAINER_CONTENTS)) {
+    if (!allInteractables.has(containerId)) {
+      fail(`containerContents: container '${containerId}' is not an interactable anywhere`);
+    } else {
+      pass(`containerContents: container '${containerId}' exists`);
+    }
+    for (const contentId of contents) {
+      if (!OBJECT_VISIBILITY[contentId]) {
+        fail(`containerContents: '${contentId}' is inside '${containerId}' but is not gated in OBJECT_VISIBILITY — it would be visible before the container is opened`);
+      } else {
+        pass(`containerContents: '${contentId}' is visibility-gated`);
+      }
+    }
+  }
+}
+
 // ── 4. NPCs ──────────────────────────────────────────────────────────────────
 
 section('NPCs');
@@ -398,6 +498,207 @@ section('Facts');
       warn(`npc ${npcId}: empty knowledge envelope even at Act 6`, 'talking to them gives the AI nothing — confirm intentional');
     }
   }
+
+  // ── TALK topics ────────────────────────────────────────────────────────────
+  // Topics are what the player types after "about". They must be matchable, and
+  // they must not collide WITHIN one NPC's askable set — two facts the same
+  // person can be asked about, sharing a topic phrase, make one unreachable.
+  let topicsOk = true;
+  for (const f of FACTS) {
+    for (const t of f.topics ?? []) {
+      if (t !== t.toLowerCase()) {
+        fail(`fact "${f.id}": topic "${t}" is not lowercase`, 'matchTopic lowercases the player input; authored topics must match');
+        topicsOk = false;
+      }
+      if (t.trim() !== t || !t.trim()) {
+        fail(`fact "${f.id}": topic "${t}" has stray or empty whitespace`); topicsOk = false;
+      }
+      // matchTopic strips a leading article from both sides before comparing, so
+      // a topic that is *only* an article can never match anything meaningful.
+      if (/^(the|a|an)$/.test(t.trim())) {
+        fail(`fact "${f.id}": topic "${t}" is a bare article`); topicsOk = false;
+      }
+    }
+  }
+  // Per-NPC, per-act collision check: same normalised topic on two facts the
+  // same NPC can be asked about at the same point in the story.
+  for (const npcId of npcIds) {
+    for (const act of Object.keys(ACT_TIME_CONFIG).map(Number)) {
+      const seen = new Map<string, string>();
+      for (const f of FACTS) {
+        if (!f.knownBy.includes(npcId) || f.visibleFromAct > act || !f.topics?.length) continue;
+        for (const t of f.topics) {
+          const norm = t.toLowerCase().replace(/^(the|a|an)\s+/, '').trim();
+          const prior = seen.get(norm);
+          if (prior && prior !== f.id) {
+            fail(`npc ${npcId} act ${act}: topic "${t}" is shared by facts "${prior}" and "${f.id}"`,
+              'the later fact can never be reached by that phrase — give one of them a distinct topic');
+            topicsOk = false;
+          } else if (!prior) {
+            seen.set(norm, f.id);
+          }
+        }
+      }
+    }
+  }
+  if (topicsOk) {
+    const askable = FACTS.filter(f => f.topics?.length).length;
+    pass(`${askable}/${FACTS.length} facts are askable: topics lowercase, non-trivial, no per-NPC collisions`);
+  }
+
+  // Partial-match theft: matchTopic prefers substring containment when no
+  // exact match exists, so one fact's authored topic can silently steal a
+  // phrase belonging to another fact once both are simultaneously askable —
+  // the exact-duplicate check above can't catch this, since the two strings
+  // are never identical (e.g. holmes_boots_bermondsey's "the boots" vs
+  // holmes_heath_road_dust's "his boots" — two different boots entirely, a
+  // live playtest asked "the boots" post-reconstruction and got the wrong
+  // one). Runs the real production matchTopic against a maximal-flags
+  // scenario (every requireFlags-gated fact simultaneously open) — the
+  // worst-case collision window a live playthrough can actually reach —
+  // and asserts every fact's own topic phrase still resolves back to itself.
+  {
+    const maximalFlags: Record<string, boolean> = {};
+    for (const f of FACTS) for (const flag of f.requireFlags ?? []) maximalFlags[flag] = true;
+
+    let stealOk = true;
+    for (const npcId of npcIds) {
+      for (const act of Object.keys(ACT_TIME_CONFIG).map(Number)) {
+        for (const f of FACTS) {
+          if (!f.knownBy.includes(npcId) || f.visibleFromAct > act || !f.topics?.length) continue;
+          for (const t of f.topics) {
+            const resolved = matchTopic(FACTS, npcId, act, t, maximalFlags);
+            if (resolved && resolved.id !== f.id) {
+              fail(`npc ${npcId} act ${act}: fact "${f.id}"'s own topic "${t}" resolves to "${resolved.id}" instead`,
+                'another fact\'s topic partially matches and wins — the authored topic can never actually be reached; add an exact phrase to the winning fact or narrow the losing one');
+              stealOk = false;
+            }
+          }
+        }
+      }
+    }
+    if (stealOk) pass('every fact\'s own topic phrase resolves back to itself (no partial-match theft)');
+  }
+
+  // Act gates that ask for a topic must be answerable in the act that gates on
+  // them: if the fact's own visibleFromAct is later than the gating act, the
+  // gate can never open. This is the silent break the flag grammar can't see.
+  {
+    let gateOk = true;
+    for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
+      const act = Number(actStr);
+      for (const flag of cond.requireFlags ?? []) {
+        if (!flag.startsWith('asked_')) continue;
+        for (const npcId of npcIds) {
+          const prefix = `asked_${npcId}_about_`;
+          if (!flag.startsWith(prefix)) continue;
+          const fact = FACTS.find(f => f.id === flag.slice(prefix.length));
+          if (fact && fact.visibleFromAct > act) {
+            fail(`act ${act} gate "${flag}": fact is sealed until act ${fact.visibleFromAct}`,
+              'the gate can never open — lower visibleFromAct or move the gate');
+            gateOk = false;
+          }
+          break;
+        }
+      }
+    }
+    if (gateOk) pass('every asked_ act gate is answerable in the act that requires it');
+  }
+}
+
+// ── 4c. Story-event topic coverage ───────────────────────────────────────────
+// Mechanizes the standing rule stated in facts.ts: "a player who reads [a
+// proper noun in the act's own prose] and asks about it must not hit
+// silence." Story-event beats are scripted, player-facing prose the way
+// authored fact statements are — but nothing previously checked that a name
+// they introduce (a place, an object, a person) is actually askable. This
+// caught "Heath-road": named in a beat, asked about by a live playtester,
+// and met with Holmes denying he'd ever heard of it.
+//
+// Heuristic, not exact — WARN, never FAIL. Proper-noun extraction from free
+// prose is inherently noisy (sentence-initial capitals, mid-sentence titles),
+// so this only flags candidates for a human to glance at, scoped to story
+// events (10 today, all Act 0) rather than every fact statement in the game.
+section('Story-event topic coverage');
+{
+  // Anything already always in context — NPC names/aliases, location names,
+  // and calendar words — would never actually "hit silence" the way a fresh
+  // clue name would, so they're excluded rather than flagged every run.
+  const ambientAllowlist = new Set<string>();
+  for (const name of Object.values(NPC_DISPLAY_NAMES)) {
+    for (const word of name.replace(/[.'']/g, '').split(/\s+/)) ambientAllowlist.add(word.toLowerCase());
+  }
+  for (const alias of Object.values(NPC_ALIASES)) ambientAllowlist.add(alias.toLowerCase());
+  for (const loc of Object.values(LOCATIONS)) {
+    for (const word of loc.name.replace(/[.'']/g, '').split(/\s+/)) ambientAllowlist.add(word.toLowerCase());
+  }
+  for (const w of [
+    'watson', 'london', 'hudson', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+    'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september',
+    'october', 'november', 'december', 'bank', 'holiday', 'street', 'yard', 'road',
+  ]) ambientAllowlist.add(w);
+
+  const allTopicPhrases = FACTS.flatMap(f => f.topics ?? []).map(t => t.toLowerCase());
+  const isCovered = (phrase: string) => {
+    const p = phrase.toLowerCase();
+    return allTopicPhrases.some(t => t.includes(p) || p.includes(t));
+  };
+
+  // Ordinary sentence-openers that happen to be capitalized but are never
+  // themselves a proper noun. Dropped outright, wherever they appear, so a
+  // sentence like "When Watson..." yields the candidate "Watson" rather than
+  // the false positive "When Watson".
+  const SENTENCE_OPENER_STOPWORDS = new Set([
+    'when', 'while', 'before', 'after', 'if', 'but', 'and', 'or', 'so', 'yet',
+    'she', 'he', 'they', 'it', 'her', 'his', 'their', 'this', 'that', 'these', 'those',
+    'once', 'though', 'although', 'having', 'beyond', 'without', 'within',
+  ]);
+
+  // Extract capitalized-word runs, dropping a lone sentence-initial word
+  // (ordinary capitalization, not a proper noun) unless it chains into a
+  // second capitalized word right after it ("Mrs Hudson" at a sentence start
+  // must still be caught).
+  function candidatePhrases(text: string): string[] {
+    const out: string[] = [];
+    for (const sentence of text.split(/(?<=[.!?;:])\s+/)) {
+      const words = sentence.trim().split(/\s+/);
+      const runs: string[][] = [];
+      let current: string[] = [];
+      words.forEach((raw, i) => {
+        const w = raw.replace(/^[“"‘'(]+|[,.;:!?)”"’']+$/g, '');
+        if (SENTENCE_OPENER_STOPWORDS.has(w.toLowerCase())) {
+          if (current.length) runs.push(current);
+          current = [];
+          return;
+        }
+        const isCap = /^[A-Z][A-Za-z'-]*$/.test(w);
+        if (isCap && !(i === 0 && (words[1] === undefined || !/^[A-Z]/.test(words[1] ?? '')))) {
+          current.push(w);
+        } else {
+          if (current.length) runs.push(current);
+          current = [];
+        }
+      });
+      if (current.length) runs.push(current);
+      for (const run of runs) out.push(run.join(' '));
+    }
+    return out;
+  }
+
+  let coverageOk = true;
+  for (const event of STORY_EVENTS) {
+    for (const [i, beat] of event.beats.entries()) {
+      for (const phrase of candidatePhrases(beat)) {
+        const words = phrase.toLowerCase().split(/\s+/);
+        if (words.every(w => ambientAllowlist.has(w))) continue;
+        if (isCovered(phrase)) continue;
+        warn(`story event "${event.id}" beat ${i + 1}: "${phrase}" is named but no fact topic covers it`,
+          'a player who asks about it will hit a flat "I know nothing of it" — add a topic, or add it to the allowlist if it is truly ambient');
+        coverageOk = false;
+      }
+    }
+  }
+  if (coverageOk) pass(`every proper noun in the ${STORY_EVENTS.length} story events' beats is either ambient or askable`);
 }
 
 // ── 5. Spoiler guard ─────────────────────────────────────────────────────────
@@ -530,10 +831,16 @@ for (const net of WHITECHAPEL_MANIFEST.actSafetyNets) {
   } else {
     fail(`actSafetyNets: act ${net.act} references unknown NPC '${net.requiresNpcPresent}'`);
   }
-  if (net.act >= 1 && net.act <= 6) {
+  if (net.act >= 0 && net.act <= 6) {
     pass(`actSafetyNets: act ${net.act} is a valid act number`);
   } else {
-    fail(`actSafetyNets: act ${net.act} is out of range (1-6)`);
+    fail(`actSafetyNets: act ${net.act} is out of range (0-6)`);
+  }
+  const rungs = Array.isArray(net.instruction) ? net.instruction : [net.instruction];
+  if (rungs.length > 0 && rungs.every(r => typeof r === 'string' && r.trim().length > 0)) {
+    pass(`actSafetyNets: act ${net.act} instruction has ${rungs.length} usable rung(s)`);
+  } else {
+    fail(`actSafetyNets: act ${net.act} has an empty or blank instruction rung`);
   }
 }
 
@@ -578,6 +885,69 @@ section('World events (Phase 4a)');
   pass(`${WORLD_EVENTS.length} world events structurally valid`);
 }
 
+section('Action-triggered story events');
+{
+  const seen = new Set<string>();
+  const fallbackActs = new Set<number>();
+  const fallbackFixture = STORY_EVENTS.find(event => event.fallback)?.fallback;
+  if (!fallbackFixture) {
+    fail('fallback speaker validator regression fixture: no authored fallback exists');
+  } else {
+    const typoErrors = fallbackSpeakerReferenceErrors([
+      {
+        id: 'synthetic_typo_fallback',
+        fallback: { ...fallbackFixture, speakerNpcId: 'synthetic_typo_npc' },
+      },
+    ], npcIds);
+    if (typoErrors.some(error => error.includes('synthetic_typo_npc'))) {
+      pass('fallback speaker validator rejects a synthetic NPC id typo');
+    } else {
+      fail('fallback speaker validator accepted a synthetic NPC id typo');
+    }
+  }
+  for (const event of STORY_EVENTS) {
+    if (seen.has(event.id)) fail(`story event "${event.id}": duplicate id`);
+    seen.add(event.id);
+    if (!ACT_TIME_CONFIG[event.act]) fail(`story event "${event.id}": act ${event.act} has no time config`);
+    if (!event.triggers.length) fail(`story event "${event.id}": no triggers`);
+    if (!event.setFlags.length) fail(`story event "${event.id}": no semantic effects`);
+    if (!event.beats.length || event.beats.some(beat => !beat.trim())) fail(`story event "${event.id}": empty narration beats`);
+    if (!Number.isInteger(event.maxWords) || event.maxWords < 1) fail(`story event "${event.id}": invalid maxWords ${event.maxWords}`);
+    for (const trigger of event.triggers) {
+      for (const flag of [...(trigger.requireFlags ?? []), ...(trigger.forbidFlags ?? [])]) {
+        const reason = flagUnreachableReason(flag);
+        if (reason) fail(`story event "${event.id}": trigger flag "${flag}" can never be set`, reason);
+      }
+      for (const npcId of trigger.npcIds ?? []) if (!npcIds.has(npcId)) fail(`story event "${event.id}": unknown NPC "${npcId}"`);
+      for (const targetId of trigger.targetIds ?? []) {
+        if (!allObjectIds.has(targetId) && !npcIds.has(targetId)) fail(`story event "${event.id}": unknown target "${targetId}"`);
+      }
+    }
+    const prose = event.beats.join(' ');
+    if (/halward|ripper|murder/i.test(prose)) fail(`story event "${event.id}": Act 0 prose foreshadows the later murders`);
+    if (event.fallback) {
+      if (fallbackActs.has(event.act)) fail(`story event "${event.id}": more than one fallback is authored for act ${event.act}`);
+      fallbackActs.add(event.act);
+      if (event.fallback.counterFlags.length !== event.fallback.afterEligibleActions) {
+        fail(`story event "${event.id}": fallback counter count does not equal afterEligibleActions`);
+      }
+      if (!event.fallback.beats.length) fail(`story event "${event.id}": fallback has no beats`);
+      for (const error of fallbackSpeakerReferenceErrors([event], npcIds)) fail(error);
+      if (event.fallback.locationId && !locationIds.has(event.fallback.locationId)) {
+        fail(`story event "${event.id}": fallback location "${event.fallback.locationId}" does not resolve`);
+      }
+      for (const flag of [...(event.fallback.requireFlags ?? []), ...(event.fallback.forbidFlags ?? [])]) {
+        const reason = flagUnreachableReason(flag);
+        if (reason) fail(`story event "${event.id}": fallback flag "${flag}" can never be set`, reason);
+      }
+      if (/halward|ripper|murder/i.test(event.fallback.beats.join(' '))) {
+        fail(`story event "${event.id}": fallback prose foreshadows the later murders`);
+      }
+    }
+  }
+  pass(`${STORY_EVENTS.length} story events structurally valid`);
+}
+
 section('Schedule guard rail: gate NPCs findable at act start (Phase 4a)');
 {
   // Every NPC whose conversation gates an act must be at their schedule
@@ -589,17 +959,55 @@ section('Schedule guard rail: gate NPCs findable at act start (Phase 4a)');
     const act = Number(actStr);
     const startPeriod = computeTimePeriod(ACT_TIME_CONFIG[act].canonicalMinutes);
     for (const flag of cond.requireFlags) {
-      if (!flag.startsWith('talked_to_')) continue;
-      // Disambiguate npc id vs location id by prefix-matching known npc ids.
-      const npcId = [...npcIds].find(id => flag.startsWith(`talked_to_${id}_at_`));
+      // talked_to_<npc>_at_<loc> names the location the gate needs; the
+      // topic-scoped asked_<npc>_about_<fact> does not, so it is checked for
+      // onstage-ness instead. Both must be covered: when the gates migrated to
+      // topics this loop silently matched nothing and passed on zero
+      // placements, which is a guard rail that has stopped guarding.
+      const talkNpc = [...npcIds].find(id => flag.startsWith(`talked_to_${id}_at_`));
+      const askNpc = [...npcIds].find(id => flag.startsWith(`asked_${id}_about_`));
+      const npcId = talkNpc ?? askNpc;
       if (!npcId) continue; // unreachable-flag check already covers this
-      const locId = flag.slice(`talked_to_${npcId}_at_`.length);
       const npc = NPCS[npcId];
       if (npc.followsNpcId && (npc.followsUntilAct === undefined || act <= npc.followsUntilAct)) continue;
-      const atStart = npcLocationAt(NPCS, npcId, act, startPeriod, {});
+      const gateFlags: Record<string, boolean> = {};
+      if (npc.presenceRequiresFlag) {
+        // A presence gate satisfied by a guaranteed beat for this act (no
+        // further conditions beyond act + time, or act + turn index) will
+        // definitely be set at some point during the act — simulate it as
+        // already true so this reachability check reflects that, rather than
+        // reading a mid-scene arrival as "never onstage." A gate nothing in
+        // this act sets leaves gateFlags empty, so a genuinely unreachable NPC
+        // still fails below.
+        //
+        // Both sources count: an NPC may be admitted by a clock-timed world
+        // event or by an action-triggered story event.
+        if (npc.presenceRequiresFlag.startsWith('world_event_')) {
+          const eventId = npc.presenceRequiresFlag.slice('world_event_'.length);
+          const event = WORLD_EVENTS.find(e => e.id === eventId);
+          if (event && event.act === act) gateFlags[npc.presenceRequiresFlag] = true;
+        }
+        const admittingEvent = STORY_EVENTS.find(
+          event => event.act === act && event.setFlags.includes(npc.presenceRequiresFlag as any));
+        if (admittingEvent) gateFlags[npc.presenceRequiresFlag] = true;
+      }
+      const atStart = npcLocationAt(NPCS, npcId, act, startPeriod, {}, gateFlags);
       checked++;
-      if (atStart !== locId) {
-        fail(`gate NPC ${npcId} (act ${act}): scheduled at "${atStart}" during the act's start period (${startPeriod}), but the gate needs them at "${locId}"`);
+      if (talkNpc) {
+        const locId = flag.slice(`talked_to_${npcId}_at_`.length);
+        if (atStart !== locId) {
+          fail(`gate NPC ${npcId} (act ${act}): scheduled at "${atStart}" during the act's start period (${startPeriod}), but the gate needs them at "${locId}"`);
+        }
+      } else if (!atStart || atStart === 'offstage') {
+        // A topic gate can be satisfied anywhere the NPC stands, but if they are
+        // offstage for the whole act there is nowhere to put the question.
+        const anyPeriod = PERIOD_ORDER.some(p => {
+          const at = npcLocationAt(NPCS, npcId, act, p, {}, gateFlags);
+          return at && at !== 'offstage';
+        });
+        if (!anyPeriod) {
+          fail(`gate NPC ${npcId} (act ${act}): offstage all act, but the gate "${flag}" needs them askable`);
+        }
       }
     }
   }
@@ -706,6 +1114,105 @@ section('NPC approaches (Phase 5)');
 
   const edmundCount = APPROACHES.filter(a => a.npcId === 'edmund' && a.kind === 'mundane').length;
   if (edmundCount < 2) warn('Edmund has fewer than 2 mundane approaches', 'recession rule — the murderer must initiate contact like everyone else');
+
+  // Act beats: exactly one guaranteed beat per act, and nothing about it may be
+  // conditional. An act beat that can be gated off, mis-pinned, or crowded by a
+  // second beat is not guaranteed, which is the whole point of the flag.
+  const beatFailsBefore = fails;
+  // Act 0's designed moments are action-triggered story events, not approaches.
+  const actNumbers = Object.keys(ACT_TIME_CONFIG).map(Number).filter(act => act !== 0).sort((x, y) => x - y);
+  const beats = APPROACHES.filter(a => a.actBeat);
+  for (const a of beats) {
+    const label = `act beat ${a.id}`;
+    if (a.kind !== 'mundane') {
+      fail(`${label}: kind is "${a.kind}"`,
+        'a rumor beat depends on maturation and so cannot be guaranteed — act beats must be mundane');
+    }
+    if (!a.acts || a.acts.length !== 1) {
+      fail(`${label}: acts is ${a.acts ? `[${a.acts.join(', ')}]` : 'unset'}`,
+        'an act beat must be pinned to exactly one act');
+    }
+    if (a.forbidFlags?.length) {
+      fail(`${label}: carries forbidFlags`,
+        'a guaranteed beat must not depend on a flag that could permanently disable it');
+    }
+    if (a.requireFlags?.length) {
+      // requireFlags is allowed IFF every flag is also required by that act's
+      // own ACT_PROGRESSION gate — the act cannot complete without them being
+      // set, so the beat is still guaranteed to fire before the act ends, just
+      // not necessarily from turn one. Anything outside that gate could
+      // withhold the beat indefinitely and is still disallowed.
+      const act = a.acts?.[0];
+      const actGateFlags: string[] = (act !== undefined ? ACT_PROGRESSION[act]?.requireFlags : undefined) ?? [];
+      const notGuaranteed = a.requireFlags.filter(f => !actGateFlags.includes(f));
+      if (notGuaranteed.length) {
+        fail(`${label}: carries requireFlags not guaranteed by act ${act}'s own gate`,
+          `[${notGuaranteed.join(', ')}] — a guaranteed beat's requireFlags must all be required by ACT_PROGRESSION[${act}], otherwise the beat could be withheld indefinitely`);
+      }
+    }
+    if (a.timePeriods?.length) {
+      fail(`${label}: restricted to periods [${a.timePeriods.join(', ')}]`,
+        'a guaranteed beat must be reachable in any time period Watson could arrive in');
+    }
+  }
+  for (const act of actNumbers) {
+    const forAct = beats.filter(a => a.acts?.includes(act));
+    if (forAct.length === 0) {
+      fail(`act ${act} has no act beat`, 'every act needs exactly one approach marked actBeat: true');
+    } else if (forAct.length > 1) {
+      fail(`act ${act} has ${forAct.length} act beats`,
+        `[${forAct.map(a => a.id).join(', ')}] — only one may be guaranteed per act`);
+    } else {
+      // The beat must sit where the act's spine actually takes Watson. 'any'
+      // rides a follower's live position and is reachable by construction.
+      const a = forAct[0];
+      if (a.locationId !== 'any') {
+        const anchor = ACT_ANCHORS[act];
+        const present = PERIOD_ORDER.some(p =>
+          npcLocationAt(NPCS, a.npcId, act, p, {}) === a.locationId);
+        if (!present) {
+          fail(`act beat ${a.id}: ${a.npcId} is never at ${a.locationId} in act ${act}`);
+        } else if (anchor && a.locationId !== anchor) {
+          warn(`act beat ${a.id} is at ${a.locationId}, not act ${act}'s anchor (${anchor})`,
+            'reachable, but a player who never visits this location will miss the act\'s designed beat');
+        }
+      }
+    }
+  }
+  if (fails === beatFailsBefore) {
+    pass(`${beats.length} act beats: one per act, mundane, single-act, unconditional, NPC present`);
+  }
+}
+
+section('Object alias reachability');
+{
+  // Every hardcoded single-word alias in intentParser.ts must still resolve
+  // to the object it names. A new OBJECT_DISPLAY_NAMES entry whose normalized
+  // form contains an alias as a substring can silently shadow it, since
+  // matchObjectId's unanchored substring scan over display names runs BEFORE
+  // this alias table is ever consulted. This has already happened three times
+  // in one task ('letter', 'box', 'boots' all got shadowed by new Act 0
+  // object names) — this check catches the whole class mechanically instead
+  // of relying on a manual re-check every time a new object is authored.
+
+  // Pre-existing alias collisions in Acts 1-6 content, discovered by this check
+  // but out of scope to fix here — deciding which object each word should mean
+  // needs story-design judgment this Act-0-focused rebuild doesn't have context
+  // for. Tracked, not ignored: remove an entry here only once its collision is
+  // actually resolved (by renaming the shadowing display name or repointing the
+  // alias), not by widening this list to cover a new failure.
+  const KNOWN_PRE_EXISTING_ALIAS_SHADOWS = new Set(['parcel', 'street', 'case file']);
+
+  for (const [alias, expectedId] of Object.entries(objectAliases)) {
+    const resolved = matchObjectId(alias);
+    if (resolved === expectedId) {
+      pass(`alias '${alias}' still resolves to '${expectedId}'`);
+    } else if (KNOWN_PRE_EXISTING_ALIAS_SHADOWS.has(alias)) {
+      warn(`alias '${alias}' resolves to '${resolved}' instead of '${expectedId}' — known pre-existing collision, tracked separately, not fixed by this task`);
+    } else {
+      fail(`alias '${alias}' should resolve to '${expectedId}' but resolves to '${resolved}' instead — a display name is shadowing this alias`);
+    }
+  }
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────

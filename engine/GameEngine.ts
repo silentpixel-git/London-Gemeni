@@ -14,20 +14,22 @@ import { EngineResult, NarrationContext, RumorEvents, NPCState } from '../types'
 import { ParsedIntent } from './intentParser';
 import type { StoryManifest } from './stories/types';
 import { WHITECHAPEL_MANIFEST } from './stories/whitechapel-1888/manifest';
-import { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor } from './time';
+import { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor, resolveActDay, formatTimeLabel, rollForwardCalendarLabel } from './time';
 import { npcLocationAt, returnsPeriodFor, getPresentNpcIds, maturedSpreadsFor } from './presence';
 import type { SessionSnapshot } from './session';
-import { checkActProgression, computeActEntry, computeNpcMovements } from './resolvers/support';
+import { checkActProgression, computeActEntry, computeActEpilogue, computeNpcMovements } from './resolvers/support';
 import { resolveMove } from './resolvers/move';
 import { resolveExamine, resolveRead } from './resolvers/examine';
+import { resolveOpen } from './resolvers/open';
 import { resolveTalk, resolveShow } from './resolvers/npc';
 import { resolveTake, resolveUse, resolveDrop, resolveInventory } from './resolvers/items';
 import { resolveDeduce, resolveNotebook } from './resolvers/deduce';
 import { resolveWait, resolveHelp, resolveQuery, resolveUnresolvedTarget, resolveOther } from './resolvers/meta';
 import { selectApproach } from './approaches';
+import { applyStoryEvents } from './storyEvents';
 
 // Re-export for existing consumers (useGameState, parseFallback, qa scripts).
-export { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor };
+export { computeTimePeriod, PERIOD_ORDER, minutesToNextPeriodBoundary, periodBoundariesCrossed, nextOpenPeriod, timePeriodFor, resolveActDay, rollForwardCalendarLabel };
 export { npcLocationAt, returnsPeriodFor, getPresentNpcIds, maturedSpreadsFor };
 export type { SessionSnapshot };
 
@@ -64,6 +66,7 @@ export class GameEngine {
       case 'use':       result = resolveUse(this.story, intent, session); break;
       case 'show':      result = resolveShow(this.story, intent, session); break;
       case 'read':      result = resolveRead(this.story, intent, session); break;
+      case 'open':      result = resolveOpen(this.story, intent, session); break;
       case 'drop':      result = resolveDrop(this.story, intent, session); break;
       case 'inventory': result = resolveInventory(this.story, intent, session); break;
       case 'notebook':  result = resolveNotebook(this.story, intent, session); break;
@@ -76,12 +79,18 @@ export class GameEngine {
       default:                   result = resolveOther(this.story, intent, session); break;
     }
 
+    // Pivotal authored events match the already-resolved action. Their effects
+    // are deterministic and merge before progression; a trigger explicitly
+    // marked replacesBlocked may authoritatively turn a base refusal into the
+    // successful story action the player's words requested.
+    result = applyStoryEvents(this.story, intent, session, result);
+
     // Filed documents — any inventoryAdd containing a document-bearing object
     // is marked filed via a `filed_<objectId>` flag, permanently (flags
-    // already persist; no new save-state needed). The Documents tab reads
-    // these flags instead of live inventory, so a document stays on file
-    // even after it leaves the bag (dropped, spent after an act transition,
-    // or consumed by a USE combination).
+    // already persist; no new save-state needed). This runs after story-event
+    // effects so declarative event inventory follows the same filing contract
+    // as resolver inventory. The Documents tab reads these flags even after an
+    // item is dropped, spent after an act transition, or consumed by USE.
     if (result.inventoryAdd && result.inventoryAdd.length > 0) {
       const filedFlags: Record<string, boolean> = {};
       for (const displayName of result.inventoryAdd) {
@@ -93,13 +102,10 @@ export class GameEngine {
       }
     }
 
-    // Act progression for talk/show — these resolvers set gate flags
-    // (talked_to_*, showed_*) but do not run their own progression check.
-    if (
-      (result.actionType === 'talk' || result.actionType === 'show') &&
-      result.actionSuccess &&
-      result.newAct === undefined
-    ) {
+    // Re-check progression after event effects for every successful action.
+    // Individual resolvers may already have checked their base flags, but they
+    // cannot see semantic event effects that are matched post-resolution.
+    if (result.actionSuccess && result.newAct === undefined) {
       const mergedFlags = { ...session.flags, ...(result.flagsUpdate ?? {}) };
       const actCheck = checkActProgression(this.story, session, mergedFlags);
       if (actCheck.newAct !== undefined) {
@@ -120,6 +126,40 @@ export class GameEngine {
       }
     }
 
+    // Act-epilogue auto-cut: the act's field work is done, so cut Watson to the
+    // summation location rather than making him walk there. Runs only when this
+    // turn is NOT itself an act advance (that cut wins) and the game is not over.
+    if (result.newAct === undefined && !result.gameOver && result.actionSuccess) {
+      const mergedFlags = { ...session.flags, ...(result.flagsUpdate ?? {}) };
+      const epilogue = computeActEpilogue(this.story, session, mergedFlags);
+      if (epilogue) {
+        result.newLocation = epilogue.location;
+        result.npcUpdates = { ...result.npcUpdates, ...epilogue.npcUpdates };
+        result.flagsUpdate = { ...result.flagsUpdate, ...epilogue.flagsUpdate };
+        result.aiContext.actEpilogueCut = true;
+      }
+    }
+
+    // Multi-day act day-step. Detected last, once every flag this turn is
+    // merged: if the act's resolved day moved, the turn carries the authored
+    // interstitial and the hook resets elapsedMinutes to the new day's base.
+    // Never fires on an act transition — that already resets the clock itself.
+    if (result.newAct === undefined && !result.gameOver) {
+      const cfg = this.story.actTimeConfig[session.currentAct] ?? this.story.actTimeConfig[1];
+      const before = resolveActDay(cfg, session.flags).stepIndex;
+      const merged = { ...session.flags, ...(result.flagsUpdate ?? {}) };
+      const after = resolveActDay(cfg, merged);
+      if (after.stepIndex > before) {
+        result.dayStepAdvanced = after.stepIndex;
+        result.aiContext.dayStepNote = cfg.days![after.stepIndex].transitionNote;
+        // The turn belongs to the new day, so its clock label must say so —
+        // aiContext was built by the resolver against the old base.
+        result.aiContext.timeLabel = formatTimeLabel(
+          after.canonicalMinutes, after.dayOfWeek, after.displayDate);
+        result.aiContext.timePeriod = computeTimePeriod(after.canonicalMinutes);
+      }
+    }
+
     // Ending classification — every gameOver carries its ending type.
     if (result.gameOver) {
       result.endingType =
@@ -129,7 +169,8 @@ export class GameEngine {
     }
 
     // Proactive Watson hint — fires once per location when the player is stuck.
-    if (this.shouldFireHolmesNudge(session, result)) {
+    const pivotalTurn = !!result.aiContext.storyEvent || !!result.followUpEvent;
+    if (!pivotalTurn && this.shouldFireHolmesNudge(session, result)) {
       result.aiContext.watsonHint = this.story.selectHint(session);
       result.flagsUpdate = {
         ...result.flagsUpdate,
@@ -167,7 +208,7 @@ export class GameEngine {
 
     // NPC approach (see engine/approaches.ts) — after all outcome handling,
     // so suppression rules can see the whole turn.
-    const approach = selectApproach(this.story, session, result);
+    const approach = pivotalTurn ? null : selectApproach(this.story, session, result);
     if (approach) {
       result.aiContext.npcApproach = approach.npcApproach;
       result.flagsUpdate = { ...result.flagsUpdate, ...approach.flagsUpdate };
@@ -191,7 +232,7 @@ export class GameEngine {
         const cfg = this.story.actTimeConfig[session.currentAct] ?? this.story.actTimeConfig[1];
         (rumorEventsUpdate ??= {})[rumor.id] = {
           act: session.currentAct,
-          atMinutes: cfg.canonicalMinutes + session.elapsedMinutes,
+          atMinutes: resolveActDay(cfg, session.flags).canonicalMinutes + session.elapsedMinutes,
         };
       }
     }

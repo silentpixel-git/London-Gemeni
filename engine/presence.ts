@@ -66,6 +66,11 @@ export function returnsPeriodFor(
  * keep their stored currentLocation; everyone else derives from the schedule,
  * so stored positions can never mask a time-of-day move. 'offstage' never
  * matches a real location id.
+ *
+ * Note: components/Sidebar.tsx and engine/stories/whitechapel-1888/hints.ts
+ * each duplicate this function's presenceRequiresFlag check locally, since
+ * neither has a timePeriod value available to call this function directly.
+ * If the gating logic here ever changes, update both.
  */
 export function npcLocationAt(
   npcs: Record<string, NPCDefinition>,
@@ -73,9 +78,14 @@ export function npcLocationAt(
   act: number,
   timePeriod: TimePeriod,
   npcStates: Record<string, NPCState>,
+  flags: Record<string, boolean> = {},
 ): string {
   const npc = npcs[npcId];
   if (!npc) return 'offstage';
+  // Not yet arrived: offstage no matter what the schedule says.
+  if (npc.presenceRequiresFlag && flags[npc.presenceRequiresFlag] !== true) return 'offstage';
+  // Already departed: offstage even if the act schedule still names the room.
+  if (npc.presenceForbidFlag && flags[npc.presenceForbidFlag] === true) return 'offstage';
   const sched = npc.scheduleByAct[act];
   const scheduled = sched ? (sched.byPeriod?.[timePeriod] ?? sched.default) : undefined;
   const stored = npcStates[npcId]?.currentLocation;
@@ -97,8 +107,9 @@ export function getPresentNpcIds(
   npcStates: Record<string, NPCState>,
   currentAct: number,
   timePeriod: TimePeriod,
+  flags: Record<string, boolean> = {},
 ): string[] {
   return Object.keys(npcs).filter(npcId =>
-    npcLocationAt(npcs, npcId, currentAct, timePeriod, npcStates) === locationId &&
+    npcLocationAt(npcs, npcId, currentAct, timePeriod, npcStates, flags) === locationId &&
     npcStates[npcId]?.status !== 'deceased');
 }

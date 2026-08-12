@@ -1,4 +1,5 @@
 import type { ActCondition, ActTimeConfig, WeatherCondition, ActWeather } from '../types';
+import { resolveActDay } from '../../time';
 import type { StoryFlag } from './flags';
 
 export type { ActTimeConfig, WeatherCondition, ActWeather } from '../types';
@@ -16,7 +17,9 @@ export type { ActTimeConfig, WeatherCondition, ActWeather } from '../types';
 // ============================================================
 
 export const ACT_TIME_CONFIG: Record<number, ActTimeConfig> = {
-  0: { canonicalMinutes: 1200, dayOfWeek: 'Thursday',  displayDate: '8 November 1888' },  // 8:00 PM  — the vigil; Warren resigned today; Kelly dies tonight
+  // CHRONOLOGICAL REWORK: Act 0 is the August Bank Holiday, three weeks before
+  // the first murder. Bank Holiday Monday was 6 August 1888.
+  0: { canonicalMinutes: 1230, dayOfWeek: 'Monday',    displayDate: '6 August 1888' },    // 8:30 PM  — the holiday evening; no murder has happened yet
   1: { canonicalMinutes: 645,  dayOfWeek: 'Friday',    displayDate: '9 November 1888' },  // 10:45 AM — Bowyer finds Kelly; the fresh murder
   2: { canonicalMinutes: 540,  dayOfWeek: 'Sunday',    displayDate: '11 November 1888' }, // 9:00 AM  — the medical world; Tumblety in custody
   3: { canonicalMinutes: 600,  dayOfWeek: 'Wednesday', displayDate: '14 November 1888' }, // 10:00 AM — the double-event reconstruction
@@ -30,8 +33,15 @@ export const ACT_TIME_CONFIG: Record<number, ActTimeConfig> = {
  * 12-hour label (e.g. "10:41 PM"). Shared by the sidebar clock and diary
  * timestamps so both read identically.
  */
-export function formatGameClock(actNumber: number, elapsedMinutes: number): string {
-  const cfg = ACT_TIME_CONFIG[actNumber] ?? ACT_TIME_CONFIG[1];
+export function formatGameClock(
+  actNumber: number,
+  elapsedMinutes: number,
+  // Multi-day acts move their own clock base; pass the session flags so the
+  // label follows the act's current day. Omitted = day 0, which is correct for
+  // every single-day act.
+  flags: Record<string, boolean> = {},
+): string {
+  const cfg = resolveActDay(ACT_TIME_CONFIG[actNumber] ?? ACT_TIME_CONFIG[1], flags);
   const m = (cfg.canonicalMinutes + elapsedMinutes) % 1440;
   const h24 = Math.floor(m / 60);
   const mins = m % 60;
@@ -50,8 +60,9 @@ export function formatGameClock(actNumber: number, elapsedMinutes: number): stri
 // ============================================================
 
 export const ACT_WEATHER: Record<number, ActWeather> = {
-  0: { condition: 'clear-night', label: 'Cold, Clear',     // Thu 8 Nov, 8:00 PM  — Baker Street evening
-       lateShift: { afterMinutes: 120, condition: 'foggy', label: 'Fog Rising' } },
+  // Mon 6 Aug, 8:30 PM — high summer, windows open to the holiday. No fog
+  // lateShift: the November vigil's rising fog cannot happen in August.
+  0: { condition: 'clear-warm',  label: 'Warm, Clear' },
   1: { condition: 'drizzle',     label: 'Drizzle',          // Fri 9 Nov, 10:45 AM — wet morning, body discovered
        lateShift: { afterMinutes: 150, condition: 'overcast', label: 'Grey, Clearing' } },
   2: { condition: 'overcast',    label: 'Overcast' },      // Sun 11 Nov, 9:00 AM — damp grey morning
@@ -76,7 +87,7 @@ export const ACT_ANCHORS: Record<number, string> = {
 };
 
 export const ACT_NAMES: Record<number, string> = {
-  0: 'The Baker Street Vigil',
+  0: 'The Bank Holiday',
   1: 'The Last Murder',
   2: 'The First Victims',
   3: 'The Double Event',
@@ -84,6 +95,26 @@ export const ACT_NAMES: Record<number, string> = {
   5: 'The Suspicion',
   6: 'The Confrontation',
 };
+
+// The game's authored first sentences, injected after the act heading (see
+// injectAfterHeading / qa-narration-inject) — act 0's counterpart to the
+// ACT_BRIDGES entries below, which is why act 0 has no bridge of its own.
+// Retrospective frame, but it withholds everything: on 6 August nothing has
+// happened, and the closing clause must read as ordinary on a first play and
+// as dread on a second. Do NOT reintroduce a date, a victim, or the word
+// Ripper here.
+// Holmes is SILENT here. His demonstration belongs to the first matching
+// player-triggered story event rather than the opening: putting the whole
+// exchange here met the player with a wall of dialogue before they had typed
+// anything. The opening just puts him at the window and lets the player move
+// first.
+// Lives here rather than in the narration hook so that every piece of authored
+// prose has one home — a near-duplicate of these lines also sits in
+// diaryLocations.ts (baker_street), and when the two drifted apart an edit
+// landed in the wrong copy and appeared to do nothing.
+export const OPENING_FIXED_LINE =
+  "Looking back, I can fix the date precisely: the sixth of August, 1888, the evening of the Bank Holiday, with half of London out of doors and nothing whatever yet occurred. It was the last such evening either of us would have for some time.\n\n" +
+  "I called to find Holmes with no case to occupy him. He stood at the left-hand window with his back to the room, reading the pavement below as another man might read a newspaper.\n\n";
 
 // Authored bridge line for each act arrival — the connective tissue between the
 // curtain and the scene. Days pass and the anchor changes between acts (see
@@ -108,15 +139,21 @@ export const ACT_BRIDGES: Record<number, string> = {
 // REWEAVE: each act's gate now includes its suspect-theory beats —
 // the moving spotlight is mandatory, not optional.
 export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
-  // Prologue — the vigil. Four murders so far; Kelly is still alive tonight.
-  // Tutorialises EXAMINE, TALK, TAKE, and SHOW in the safety of 221B.
+  // Act 0 — the Bank Holiday. NO murder has happened and none may be hinted at.
+  // Action-triggered semantic milestones. The explicit evidence actions are
+  // prerequisites of reconstruction; the closing event cannot fire until the
+  // choice is resolved and the ticket has been taken.
   0: {
-    name: 'The Baker Street Vigil',
+    name: 'The Bank Holiday',
     requireFlags: [
-      'examined_baker_street_case_files_wall', // the case map — four victims, the suspect landscape
-      'talked_to_holmes_at_baker_street',       // Holmes's briefing — "a man no one remembers"
-      'showed_newspaper_pile_to_holmes',        // the clipping — Holmes calls the letters a press hoax
-      'examined_baker_street_telegrams_pile',   // Tumblety's arrest; Warren's resignation
+      'act0_caller_noticed',
+      'act0_bell_rang',
+      'act0_kemp_business_heard',
+      'act0_boots_analyzed',
+      'act0_reconstruction_complete',
+      'act0_kemp_choice_resolved',
+      'took_baker_street_pawn_ticket',
+      'act0_closing_complete',
     ],
     advanceTo: 1,
   },
@@ -130,7 +167,7 @@ export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
       'showed_hutchinson_account_to_hutchinson', // the witness tested + cleared (implies the talk/take/use chain)
       'examined_millers_court_burned_clothing',  // the grate — the killer's use of light
       'examined_millers_court_the_bed',          // the central horror (arms Bond's aftermath beat)
-      'talked_to_bond_at_millers_court',         // the emotional capstone — the surgeon's burden
+      'asked_bond_about_bond_kelly_findings',    // the emotional capstone — Kelly, asked for directly
     ],
     advanceTo: 2,
   },
@@ -140,11 +177,11 @@ export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
     name: 'The First Victims',
     requireFlags: [
       'examined_whitechapel_mortuary',
-      'talked_to_phillips_at_whitechapel_mortuary', // the second medical voice — "watched and studied, not qualified"
+      'asked_phillips_about_phillips_watched_not_qualified', // the second medical voice — watched, not qualified
       'examined_bucks_row',
       'examined_hanbury_street',
-      'talked_to_tumblety_at_h_division_station', // the Mad Doctor blazes
-      'talked_to_holmes_at_h_division_station',   // capstone — "this man is a performance"
+      'asked_tumblety_about_tumblety_theatrical_denial', // the Mad Doctor blazes — put the accusation to him
+      'asked_holmes_about_holmes_tumblety_performance', // capstone — "this man is a performance"
     ],
     advanceTo: 3,
   },
@@ -154,10 +191,10 @@ export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
     name: 'The Double Event',
     requireFlags: [
       'examined_dutfields_yard',
-      'talked_to_pizer_at_working_mens_club',   // the scapegoat, made human
+      'asked_pizer_about_pizer_community_fears_mob', // the scapegoat, made human
       'examined_mitre_square',
       'examined_goulston_street',               // the apron trail + the erased graffiti
-      'talked_to_holmes_at_goulston_street',    // capstone — "our man is not even noticed"
+      'asked_holmes_about_holmes_no_reliable_witness', // capstone — "our man is not even noticed"
     ],
     advanceTo: 4,
   },
@@ -167,8 +204,8 @@ export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
     name: 'The Letter',
     requireFlags: [
       'examined_lusk_office',
-      'talked_to_abberline_at_lusk_office',     // Tumblety has fled + the Gentleman file-lead
-      'talked_to_holmes_at_lusk_office',        // capstone — "the preserving hand is still here"
+      'asked_abberline_about_abberline_barrister_file', // the Gentleman file-lead, asked for by name
+      'asked_holmes_about_holmes_preserving_hand', // capstone — "the preserving hand is still here"
     ],
     advanceTo: 5,
   },
@@ -192,7 +229,7 @@ export const ACT_PROGRESSION: Record<number, ActCondition<StoryFlag>> = {
     name: 'The Confrontation',
     requireFlags: [
       'visited_private_asylum',                 // the patient records — the extraction, documented
-      'talked_to_edmund_at_private_asylum',     // "I have always had an eye for light."
+      'asked_edmund_about_edmund_eye_for_light', // "I have always had an eye for light."
     ],
     advanceTo: 7, // triggers game-over assessment
   },

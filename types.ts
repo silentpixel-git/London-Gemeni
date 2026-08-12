@@ -173,7 +173,7 @@ export interface GameResponse {
 // ============================================================
 
 /** The type of action the player is attempting */
-export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'show' | 'read' | 'drop' | 'inventory' | 'deduce' | 'wait' | 'help' | 'query' | 'notebook' | 'other' | 'unresolved_target';
+export type IntentType = 'move' | 'examine' | 'talk' | 'take' | 'use' | 'show' | 'read' | 'open' | 'drop' | 'inventory' | 'deduce' | 'wait' | 'help' | 'query' | 'notebook' | 'other' | 'unresolved_target';
 
 // Phase 3 — candidate lists for the constrained tool-calling parse fallback.
 // Built client-side (spoiler-safe: unintroduced NPCs are alias-masked) and
@@ -218,6 +218,10 @@ export interface EngineResult {
   // Set when an approach fired this turn: the in-game clock value used for
   // the cooldown. The hook stores it into session.lastApproachAtMinutes.
   approachAtMinutes?: number;
+  // Set when a multi-day act stepped to a later day this turn (see
+  // resolveActDay). The hook resets elapsedMinutes to 0, exactly as it does on
+  // an act transition — the new day carries its own clock base.
+  dayStepAdvanced?: number;
   newAct?: number;
   gameOver?: boolean;
   // Which ending fired (set by the engine whenever gameOver is true):
@@ -227,6 +231,19 @@ export interface EngineResult {
 
   // NPC alias-system flags (npc_introduced_*) for the hook to apply.
   introductionFlagsUpdate?: Record<string, boolean>;
+
+  // Topic fact selected by TALK. Story-event matching consumes this stable id
+  // instead of re-interpreting the player's words after resolution.
+  resolvedTopicId?: string;
+
+  // A due follow-up is narrated as its own feed item after the action's main
+  // narration. Its effects are already merged into flagsUpdate on this result;
+  // the payload is presentation-only and cannot mutate state a second time.
+  followUpEvent?: {
+    storyEvent: StoryEventPayload;
+    effects: Record<string, boolean>;
+    aiContext: NarrationContext;
+  };
 
   // Context passed to AIService for narration (verified facts only)
   aiContext: NarrationContext;
@@ -275,6 +292,27 @@ export interface NarrationContext {
     npcId: string;
     isIntroduced: boolean;
   }>;
+  // Labels of NPCs who arrived / left since the previous turn. Rendered as a
+  // mechanical notice under the prose, never handed to the AI as something to
+  // narrate — the engine owns who is in the room. Optional so hand-built
+  // fixtures (qa-narration) need not restate a turn-to-turn delta they have
+  // no previous turn for; buildNarrationContext always sets both.
+  npcsArrived?: string[];
+  npcsDeparted?: string[];
+  // Deterministically selected pivotal event. The server prompt integrates
+  // these ordered semantic beats; the engine owns their identity, order,
+  // effects and word ceiling.
+  storyEvent?: StoryEventPayload;
+  // Sanitized identity/manner for an event speaker when the event is a
+  // separate follow-up rather than the player's NPC interview. Carries no
+  // knowledge envelope or topic facts.
+  storyEventCharacter?: {
+    label: string;
+    isIntroduced: boolean;
+    role: string;
+    speakingStyle: string;
+    personality: string[];
+  };
   availableObjects: string[];     // Display names of interactable objects
   availableExits: string[];       // Display names of accessible exits
   inventory: string[];
@@ -287,6 +325,12 @@ export interface NarrationContext {
   actionSuccess: boolean;
   actionDescription: string;       // e.g. "Watson examined the burned clothing"
   actionResultNote: string;        // e.g. "SUCCESS — found evidence of killer's confidence" or "BLOCKED — ..."
+  // The player's literal typed input, verbatim. Distinct from actionDescription,
+  // which a matched story event overwrites with its own canned string — losing
+  // what the player actually asked for and leaving the reply reading as a non
+  // sequitur. This field is never overwritten, so narration can always open by
+  // connecting to the thing the player actually did.
+  playerInput?: string;
   newCluesDiscovered: Array<{      // Newly triggered clues for this action
     name: string;
     description: string;
@@ -329,10 +373,30 @@ export interface NarrationContext {
     // unprompted, in character.
     recentlyHeard?: string[];
     playerQuestion: string;      // intent.raw
+    // Topic-scoped TALK ("ask bond about the mutilations"). The engine resolves
+    // the typed subject against the NPC's askable facts before the AI is called,
+    // so the answer is decided, not chosen by the model.
+    // - `topic` set: the ask landed. `statement` is the fact to deliver.
+    // - `topicMissed` set: the player named a subject this NPC has nothing on.
+    //   The AI deflects in character; no flag is set, nothing is spent.
+    // - neither set: a bare TALK. `suggestedTopics` carries subjects the reply
+    //   should let surface naturally, so free-text discovery stays possible
+    //   without a menu. A bare TALK gates nothing on its own.
+    topic?: { label: string; statement: string };
+    topicMissed?: string;
+    suggestedTopics?: string[];
   };
   // Proactive hint woven into the turn when the player is stuck — chosen by the
   // engine's selectHint, phrased by the AI in Watson's voice.
   watsonHint?: HintTarget;
+  // Authored interstitial for the turn a multi-act day step fires — "Two days
+  // later…". The narration opens with it so the jump in the calendar is stated
+  // rather than left for the player to spot in the sidebar.
+  dayStepNote?: string;
+  // True on the turn the act-epilogue cut fires: the act's field work is done
+  // and Watson has been moved to the summation location. The narration should
+  // carry him there rather than describe a fresh arrival out of nowhere.
+  actEpilogueCut?: boolean;
   // Scripted NPC presence moments — directorial instructions for the AI.
   // Populated by engine when a present NPC has a scriptedLine that matches
   // the current location (and optional trigger flag).
@@ -375,6 +439,17 @@ export interface NarrationContext {
   //   'inner_thought' — Watson's fleeting thought/memory triggered by the action (compact ~50%)
   //   'none'          — omit blockquote this turn (compact ~50%)
   blockquoteHint: 'world_event' | 'inner_thought' | 'none';
+  // Extra words beyond the normal compact-mode ceiling, for a resultNote long
+  // enough that the standard budget would force cutting its essential content
+  // (e.g. a full reconstruction). Additive, opt-in — most turns leave this unset.
+  extraWordBudget?: number;
+}
+
+export interface StoryEventPayload {
+  id: string;
+  beats: string[];
+  maxWords: number;
+  notice?: string;
 }
 
 /** Summary passed to AIService.generateJournalEntry() when an act closes */

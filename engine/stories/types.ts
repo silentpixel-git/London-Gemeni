@@ -1,7 +1,7 @@
 // Shared type definitions for all story manifests.
 // Each story's data files import from here.
 
-import type { HintTarget, HintVerb, TimePeriod } from '../../types';
+import type { HintTarget, HintVerb, IntentType, StoryEventPayload, TimePeriod } from '../../types';
 
 // Flag-bearing interfaces take an optional flag-name type parameter (default
 // string). The engine consumes them un-parameterized; story data files
@@ -52,6 +52,12 @@ export interface NPCDefinition<F extends string = string> {
   followingRule: 'follows_watson' | 'follows_bond' | 'location_based' | 'fixed';
   followsNpcId?: string;       // For follows_watson/'follows_bond': the entity ID to shadow ('watson' = player)
   followsUntilAct?: number;    // After this act, the NPC stops following and reverts to its canonical location (e.g. Edmund committed in Act 6)
+  /** Offstage until this flag is set, regardless of scheduleByAct. For NPCs who
+   *  arrive mid-scene rather than being in the room at curtain-up. */
+  presenceRequiresFlag?: F;
+  /** Once this flag is true the NPC is offstage, even if their schedule still
+   *  names the location. Used for deterministic mid-act departures. */
+  presenceForbidFlag?: F;
   // NPC placement — derived per turn from (act, timePeriod). `default` is the
   // act's anchor spot (the old canonicalLocationByAct value); byPeriod entries
   // move the NPC by time of day (e.g. evening at the pub). An act with NO
@@ -120,7 +126,24 @@ export interface StoryFact {
   statement: string;      // the prose line rendered into the AI prompt (the hard knowledge ceiling)
   knownBy: string[];      // NPC ids that can voice this fact
   visibleFromAct: number; // earliest act (0-6) this fact may surface; 0 = always
+  // Flags that must ALL be set before this fact exists for the NPC at all —
+  // neither askable by name nor available as background they may draw on.
+  // visibleFromAct alone cannot express "after the reconstruction", which left
+  // Holmes free to voice the Act 0 solution, and his closing complaint about
+  // dull crime, in the act's opening minutes.
+  requireFlags?: string[];
   relatedClues?: string[]; // clue ids this fact supports (validator-checked)
+  // TALK topics: lowercase phrases the player might type after "about" to raise
+  // this fact ("the graffiti", "warren", "the writing on the wall"). A fact with
+  // topics is ASKABLE — `ask abberline about the graffiti` matches it and gets
+  // that fact as the answer, setting `asked_<npcId>_about_<factId>`. A fact with
+  // no topics still sits in the NPC's knowledge envelope as background they may
+  // draw on; it simply cannot be requested by name.
+  //
+  // The first entry doubles as the fact's display label — it is what the opening
+  // exchange offers as a subject Watson might raise, so write it as a noun
+  // phrase a player would plausibly type, not a sentence.
+  topics?: string[];
 }
 
 // ── World events (Phase 4a) ──────────────────────────────────────────────────
@@ -134,6 +157,55 @@ export interface WorldEventDefinition {
                            // EARLIER than the act's canonical start means the
                            // NEXT day (e.g. dawn during the act-0 night vigil).
   text: string;            // the beat itself — spoiler-guarded by qa:validate
+}
+
+// ── Action-triggered story events ────────────────────────────────
+
+export interface StoryEventTrigger<F extends string = string> {
+  intentTypes: IntentType[];
+  targetIds?: string[];
+  npcIds?: string[];
+  topicIds?: string[];
+  topicPhrases?: string[];
+  topicAbsent?: boolean;
+  rawPhrases?: string[];
+  rawPhraseMatch?: 'contains' | 'exact';
+  requireFlags?: F[];
+  forbidFlags?: F[];
+  locationId?: string;
+  /** The resolved base action may be blocked/unrecognised; this authored
+   *  trigger is authoritative and may replace it with a successful event. */
+  replacesBlocked?: boolean;
+}
+
+export interface StoryEventFallback<F extends string = string> {
+  id: string;
+  speakerNpcId: string;
+  actionDescription: string;
+  actionResultNote: string;
+  afterEligibleActions: number;
+  eligibleIntentTypes: IntentType[];
+  counterFlags: F[];
+  setFlags: F[];
+  locationId?: string;
+  requireFlags?: F[];
+  forbidFlags?: F[];
+  beats: string[];
+  maxWords: number;
+}
+
+export interface StoryEventDefinition<F extends string = string> extends StoryEventPayload {
+  act: number;
+  triggers: StoryEventTrigger<F>[];
+  setFlags: F[];
+  /** Display-name inventory entries applied with the event's deterministic
+   *  effects. Existing holdings are not duplicated. */
+  inventoryAdd?: string[];
+  /** Display-name inventory entries transferred away by the event. */
+  inventoryRemove?: string[];
+  actionDescription: string;
+  actionResultNote: string;
+  fallback?: StoryEventFallback<F>;
 }
 
 // ── Rumor propagation (Phase 4b) ─────────────────────────────────────────────
@@ -174,6 +246,12 @@ export interface ApproachDefinition<F extends string = string> {
   // delivery framing around the matured statement.
   text: string;
   rumorId?: string;                // required iff kind === 'rumor'
+  // Act beat: a designed story moment rather than ambient texture. Exactly one
+  // per act (qa:validate enforces). Selected ahead of ambient entries and
+  // exempt from the approach cooldown, so the act's authored beat cannot be
+  // crowded out by a texture entry that happened to fire first. Must be
+  // 'mundane' — a rumor beat depends on maturation and so cannot be guaranteed.
+  actBeat?: boolean;
 }
 
 export interface SuspectProfile<F extends string = string> {
@@ -190,10 +268,34 @@ export interface ActTimeConfig {
   canonicalMinutes: number; // Minutes from midnight at act start
   dayOfWeek: string;
   displayDate: string;      // e.g. "9 November 1888"
+  // Multi-day acts. The real investigations do not fit inside one day — Tabram's
+  // identification parades are nine days after the murder — so an act may carry
+  // authored day-steps. The fields above are day 0; each entry here is a later
+  // day that takes effect when its flag is set.
+  //
+  // Advance is FLAG-DRIVEN, never clock-driven: the player will not spend eight
+  // days of turn cost, and time must not drift silently. The story moves the
+  // calendar when a beat lands. Steps must be authored in chronological order —
+  // resolveActDay takes the LAST one whose flag is set.
+  days?: Array<{
+    canonicalMinutes: number;
+    dayOfWeek: string;
+    displayDate: string;
+    advancedByFlag: string;
+    // Authored interstitial for the turn the step fires — the mid-act
+    // equivalent of an act bridge. Without one the sidebar date would simply
+    // change and the player would be left to notice; this names the interval
+    // plainly, in Watson's register.
+    transitionNote: string;
+  }>;
 }
 
 export type WeatherCondition =
-  | 'foggy' | 'drizzle' | 'pouring' | 'overcast' | 'clear-night' | 'clear-cold';
+  | 'foggy' | 'drizzle' | 'pouring' | 'overcast' | 'clear-night' | 'clear-cold'
+  // Summer states, added for the chronological rework: the original six were
+  // authored when the game spanned 8-22 November only.
+  | 'clear-warm'   // a warm, clear night — the August Bank Holiday
+  | 'close';       // humid and oppressive, air that will not move
 
 export interface ActWeather {
   condition: WeatherCondition;
@@ -211,6 +313,11 @@ export interface ShowInteraction {
    *  Unmet → blocked with blockedNote (authored, narrator voice). */
   requireFlags?: string[];
   blockedNote?: string;
+  /** Extra words beyond the normal compact-mode ceiling, for a resultNote long
+   *  enough that the standard budget would force cutting its essential content
+   *  (e.g. a full reconstruction). Additive to the existing calculation, not a
+   *  replacement — most interactions should never need this. */
+  extraWordBudget?: number;
 }
 
 export interface UseCombination {
@@ -291,12 +398,15 @@ export interface CompanionDemeanor {
   variants: Array<{ when: (s: SessionView) => boolean; text: string }>;
 }
 
-/** Directorial nudge injected when an act's failure-path condition holds. */
+/** Directorial nudge injected when an act's failure-path condition holds.
+ *  An array escalates: the rung advances every two stalled turns and holds on
+ *  the last entry, so an infinitely patient Holmes gets drier rather than
+ *  repeating himself. */
 export interface ActSafetyNet {
   act: number;
   requiresNpcPresent: string;
   when: (s: SessionView) => boolean;
-  instruction: string;
+  instruction: string | string[];
 }
 
 export interface DiaryLeadHelpers {
@@ -327,6 +437,23 @@ export interface StoryManifest {
   /** Optional gate: object may only be taken once this flag is set. Blocked
    *  takes go through the standard blocked() path in narrator voice. */
   takeableRequiresFlag: Record<string, string>;
+  /** Object id → the flag that makes it visible in its location. An object
+   *  absent from this map is always visible. Covers both container contents
+   *  (revealed by `opened_<loc>_<obj>`) and objects that arrive mid-scene. */
+  objectVisibility: Record<string, string>;
+  /** Container object id → the object ids OPEN reveals. Drives both the OPEN
+   *  resolver and the sidebar's nested display. */
+  containerContents: Record<string, string[]>;
+  /** Optional: container object id → a beat for the FIRST time it is opened,
+   *  appended to OPEN's normal contents description. For a container whose
+   *  opening is itself a moment — an intrusion into someone's private
+   *  property, a decision made on another character's behalf — rather than
+   *  just a container whose contents happen to be inside a box. Flat by
+   *  object id, same shape as objectVisibility, since a container's id is
+   *  already unique across the story. */
+  containerOpenNotes?: Record<string, string>;
+  /** Takeable objects that EXAMINE records but deliberately leaves in place. */
+  examineDoesNotTake: string[];
   /** Optional grant: talking to this NPC (keyed by npcId) adds the named
    *  takeable object to inventory, once, the first time the talk succeeds —
    *  for testimony/notes that exist only because the NPC gave them, not
@@ -342,6 +469,9 @@ export interface StoryManifest {
   actNames: Record<number, string>;
   actProgression: Record<number, ActCondition>;
   actAnchors: Record<number, string>;
+  // Act → the location Watson is cut to once that act's field work is done, for
+  // the closing summation (see computeActEpilogue). Omit an act to have no cut.
+  actEpilogues?: Record<number, string>;
   actTimeConfig: Record<number, ActTimeConfig>;
   actWeather: Record<number, ActWeather>;
 
@@ -361,6 +491,10 @@ export interface StoryManifest {
 
   // World events (Phase 4a)
   worldEvents: WorldEventDefinition[];
+
+  // Player-action-triggered pivotal staging. File order is priority order;
+  // the runtime selects at most one main event per action.
+  storyEvents: StoryEventDefinition[];
 
   // Rumor propagation (Phase 4b)
   rumors: RumorDefinition[];

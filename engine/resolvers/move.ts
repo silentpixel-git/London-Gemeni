@@ -70,7 +70,7 @@ export function resolveMove(story: StoryManifest, intent: ParsedIntent, session:
       const kh = story.npcs[keyholderId];
       const introduced = !kh?.requiresIntroduction || session.introducedNpcs.includes(keyholderId);
       const label = introduced ? (story.npcDisplayNames[keyholderId] ?? keyholderId) : (kh?.alias ?? 'the keeper');
-      const whereId = npcLocationAt(story.npcs, keyholderId, session.currentAct, period, session.npcStates);
+      const whereId = npcLocationAt(story.npcs, keyholderId, session.currentAct, period, session.npcStates, session.flags);
       const where = story.locations[whereId];
       if (where && whereId !== targetId) keyholderNote = ` ${label} is presently at ${where.name}.`;
     }

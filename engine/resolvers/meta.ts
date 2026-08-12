@@ -2,8 +2,9 @@ import { EngineResult } from '../../types';
 import { ParsedIntent } from '../intentParser';
 import type { StoryManifest } from '../stories/types';
 import type { SessionSnapshot } from '../session';
-import { buildNarrationContext } from '../narrationContext';
-import { computeTimePeriod, minutesToNextPeriodBoundary } from '../time';
+import { buildNarrationContext, blocked } from '../narrationContext';
+import { computeTimePeriod, minutesToNextPeriodBoundary, resolveActDay } from '../time';
+import { visibleInteractables } from '../visibility';
 
 // --------------------------------------------------------
 // WAIT (Phase 4a: advances the clock to the next time period)
@@ -11,9 +12,23 @@ import { computeTimePeriod, minutesToNextPeriodBoundary } from '../time';
 
 export function resolveWait(story: StoryManifest, intent: ParsedIntent, session: SessionSnapshot): EngineResult {
   const cfg = story.actTimeConfig[session.currentAct] ?? story.actTimeConfig[1];
-  const total = cfg.canonicalMinutes + session.elapsedMinutes;
+  const total = resolveActDay(cfg, session.flags).canonicalMinutes + session.elapsedMinutes;
   const from = computeTimePeriod(total);
   const minutesAdvanced = minutesToNextPeriodBoundary(total);
+
+  // The calendar only moves when the story moves it (see ActTimeConfig.days:
+  // "advance is FLAG-DRIVEN, never clock-driven"). WAIT jumping to the next
+  // period boundary can cross midnight on its own — two WAITs from Act 0's
+  // 8:30 PM start reached 5 AM the next day, past the historical hour of the
+  // first murder, silently breaking the act's premise that nothing has
+  // happened yet. Refuse in character rather than let the clock drift.
+  if (total + minutesAdvanced > 1439) {
+    return blocked(story, intent, session,
+      `It is late enough. Watson does not care to let the rest of the night go by simply sitting.`,
+      `WAIT blocked: waiting would carry the clock past midnight into the next calendar day, which only an authored act transition may do. Narrate Watson deciding against idling the night away — restlessness, an ache in an old wound, anything in character — never a system refusal.`
+    );
+  }
+
   const to = computeTimePeriod(total + minutesAdvanced);
   const hours = Math.round((minutesAdvanced / 60) * 10) / 10;
 
@@ -52,8 +67,9 @@ export function resolveHelp(story: StoryManifest, intent: ParsedIntent, session:
       actionResultNote:
         `HELP — Remind Watson of his available actions, in character. ` +
         `Available commands: LOOK (survey surroundings), GO [place] (move to a location), ` +
-        `EXAMINE [object/person] (inspect something closely), TALK TO [person] (speak with someone), ` +
-        `TAKE [object] (add evidence to your bag), USE [object] (interact with something), ` +
+        `EXAMINE [object/person] (inspect something closely), TALK TO [person] (open a conversation), ` +
+        `ASK [person] ABOUT [subject] (put a specific question — this is how testimony is drawn out; a general word with someone rarely settles anything), ` +
+        `TAKE [object] (add evidence to your bag), OPEN [container] (look inside something), USE [object] (interact with something), ` +
         `INVENTORY (check your bag), NOTEBOOK (review discovered clues and case progress), ` +
         `DEDUCE / SOLVE (name the killer — requires ${story.deductionThreshold} clues; ` +
         `${clueCount} discovered so far). ` +
@@ -96,7 +112,7 @@ export function resolveQuery(story: StoryManifest, intent: ParsedIntent, session
 
 export function resolveUnresolvedTarget(story: StoryManifest, intent: ParsedIntent, session: SessionSnapshot): EngineResult {
   const currentLoc = story.locations[session.location];
-  const availableObjects = currentLoc.interactables
+  const availableObjects = visibleInteractables(story, session.location, session.flags)
     .map(id => story.objectDisplayNames[id] ?? id)
     .join(', ');
   return {
@@ -122,7 +138,6 @@ export function resolveUnresolvedTarget(story: StoryManifest, intent: ParsedInte
 // --------------------------------------------------------
 
 export function resolveOther(story: StoryManifest, intent: ParsedIntent, session: SessionSnapshot): EngineResult {
-  const currentLoc = story.locations[session.location];
   return {
     actionSuccess: true,
     actionType: 'other',

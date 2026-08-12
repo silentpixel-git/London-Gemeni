@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Secrets — .env holds the real GEMINI_API_KEY. .env.example (empty values) is
+# the tracked template and stays committed.
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

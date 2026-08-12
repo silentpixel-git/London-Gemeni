@@ -21,8 +21,8 @@ function fail(l: string, d?: string) { console.error(`[FAIL] ${l}${d ? ` — ${d
 
 // 1) resolveDiaryEntry: hand-authored DECISION_DIARY entry still resolves as before.
 {
-  const authored = resolveDiaryEntry({ kind: 'decision', refId: 'showed_dear_boss_to_holmes' });
-  authored?.title === 'The Press Hoax'
+  const authored = resolveDiaryEntry({ kind: 'decision', refId: 'read_pawn_ticket' });
+  authored?.title === 'The Pawn Ticket'
     ? pass('resolveDiaryEntry: hand-authored decision entry resolves via DECISION_DIARY')
     : fail('resolveDiaryEntry broke the hand-authored decision path', JSON.stringify(authored));
 }
@@ -32,7 +32,7 @@ function fail(l: string, d?: string) { console.error(`[FAIL] ${l}${d ? ` — ${d
 {
   const generated = resolveDiaryEntry({
     kind: 'decision',
-    refId: 'talked_to_holmes_at_baker_street',
+    refId: 'asked_holmes_about_holmes_man_no_one_remembers',
     text: 'A Word with Holmes\nHe would not be drawn beyond what the wall already told us.',
   });
   (generated?.title === 'A Word with Holmes'
@@ -72,9 +72,9 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
 // 5) isRequiredFlag: true only for real gate flags of the given act; excludes
 //    the Act 5 sentinel and flags belonging to other acts.
 {
-  isRequiredFlag(0, 'talked_to_holmes_at_baker_street')
-    ? pass('isRequiredFlag: true for a real Prologue gate flag')
-    : fail('isRequiredFlag should be true for a real Prologue gate flag');
+  isRequiredFlag(0, 'act0_closing_complete')
+    ? pass('isRequiredFlag: true for a real Act 0 gate flag')
+    : fail('isRequiredFlag should be true for a real Act 0 gate flag');
   isRequiredFlag(5, SENTINEL)
     ? fail('isRequiredFlag should exclude the Act 5 sentinel')
     : pass('isRequiredFlag: sentinel excluded');
@@ -83,34 +83,34 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
     : pass('isRequiredFlag: cross-act flag correctly excluded');
 }
 
-// 6) clueGateFlag: matches the real Prologue flag for clue_00_campaign_timeline.
+// 6) clueGateFlag: derives a clue's examine flag from its location + trigger.
+//    (Was clue_00_campaign_timeline, retired with Act 0's case-files wall.)
 {
-  const def = CLUE_DEFINITIONS['clue_00_campaign_timeline'];
-  clueGateFlag(def) === 'examined_baker_street_case_files_wall'
-    ? pass('clueGateFlag: clue_00_campaign_timeline maps to its real gate flag')
+  const def = CLUE_DEFINITIONS['clue_01_killer_confidence'];
+  clueGateFlag(def) === 'examined_millers_court_burned_clothing'
+    ? pass('clueGateFlag: clue_01_killer_confidence maps to its real gate flag')
     : fail('clueGateFlag mismatch', clueGateFlag(def));
 }
 
-// 7) detectSilentLeadFlags: a Prologue turn setting all four gate flags at once
-//    excludes the clue-covered and decision-covered ones, returning exactly the
-//    two currently-silent leads.
+// 7) detectSilentLeadFlags: reconstruction has an authored decision entry,
+//    while the caller and closing semantic gates need generated lead entries.
 {
   const silent = detectSilentLeadFlags({
     actNumber: 0,
     flagsUpdate: {
-      examined_baker_street_case_files_wall: true,
-      talked_to_holmes_at_baker_street: true,
-      showed_newspaper_pile_to_holmes: true,
-      examined_baker_street_telegrams_pile: true,
+      act0_caller_noticed: true,
+      examined_baker_street_pawn_ticket: true,
+      act0_reconstruction_complete: true,
+      act0_closing_complete: true,
     },
     priorFlags: {},
-    discoveredClueIds: ['clue_00_campaign_timeline'],
+    discoveredClueIds: [],
   });
   const set = new Set(silent);
   (set.size === 2
-    && set.has('talked_to_holmes_at_baker_street')
-    && set.has('examined_baker_street_telegrams_pile'))
-    ? pass('detectSilentLeadFlags: Prologue turn returns exactly the 2 uncovered leads')
+    && set.has('act0_caller_noticed')
+    && set.has('act0_closing_complete'))
+    ? pass('detectSilentLeadFlags: Act 0 turn returns exactly the 2 uncovered leads')
     : fail('detectSilentLeadFlags returned the wrong set', silent.join(','));
 }
 
@@ -118,8 +118,8 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
 {
   const silent = detectSilentLeadFlags({
     actNumber: 0,
-    flagsUpdate: { talked_to_holmes_at_baker_street: true },
-    priorFlags: { talked_to_holmes_at_baker_street: true },
+    flagsUpdate: { act0_closing_complete: true },
+    priorFlags: { act0_closing_complete: true },
     discoveredClueIds: [],
   });
   silent.length === 0
@@ -131,7 +131,7 @@ for (const [actStr, cond] of Object.entries(ACT_PROGRESSION)) {
 {
   const silent = detectSilentLeadFlags({
     actNumber: 0,
-    flagsUpdate: { examined_baker_street_newspaper_pile: true },
+    flagsUpdate: { examined_baker_street_violin_case: true },
     priorFlags: {},
     discoveredClueIds: [],
   });

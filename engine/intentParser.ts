@@ -19,6 +19,12 @@ export interface ParsedIntent {
   deductionText?: string;    // For 'deduce' type: the player's theory text
   showTargetNpcId?: string;  // For 'show' type: the NPC to show the item to
   useWithTargetId?: string;  // For 'use' type: the second item/object in "USE X WITH Y"
+  // For 'talk' type: the subject the player asked about, verbatim, from
+  // "ask bond about the mutilations". Resolved to a fact id by the TALK resolver
+  // (engine/resolvers/npc.ts) rather than here — topics live in the story
+  // manifest's fact graph, and the parser must stay story-agnostic about them.
+  // Absent means a bare TALK: an opening exchange, which gates nothing.
+  topicRaw?: string;
   raw: string;               // Original input
 }
 
@@ -33,8 +39,27 @@ const MOVE_VERBS = [
 const EXAMINE_VERBS = [
   'examine', 'look at', 'look', 'inspect', 'study', 'observe', 'check',
   'search', 'review', 'view', 'scrutinise', 'scrutinize',
-  'investigate', 'analyse', 'analyze', 'survey', 'peruse', 'open', 'smell',
+  'investigate', 'analyse', 'analyze', 'survey', 'peruse', 'smell',
 ];
+
+/**
+ * Phrases that modify a LOOK rather than name a target: "look around", "search
+ * here", "examine the room". These must resolve to a bare look-around.
+ *
+ * Without this, "look around" left "around" as the target phrase, which is one
+ * edit from "ground" — the fuzzy object matcher duly resolved it to
+ * ground_where_body_was_discovered, so EVERY "look around" in the game told the
+ * narrator that Watson had just tried and failed to examine a body discovery
+ * site. The prose that came back had him searching the carpet for bloodstains
+ * in a drawing room, which looked like a narration fault and was not one.
+ */
+// NOTE: stripVerb drops a leading article, so entries are listed bare as well
+// ("room", not only "the room").
+const BARE_LOOK_REMAINDERS = new Set([
+  'around', 'about', 'round', 'here', 'about here', 'around here', 'round here',
+  'room', 'the room', 'this room', 'around the room', 'about the room',
+  'place', 'the place', 'surroundings', 'the surroundings', 'everything',
+]);
 
 // Talk trigger words
 const TALK_VERBS = [
@@ -62,6 +87,13 @@ const SHOW_VERBS = [
 // Read a document (distinct from examine — reads the literal text)
 const READ_VERBS = [
   'read',
+];
+
+// Open a container (distinct from examine — reveals contents rather than
+// describing the outside). 'open' was previously an EXAMINE verb; it moved here
+// when containers became a real mechanic.
+const OPEN_VERBS = [
+  'open', 'look inside', 'look in', 'unlatch', 'lift the lid of', 'lift the lid',
 ];
 
 // Drop / leave an item
@@ -189,6 +221,89 @@ const NPC_ALIASES: Record<string, string> = {
 /**
  * Try to match a raw target string to a known NPC ID.
  */
+// Topic prepositions for TALK: "ask bond about the mutilations", "question
+// abberline regarding the graffiti". Longest-first so "on the subject of" wins
+// over a bare "on". Split on the FIRST occurrence — a topic may itself contain
+// "about" ("about the letter about the kidney") and the leftmost split keeps the
+// subject correct, which is what the NPC match depends on.
+const TOPIC_PREPOSITIONS = [
+  'on the subject of', 'with regard to', 'in regard to', 'as regards',
+  'regarding', 'concerning', 'about', 'anent',
+];
+
+/**
+ * Splits a TALK target into who is addressed and what was asked about.
+ * "holmes about the letter" → { subject: 'holmes', topicRaw: 'the letter' }
+ * "about the letter"        → { subject: '',       topicRaw: 'the letter' }
+ * "holmes"                  → { subject: 'holmes', topicRaw: undefined }
+ */
+function splitTopic(raw: string): { subject: string; topicRaw?: string } {
+  const norm = normalise(raw);
+  let best: { idx: number; len: number } | undefined;
+  for (const prep of TOPIC_PREPOSITIONS) {
+    // Word-boundary match so "aboutface" or a name containing "on" can't split.
+    const m = new RegExp(`(?:^|\\s)${prep}(?:\\s|$)`).exec(norm);
+    if (m) {
+      const idx = m.index + (m[0].startsWith(' ') ? 1 : 0);
+      if (!best || idx < best.idx) best = { idx, len: prep.length };
+    }
+  }
+  if (!best) return { subject: raw.trim() };
+  const topicRaw = norm.slice(best.idx + best.len).trim();
+  return {
+    subject: norm.slice(0, best.idx).trim(),
+    topicRaw: topicRaw || undefined,
+  };
+}
+
+/**
+ * Remainders that name the addressee and nothing else — "talk to holmes again".
+ * Treating these as a topic would turn an ordinary second conversation into a
+ * "he has nothing to say on that", which is worse than the bare exchange.
+ */
+const NON_TOPIC_REMAINDERS = new Set([
+  'again', 'once more', 'once again', 'some more', 'more', 'please', 'now',
+  'further', 'briefly', 'a moment', 'a bit', 'for a moment',
+]);
+
+/**
+ * A TALK whose subject carries more than the addressee:
+ * "holmes why he finds modern crime so dull" → { holmes, "why he finds…" }.
+ *
+ * Players ask questions far more often than they write "about X". Without this
+ * the remainder is silently dropped, the turn degrades to a bare opening
+ * exchange, and no topic is ever credited — which is how an act's asked_ gates
+ * become unreachable in practice even though every topic is authored correctly.
+ *
+ * Only the exact-name paths are sliced; fuzzy NPC matching is far too loose to
+ * cut a string on. Returns undefined when nothing but the name is left, so a
+ * plain "talk to holmes" stays a plain opening exchange.
+ */
+function splitAddresseeFromQuestion(subject: string): { id: string; topicRaw: string } | undefined {
+  const norm = normalise(subject);
+  const candidates: Array<{ id: string; phrase: string }> = [];
+  for (const [id, npc] of Object.entries(NPCS)) {
+    const displayName = normalise(npc.displayName);
+    if (displayName && norm.includes(displayName)) candidates.push({ id, phrase: displayName });
+    const idPhrase = id.replace(/_/g, ' ');
+    if (norm.includes(idPhrase)) candidates.push({ id, phrase: idPhrase });
+  }
+  for (const [alias, id] of Object.entries(NPC_ALIASES)) {
+    if (norm.includes(alias)) candidates.push({ id, phrase: alias });
+  }
+  if (candidates.length === 0) return undefined;
+  // Longest phrase wins, so "mrs kemp" is cut rather than a bare "kemp".
+  candidates.sort((a, b) => b.phrase.length - a.phrase.length);
+  const { id, phrase } = candidates[0];
+  const idx = norm.indexOf(phrase);
+  const remainder = `${norm.slice(0, idx)} ${norm.slice(idx + phrase.length)}`
+    .replace(/\s+/g, ' ')
+    .replace(/^(?:to|with|for|about)\s+/, '')
+    .trim();
+  if (!remainder || NON_TOPIC_REMAINDERS.has(remainder)) return undefined;
+  return { id, topicRaw: remainder };
+}
+
 function matchNpcId(raw: string): string | undefined {
   const norm = normalise(raw);
   for (const [id, npc] of Object.entries(NPCS)) {
@@ -285,10 +400,93 @@ export function looksLikeObjectReference(raw: string): boolean {
     .some(w => w.length > 1 && !STOP_WORDS.has(w) && OBJECT_VOCABULARY.has(w));
 }
 
+// Common object aliases. Module-scoped (not local to matchObjectId) and
+// exported so scripts/qa-validate.ts can mechanically verify every alias
+// still resolves to the object it names — matchObjectId's earlier substring
+// scan over OBJECT_DISPLAY_NAMES runs BEFORE this table is ever consulted, so
+// a new display name whose normalised form contains an alias as a substring
+// silently shadows it (bit us three times authoring Act 0: 'letter', 'box',
+// 'boots'). NOTE: 'boots' → pawn_ticket is deliberately absent — Act 0 gave
+// "Nell's Boots" its own object (nells_boots), so that alias can never fire
+// again and was removed rather than left pointing at the wrong id.
+export const objectAliases: Record<string, string> = {
+  'letter': 'from_hell_letter',
+  'the letter': 'from_hell_letter',
+  'kidney': 'kidney_parcel',
+  'the kidney': 'kidney_parcel',
+  'parcel': 'kidney_parcel',
+  'the parcel': 'kidney_parcel',
+  'fireplace': 'burned_clothing',
+  'grate': 'burned_clothing',
+  'ashes': 'burned_clothing',
+  'bed': 'the_bed',
+  'sheets': 'bloodstained_sheets',
+  'instruments': 'examination_instruments',
+  'cobblestones': 'cobblestone_roadway',
+  'street': 'cobblestone_roadway',
+  'ground': 'ground_where_body_was_discovered',
+  'body site': 'ground_where_body_was_discovered',
+  'fence': 'wooden_fence',
+  'gate': 'yard_entrance_gate',
+  'graffiti': 'graffiti_wall',
+  'writing': 'graffiti_wall',
+  'chalk': 'graffiti_wall',
+  'apron': 'apron_fragment_location',
+  'box': 'parcel_box',
+  // "workbox" is the game's own word for nells_workbox (see events.ts's Act 0
+  // world-event text) — its display name is "Nell's Workbasket" specifically
+  // to avoid "workbox" colliding with the 'box' alias above (see the comment
+  // in locations.ts), but that left "workbox" itself unrouted. Longer than
+  // "box", so "longest alias wins" already keeps "the box" resolving to
+  // parcel_box at Lusk Office untouched.
+  'workbox': 'nells_workbox',
+  'reports': 'medical_reports',
+  'forensic reports': 'medical_reports',
+  'ticket': 'pawn_ticket',
+  'pawn ticket': 'pawn_ticket',
+  'pawnbroker\'s ticket': 'pawn_ticket',
+  'pledge': 'pawn_ticket',
+  'notes': 'edmund_forensic_note',
+  "edmund's note": 'edmund_forensic_note',
+  "halward's note": 'edmund_forensic_note',
+  'textbook': 'anatomical_texts',
+  'anatomy': 'anatomical_texts',
+  'jars': 'specimen_jars',
+  'specimens': 'specimen_jars',
+  'records': 'patient_records',
+  'diary': 'watson_diary',
+  'alley': 'alleyways',
+  'escape routes': 'alleyways',
+  'lantern': 'police_lanterns',
+  'walls': 'square_walls',
+  'furnishings': 'edmund_room_furnishings',
+  "edmund's room": 'edmund_room_furnishings',
+  'members': 'club_members',
+  'people': 'club_members',
+  'crowd': 'crowd',
+  'bystanders': 'crowd',
+  'barricade': 'police_barricade',
+  'lamp': 'street_lamps',
+  'lamps': 'street_lamps',
+  'lodgings': 'lodging_house_entrances',
+  'lodging houses': 'lodging_house_entrances',
+  'warehouse': 'warehouse_doors',
+  'doorway': 'club_doorway',
+  'posters': 'posters',
+  'archway': 'court_archway',
+  'court entrance': 'court_archway',
+  'passage': 'court_archway',
+  'account': 'hutchinson_account',
+  'statement': 'hutchinson_account',
+  "hutchinson's account": 'hutchinson_account',
+  "hutchinson's statement": 'hutchinson_account',
+  'witness statement': 'hutchinson_account',
+};
+
 /**
  * Try to match a raw target string to a known object ID.
  */
-function matchObjectId(raw: string): string | undefined {
+export function matchObjectId(raw: string): string | undefined {
   const norm = normalise(raw);
   for (const [id, displayName] of Object.entries(OBJECT_DISPLAY_NAMES)) {
     if (
@@ -316,81 +514,21 @@ function matchObjectId(raw: string): string | undefined {
     if (candidates.length === 1) return candidates[0];
   }
 
-  // Common object aliases
-  const objectAliases: Record<string, string> = {
-    'letter': 'from_hell_letter',
-    'the letter': 'from_hell_letter',
-    'kidney': 'kidney_parcel',
-    'the kidney': 'kidney_parcel',
-    'parcel': 'kidney_parcel',
-    'the parcel': 'kidney_parcel',
-    'fireplace': 'burned_clothing',
-    'grate': 'burned_clothing',
-    'ashes': 'burned_clothing',
-    'bed': 'the_bed',
-    'sheets': 'bloodstained_sheets',
-    'instruments': 'examination_instruments',
-    'cobblestones': 'cobblestone_roadway',
-    'street': 'cobblestone_roadway',
-    'ground': 'ground_where_body_was_discovered',
-    'body site': 'ground_where_body_was_discovered',
-    'fence': 'wooden_fence',
-    'gate': 'yard_entrance_gate',
-    'graffiti': 'graffiti_wall',
-    'writing': 'graffiti_wall',
-    'chalk': 'graffiti_wall',
-    'apron': 'apron_fragment_location',
-    'box': 'parcel_box',
-    'reports': 'medical_reports',
-    'forensic reports': 'medical_reports',
-    'clipping': 'newspaper_pile',
-    'newspaper clipping': 'newspaper_pile',
-    'dear boss': 'newspaper_pile',
-    'notes': 'edmund_forensic_note',
-    "edmund's note": 'edmund_forensic_note',
-    "halward's note": 'edmund_forensic_note',
-    'textbook': 'anatomical_texts',
-    'anatomy': 'anatomical_texts',
-    'jars': 'specimen_jars',
-    'specimens': 'specimen_jars',
-    'records': 'patient_records',
-    'diary': 'watson_diary',
-    'violin': 'holmes_violin',
-    'alley': 'alleyways',
-    'escape routes': 'alleyways',
-    'lantern': 'police_lanterns',
-    'walls': 'square_walls',
-    'furnishings': 'edmund_room_furnishings',
-    "edmund's room": 'edmund_room_furnishings',
-    'members': 'club_members',
-    'people': 'club_members',
-    'crowd': 'crowd',
-    'bystanders': 'crowd',
-    'barricade': 'police_barricade',
-    'lamp': 'street_lamps',
-    'lamps': 'street_lamps',
-    'lodgings': 'lodging_house_entrances',
-    'lodging houses': 'lodging_house_entrances',
-    'warehouse': 'warehouse_doors',
-    'doorway': 'club_doorway',
-    'posters': 'posters',
-    'archway': 'court_archway',
-    'court entrance': 'court_archway',
-    'passage': 'court_archway',
-    'account': 'hutchinson_account',
-    'statement': 'hutchinson_account',
-    "hutchinson's account": 'hutchinson_account',
-    "hutchinson's statement": 'hutchinson_account',
-    'witness statement': 'hutchinson_account',
-  };
-  // Longest alias wins — "dear boss letter" must match 'dear boss'
-  // (newspaper_pile), not the shorter 'letter' (from_hell_letter).
+  // Longest alias wins — "pawnbroker's ticket" must match that alias, not the
+  // shorter 'ticket'; "hutchinson's statement" not the shorter 'statement'.
+  // Compare against the NORMALISED alias, not the raw dict key — normalise()
+  // strips apostrophes from player input, so an un-normalised comparison can
+  // never match an apostrophe-bearing alias ("edmund's note", "halward's
+  // note", "edmund's room") against anything a player actually types. These
+  // three were dead on arrival until this fix — verified via the "Object
+  // alias reachability" qa:validate section, which now proves it.
   let bestId: string | undefined;
   let bestLen = 0;
   for (const [alias, id] of Object.entries(objectAliases)) {
-    if (norm.includes(alias) && alias.length > bestLen) {
+    const normAlias = normalise(alias);
+    if (norm.includes(normAlias) && normAlias.length > bestLen) {
       bestId = id;
-      bestLen = alias.length;
+      bestLen = normAlias.length;
     }
   }
   if (bestId) return bestId;
@@ -470,7 +608,7 @@ function editDistance(a: string, b: string, max: number): number {
 // exactly; correcting them word-by-word isn't worth the false-positive risk).
 const FUZZY_VERBS: string[] = [
   ...MOVE_VERBS, ...EXAMINE_VERBS, ...TALK_VERBS, ...TAKE_VERBS,
-  ...USE_VERBS, ...SHOW_VERBS, ...READ_VERBS, ...DROP_VERBS,
+  ...USE_VERBS, ...SHOW_VERBS, ...READ_VERBS, ...DROP_VERBS, ...OPEN_VERBS,
 ].filter(v => !v.includes(' '));
 
 /**
@@ -561,12 +699,27 @@ export function parseIntent(rawInput: string): ParsedIntent {
   // 4. Talk
   for (const verb of TALK_VERBS.sort((a, b) => b.length - a.length)) {
     if (norm.startsWith(verb + ' ') || norm === verb) {
-      const targetRaw = stripVerb(rawInput, TALK_VERBS);
-      const targetId = matchNpcId(targetRaw) || matchObjectId(targetRaw);
+      const rest = stripVerb(rawInput, TALK_VERBS);
+      const { subject, topicRaw } = splitTopic(rest);
+      // "ask about the graffiti" names no one — the resolver addresses the only
+      // NPC present, the same courtesy SHOW already extends.
+      let targetId = subject ? (matchNpcId(subject) || matchObjectId(subject)) : undefined;
+      let topic = topicRaw;
+      // No "about" clause, but the subject carries a question as well as the
+      // addressee ("ask holmes why he finds modern crime so dull"). Recover the
+      // topic rather than discarding it — see splitAddresseeFromQuestion.
+      if (!topic && subject) {
+        const asQuestion = splitAddresseeFromQuestion(subject);
+        if (asQuestion) {
+          targetId ??= asQuestion.id;
+          topic = asQuestion.topicRaw;
+        }
+      }
       return {
         type: 'talk',
         targetId,
-        targetRaw,
+        targetRaw: subject || rest,
+        topicRaw: topic,
         raw: rawInput,
       };
     }
@@ -669,10 +822,22 @@ export function parseIntent(rawInput: string): ParsedIntent {
     }
   }
 
+  // 6e. Open a container. MUST precede examine: EXAMINE_VERBS still contains
+  // 'look', which would otherwise match "look inside the workbox" first.
+  for (const verb of OPEN_VERBS.sort((a, b) => b.length - a.length)) {
+    if (norm.startsWith(verb + ' ') || norm === verb) {
+      const targetRaw = stripVerb(rawInput, OPEN_VERBS);
+      const targetId = targetRaw ? matchObjectId(targetRaw) : undefined;
+      return { type: 'open', targetId, targetRaw, raw: rawInput };
+    }
+  }
+
   // 7. Examine (check last, broad)
   for (const verb of EXAMINE_VERBS.sort((a, b) => b.length - a.length)) {
     if (norm.startsWith(verb + ' ') || norm === verb) {
-      const targetRaw = stripVerb(rawInput, EXAMINE_VERBS);
+      const strippedTarget = stripVerb(rawInput, EXAMINE_VERBS);
+      // "look around" and friends name no target — see BARE_LOOK_REMAINDERS.
+      const targetRaw = BARE_LOOK_REMAINDERS.has(normalise(strippedTarget)) ? '' : strippedTarget;
       // Only attempt to match a target if the verb had something after it.
       // A bare "look" / "examine" / "survey" with no target is a look-around (targetId = undefined),
       // which triggers full narration mode. An empty string passed to the matchers
@@ -708,6 +873,13 @@ export function parseIntent(rawInput: string): ParsedIntent {
   const QUESTION_PREFIXES = /^(what|how|why|where|when|which|who|does|is|are|can|tell me|describe)/;
   if (QUESTION_PREFIXES.test(norm)) {
     return { type: 'query', targetRaw: rawInput, raw: rawInput };
+  }
+
+  // Spoken declarations are not implicit object examinations. In particular,
+  // a phrase such as "say nothing" must not fuzzy-match "Burned Clothing"
+  // merely because its final word is close to "clothing".
+  if (/^say\b/.test(norm)) {
+    return { type: 'other', raw: rawInput };
   }
 
   // 9. Typo correction: if no verb matched, try fixing a misspelled verb in

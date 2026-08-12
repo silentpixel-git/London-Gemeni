@@ -5,6 +5,7 @@ import type { SessionSnapshot } from '../session';
 import { triggerClues, checkActProgression } from './support';
 import { buildNarrationContext, blocked } from '../narrationContext';
 import { resolveExamine } from './examine';
+import { visibleInteractables } from '../visibility';
 
 // --------------------------------------------------------
 // TAKE
@@ -15,7 +16,7 @@ export function resolveTake(story: StoryManifest, intent: ParsedIntent, session:
   const targetId = intent.targetId;
   const objectName = targetId ? (story.objectDisplayNames[targetId] || intent.targetRaw) : intent.targetRaw;
 
-  if (!targetId || !currentLoc.interactables.includes(targetId)) {
+  if (!targetId || !visibleInteractables(story, session.location, session.flags).includes(targetId)) {
     return blocked(story,
       intent,
       session,
@@ -46,36 +47,40 @@ export function resolveTake(story: StoryManifest, intent: ParsedIntent, session:
     );
   }
 
-  if (session.inventory.includes(inventoryItem)) {
-    return {
-      actionSuccess: true,
-      actionType: 'take',
-      discoveredClueIds: [],
-      aiContext: buildNarrationContext(story, intent, session, {
-        success: true,
-        actionDescription: `Watson checked his ${inventoryItem}.`,
-        actionResultNote: `SUCCESS — Watson already has ${inventoryItem} in his possession.`,
-        newClueDefs: [],
-      }),
-    };
-  }
+  // Already carrying it: still runs the same flag + act-progression logic as a
+  // fresh take (mirrors resolveOpen's alreadyOpen branch) — only the narration
+  // wording varies. Before this, re-taking a held item short-circuited before
+  // any flag logic ran, so a gate keyed on took_<loc>_<obj> could never open
+  // once EXAMINE had already auto-added the object to inventory.
+  const alreadyHeld = session.inventory.includes(inventoryItem);
 
   const { newClueIds, newClueDefs, medicalDelta, moralDelta } =
-    triggerClues(story, session.location, targetId, false, session.discoveredClueIds);
+    triggerClues(story, session.location, targetId, alreadyHeld, session.discoveredClueIds);
+
+  const tookFlag = `took_${session.location}_${targetId}`;
+  const flagsUpdate: Record<string, boolean> = { [tookFlag]: true };
+  const actCheck = checkActProgression(story, session, { ...session.flags, ...flagsUpdate });
 
   return {
     actionSuccess: true,
     actionType: 'take',
-    inventoryAdd: [inventoryItem],
+    inventoryAdd: alreadyHeld ? undefined : [inventoryItem],
+    flagsUpdate: { ...flagsUpdate, ...(actCheck.flagsUpdate || {}) },
+    newAct: actCheck.newAct,
+    gameOver: actCheck.gameOver,
     discoveredClueIds: newClueIds,
     medicalPointsDelta: medicalDelta || undefined,
     moralPointsDelta: moralDelta || undefined,
     aiContext: buildNarrationContext(story, intent, session, {
       success: true,
-      actionDescription: `Watson took (a copy of) the ${objectName} for his records.`,
-      actionResultNote: `SUCCESS — ${inventoryItem} added to Watson's bag.`,
+      actionDescription: alreadyHeld
+        ? `Watson checked his ${inventoryItem}.`
+        : `Watson took (a copy of) the ${objectName} for his records.`,
+      actionResultNote: alreadyHeld
+        ? `SUCCESS — Watson already has ${inventoryItem} in his possession.`
+        : `SUCCESS — ${inventoryItem} added to Watson's bag.`,
       newClueDefs,
-      itemsGained: [inventoryItem],
+      itemsGained: alreadyHeld ? undefined : [inventoryItem],
     }),
   };
 }
@@ -125,7 +130,8 @@ export function resolveUse(story: StoryManifest, intent: ParsedIntent, session: 
       // a held item (Watson brings something TO something).
       const inInventory = (id: string) =>
         story.takeableObjects[id] !== undefined && session.inventory.includes(story.takeableObjects[id]);
-      const inLocation = (id: string) => currentLoc.interactables.includes(id);
+      const visible = visibleInteractables(story, session.location, session.flags);
+      const inLocation = (id: string) => visible.includes(id);
       const accessible = (id: string) => inInventory(id) || inLocation(id);
 
       if (accessible(targetId) && accessible(intent.useWithTargetId)
@@ -173,7 +179,7 @@ export function resolveUse(story: StoryManifest, intent: ParsedIntent, session: 
 
   if (useDesc && targetId) {
     // Verify the object is present (either in location or in inventory via a takeable mapping)
-    const isInLocation = currentLoc.interactables.includes(targetId);
+    const isInLocation = visibleInteractables(story, session.location, session.flags).includes(targetId);
     const isInInventory =
       story.takeableObjects[targetId] !== undefined &&
       session.inventory.includes(story.takeableObjects[targetId]);

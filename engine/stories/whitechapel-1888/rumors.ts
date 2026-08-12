@@ -136,12 +136,12 @@ export const RUMORS: RumorDefinition<StoryFlag>[] = [
     ],
   },
 
-  // TRIGGER: talked_to_edmund_at_private_asylum
+  // TRIGGER: asked_edmund_about_edmund_eye_for_light
   // Watson confronts Edmund in his cell and hears him speak.
   // This spreads as the final revelation: Edmund was present all along.
   {
     id: 'edmund_was_the_assistant',
-    triggerFlag: 'talked_to_edmund_at_private_asylum',
+    triggerFlag: 'asked_edmund_about_edmund_eye_for_light',
     spread: [
       {
         npcId: 'holmes',
@@ -151,12 +151,12 @@ export const RUMORS: RumorDefinition<StoryFlag>[] = [
     ],
   },
 
-  // TRIGGER: talked_to_bond_at_millers_court
+  // TRIGGER: asked_bond_about_bond_kelly_findings
   // Bond speaks of the horror and his burden — the emotional anchor of Act 1.
   // This spreads as concern for Bond's state of mind.
   {
     id: 'bond_was_broken_by_kelly',
-    triggerFlag: 'talked_to_bond_at_millers_court',
+    triggerFlag: 'asked_bond_about_bond_kelly_findings',
     spread: [
       {
         npcId: 'phillips',

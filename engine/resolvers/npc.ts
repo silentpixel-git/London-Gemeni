@@ -5,6 +5,8 @@ import type { SessionSnapshot } from '../session';
 import { periodOf } from './support';
 import { buildNarrationContext, blocked, absentNpcBlocked } from '../narrationContext';
 import { npcLocationAt, getPresentNpcIds } from '../presence';
+import { visibleInteractables } from '../visibility';
+import { matchTopic } from '../stories/knowledge';
 import { resolveExamine } from './examine';
 
 // --------------------------------------------------------
@@ -13,7 +15,15 @@ import { resolveExamine } from './examine';
 
 export function resolveTalk(story: StoryManifest, intent: ParsedIntent, session: SessionSnapshot): EngineResult {
   const currentLoc = story.locations[session.location];
-  const targetId = intent.targetId;
+  let targetId = intent.targetId;
+
+  // "ask about the graffiti" names a subject but no one. If exactly one NPC is
+  // here, Watson addresses them — the same courtesy SHOW already extends.
+  if (!targetId && intent.topicRaw) {
+    const present = getPresentNpcIds(story.npcs, session.location, session.npcStates,
+      session.currentAct, periodOf(story, session), session.flags);
+    if (present.length === 1) targetId = present[0];
+  }
 
   if (!targetId || !story.npcs[targetId]) {
     return blocked(story,
@@ -25,7 +35,7 @@ export function resolveTalk(story: StoryManifest, intent: ParsedIntent, session:
   }
 
   // Check NPC is actually in this location
-  const npcLoc = npcLocationAt(story.npcs, targetId, session.currentAct, periodOf(story, session), session.npcStates);
+  const npcLoc = npcLocationAt(story.npcs, targetId, session.currentAct, periodOf(story, session), session.npcStates, session.flags);
 
   if (npcLoc !== session.location) {
     return absentNpcBlocked(story, intent, session, targetId, 'speak with');
@@ -33,9 +43,22 @@ export function resolveTalk(story: StoryManifest, intent: ParsedIntent, session:
 
   const npcName = story.npcDisplayNames[targetId] || targetId;
 
-  // Set interaction flag
+  // Set interaction flag. This records that the conversation happened and still
+  // drives hints and rumor acks — but it is no longer what act progression
+  // hangs on. Walking up to a witness and saying nothing in particular is not
+  // an interview; the gates now want `asked_<npc>_about_<factId>` (see acts.ts).
   const interactionFlag = `talked_to_${targetId}_at_${session.location}`;
   const flagsUpdate: Record<string, boolean> = { [interactionFlag]: true };
+
+  // Topic-scoped ask: resolve the typed subject against what this NPC can
+  // actually be asked about right now — known by them, act-gate open, and
+  // carrying an authored topic phrase. Deciding it here rather than in the
+  // prompt keeps the engine/AI contract intact: the AI is handed the answer,
+  // it does not choose one.
+  const matched = intent.topicRaw
+    ? matchTopic(story.facts, targetId, session.currentAct, intent.topicRaw, session.flags)
+    : undefined;
+  if (matched) flagsUpdate[`asked_${targetId}_about_${matched.id}`] = true;
 
   // Talk-granted item: some NPCs hand over testimony that only exists because
   // they gave it (a witness's account) — not scenery the player could have
@@ -47,18 +70,23 @@ export function resolveTalk(story: StoryManifest, intent: ParsedIntent, session:
   return {
     actionSuccess: true,
     actionType: 'talk',
+    resolvedTopicId: matched?.id,
     flagsUpdate,
     discoveredClueIds: [],
     inventoryAdd,
     aiContext: buildNarrationContext(story, intent, session, {
       success: true,
-      actionDescription: `Watson addressed ${npcName} at ${currentLoc.name}. Watson said: "${intent.raw}"`,
+      actionDescription: matched
+        ? `Watson asked ${npcName} about ${matched.topics![0]} at ${currentLoc.name}. Watson said: "${intent.raw}"`
+        : `Watson addressed ${npcName} at ${currentLoc.name}. Watson said: "${intent.raw}"`,
       actionResultNote: inventoryAdd
         ? `SUCCESS — Watson engaged ${npcName} in conversation. As ${npcName} speaks, Watson takes down what is said in writing — narrate him transcribing it as part of the conversation, not as a separate act of picking something up.`
         : `SUCCESS — Watson engaged ${npcName} in conversation.`,
       newClueDefs: [],
       targetNpcId: targetId,
       itemsGained: inventoryAdd,
+      topicFact: matched ? { label: matched.topics![0], statement: matched.statement } : undefined,
+      topicMissed: intent.topicRaw && !matched ? intent.topicRaw : undefined,
     }),
   };
 }
@@ -83,7 +111,17 @@ export function resolveShow(story: StoryManifest, intent: ParsedIntent, session:
   const inventoryName = story.takeableObjects[targetId];
   const hasItem = inventoryName && session.inventory.includes(inventoryName);
   if (!hasItem) {
-    const objectName = story.objectDisplayNames[targetId] ?? intent.targetRaw ?? targetId;
+    // Name the object only when it is actually here to be named. A phrase like
+    // "show the letters to holmes" resolves through a global alias to an object
+    // from a later act, and naming it in the refusal leaks it — in Act 0 that
+    // means announcing the From Hell letter on the 6th of August. Fall back to
+    // the player's own words, which are always safe to repeat.
+    const here = visibleInteractables(story, session.location, session.flags).includes(targetId);
+    // Display names carry their own article ("The Violin Case"), and this
+    // sentence supplies one, so drop the leading article before interpolating.
+    const objectName = here
+      ? (story.objectDisplayNames[targetId] ?? intent.targetRaw ?? targetId).replace(/^the\s+/i, '')
+      : (intent.targetRaw ?? 'that');
     return blocked(story, intent, session,
       `Watson does not have the ${objectName} to show.`,
       `SHOW blocked: ${targetId} not in inventory.`
@@ -92,7 +130,7 @@ export function resolveShow(story: StoryManifest, intent: ParsedIntent, session:
 
   // NPC must be present
   if (npcId) {
-    const npcLoc     = npcLocationAt(story.npcs, npcId, session.currentAct, periodOf(story, session), session.npcStates);
+    const npcLoc     = npcLocationAt(story.npcs, npcId, session.currentAct, periodOf(story, session), session.npcStates, session.flags);
     const npcName    = story.npcDisplayNames[npcId] ?? npcId;
 
     if (npcLoc !== session.location) {
@@ -127,6 +165,7 @@ export function resolveShow(story: StoryManifest, intent: ParsedIntent, session:
           actionResultNote: interaction.resultNote,
           newClueDefs,
           targetNpcId: npcId,
+          extraWordBudget: interaction.extraWordBudget,
         }),
       };
     }
@@ -148,7 +187,7 @@ export function resolveShow(story: StoryManifest, intent: ParsedIntent, session:
 
   // No NPC specified — if exactly one NPC is present, Watson naturally shows
   // it to them ("show the clipping" with only Holmes in the room).
-  const presentNpcIds = getPresentNpcIds(story.npcs, session.location, session.npcStates, session.currentAct, periodOf(story, session));
+  const presentNpcIds = getPresentNpcIds(story.npcs, session.location, session.npcStates, session.currentAct, periodOf(story, session), session.flags);
   if (presentNpcIds.length === 1) {
     return resolveShow(story, { ...intent, showTargetNpcId: presentNpcIds[0] }, session);
   }

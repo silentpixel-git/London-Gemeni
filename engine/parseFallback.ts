@@ -12,29 +12,48 @@ import type { ParseCandidates, NPCState } from '../types';
 import { LOCATIONS, NPCS, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS } from './gameData';
 import { getPresentNpcIds, timePeriodFor } from './GameEngine';
 import { WHITECHAPEL_MANIFEST } from './stories/whitechapel-1888/manifest';
+import { visibleInteractables } from './visibility';
 
 // Verb intents that carry a target phrase; a non-empty phrase with no resolved
 // id is a miss the AI parse can recover.
 const VERBS_NEEDING_TARGET = new Set<ParsedIntent['type']>([
-  'move', 'talk', 'take', 'examine', 'use', 'show', 'read', 'drop',
+  'move', 'talk', 'take', 'examine', 'use', 'show', 'read', 'drop', 'open',
 ]);
+
+// Verb intents whose resolved target can be a valid-but-absent object — the
+// same "aliases are scene-blind" problem EXAMINE already guards against (see
+// the soft-miss check below). OPEN and READ can hit it too: "open the tin
+// box" / "read the letters" resolve to a real object id (parcel_box /
+// from_hell_letter) that simply isn't the one present at this location.
+// Scoped to exactly these two additional verbs per a confirmed finding —
+// not speculatively extended to take/show/use/drop without one.
+const SOFT_MISS_VERBS = new Set<ParsedIntent['type']>(['examine', 'open', 'read']);
 
 /**
  * Should this regex-parse result be routed through the AI parse?
- * Misses are: 'other', 'unresolved_target', verb-with-unresolved-target,
- * and the soft miss (resolved examine target that is neither here nor
- * carried).
+ * Misses are: 'other' (unless a story-event raw phrase owns it), 'unresolved_target',
+ * verb-with-unresolved-target, and the soft miss (an examine/open/read target that
+ * resolved to a real object id, but one that is neither present here nor carried).
  * Queries never route — world questions belong to narration.
  */
-export function needsAiParse(intent: ParsedIntent, location: string, inventory: string[]): boolean {
-  if (intent.type === 'other' || intent.type === 'unresolved_target') return true;
+export function needsAiParse(intent: ParsedIntent, location: string, inventory: string[], flags: Record<string, boolean>): boolean {
+  if (intent.type === 'other') {
+    const raw = intent.raw.toLowerCase().replace(/[’]/g, "'").replace(/[^a-z0-9'\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    const isStoryEventPhrase = WHITECHAPEL_MANIFEST.storyEvents.some(event =>
+      event.triggers.some(trigger => trigger.rawPhrases?.some(phrase => {
+        const authored = phrase.toLowerCase().replace(/[’]/g, "'").replace(/[^a-z0-9'\s]/g, ' ').replace(/\s+/g, ' ').trim();
+        return raw === authored || raw.includes(authored);
+      })));
+    return !isStoryEventPhrase;
+  }
+  if (intent.type === 'unresolved_target') return true;
   if (
     VERBS_NEEDING_TARGET.has(intent.type) &&
     (intent.targetRaw ?? '').trim() !== '' &&
     !intent.targetId
   ) return true;
-  if (intent.type === 'examine' && intent.targetId) {
-    const present = LOCATIONS[location]?.interactables ?? [];
+  if (SOFT_MISS_VERBS.has(intent.type) && intent.targetId) {
+    const present = visibleInteractables(WHITECHAPEL_MANIFEST, location, flags);
     const t = intent.targetId;
     if (
       OBJECT_DISPLAY_NAMES[t] &&
@@ -56,8 +75,9 @@ export function buildParseCandidates(
   currentAct: number,
   introducedNpcs: string[],
   elapsedMinutes: number,
+  flags: Record<string, boolean>,
 ): ParseCandidates {
-  const present = LOCATIONS[location]?.interactables ?? [];
+  const present = visibleInteractables(WHITECHAPEL_MANIFEST, location, flags);
   const carriedIds = Object.entries(TAKEABLE_OBJECTS)
     .filter(([, itemName]) => inventory.includes(itemName))
     .map(([objId]) => objId);
@@ -65,7 +85,7 @@ export function buildParseCandidates(
   const asEntry = (id: string) => ({ id, name: OBJECT_DISPLAY_NAMES[id] ?? id.replace(/_/g, ' ') });
 
   const period = timePeriodFor(WHITECHAPEL_MANIFEST.actTimeConfig, currentAct, elapsedMinutes);
-  const people = getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, location, npcStates, currentAct, period)
+  const people = getPresentNpcIds(WHITECHAPEL_MANIFEST.npcs, location, npcStates, currentAct, period, flags)
     .map(id => {
       const npc = NPCS[id];
       const introduced = !npc.requiresIntroduction || introducedNpcs.includes(id);

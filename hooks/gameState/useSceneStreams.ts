@@ -5,7 +5,7 @@ import { aiService } from '../../services/AIService';
 import { injectAfterHeading, stripLeadingActHeading, formatActHeading } from '../../services/narrationFormat';
 import { gameEngine, SessionSnapshot } from '../../engine/GameEngine';
 import { parseIntent } from '../../engine/intentParser';
-import { ACT_BRIDGES, ITEM_SPENT_AFTER_ACT, formatGameClock } from '../../engine/gameData';
+import { ACT_BRIDGES, OPENING_FIXED_LINE, ITEM_SPENT_AFTER_ACT, formatGameClock } from '../../engine/gameData';
 import {
   INITIAL_LOCATION,
   INITIAL_ACT,
@@ -35,6 +35,10 @@ export interface SceneStreamsDeps {
   setFlags: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   scrollRef: React.RefObject<HTMLDivElement>;
   captureLocationArrival: (locationId: string, actNumber: number, timeLabel: string) => void;
+  // Seeded by every scene entry point (opening / act arrival / resume) so the
+  // first ordinary turn after one diffs against the room the player was just
+  // shown, rather than against nothing.
+  previousNpcIdsRef: React.MutableRefObject<string[] | undefined>;
 }
 
 export function useSceneStreams(deps: SceneStreamsDeps) {
@@ -55,6 +59,7 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
     setFlags,
     scrollRef,
     captureLocationArrival,
+    previousNpcIdsRef,
   } = deps;
 
   const hasGeneratedOpening = useRef(false);
@@ -114,6 +119,9 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
         rumorEvents: {},
       };
       const result = gameEngine.resolve(intent, snapshot);
+      // Seed the presence baseline: the next ordinary turn diffs against
+      // the room this scene just showed the player.
+      previousNpcIdsRef.current = result.aiContext.npcsPresent.map(n => n.npcId);
       commitVignetteFlags(result.flagsUpdate, {}, activeInvestigation?.id);
       locationLabel = result.aiContext.locationName;
       setHistory(prev => {
@@ -122,7 +130,8 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
         return next;
       });
 
-      const OPENING_FIXED_LINE = "I arrived at Baker Street on the evening of the eighth of November, 1888 - three months after the Jack the Ripper murders had begun, and the day before it concluded.\n\n";
+      // OPENING_FIXED_LINE is authored story data (acts.ts), not hook state —
+      // see the note there before editing the prose.
       let lastText = '';
       for await (const update of aiService.stream({ ...result.aiContext, narrationMode: 'opening', blockquoteHint: 'none' })) {
         if (update.narrative) {
@@ -185,6 +194,9 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
         rumorEvents: {},
       };
       const result = gameEngine.resolve(intent, snapshot);
+      // Seed the presence baseline: the next ordinary turn diffs against
+      // the room this scene just showed the player.
+      previousNpcIdsRef.current = result.aiContext.npcsPresent.map(n => n.npcId);
       commitVignetteFlags(result.flagsUpdate, resume.flags, resume.investigationId);
       const locationLabel = result.aiContext.locationName;
       setHistory(prev => {
@@ -258,6 +270,9 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
         rumorEvents: {},
       };
       const result = gameEngine.resolve(intent, snapshot);
+      // Seed the presence baseline: the next ordinary turn diffs against
+      // the room this scene just showed the player.
+      previousNpcIdsRef.current = result.aiContext.npcsPresent.map(n => n.npcId);
       commitVignetteFlags(result.flagsUpdate, flags, activeInvestigation?.id);
       const locationLabel = result.aiContext.locationName;
       setHistory(prev => {

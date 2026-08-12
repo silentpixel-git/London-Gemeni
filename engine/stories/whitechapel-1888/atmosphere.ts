@@ -36,6 +36,19 @@ export interface AtmosphericSeed {
 // One is chosen at random per narration call, filtered to the current time period,
 // so the AI never defaults to the same micro-detail or contradicts the time of day.
 export const ATMOSPHERIC_SEEDS: AtmosphericSeed[] = [
+  // ── AUGUST (acts 0-1) ────────────────────────────────────────────────────
+  // The rework opens in high summer. The general seeds below are season-neutral
+  // by design, and the only weather-locked ones are requiresFog — so nothing
+  // here is *replacing* winter imagery, it is giving August its own register:
+  // heat that does not lift after dark, open windows, a city out of doors.
+  { text: 'Warm air off the brick, still holding the day',                              periods: [], acts: [0, 1] },
+  { text: 'Every window on the street standing open to the heat',                       periods: [], acts: [0, 1] },
+  { text: 'A dog panting under a cart, refusing to be moved',                           periods: [], acts: [0, 1] },
+  { text: 'The sour smell of yesterday\'s refuse, quicker to turn in this weather',      periods: [], acts: [0, 1] },
+  { text: 'Someone singing badly and cheerfully, a long way off',                       periods: ['evening', 'night'], acts: [0, 1] },
+  { text: 'Boots and voices in the road well past the hour they should be',             periods: ['night', 'lateNight'], acts: [0, 1] },
+  { text: 'The sky already grey at the roofline, though it is not yet four',            periods: ['dawn'], acts: [1] },
+
   // ── ALL PERIODS ──────────────────────────────────────────────────────────
   { text: 'A match scraping against brick somewhere unseen',                             periods: [] },
   { text: "A child's cough from behind a closed door",                                  periods: [] },

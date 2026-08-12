@@ -19,6 +19,40 @@ Load this knowledge when writing or reviewing any in-game content: NPC dialogue,
 4. Catherine Eddowes — 30 September 1888, Mitre Square (double event, same night as Stride)
 5. Mary Jane Kelly — 9 November 1888, 13 Miller's Court (most brutal; body found at 10:45 AM)
 
+**The earlier Whitechapel murders** (not in the canonical five, but part of the police file
+and of this game's chronology):
+
+- **Emma Smith** — 3 April 1888, Osborn Street. Attacked by a gang; died of peritonitis.
+  Not the same hand; useful only as the file's opening page.
+- **Martha Tabram** — 7 August 1888, first-floor landing of George Yard Buildings (off
+  Whitechapel High Street). Found ~4:45 AM by John Saunders Reeves on his way to work; death
+  estimated ~2:30 AM. **39 wounds.** No mutilation and nothing taken — a frenzy, not yet the
+  thing the case becomes. Contemporary police *did* treat her as part of the series; modern
+  consensus is divided.
+
+**August 1888 — the Tabram investigation**:
+
+- **Inspector Reid** — head of H Division CID, Commercial Street. Ran the Tabram inquiry.
+  *(In this game his forename is never written: the murderer is Edmund Halward, and two
+  Edmunds would muddle the final reveal. He is "Inspector Reid" in every line.)*
+- **Dr. Timothy Killeen** — examined Tabram. Testified that 38 of the wounds were consistent
+  with an ordinary penknife, but **one, to the breastbone, suggested a dagger or bayonet** —
+  the "two weapons" question. "Bayonet" is his word, not the press's.
+- **Pearly Poll (Mary Ann Connelly)** — came forward **9 August**, two days after. Had been
+  with Tabram and two soldiers, a private and a corporal, and parted from her around 11:45 PM.
+- **PC Thomas Barrett** — saw a grenadier loitering in George Yard about 2 AM. An independent
+  second source for the soldier theory, separate from Poll.
+- **The identification parades** — Tower of London, **13 August**: Poll identified nobody.
+  Wellington Barracks, **15 August**: she picked out two men, both alibied. Barrett's man was
+  alibied too. The soldier theory was loud, reasonable, and wrong.
+- **The mortuary** — Whitechapel bodies went to the workhouse mortuary on **Old Montague
+  Street**, a shed rather than a facility. Nichols went there too, three weeks later.
+
+**August 1888 — context**: Bank Holiday Monday was **6 August**. Hot, crowded, the East End
+loud with holiday drinking. Nights are short and warm — not the fog-bound November of the
+game's original span; August dawn is around 4:30 AM, which is why a body on a landing was
+found by a man leaving for work in daylight.
+
 **Key investigators**:
 - **Inspector Frederick Abberline** — Metropolitan Police lead. Based at Commercial Street station. Known for local knowledge, groundwork approach.
 - **Dr. Thomas Bond** — Police surgeon. Produced the most detailed post-mortem report on Kelly. Concluded the killer had no anatomical skill; contradicted other surgeons. Suffered severe depression after the case.
@@ -93,3 +127,10 @@ Load this knowledge when writing or reviewing any in-game content: NPC dialogue,
 - Do not describe Kelly's murder as occurring at night — her body was discovered at 10:45 AM; time of death estimated earlier that morning
 - Inspector Abberline is "Detective Inspector," not "Chief Inspector"
 - Dr. Bond's conclusion was that the killer *lacked* surgical skill — the opposite of some popular accounts
+- Do not put fog or cold in the August acts — 6–15 August 1888 is high summer; the fog-bound
+  imagery belongs to the November material
+- Do not have anyone call Tabram one of "the murders" as settled fact in August — nothing has
+  been connected yet; that is exactly the tension Act 1 is built on
+- Do not date *The Sign of Four* before September 1888, and be careful invoking it at all:
+  concluding it leaves Watson engaged to Mary Morstan and moving out of Baker Street
+- Inspector Reid's forename is never written in this game (see above)

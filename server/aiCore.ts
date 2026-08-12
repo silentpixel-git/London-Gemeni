@@ -28,6 +28,8 @@ import { GoogleGenAI, Type, FunctionCallingConfigMode } from '@google/genai';
 import { NarrationContext, NarrationResponse, ActJournalSummary, TimePeriod, HintTarget, HintVerb, STIMEntry, ParseCandidates } from '../types.js';
 import { ATMOSPHERIC_SEEDS } from '../engine/gameData.js';
 import { buildParseTools, buildParsePrompt, toolCallToIntent, type ToolCallOutcome } from './parseAction.js';
+import { buildTopicSchema, buildTopicPrompt, validateTopicChoice } from './parseTopic.js';
+import type { TopicCandidate } from '../engine/topicFallback.js';
 
 // ============================================================
 // MODEL CONFIG
@@ -79,34 +81,37 @@ function logPromptSize(label: string, system: string, prompt: string): void {
 const NARRATION_SYSTEM_PROMPT = `You narrate "London Bleeds: The Whitechapel Diaries" — a Victorian detective mystery, London, 1888. You write solely as Dr. John H. Watson in Arthur Conan Doyle's style: first-person past tense, analytical, restrained, quietly emotional. You are a narrator, not a game engine.
 
 ABSOLUTE RULES:
-1. VERIFIED STATE ONLY — never invent exits, items, characters, locations, or scenery/props (furniture, fixtures, objects, apparatus) beyond what the context lists. Holmes's case-map and its coloured threads exist only at Baker Street — never place that map, those threads, or any other unlisted prop in a location where it is not given. The reverse also holds: never narrate that Watson cannot leave, has no exits, or that "departure is out of the question" when the verified exits list is non-empty.
+1. VERIFIED STATE ONLY — never invent exits, items, characters, locations, or scenery/props (furniture, fixtures, objects, apparatus) beyond what the context lists. Dr. Bond's autopsy ledger and specimen cabinet exist only at the mortuary — never place them, or any other unlisted prop, in a location where the context does not give them. The reverse also holds: never narrate that Watson cannot leave, has no exits, or that "departure is out of the question" when the verified exits list is non-empty. Never invent a named servant, page-boy, cabman, or other staff member — Mrs Hudson is the only household staff this story ever gives you. In particular, do not reach into your own knowledge of the wider Conan Doyle canon for a name (e.g. a page-boy called Billy) — this story's cast is exactly and only who the context lists, nothing borrowed from elsewhere in the mythos. If an unnamed hand is needed (someone answering a door, fetching something), leave them unnamed ("a servant", "someone below") rather than inventing an identity.
 2. TIME — match the verified time of day exactly (no morning bustle at night; no gas-lit darkness at noon).
-3. VOICE — first-person PAST TENSE, always, in every mode. Military doctor: medical and forensic specificity, measured authority, never melodramatic. State an emotion or sensation once; do not amplify or explain it — end the sentence before the elaboration. Occasionally dry; not every moment is dark. VARY YOUR OPENINGS — do not begin with fog, weather, or windows more than rarely; open instead on people, actions, objects, sounds, or Watson's thoughts. NEVER open with "I returned to…". OVER-USED IMAGERY (each may appear at most once per act): fire crackling in the grate/hearth, dancing or flickering shadows, fog pressing at the panes, "wreathed in smoke", "silhouetted against". BANNED PHRASE: "a profound sense of [emotion]" — show feeling through observed physical detail, never a labeled abstraction. Prefer fresh sensory channels — sound, smell, touch, small human details.
+3. VOICE — first-person PAST TENSE, always, in every mode. Military doctor: medical and forensic specificity, measured authority, never melodramatic. State an emotion or sensation once; do not amplify or explain it — end the sentence before the elaboration. Occasionally dry; not every moment is dark. VARY YOUR OPENINGS — do not begin with fog, weather, or windows more than rarely; open instead on people, actions, objects, sounds, or Watson's thoughts. NEVER open with "I returned to…". OVER-USED IMAGERY (each may appear at most once per act): fire crackling in the grate/hearth, dancing or flickering shadows, fog pressing at the panes, "wreathed in smoke", "silhouetted against". OVER-USED WORD: "restless"/"restlessly" — it is your default for impatience and it shows; reach for the specific behaviour instead, or simply let the action carry it. BANNED PHRASE: "a profound sense of [emotion]" — show feeling through observed physical detail, never a labeled abstraction. Prefer fresh sensory channels — sound, smell, touch, small human details.
+3b. PUNCTUATION AND CADENCE — the em dash is the single clearest marker of machine-written prose. Use AT MOST ONE in a reply, and never a pair bracketing an aside. Reach instead for a full stop, a comma, a colon, or a semicolon; Victorian prose has all four and Watson is not breathless. Likewise do not fall into the three-beat list ("squalid, small, and explains itself") as a default cadence — use three items only when the content genuinely has three, not to round out a rhythm. Vary sentence length: a short flat sentence after a long one is worth more than another subordinate clause.
 4. ALIASES (critical) — each NPC carries a label and an isIntroduced flag. If isIntroduced is false, use ONLY the label; never the real name, even in Watson's private thoughts. Bond's assistant is never introduced by anyone and never introduces himself — his name appears only via the forensic note. Until then: "Bond's assistant" or "the quiet young man", background only, never initiating.
-5. HOLMES — at most one brief, cryptic observation per FULL turn. He never accuses the assistant before Act VI.
+5. HOLMES — at most one brief, cryptic observation per FULL turn. He never accuses the assistant before Act VI. Every deduction or remark Holmes makes MUST be rendered as a direct quotation with a dialogue tag ("...," Holmes said/observed/remarked) — never as Watson summarizing what Holmes concluded in reported speech. When Holmes shifts focus between different subjects or people, start a new paragraph for each.
 6. NO RAW LISTS — weave exits, objects, and people into prose.
 7. BLOCKED ACTIONS — narrate the attempt failing in character; never "invalid command."
 8. CLUES — weave discoveries naturally into the prose; never quote a clue title literally.
 9. DEDUCTIONS — correct: Holmes agrees and notes the want of legal proof. If the result note says COLD CASE: write a ~150-word sombre diary epilogue — Watson closes the case unsolved and shuts his diary.
 10. REGISTER — follow the TEMPORAL FRAMING note in each prompt (present = live investigation; reconstruction = cold scene worked from written reports), plus any register note it carries (e.g. the Baker Street sanctuary).
 11. TYPOS IN WATSON'S SPEECH — if Watson's quoted words contain a near-miss of an established name (a victim, suspect, or NPC already in context), treat it as that established name in the reply; never invent a new person or nickname to explain the mismatch.
+12. THE CONTEXT IS THE WHOLE WORLD (critical) — narrate only the people, places, objects and happenings the context names. Never bring in one from outside it, whatever you may know of this period or this story from elsewhere, and never state or imply that a person the context has named is secretly someone else: a person named here has that name and no other. Such an invention can destroy a revelation the story has spent whole acts preparing. This applies equally when BOTH figures are still unnamed: if the story has established two distinct people in the same scene (e.g. a passerby's daughter, and separately the actual caller at the door), a detail belonging to one must never bleed into or replace the other just because neither has a name yet. RECENT NPC INTERACTIONS is memory of past turns, not this turn's facts — before writing, check what THIS turn's own ACTION/Result/beats say is happening and to whom, and do not let an earlier turn's subject quietly take over the current one. (Stated as a positive on purpose: do not reason about what is excluded, simply write from what is given.)
+13. NO INVENTED SPECIFICS — never state a date, weekday, clock time, quantity, sum or proper name the context does not give. Where the context supplies a figure, use it exactly as given: "nine days" stays nine days and must not become a weekday, a calendar date, or a different reckoning, and must not acquire a second, more precise version later in the scene. If you do not have a specific, write around it as a person genuinely would ("some days past") rather than inventing one. This includes gender and pronoun: never assign "he"/"she"/"man"/"woman" to a person the context has not gendered in this turn's own text (do not rely on memory of an earlier turn — you do not have one). If a beat or note describes someone only as "the caller" or "the figure" with no gendered word anywhere in it, mirror that: "the caller", "they", or the same noun again — never guess.
 
 OUTPUT — return a JSON object:
-- "markdownOutput": the narrative text (Markdown, real line breaks — never a literal "\\n"). Full mode max 160 words (110 on a revisit); compact mode max 130.
+- "markdownOutput": the narrative text (Markdown, real line breaks — never a literal "\\n"). Each prompt states its own paragraph count and word limit — follow that line exactly; it is the authority (a turn carrying an extra required beat raises it).
 - "npcMemoryUpdate": optional ~10-word interaction summary keyed by npcId (e.g. {"holmes": "Watson and Holmes discussed the burned clothing."}).
 - "stimUpdate": optional array of NEW sensory first-observations to remember, each {"key": snake_case id, "summary": "10-15 words", "scope": "npc"|"object"|"environment"} (e.g. {"key":"holmes_coat","summary":"...","scope":"npc"}). Only when the result note asks for it and the subject is not already in SESSION OBSERVATIONS.
-NpcIds: holmes, abberline, bond, edmund, lusk, diemschutz, superintendent, hutchinson, phillips, tumblety, pizer, barmaid.`;
+NpcIds: holmes, abberline, bond, edmund, lusk, diemschutz, superintendent, hutchinson, phillips, tumblety, pizer, barmaid, mrs_kemp.`;
 
 // ============================================================
 // NARRATION RESPONSE SCHEMA (minimal — no state mutations)
 // ============================================================
 
-const NARRATION_SCHEMA = {
+export const NARRATION_SCHEMA = {
   type: Type.OBJECT,
   properties: {
     markdownOutput: {
       type: Type.STRING,
-      description: "Watson's first-person narrative prose. Markdown formatting. Full mode: max 160 words (110 on a revisit). Compact mode: max 130 words.",
+      description: "Watson's first-person narrative prose. Markdown formatting. Full mode: max 160 words (110 on a revisit). Compact mode: max 130 words (some interactions raise this — the prompt's own stated limit is the authority, not this description).",
     },
     npcMemoryUpdate: {
       type: Type.OBJECT,
@@ -124,6 +129,7 @@ const NARRATION_SCHEMA = {
         tumblety: { type: Type.STRING },
         pizer: { type: Type.STRING },
         barmaid: { type: Type.STRING },
+        mrs_kemp: { type: Type.STRING },
       },
     },
     stimUpdate: {
@@ -182,10 +188,34 @@ export function buildNarrationPrompt(ctx: NarrationContext): string {
     ? `\n=== HOLMES' CROSS-CASE DEDUCTION (incorporate naturally into prose) ===\n"${ctx.holmesSynthesis}"\n`
     : '';
 
+  const storyEventSection = ctx.storyEvent
+    ? `\n=== REQUIRED STORY EVENT ===
+Within one Watson response, cover every semantic beat exactly once and in the numbered order below. Integrate the beats naturally into the resolved action; do not quote them as instructions, repeat them, reorder them, or leave any for mechanically appended prose.
+Complete each numbered beat before beginning the next. Preserve who did what, to whom, and why exactly as written; do not substitute or infer relationships.
+Do not add motives, requests, facts, or consequences that are not present in the verified Result or numbered beats.
+Negative statements in a beat are hard constraints. If a person gives no answer, promise, explanation, or reason, supply no partial answer, explanation, speculation, motive, hint, promise, or plan in dialogue or narration.
+Never name or describe a container's contents unless those contents appear in verified scenery, inventory, Result, or numbered beats. A closed or unopened container reveals nothing inside it.
+Do not assign a role, title, occupation, or relationship to a named NPC unless one is supplied below. Otherwise use only their verified label and the actions stated in the numbered beats.
+Keep connective prose neutral: it may join the beats but must not add an emotion, intention, character judgement, or new object detail.
+Maximum length for the entire response: ${ctx.storyEvent.maxWords} words.
+${ctx.storyEvent.beats.map((beat, index) => `${index + 1}. ${beat}`).join('\n')}\n`
+    : '';
+
   // Helpers for the new npcsPresent shape
   const npcLabelList = ctx.npcsPresent.length > 0
     ? ctx.npcsPresent.map(n => n.label).join(', ')
     : 'None';
+
+  // The player's own words, carried verbatim and separately from
+  // actionDescription — a matched story event overwrites that field with its
+  // canned string, so on exactly the turns that matter most (the pivotal ones)
+  // the reply had no idea what the player actually typed and opened on the
+  // event instead, reading as a non sequitur. Requiring the connection here
+  // rather than trusting actionDescription also survives the word budget being
+  // spent on required beats, which is what made it skippable before.
+  const playerInputLine = ctx.playerInput
+    ? `\nThe player typed, verbatim: "${ctx.playerInput}"\nOpen by connecting to what they actually did — the attempt, the thing addressed, or what Watson turned his attention to — before anything else in this turn unfolds. One clause is enough; do not quote their words back or restate the command, and do not let this delay a required story beat. If what follows interrupts or overtakes the attempt, show the attempt beginning first, then the interruption.`
+    : '';
 
   const timeSection = `\nCURRENT TIME: ${ctx.timeLabel} (${ctx.timePeriod}). WEATHER: ${ctx.weather.label}. Your prose must be fully consistent with this time of day and this weather.\n`;
   // Register guidance moved out of the system prompt (token diet) — injected
@@ -193,9 +223,22 @@ export function buildNarrationPrompt(ctx: NarrationContext): string {
   const bakerStreetNote = ctx.locationName.toLowerCase().includes('baker street')
     ? `\nREGISTER: 221B is sanctuary — domestic warmth, the familiar chaos of Holmes's method, the intellectual urgency of two men who trust each other. Not another grim location.\n`
     : '';
+  // A multi-day act stepped to a later day this turn. This is the mid-act
+  // equivalent of an act bridge and must open the reply — the player needs to
+  // be told days have passed before anything else in the scene makes sense.
+  const dayStepSection = ctx.dayStepNote ? `
+=== TIME HAS PASSED ===
+${ctx.dayStepNote}
+Open the reply by carrying this interval in one or two sentences, in Watson's voice, before the action below. Do not narrate the intervening days in detail — name the gap and move on.
+` : '';
+
   const temporalSection = (ctx.locationTimeframe === 'reconstruction'
     ? `\nTEMPORAL FRAMING: RECONSTRUCTION — Watson revisits this cold crime scene weeks/months after the murder, working from Abberline's notes and Bond's written reports ("According to Abberline's report…"). Register: professional composure, retrospective sadness — observed, not flinched at; NOT live-investigation shock. Any blockquote must be a reconstructed memory or report detail, never a live ambient event.${ctx.locationReconstitutionNote ? `\nContext: ${ctx.locationReconstitutionNote}` : ''}\n`
-    : `\nTEMPORAL FRAMING: PRESENT — Watson is here now, November 1888. Apply immediate, live-investigation register.\n`) + bakerStreetNote + timeSection;
+    // The date is NOT hardcoded here: the chronological rework spans August to
+    // November, and CURRENT TIME below already carries the verified day from
+    // ACT_TIME_CONFIG (including a multi-day act's current step). Naming a month
+    // here would contradict it for every act outside November.
+    : `\nTEMPORAL FRAMING: PRESENT — Watson is here now, on the date and at the hour given under CURRENT TIME below. Apply immediate, live-investigation register.\n`) + bakerStreetNote + timeSection;
 
   const atmosphericNoteSection = ctx.atmosphericNote
     ? `\n=== ATMOSPHERIC NOTE (use as basis for this examination — expand in Watson's voice) ===\n${ctx.atmosphericNote}\n`
@@ -229,8 +272,12 @@ export function buildNarrationPrompt(ctx: NarrationContext): string {
   // targetNpcInterview's introducingThisTurn contract. For kind: 'rumor',
   // `statement` carries the actual matured gossip content — `text` alone is
   // just the delivery framing and has nothing in it to disclose.
-  const approachBlock = ctx.npcApproach ? `
-NPC APPROACH — after the main action is narrated, ${ctx.npcApproach.label} approaches Watson unprompted, as their own short beat (2–3 sentences):
+  // Full mode only, and always as its own required paragraph (see the
+  // `structure` assembly below). It is never appended to the compact prompt:
+  // compact's 100–130 word budget is committed to the interview block's own
+  // paragraph plan, which silently swallowed this beat while the engine burned
+  // its one-shot flag. engine/approaches.ts now fires on full-mode turns only.
+  const approachDirective = ctx.npcApproach ? `${ctx.npcApproach.label} approaches Watson unprompted — their own short beat, 2–3 sentences, narrated in full and not compressed into a clause:
 ${ctx.npcApproach.text}${ctx.npcApproach.statement
   ? `\nWhat they actually pass on (hearsay register, hedged sourcing — "word is…", "they say…" — never as if witnessed firsthand): ${ctx.npcApproach.statement}`
   : ''}
@@ -246,7 +293,9 @@ ${ctx.npcApproach.statement
   if (isOpening) {
     // OPENING MODE — game start only: tight hook, no inventory of scene elements
     return `=== NARRATION MODE: OPENING ===
-Write exactly 2 short paragraphs (max 130 words total). Do NOT include any Markdown heading — begin directly with the prose.
+${ctx.storyEvent
+  ? `Write one coherent Watson response (max ${ctx.storyEvent.maxWords} words total), using short paragraphs as the ordered event requires.`
+  : 'Write exactly 2 short paragraphs (max 130 words total).'} Do NOT include any Markdown heading — begin directly with the prose.
 ${temporalSection}
 === VERIFIED LOCATION ===
 Location: ${ctx.locationName}
@@ -254,18 +303,34 @@ Atmosphere: ${ctx.locationAtmosphere}
 Description: ${ctx.locationDescription}
 
 === ACTION ===
-${ctx.actionDescription}
+${ctx.actionDescription}${playerInputLine}
 Result: ${ctx.actionResultNote}
+${storyEventSection}
 
 Paragraph 1 — ATMOSPHERE: 2–3 tight sentences. Vivid sensory hook. Apply correct temporal register. Do NOT list NPCs, objects, or exits.
 
-Paragraph 2 — MYSTERY HOOK: One sentence that raises a question or creates dread. Leave the player wanting to look around.
+${ctx.act === 0
+  // Mrs. Kemp now arrives only after the player attends the ringing bell; this
+  // is the OPENING turn specifically — nobody has called yet. The old text
+  // ("somebody has called this evening", "nothing whatever to occupy him")
+  // both instructed the model to invent a caller and contradicted act0Note /
+  // act0CompactNote elsewhere in this file, neither of which this early-return
+  // branch ever reaches. Phrased positively per the lesson already recorded
+  // below at the other two Act 0 notes: naming the absent thing conjures it.
+  ? `Paragraph 2 — HOOK: One sentence. Act 0 opens BEFORE there is any case at all, so do NOT raise dread, menace, or a sense of something coming: nothing has happened, and a manufactured shiver here is exactly the foreshadow this act must not carry. Hook instead on Holmes reading strangers out of the holiday crowd below for the pleasure of it, and on the warm evening the two of them have entirely to themselves. Curiosity, not dread.`
+  : `Paragraph 2 — MYSTERY HOOK: One sentence that raises a question or creates dread. Leave the player wanting to look around.`}
 
 NO Markdown headings. NO blockquote. NO exits listing. NO character roster. NPCs, objects, and exits will be appended separately.`;
   }
 
   if (isFull) {
     const isRevisit = ctx.locationVisitCount > 1;
+    // The act-epilogue cut moved Watson here mid-turn. Without this the prose
+    // narrates a fresh arrival at a place he never chose to go, which reads as a
+    // continuity break — the journey is what has to be covered, briefly.
+    const epilogueCutNote = ctx.actEpilogueCut
+      ? `\nEND OF THE DAY'S WORK: Watson's business in the field is finished and he has come here to set the day in order — the cut to this place is deliberate. Open by covering the journey in a clause or two (the cab, the walk, the hour) rather than narrating a fresh arrival as though he had wandered in. The register is exhaustion and the need to think, not discovery.`
+      : '';
     const locationBlock = isRevisit
       ? `Location: ${ctx.locationName} — REVISIT (visit #${ctx.locationVisitCount}). Watson knows this room. HARD RULE: the opening sentence must be about Watson's purpose, the people present, or what is NEW — never the weather, the fog, the fire, the windows, or the furnishings. Do not describe the room's appearance at all unless something in it has physically changed. Readers have already seen this room described; repeating it reads as padding.`
       : `Location: ${ctx.locationName}
@@ -275,8 +340,32 @@ Description: ${ctx.locationDescription}`;
     // FULL MODE — location arrival or look-around. Arrival: 3 tight paragraphs.
     // Revisit (look-around in a known room): 2 paragraphs, no re-description; a
     // blockquote only when an authored vignette is present (no atmospheric seed).
+    // Before the caller arrives, the note must not know she is coming. Naming a
+    // visitor here — even as scene-setting — had the model writing Watson's
+    // evening as an anteroom to her knock ("until the arrival of an unexpected
+    // visitor..."), which pre-empts the one event the act opens on.
+    const act0CallerPresent = ctx.npcsPresent.some(n => n.npcId === 'mrs_kemp');
     const act0Note = ctx.act === 0
-      ? '\nACT 0 PROLOGUE NOTE: This is Baker Street. Watson cannot leave yet — the exits list is empty because Holmes has not yet briefed him on where to begin. Do NOT invent exits or imply Watson is free to leave. Instead, let Holmes\'s presence and the case files naturally draw Watson\'s attention. The prose should make the player feel that examining the case files wall is the natural first action.'
+      // PHRASED ENTIRELY AS A POSITIVE, deliberately. An earlier version listed
+      // what must not appear ("no crime scene, no victim, no East End") and the
+      // model promptly wrote Watson searching the carpet for a crime scene and
+      // failing to find one: naming the forbidden thing is what introduces it.
+      // Describe the room and the evening; mention nothing that is off-limits.
+      ? '\nACT 0 PROLOGUE NOTE: this act is domestic and entirely self-contained. An over-warm sitting room on the evening of the August Bank Holiday, both windows up, the holiday audible from the pavement below; Holmes at the left-hand window with his back to the room, reading strangers out of the crowd below for the pleasure of the exercise, lately finished with a dull civil matter whose papers lie bundled and finished on the side table.'
+        + (act0CallerPresent
+          ? ' A woman has called on a small private errand of her own and does not expect to be listened to. The room, those two people, and the ticket she has laid on the table are the entire world of this scene, and Watson\'s attention stays inside it.'
+          // Positive phrasing only. This scene has exactly two people in it, and
+          // the way to keep it that way is to describe the two — an earlier
+          // draft spelled out that no one had called, no bell had rung and no
+          // one was on the stair, and the model duly produced a dismissed
+          // caller and a petition on the table. Naming the absent thing is what
+          // conjures it; see the note above this one, which learned the same
+          // lesson about crime scenes.
+          : ' The cast of this scene is exactly two: Holmes at his window and Watson in the room behind him, at leisure, with the whole warm evening to themselves and nothing to do in it. Those two men, this room and the noise of the holiday coming up off the pavement are the entire world of the scene.')
+        + ' Holmes is OCCUPIED and enjoying himself: do not write him bored, restless, pacing, sighing, listless, or adrift, do not have him fidget with the violin or a book for want of anything better, and do not have him say the great cases are finished — that is his line at the END of this evening and he has not yet earned it. He is going nowhere tonight: the exits list is empty because there is nowhere to be at this hour, so do NOT invent exits or imply he may leave. Write it as a quiet evening at home. Watson has no idea that this evening will turn out to matter, so give the prose no sense of significance gathering and no air of something impending; it is simply a warm night.'
+        + (act0CallerPresent
+          ? ' The prose should make speaking to the caller, or looking at what she has brought, feel like the obvious next thing to do, and should weave the objects into the room rather than reciting them as a list.'
+          : ' The prose should make looking out of the window, or speaking to Holmes, feel like the obvious next thing to do, and should weave the objects into the room rather than reciting them as a list.')
       : '';
     const noticeBeat = `WHAT WATSON NOTICES: In prose (not a list), mention who is present (using their exact labels), what objects catch his eye, and which directions he could go — using ONLY the verified data above.${ctx.availableExits.length === 0 ? '\nNo exits are available yet. Do NOT invent exits or directions. Omit the "directions" sentence entirely — focus only on who and what is present.' : ''}`;
     const blockquoteBeat = `BLOCKQUOTE: ${ctx.vignette
@@ -285,25 +374,33 @@ Description: ${ctx.locationDescription}`;
 Format EXACTLY as a Markdown blockquote:
 > *Your world event sentence here.*`;
 
-    const lengthLine = isRevisit
-      ? 'Write 2 short paragraphs (max 110 words).'
-      : 'Write 3 short paragraphs (max 160 words).';
+    // An approach adds a paragraph and its own word allowance — folding it into
+    // the existing budget is what let it get dropped.
+    const lengthLine = ctx.storyEvent
+      ? `Write one coherent Watson response (max ${ctx.storyEvent.maxWords} words total), using short paragraphs as the ordered event requires.`
+      : isRevisit
+        ? `Write ${approachDirective ? 3 : 2} short paragraphs (max ${approachDirective ? 150 : 110} words).`
+        : `Write ${approachDirective ? 4 : 3} short paragraphs (max ${approachDirective ? 200 : 160} words).`;
+    const approachBeat = approachDirective
+      ? `\n\nParagraph ${isRevisit ? 3 : 4} — NPC APPROACH (required — do not omit or merge into another paragraph): ${approachDirective}`
+      : '';
 
     // Revisit keeps the authored vignette as an extra quoted beat when present,
     // but never invents an atmospheric-seed blockquote (keeps look-arounds tight).
+    // ONE blockquote per turn. 'none' means the turn has no quoted aside, so the
+    // structure drops its own rather than stacking formats unnecessarily.
+    const wantsBlockquote = ctx.blockquoteHint !== 'none';
     const structure = isRevisit
       ? `Paragraph 1 — RETURN: Watson's purpose in returning, or what is immediately different — NO room description, NO weather opener — ending with one brief clause of his reflection on the case.${act0Note}
-${ctx.vignette ? `\n${blockquoteBeat}\n` : ''}
-Paragraph 2 — ${noticeBeat}`
+${ctx.vignette && wantsBlockquote ? `\n${blockquoteBeat}\n` : ''}
+Paragraph 2 — ${noticeBeat}${approachBeat}${epilogueCutNote}`
       : `Paragraph 1 — ATMOSPHERE: Vivid sensory description (apply the temporal register above), ending with one clause of Watson's reflection on the case or his unease.${act0Note}
-
-Paragraph 2 — ${blockquoteBeat}
-
-Paragraph 3 — ${noticeBeat}`;
+${wantsBlockquote ? `\nParagraph 2 — ${blockquoteBeat}\n` : ''}
+Paragraph ${wantsBlockquote ? 3 : 2} — ${noticeBeat}${approachBeat}${epilogueCutNote}`;
 
     return `=== NARRATION MODE: FULL ===
 ${lengthLine} Do NOT include any Markdown heading (no "###" line) — begin directly with the prose.
-${temporalSection}
+${dayStepSection}${temporalSection}
 === VERIFIED LOCATION ===
 ${locationBlock}
 
@@ -315,19 +412,40 @@ Watson's state — Medical: ${ctx.watsonStats.medicalPoints}pts | Moral: ${ctx.w
 Watson's inventory: ${ctx.inventory.length > 0 ? ctx.inventory.join(', ') : 'empty'}
 ${memorySection}
 === ACTION ===
-${ctx.actionDescription}
+${ctx.actionDescription}${playerInputLine}
 Result: ${ctx.actionResultNote}
-${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${ambientExtraSection}${clueSection}${synthesisSection}${approachBlock}
+${storyEventSection}
+${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${ambientExtraSection}${clueSection}${synthesisSection}
 Narrate Watson's arrival / survey of this location using exactly this structure:
 
 ${structure}`;
   }
 
   // COMPACT MODE — examine, talk, take, use, inventory, deduce, blocked action
-  const compactWordLimit = ctx.blockquoteHint !== 'none' ? 130 : 100;
-  let compactPrompt = `=== NARRATION MODE: COMPACT ===
-Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line. Do NOT include any Markdown heading. NO act header. NO location description. NO exits listing.
-${temporalSection}
+  // A topic-scoped answer IS the turn — it has a specific fact to convey in
+  // character, which does not fit the budget sized for a general exchange.
+  //
+  const compactWordLimit = ctx.storyEvent?.maxWords ??
+    (ctx.blockquoteHint !== 'none' ? 130 : 100) +
+    (ctx.targetNpcInterview?.topic ? 50 : 0) +
+    (ctx.extraWordBudget ?? 0);
+  // Most of Act 0 is compact turns, so the register note has to live here too —
+  // it was full-mode only, and the model spent every examine writing Holmes
+  // bored, stagnant and coiled, which is precisely the reading the act is built
+  // to withhold until he has earned it.
+  const act0CompactNote = ctx.act === 0
+    ? '\nACT 0 REGISTER: Holmes is engaged and in good humour this evening — he has been reading strangers out of the holiday crowd for the pleasure of it. Do not describe him as bored, restless, stagnating, listless, coiled, or starved of a problem, and do not have him volunteer that modern crime is dull or that the great cases are finished. If the Result below gives him such a line, follow the Result; otherwise he does not think it yet.'
+      + (ctx.npcsPresent.some(n => n.npcId === 'mrs_kemp') || ctx.storyEvent
+        ? '\n'
+        // Positive phrasing — see the full-mode note: spelling out that nobody
+        // has called is what produced a caller.
+        : ' The cast of this scene is exactly two, Holmes and Watson, alone in the room with the evening to themselves.\n')
+    : '';
+let compactPrompt = `=== NARRATION MODE: COMPACT ===
+${ctx.storyEvent
+    ? `Write one coherent Watson response (max ${compactWordLimit} words total), using short paragraphs as the ordered event requires.`
+    : `Write 2 short paragraphs separated by a blank line (max ${compactWordLimit} words total) — unless the response is a single brief sentence (e.g. a blocked action), which stays one line.`} Do NOT include any Markdown heading. NO act header. NO location description. NO exits listing.
+${act0CompactNote}${dayStepSection}${temporalSection}
 === VERIFIED CONTEXT ===
 Location: ${ctx.locationName} (Act ${ctx.act}: ${ctx.actName})
 NPCs present (use labels exactly): ${npcLabelList}
@@ -335,17 +453,50 @@ Scenery here (verified — the only objects/props present; do not introduce any 
 Watson's inventory (verified — never narrate him lacking or searching for these): ${ctx.inventory.length > 0 ? ctx.inventory.join(', ') : 'empty'}
 ${memorySection}${atmosphericNoteSection}
 === ACTION ===
-${ctx.actionDescription}
+${ctx.actionDescription}${playerInputLine}
 Result: ${ctx.actionResultNote}
-${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${clueSection}${synthesisSection}${approachBlock}`;
+${itemsGainedSection}${recentOpeningsSection}${clockEventSection}${worldEventsSection}${clueSection}${synthesisSection}`;
 
-  if (ctx.targetNpcInterview) {
-    const { label, isIntroduced, introducingThisTurn, realName, role, speakingStyle, personality, knowledgeEnvelope, playerQuestion, recentlyHeard } = ctx.targetNpcInterview;
-    const nameInstruction = isIntroduced
+  const interviewNameInstruction = (
+    interview: NonNullable<NarrationContext['targetNpcInterview']>,
+  ): string => {
+    const { label, isIntroduced, introducingThisTurn, realName, role } = interview;
+    return isIntroduced
       ? `Watson is speaking with: ${label} (${role})`
       : introducingThisTurn
       ? `Watson is speaking with: ${label} (${role}) — until this moment a stranger whose name Watson did not know. THIS IS THE TURN HE COMES FORWARD AND GIVES HIS NAME. Have him state his name, "${realName}", naturally in his own dialogue near the start of his reply (e.g. "${realName}, sir — ..."). Only after he has spoken it may the narration use "${realName}"; Watson registers it as he hears it. Do not have Watson know the name before it is said aloud.`
       : `Watson is speaking with: ${label} — their real name is unknown to Watson. Refer to them only as "${label}" throughout.`;
+  };
+
+  if (ctx.targetNpcInterview && ctx.storyEvent) {
+    const interview = ctx.targetNpcInterview;
+    compactPrompt += `
+
+=== STORY EVENT CHARACTER ===
+${interviewNameInstruction(interview)}
+Role: ${interview.role}
+Speaking style: ${interview.speakingStyle}
+Personality: ${interview.personality.join(', ')}
+Use this section only for identity, alias and manner. The REQUIRED STORY EVENT supplies the turn's facts; do not answer from general knowledge or unrelated topic directives.`;
+  }
+
+  if (!ctx.targetNpcInterview && ctx.storyEvent && ctx.storyEventCharacter) {
+    const character = ctx.storyEventCharacter;
+    compactPrompt += `
+
+=== STORY EVENT CHARACTER ===
+${character.isIntroduced
+  ? `Story event speaker: ${character.label} (${character.role})`
+  : `Story event speaker: ${character.label}. Refer to them only as "${character.label}"; Watson does not know another name.`}
+Role: ${character.role}
+Speaking style: ${character.speakingStyle}
+Personality: ${character.personality.join(', ')}
+Use this section only for identity, alias and manner. The REQUIRED STORY EVENT supplies the turn's facts; do not add knowledge or unrelated topics.`;
+  }
+
+  if (ctx.targetNpcInterview && !ctx.storyEvent) {
+    const { label, speakingStyle, personality, knowledgeEnvelope, playerQuestion, recentlyHeard, topic, topicMissed, suggestedTopics } = ctx.targetNpcInterview;
+    const nameInstruction = interviewNameInstruction(ctx.targetNpcInterview);
     // Token diet: cap the knowledge envelope at 8 items, preferring those that
     // overlap the player's question (simple keyword match), falling back to
     // the author-ordered head of the list.
@@ -374,7 +525,7 @@ Speaking style: ${speakingStyle}
 Personality: ${personality.join(', ')}
 Watson's question / statement: "${playerQuestion}"
 
-WHAT THIS CHARACTER KNOWS (hard ceiling — do not invent facts beyond this list):
+WHAT THIS CHARACTER KNOWS (hard ceiling — do not invent facts beyond this list, and do not make anything in it more precise than it is: a figure such as "nine days" is said exactly so, never converted into a weekday or a date, and a person named here has no other identity):
 ${envelopeItems.map((f, i) => `${i + 1}. ${f}`).join('\n')}
 ${recentlyHeardSection}
 Structure the reply as 2–3 short paragraphs separated by blank lines, for legibility:
@@ -383,6 +534,30 @@ Structure the reply as 2–3 short paragraphs separated by blank lines, for legi
 - If the question touches something in the knowledge list, answer directly in character.
 - If asked something outside their knowledge, deflect naturally — stay in character.
 - Express personality through HOW they answer. Do NOT invent clues or facts not listed above.`;
+
+    // Three shapes of TALK. The engine has already decided which one applies —
+    // whether the named subject landed, missed, or was never given — so the
+    // model is told what to deliver, never left to choose.
+    if (topic) {
+      compactPrompt += `
+
+WATSON HAS ASKED ABOUT A SPECIFIC SUBJECT: ${topic.label}
+This is the answer, and this turn belongs to it — deliver it in ${label}'s own voice, at length enough to satisfy the asking:
+${topic.statement}
+Do not wander to other subjects, and do not append a list of what else Watson might ask. Their manner may colour the answer — reluctance, pride, weariness — but the substance above must come across.`;
+    } else if (topicMissed) {
+      compactPrompt += `
+
+WATSON HAS ASKED ABOUT: "${topicMissed}" — no further authored detail exists on this subject beyond what this turn's context already shows.
+Have them decline in character: a shrug, a deflection to what they do know, or a plain "there is nothing more to it," according to their manner. CRITICAL — if this subject (or the thing it names) was already stated anywhere in THIS turn's own context above (the ACTION/Result lines, a REQUIRED STORY EVENT beat, their own dialogue this scene), they must NOT claim not to recognise it, deny knowing it, or act as though the name means nothing to them — that would flatly contradict what was just established and break the scene. In that case have them acknowledge it but decline to add anything further ("I have told you what it signifies, Watson" / a repeat of the little that is known), never blank ignorance of their own recent words. They must NOT invent a new answer, and must NOT pretend the subject is forbidden or significant. Watson takes the refusal without pressing.`;
+    } else if (suggestedTopics && suggestedTopics.length > 0) {
+      compactPrompt += `
+
+THIS IS AN OPENING EXCHANGE — Watson has greeted ${label} without asking anything in particular.
+Have them respond in character and, in the natural course of speaking, let these subjects surface as things on their mind — mentioned in passing, NOT offered as a list or a menu, and NOT explained:
+${suggestedTopics.map(t => `• ${t}`).join('\n')}
+Reveal nothing of substance about any of them — a subject named is not a subject answered. Watson must ask directly to learn anything. Do not have the character invite questions or say what they could tell him.`;
+    }
 
     if (ctx.blockquoteHint === 'inner_thought') {
       compactPrompt += `
@@ -399,7 +574,15 @@ NO blockquote this turn.`;
     }
   } else {
     compactPrompt += `
-Narrate only this specific action, broken into 2 short paragraphs separated by a blank line for legibility (a trivial blocked action may stay a single line). If talking: the NPC's spoken response as the first paragraph, then Watson's reaction as the second. If examining: Watson's direct observation, then its forensic implication or his reflection. If blocked: why Watson could not proceed, in character.`;
+Narrate only this specific action, broken into 2 short paragraphs separated by a blank line for legibility (a trivial blocked action may stay a single line). If talking: the NPC's spoken response as the first paragraph, then Watson's reaction as the second. If examining: Watson's direct observation, then its forensic implication or his reflection. If blocked: why Watson could not proceed, in character.
+
+WHEN HOLMES IS PRESENT AND MAKING DEDUCTIONS — THIS IS A HARD REQUIREMENT, NOT A STYLE PREFERENCE:
+- Every deduction or observation Holmes makes MUST appear as a direct quotation inside quotation marks, attributed with a dialogue tag ("...," Holmes said / observed / remarked). It is a FORMAT VIOLATION to summarize what Holmes concluded in Watson's third-person narration instead of quoting Holmes's actual words.
+- WRONG (reported speech — do not do this): Holmes remarked that the fellow had walked from Hampstead to save the fare.
+- RIGHT (direct quotation — do this): "He walked from Hampstead to save the fare," Holmes remarked.
+- Invent Holmes's exact wording fresh each time — do not reuse or lightly reword any example scenario from these instructions; the deduction's subject and content are yours to invent from the verified context, only the FORMAT (a quoted line) is fixed.
+- When Holmes shifts focus between different people or observations, start a new paragraph for each — never chain two separate deductions in one paragraph.
+- Watson may frame or briefly react to a deduction, but the deduction itself must be Holmes's quoted words, not Watson's paraphrase of them.`;
 
     if (ctx.blockquoteHint === 'inner_thought') {
       compactPrompt += `
@@ -444,6 +627,10 @@ Apply only when the action in the scene makes it plausible.
 
 ${ctx.npcScriptedLines.map(s => `**${s.label}**: ${s.instruction}`).join('\n\n')}`;
   }
+
+  // Keep the pivotal contract last so ordinary action/interview structure
+  // cannot dilute or contradict the engine-authored semantic order.
+  if (ctx.storyEvent) compactPrompt += storyEventSection;
 
   return compactPrompt;
 }
@@ -490,6 +677,120 @@ function extractMarkdownFromPartialJson(json: string): string {
   }
 
   return result;
+}
+
+/**
+ * Add only deterministic presentation chrome to Gemini's completed response.
+ * Story-event beats belong inside the generated Watson prose; the server never
+ * appends their authored wording after generation.
+ */
+export function finalizeNarrationResponse(
+  ctx: NarrationContext,
+  response: NarrationResponse,
+): NarrationResponse {
+  const parsed: NarrationResponse = { ...response };
+
+  // The schema expresses stimUpdate as an array (Gemini structured output
+  // cannot describe an arbitrary-key map); the rest of the app consumes it as
+  // a Record<key, STIMEntry>. Normalize here. turnCreated is set by the
+  // consumer, so 0 is a placeholder.
+  const rawStim = parsed.stimUpdate as unknown;
+  if (Array.isArray(rawStim)) {
+    const record: Record<string, STIMEntry> = {};
+    for (const e of rawStim as Array<{ key?: string; summary?: string; scope?: STIMEntry['scope'] }>) {
+      if (e?.key && e.summary && e.scope) {
+        record[e.key] = { summary: e.summary, scope: e.scope, turnCreated: 0 };
+      }
+    }
+    parsed.stimUpdate = Object.keys(record).length > 0 ? record : undefined;
+  }
+
+  // A short mechanical notice may follow the integrated prose. Unlike the
+  // semantic beats, this is engine-owned state the player must see plainly.
+  if (ctx.storyEvent?.notice) {
+    parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + ctx.storyEvent.notice;
+  }
+
+  // Who came or went this turn. Appended on EVERY mode, unlike the verified
+  // data summary below: presence can change on a compact turn.
+  const presenceLines: string[] = [
+    ...(ctx.npcsArrived ?? []).map(label => `**${label}** has arrived.`),
+    ...(ctx.npcsDeparted ?? []).map(label => `**${label}** has left.`),
+  ];
+  if (presenceLines.length > 0) {
+    parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + presenceLines.join('\n\n');
+  }
+
+  // For full-mode turns (move / look-around), append a verified data summary.
+  // This block is built from engine-confirmed data — the AI cannot hallucinate it.
+  if (ctx.narrationMode === 'full' || ctx.narrationMode === 'opening') {
+    const lines: string[] = [];
+    if (ctx.npcsPresent.length > 0) {
+      const named = ctx.npcsPresent.map(n => `**${n.label}**`);
+      const sentence =
+        named.length === 1
+          ? `${named[0]} is here.`
+          : named.length === 2
+          ? `${named[0]} and ${named[1]} are here.`
+          : `${named.slice(0, -1).join(', ')}, and ${named[named.length - 1]} are here.`;
+      lines.push(sentence);
+    }
+    if (ctx.availableObjects.length > 0) {
+      lines.push(`**Objects of interest:** ${ctx.availableObjects.join(', ')}`);
+    }
+    if (ctx.availableExits.length > 0) {
+      lines.push(`**Possible exits:** ${ctx.availableExits.join(', ')}`);
+    } else {
+      lines.push(`**No exits available yet** — investigate your surroundings first.`);
+    }
+    if (lines.length > 0) {
+      parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + lines.join('\n');
+    }
+  }
+
+  return parsed;
+}
+
+/** Parse the completed Gemini JSON, then apply deterministic presentation facts. */
+export function parseFinalNarrationResponse(
+  ctx: NarrationContext,
+  fullJsonText: string,
+  lastNarrative: string,
+): NarrationResponse {
+  const fallbackNarrative = lastNarrative.trim().length > 0
+    ? lastNarrative
+    : 'The ink on Watson\'s pen ran dry.';
+  let parsed: NarrationResponse;
+  try {
+    let clean = fullJsonText.replace(/^```json\s*/m, '').replace(/^```\s*/m, '').replace(/\s*```$/m, '');
+    const start = clean.indexOf('{');
+    const end = clean.lastIndexOf('}');
+    if (start !== -1 && end !== -1) clean = clean.substring(start, end + 1);
+    parsed = JSON.parse(clean) as NarrationResponse;
+  } catch {
+    if (ctx.storyEvent) {
+      throw new Error('Invalid story event narration response: Gemini returned malformed JSON.');
+    }
+    parsed = { markdownOutput: fallbackNarrative };
+  }
+
+  const hasNarrationProse = Boolean(
+    parsed &&
+    typeof parsed.markdownOutput === 'string' &&
+    parsed.markdownOutput.trim().length > 0,
+  );
+  if (!hasNarrationProse) {
+    if (ctx.storyEvent) {
+      throw new Error('Missing story event narration prose in Gemini\'s final response.');
+    }
+    const metadata = parsed && typeof parsed === 'object' ? parsed : {};
+    parsed = {
+      ...metadata,
+      markdownOutput: fallbackNarrative,
+    };
+  }
+
+  return finalizeNarrationResponse(ctx, parsed);
 }
 
 // ============================================================
@@ -562,61 +863,7 @@ export class AIService {
       }
     }
 
-    // Parse final response
-    let parsed: NarrationResponse | undefined;
-    try {
-      // Strip markdown code fences if present
-      let clean = fullJsonText.replace(/^```json\s*/m, '').replace(/^```\s*/m, '').replace(/\s*```$/m, '');
-      const start = clean.indexOf('{');
-      const end = clean.lastIndexOf('}');
-      if (start !== -1 && end !== -1) clean = clean.substring(start, end + 1);
-      parsed = JSON.parse(clean) as NarrationResponse;
-    } catch {
-      parsed = { markdownOutput: lastNarrative || 'The ink on Watson\'s pen ran dry.' };
-    }
-
-    // The schema expresses stimUpdate as an array (Gemini structured output
-    // cannot describe an arbitrary-key map); the rest of the app consumes it as
-    // a Record<key, STIMEntry>. Normalize here. turnCreated is set by the
-    // consumer, so 0 is a placeholder.
-    const rawStim = parsed.stimUpdate as unknown;
-    if (Array.isArray(rawStim)) {
-      const record: Record<string, STIMEntry> = {};
-      for (const e of rawStim as Array<{ key?: string; summary?: string; scope?: STIMEntry['scope'] }>) {
-        if (e?.key && e.summary && e.scope) {
-          record[e.key] = { summary: e.summary, scope: e.scope, turnCreated: 0 };
-        }
-      }
-      parsed.stimUpdate = Object.keys(record).length > 0 ? record : undefined;
-    }
-
-    // For full-mode turns (move / look-around), append a verified data summary.
-    // This block is built from engine-confirmed data — the AI cannot hallucinate it.
-    if (ctx.narrationMode === 'full' || ctx.narrationMode === 'opening') {
-      const lines: string[] = [];
-      if (ctx.npcsPresent.length > 0) {
-        const named = ctx.npcsPresent.map(n => `**${n.label}**`);
-        const sentence =
-          named.length === 1
-            ? `${named[0]} is here.`
-            : named.length === 2
-            ? `${named[0]} and ${named[1]} are here.`
-            : `${named.slice(0, -1).join(', ')}, and ${named[named.length - 1]} are here.`;
-        lines.push(sentence);
-      }
-      if (ctx.availableObjects.length > 0) {
-        lines.push(`**Objects of interest:** ${ctx.availableObjects.join(', ')}`);
-      }
-      if (ctx.availableExits.length > 0) {
-        lines.push(`**Possible exits:** ${ctx.availableExits.join(', ')}`);
-      } else {
-        // Prologue or locked location — give the player a clear signal rather than silence
-        lines.push(`**No exits available yet** — investigate your surroundings first.`);
-      }
-      if (lines.length > 0) {
-        parsed.markdownOutput = parsed.markdownOutput.trimEnd() + '\n\n' + lines.join('\n');
-      }
-    }
+    const parsed = parseFinalNarrationResponse(ctx, fullJsonText, lastNarrative);
 
     yield { narrative: parsed.markdownOutput, fullJson: fullJsonText, isComplete: true, parsed };
   }
@@ -823,6 +1070,38 @@ Write a short diary entry recording this. First-person past tense, Watson's voic
       );
     } catch {
       return { intent: null, invalidArgs: false };
+    }
+  }
+
+  /**
+   * TALK-topic recovery: map a subject the player typed onto one the story has
+   * actually authored for this NPC right now. Selection only — the enum is the
+   * candidate list, so a fact outside it (or spoiler-gated out of it) cannot be
+   * reached. Returns null for no confident match, which the caller treats as an
+   * ordinary miss and deflects in character.
+   */
+  async parseTopic(
+    playerPhrase: string,
+    npcLabel: string,
+    candidates: TopicCandidate[],
+  ): Promise<{ phrase: string; factId: string } | null> {
+    if (candidates.length === 0) return null;
+    try {
+      const prompt = buildTopicPrompt(playerPhrase, npcLabel, candidates);
+      logPromptSize('parseTopic', '', prompt);
+      const response = await this.ai.models.generateContent({
+        model: MODEL_ID,
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          thinkingConfig: { thinkingBudget: 0 },
+          responseMimeType: 'application/json',
+          responseSchema: buildTopicSchema(candidates) as never,
+        },
+      });
+      const parsed = JSON.parse(response.text ?? '{}') as { topic?: unknown };
+      return validateTopicChoice(parsed.topic, candidates);
+    } catch {
+      return null;
     }
   }
 }

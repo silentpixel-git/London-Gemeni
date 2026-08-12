@@ -2,6 +2,17 @@
 import type { StoryFact } from './types';
 
 /**
+ * Is this fact live for the NPC right now — act gate passed AND every
+ * requireFlag set? The single admission test, applied identically to the
+ * knowledge envelope and to askability, so a fact can never be spoken as
+ * background before it can be asked for.
+ */
+function factIsAvailable(f: StoryFact, currentAct: number, flags: Record<string, boolean>): boolean {
+  if (f.visibleFromAct > currentAct) return false;
+  return (f.requireFlags ?? []).every(flag => flags[flag] === true);
+}
+
+/**
  * Derive an NPC's knowledge envelope from the fact graph: every fact this NPC
  * knows whose act gate has passed, in fact-file order (author order matters —
  * aiCore's 8-item cap falls back to the head of this list).
@@ -10,8 +21,156 @@ export function deriveKnowledgeEnvelope(
   facts: StoryFact[],
   npcId: string,
   currentAct: number,
+  flags: Record<string, boolean> = {},
 ): string[] {
   return facts
-    .filter(f => f.knownBy.includes(npcId) && f.visibleFromAct <= currentAct)
+    .filter(f => f.knownBy.includes(npcId) && factIsAvailable(f, currentAct, flags))
     .map(f => f.statement);
+}
+
+/**
+ * The facts this NPC can be ASKED about right now: known by them, act-gated
+ * open, and carrying at least one topic phrase. Same filter as the knowledge
+ * envelope, narrowed to what a player can name — so spoiler gating stays
+ * mechanical and a fact can never be requested before its act.
+ */
+export function askableFacts(
+  facts: StoryFact[],
+  npcId: string,
+  currentAct: number,
+  flags: Record<string, boolean> = {},
+): StoryFact[] {
+  return facts.filter(f =>
+    f.knownBy.includes(npcId) &&
+    factIsAvailable(f, currentAct, flags) &&
+    !!f.topics?.length);
+}
+
+/**
+ * Up to `limit` subjects for a bare TALK's opening exchange to let surface,
+ * preferring what Watson has not already raised with this NPC so a second
+ * conversation does not offer the same three things back.
+ *
+ * Labels are each fact's first topic phrase — authored as the noun phrase a
+ * player would plausibly type, so what the reply mentions is also what the
+ * parser will accept.
+ */
+export function suggestTopics(
+  facts: StoryFact[],
+  npcId: string,
+  currentAct: number,
+  flags: Record<string, boolean>,
+  limit = 3,
+): string[] | undefined {
+  const askable = askableFacts(facts, npcId, currentAct, flags);
+  const unasked = askable.filter(f => !flags[`asked_${npcId}_about_${f.id}`]);
+  // Everything already covered: the opening exchange offers nothing rather than
+  // repeating spent subjects.
+  const pool = unasked.length > 0 ? unasked : [];
+  return pool.length > 0 ? pool.slice(0, limit).map(f => f.topics![0]) : undefined;
+}
+
+/**
+ * Resolve what the player typed after "about" to one askable fact.
+ *
+ * Matching is deliberately generous — the player is typing free text at a
+ * person, not selecting from a menu — but never ambiguous: an exact topic hit
+ * always beats a partial one, and among partials the longest matched topic
+ * wins, so "the letter" and "the from hell letter" resolve to different facts
+ * rather than whichever was authored first.
+ *
+ * Returns undefined when nothing matches, which the resolver renders as the NPC
+ * having nothing to say on the subject — never as a parse failure.
+ */
+/**
+ * Topics are authored in the second person, as Watson would put the question:
+ * "when you last saw her", "your sister". Players routinely ask in the third,
+ * about the person rather than to them: "when she last saw her sister", "why he
+ * finds modern crime so dull". Canonicalising the persons on BOTH sides is what
+ * stops those missing each other; the result need not be grammatical, only
+ * consistent, since the same transform is applied to query and topic alike.
+ */
+function canonicalisePersons(s: string): string {
+  // Every person collapses to ONE token rather than second-person forms,
+  // because "her" is possessive in "her sister" and objective in "brings her
+  // here", and no single rewrite serves both. Collapsing sidesteps the
+  // ambiguity entirely: only consistency between the two sides matters.
+  return s
+    .replace(/\b(?:he|she|they|him|her|them|his|their|hers|theirs|you|your|yours)\b/g, '_p_')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Conversational lead-ins the player wraps a subject in. Stripped before
+ * matching so "tell me about the boots" stays as deterministic as "the boots" —
+ * without this the specificity gate below reads the padding as query length and
+ * pushes clear input into the AI tier for no reason.
+ * Longest-first so "tell me more about" is consumed before "tell me about".
+ */
+const TOPIC_LEAD_INS = [
+  'tell me more about', 'tell me about', 'do you know anything about',
+  'do you know about', 'what do you know about', 'what do you make of',
+  'what about', 'ask about', 'more about',
+];
+
+function stripLeadIn(s: string): string {
+  for (const lead of TOPIC_LEAD_INS) {
+    if (s.startsWith(lead + ' ')) return s.slice(lead.length + 1).trim();
+  }
+  return s;
+}
+
+/**
+ * How much of the player's query an authored topic must cover before a
+ * containment match counts, in the direction where the player typed MORE than
+ * the topic. Below this the topic is being *mentioned* rather than asked about
+ * — "where nell was lodging" is not a question about Nell-is-missing just
+ * because it contains "nell" — and the turn is better served by the AI tier,
+ * which can weigh the whole sentence. Applies only to that direction: a player
+ * typing LESS than the authored phrase ("graffiti" for "the goulston street
+ * graffiti") is a normal abbreviation and stays deterministic.
+ * 0.30 measured against qa:topics: tier-1 accuracy is unchanged at 618/618.
+ */
+const MIN_QUERY_COVERAGE = 0.30;
+
+export function matchTopic(
+  facts: StoryFact[],
+  npcId: string,
+  currentAct: number,
+  topicRaw: string,
+  flags: Record<string, boolean> = {},
+): StoryFact | undefined {
+  const q = canonicalisePersons(
+    stripLeadIn(topicRaw.toLowerCase().trim())
+      .replace(/^(the|a|an|his|her|their|that|this)\s+/, '').trim());
+  // A bare pronoun names no fact by itself. Let scene-local story events own
+  // phrases such as "ask Holmes about them" instead of guessing whichever
+  // authored topic happens to contain a person token.
+  if (!q || q === '_p_') return undefined;
+  const candidates = askableFacts(facts, npcId, currentAct, flags);
+
+  let exact: StoryFact | undefined;
+  let partial: { fact: StoryFact; len: number } | undefined;
+
+  for (const f of candidates) {
+    for (const raw of f.topics!) {
+      const t = canonicalisePersons(raw.toLowerCase().replace(/^(the|a|an)\s+/, '').trim());
+      if (!t) continue;
+      if (t === q) { exact ??= f; continue; }
+      // Player typed LESS than the authored topic ("graffiti" for "the goulston
+      // street graffiti") — a normal abbreviation, always accepted.
+      if (t.includes(q)) {
+        if (!partial || t.length > partial.len) partial = { fact: f, len: t.length };
+        continue;
+      }
+      // Player typed MORE than the topic. Accept only if the topic accounts for
+      // a real share of what they said; otherwise it is an incidental mention
+      // and the AI tier should arbitrate (see MIN_QUERY_COVERAGE).
+      if (q.includes(t) && t.length / q.length >= MIN_QUERY_COVERAGE) {
+        if (!partial || t.length > partial.len) partial = { fact: f, len: t.length };
+      }
+    }
+  }
+  return exact ?? partial?.fact;
 }

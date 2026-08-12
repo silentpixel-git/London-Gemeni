@@ -22,6 +22,7 @@
 import { parseIntent } from '../engine/intentParser';
 import { LOCATIONS, NPCS } from '../engine/gameData';
 import { CLUE_TRIGGERS } from '../engine/stories/whitechapel-1888/clues';
+import { OBJECT_VISIBILITY } from '../engine/stories/whitechapel-1888/locations';
 import { toolCallToIntent } from '../server/parseAction.js';
 import { needsAiParse, buildParseCandidates } from '../engine/parseFallback';
 import type { ParseCandidates } from '../types';
@@ -46,13 +47,24 @@ const OBJECT_LOCATION: Record<string, string> = (() => {
 // Categories: exact (display name), alias (known synonym), typo (1–2 char slip),
 // partial (subset of the name), paraphrase (natural language — AI territory).
 const FIXTURES: Fixture[] = [
-  { objectId: 'case_files_wall', phrasings: [
-    { text: 'case files wall', category: 'exact' },
-    { text: 'case wall', category: 'partial' },
-    { text: 'case fles wall', category: 'typo' },
-    { text: 'case files wal', category: 'typo' },
-    { text: 'wall of case papers', category: 'paraphrase' },
-    { text: "Holmes's board of cases", category: 'paraphrase' },
+  // Act 0's key object, replacing the retired case_files_wall fixture. Bears no
+  // clue (Act 0 yields none) but it is the object the act's tutorial chain turns
+  // on, so its vocabulary matters more than most.
+  { objectId: 'pawn_ticket', phrasings: [
+    { text: 'pawn ticket', category: 'exact' },
+    { text: 'ticket', category: 'alias' },
+    { text: 'pledge', category: 'alias' },
+    { text: 'pawn tickt', category: 'typo' },
+    { text: 'pwan ticket', category: 'typo' },
+  ]},
+  // Nell's boots are their own object (Task 6) — "boots" used to be a stale
+  // alias for pawn_ticket from before this object existed; it correctly
+  // resolves here now, via the display name "Nell's Boots" itself rather than
+  // any hardcoded alias.
+  { objectId: 'nells_boots', phrasings: [
+    { text: "nell's boots", category: 'exact' },
+    { text: 'boots', category: 'alias' },
+    { text: 'nells bootss', category: 'typo' },
   ]},
   { objectId: 'burned_clothing', phrasings: [
     { text: 'burned clothing', category: 'exact' },
@@ -160,7 +172,11 @@ const FIXTURES: Fixture[] = [
   { objectId: 'edmund_room_furnishings', phrasings: [
     { text: "edmund's room", category: 'alias' },
     { text: 'furnishings', category: 'alias' },
-    { text: 'the room', category: 'partial' },
+    // "the room" is deliberately NO LONGER an alias here: it now reads as a
+    // look-around everywhere (BARE_LOOK_REMAINDERS), which is worth more than
+    // one asylum alias — it stopped "look around" resolving to a body-discovery
+    // site in every room in the game.
+    { text: 'the furnishings', category: 'partial' },
     { text: "the patient's quarters", category: 'paraphrase' },
   ]},
 ];
@@ -217,12 +233,18 @@ function runFastPathGuard(): void {
 
   // 1. Every tier-1 object phrasing that deterministically resolves must NOT
   //    trigger the AI parse (needsAiParse must be false for a clean hit).
+  //    Objects gated by OBJECT_VISIBILITY (e.g. pawn_ticket behind
+  //    world_event_kemp_arrives) need their gating flag set here, or
+  //    needsAiParse reads a correctly-hidden object as an unexpected AI-route
+  //    miss rather than testing the thing this check is actually for.
   for (const fx of FIXTURES) {
     const locId = OBJECT_LOCATION[fx.objectId];
+    const gateFlag = OBJECT_VISIBILITY[fx.objectId];
+    const flags = gateFlag ? { [gateFlag]: true } : {};
     for (const p of fx.phrasings) {
       if (p.category === 'paraphrase') continue;
       const intent = parseIntent(`examine ${p.text}`);
-      if (intent.targetId === fx.objectId && needsAiParse(intent, locId, [])) {
+      if (intent.targetId === fx.objectId && needsAiParse(intent, locId, [], flags)) {
         console.error(`  [FAIL] clean hit would still call AI: "examine ${p.text}" @ ${locId}`);
         failures++;
       }
@@ -231,14 +253,14 @@ function runFastPathGuard(): void {
 
   // 2. Misses MUST route: an unrecognised action phrase triggers the AI parse.
   const miss = parseIntent('crouch down and look under the sleeping pallet');
-  if (!needsAiParse(miss, 'millers_court', [])) {
+  if (!needsAiParse(miss, 'millers_court', [], {})) {
     console.error('  [FAIL] unparseable action did not route to the AI parse');
     failures++;
   }
 
   // 3. World questions never route (queries stay with narration).
   const q = parseIntent('why would the killer strike twice in one night');
-  if (q.type !== 'query' || needsAiParse(q, 'baker_street', [])) {
+  if (q.type !== 'query' || needsAiParse(q, 'baker_street', [], {})) {
     console.error('  [FAIL] query routed to the AI parse');
     failures++;
   }
@@ -246,7 +268,7 @@ function runFastPathGuard(): void {
   // 3b. WAIT is a free offline verb — it must parse deterministically and
   //     never route to the AI parse.
   const w = parseIntent('wait');
-  if (w.type !== 'wait' || needsAiParse(w, 'baker_street', [])) {
+  if (w.type !== 'wait' || needsAiParse(w, 'baker_street', [], {})) {
     console.error('  [FAIL] wait did not stay on the offline fast path');
     failures++;
   }
@@ -255,7 +277,7 @@ function runFastPathGuard(): void {
   //    name must never appear in the people candidates.
   for (const locId of Object.keys(LOCATIONS)) {
     for (let act = 0; act <= 6; act++) {
-      const c = buildParseCandidates(locId, [], {}, act, [], 0);
+      const c = buildParseCandidates(locId, [], {}, act, [], 0, {});
       for (const person of c.people) {
         const npc = NPCS[person.id];
         if (npc?.requiresIntroduction && person.name.includes(npc.displayName)) {
@@ -338,15 +360,27 @@ function runToolCallValidationChecks(): void {
 // A fixture that the regex resolves is asserted offline (fast-path proof);
 // one that misses is asserted through the tool-call pass (gateway tier).
 interface IntentFixture {
-  scene: { location: string; act: number; inventory?: string[] };
+  // `flags` is optional and only needed when a fixture's outcome depends on
+  // OBJECT_VISIBILITY gating inside needsAiParse (e.g. an EXAMINE target that's
+  // hidden behind a world-event flag) — most fixtures don't need it.
+  scene: { location: string; act: number; inventory?: string[]; flags?: Record<string, boolean> };
   input: string;
   expect:
-    | { type: 'move' | 'examine' | 'talk' | 'take' | 'read' | 'drop'; targetId: string }
+    // `topicRaw` applies to talk only: the subject text the parser must peel off
+    // an "ask X about Y" command for the TALK resolver to match against the fact
+    // graph. Asserting it here keeps the split independent of the story data.
+    // `targetId` is optional so a bare "look" (look-around, no target) can be
+    // asserted too — intentMatches then requires got.targetId to be undefined.
+    | { type: 'move' | 'examine' | 'talk' | 'take' | 'read' | 'drop' | 'open'; targetId?: string; topicRaw?: string }
     | { type: 'show'; targetId: string; showTargetNpcId: string }
     | { type: 'deduce' }
     | { type: 'wait' }
     | { type: 'query' }
-    | { type: 'none' }; // AI must decline to act (no_action → null intent)
+    | { type: 'none' } // AI must decline to act (no_action → null intent)
+    // Act 0's withhold branch is authored in story-event data. The generic
+    // parser leaves it as `other`; needsAiParse keeps a manifest raw-phrase
+    // trigger on the deterministic path.
+    | { type: 'other'; targetRaw?: string };
 }
 
 const INTENT_FIXTURES: IntentFixture[] = [
@@ -358,10 +392,40 @@ const INTENT_FIXTURES: IntentFixture[] = [
   // examine via AI. Gateway tier: the model reads this as 'read' rather than
   // 'examine' (both are semantically defensible for a pile of documents) —
   // matched to the observed, equally-valid outcome rather than treated as a miss.
-  { scene: { location: 'baker_street', act: 1 }, input: 'pore over the stack of telegrams',
-    expect: { type: 'read', targetId: 'telegrams_pile' } },
+  { scene: { location: 'whitechapel_mortuary', act: 2 }, input: 'pore over the post-mortem record book',
+    expect: { type: 'read', targetId: 'autopsy_ledger' } },
   { scene: { location: 'millers_court', act: 4 }, input: 'crouch down and look under the sleeping pallet',
     expect: { type: 'examine', targetId: 'the_bed' } },
+  // topic-scoped talk — all offline (the split is pure string work). Covers each
+  // supported preposition and the guard that a bare talk carries no topic at
+  // all. The no-subject form ("ask about X") is covered in qa-engine instead:
+  // with no NPC named the regex parse is a miss and routes to the AI tier, so a
+  // fixture here would assert nothing without a key.
+  { scene: { location: 'dorset_street', act: 1 }, input: 'ask hutchinson about the man you saw',
+    expect: { type: 'talk', targetId: 'hutchinson', topicRaw: 'the man you saw' } },
+  { scene: { location: 'dorset_street', act: 1 }, input: 'talk to abberline regarding the graffiti',
+    expect: { type: 'talk', targetId: 'abberline', topicRaw: 'the graffiti' } },
+  { scene: { location: 'dorset_street', act: 1 }, input: 'question hutchinson concerning his description',
+    expect: { type: 'talk', targetId: 'hutchinson', topicRaw: 'his description' } },
+  { scene: { location: 'dorset_street', act: 1 }, input: 'speak to abberline on the subject of the press',
+    expect: { type: 'talk', targetId: 'abberline', topicRaw: 'the press' } },
+  { scene: { location: 'dorset_street', act: 1 }, input: 'talk to hutchinson',
+    expect: { type: 'talk', targetId: 'hutchinson', topicRaw: undefined } },
+  // QUESTION-FORM TALK — no "about" clause, which is how players actually ask.
+  // Before splitAddresseeFromQuestion these parsed as a bare talk with the
+  // question silently discarded, so no topic was ever credited and an act's
+  // asked_ gates were unreachable in play while every topic was authored
+  // correctly. A blind playtest found this; no deterministic suite could.
+  { scene: { location: 'baker_street', act: 0 }, input: 'ask holmes why he finds modern crime so dull',
+    expect: { type: 'talk', targetId: 'holmes', topicRaw: 'why he finds modern crime so dull' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'ask mrs kemp what brings her here tonight',
+    expect: { type: 'talk', targetId: 'mrs_kemp', topicRaw: 'what brings her here tonight' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'ask mrs kemp when she last saw her sister',
+    expect: { type: 'talk', targetId: 'mrs_kemp', topicRaw: 'when she last saw her sister' } },
+  // The guard: a trailing pleasantry is NOT a topic. Without this the ordinary
+  // second conversation degrades into "he has nothing to say on that".
+  { scene: { location: 'baker_street', act: 0 }, input: 'talk to mrs kemp again',
+    expect: { type: 'talk', targetId: 'mrs_kemp', topicRaw: undefined } },
   // talk via AI
   { scene: { location: 'dorset_street', act: 1 }, input: 'speak with the man who watched mary kelly that night',
     expect: { type: 'talk', targetId: 'hutchinson' } },
@@ -372,8 +436,8 @@ const INTENT_FIXTURES: IntentFixture[] = [
   { scene: { location: 'lusk_office', act: 4 }, input: 'gather up that vile correspondence',
     expect: { type: 'take', targetId: 'from_hell_letter' } },
   // read via AI
-  { scene: { location: 'baker_street', act: 1 }, input: 'read whatever the papers have printed about the murders',
-    expect: { type: 'read', targetId: 'newspaper_pile' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'read the slip the woman left on the table',
+    expect: { type: 'read', targetId: 'pawn_ticket' } },
   // show — offline ("present … to …" verb form) and via AI
   // Holmes only canonically stands at Baker Street in Act 0 (scheduleByAct);
   // Act 3/5 place him elsewhere, which would drop him from the AI candidate list.
@@ -393,9 +457,9 @@ const INTENT_FIXTURES: IntentFixture[] = [
   { scene: { location: 'whitechapel_mortuary', act: 2 }, input: 'i think we should tarry here a moment longer',
     expect: { type: 'wait' } },
   // drop via AI
-  { scene: { location: 'dorset_street', act: 1, inventory: ['Newspaper Clipping (the "Dear Boss" letter)'] },
-    input: 'rid myself of that wretched cutting',
-    expect: { type: 'drop', targetId: 'newspaper_pile' } },
+  { scene: { location: 'baker_street', act: 0, inventory: ["Nell's Pawn Ticket"] },
+    input: 'rid myself of that wretched slip of paper',
+    expect: { type: 'drop', targetId: 'pawn_ticket' } },
   // deduce (robust to being caught offline by DEDUCTION_KEYWORDS)
   { scene: { location: 'baker_street', act: 5 }, input: 'it must have been the quiet young assistant all along',
     expect: { type: 'deduce' } },
@@ -407,6 +471,90 @@ const INTENT_FIXTURES: IntentFixture[] = [
     expect: { type: 'none' } },
   { scene: { location: 'mitre_square', act: 3 }, input: 'hum a quiet tune to steady my nerves',
     expect: { type: 'none' } },
+  // OPEN — all offline. "workbox" is the game's own word for this object (see
+  // events.ts's Act 0 world-event text: "a closed tin workbox"), but its
+  // display name is deliberately "Nell's Workbasket" (see locations.ts) so
+  // that "the box" doesn't shadow parcel_box — which left "workbox" itself
+  // unrouted (it contains "box" as a raw substring, so it fell through to the
+  // 'box' → parcel_box alias). Fixed by adding a dedicated 'workbox' →
+  // nells_workbox alias in intentParser.ts (longer than "box", so "longest
+  // alias wins" keeps "the box" still resolving to parcel_box at Lusk
+  // Office). Both "workbox" and "workbasket" now resolve correctly, so both
+  // get permanent coverage below. nells_workbox is gated by OBJECT_VISIBILITY
+  // behind world_event_kemp_arrives, and needsAiParse's soft-miss check now
+  // covers OPEN too (see below), so the flag has to be set here or these
+  // clean resolutions would misread as an unexpected AI-route miss.
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'open the workbox',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'look inside the workbox',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'unlatch the workbox',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'open the workbasket',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'look inside the workbasket',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'look in the workbasket',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'unlatch the workbasket',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  // The fifth instance of this alias-collision class: the game's OWN hint
+  // text for the workbox objective says "the tin box she brought with her"
+  // (hints.ts), and nells_letters's own EXAMINE text calls itself "Eleven
+  // letters" — but "the tin box" / "the box" / "the letters" all resolve to
+  // the wrong, unrelated Act 4/5 objects (parcel_box / from_hell_letter) via
+  // the existing objectAliases table. Unlike "workbox", a literal alias can't
+  // fix this: "the box" legitimately means parcel_box at Lusk Office and
+  // nells_workbox at Baker Street — scene-blind aliases can't disambiguate
+  // that. Fixed instead by extending needsAiParse's soft-miss check (already
+  // used by EXAMINE to catch "resolved to a real object that isn't actually
+  // here") to also cover OPEN and READ, so these route to the AI's
+  // location-scoped candidate list rather than silently misresolving.
+  // These are "via AI" fixtures (needsAiParse now returns true at Baker
+  // Street, so parseIntent's raw — wrong — resolution is never asserted
+  // offline here); if the soft-miss fix ever regresses, these fall back into
+  // the offline-resolved bucket and fail there, since the offline intent's
+  // targetId would then be the wrong object.
+  { scene: { location: 'baker_street', act: 0 }, input: 'open the tin box',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'open the box',
+    expect: { type: 'open', targetId: 'nells_workbox' } },
+  { scene: { location: 'baker_street', act: 0 }, input: 'read the letters',
+    expect: { type: 'read', targetId: 'nells_letters' } },
+  // Non-regression: "the box" legitimately IS parcel_box at Lusk Office (Act
+  // 4/5) — the soft-miss check must only fire when the resolved target is
+  // ABSENT from the current scene, not when it's genuinely here. Offline.
+  { scene: { location: 'lusk_office', act: 4 }, input: 'open the box',
+    expect: { type: 'open', targetId: 'parcel_box' } },
+  // Act 0's withhold branch — offline via story-event rawPhrases, not a
+  // story-specific constant in the generic parser.
+  { scene: { location: 'baker_street', act: 0, inventory: ["A Subscriber's Card"] },
+    input: 'keep the card',
+    expect: { type: 'other', targetRaw: undefined } },
+  { scene: { location: 'baker_street', act: 0, inventory: ["A Subscriber's Card"] },
+    input: 'say nothing',
+    expect: { type: 'other', targetRaw: undefined } },
+  { scene: { location: 'baker_street', act: 0, inventory: ["A Subscriber's Card"] },
+    input: 'hold my tongue',
+    expect: { type: 'other', targetRaw: undefined } },
+  // Regression guard: bare "look" (no target) stays a look-around EXAMINE.
+  { scene: { location: 'baker_street', act: 0 }, input: 'look',
+    expect: { type: 'examine' } },
+  // Regression guard: "look at" stays EXAMINE — must not be swallowed by the
+  // OPEN dispatch block, which also matches "look in"/"look inside" phrasings.
+  // nells_boots is gated by OBJECT_VISIBILITY behind world_event_kemp_arrives,
+  // so the flag has to be set here or needsAiParse reads the gated object as
+  // an unexpected AI-route miss rather than testing the EXAMINE/OPEN split.
+  { scene: { location: 'baker_street', act: 0, flags: { world_event_kemp_arrives: true } },
+    input: 'look at the boots',
+    expect: { type: 'examine', targetId: 'nells_boots' } },
 ];
 
 function intentMatches(got: ParsedIntentResult, exp: IntentFixture['expect']): boolean {
@@ -415,9 +563,11 @@ function intentMatches(got: ParsedIntentResult, exp: IntentFixture['expect']): b
   if (exp.type === 'query') return got.type === 'query';
   if (exp.type === 'deduce') return got.type === 'deduce';
   if (exp.type === 'wait') return got.type === 'wait';
+  if (exp.type === 'other') return got.type === 'other' && got.targetRaw === exp.targetRaw;
   if (got.type !== exp.type) return false;
   if (got.targetId !== exp.targetId) return false;
   if (exp.type === 'show' && got.showTargetNpcId !== exp.showTargetNpcId) return false;
+  if ('topicRaw' in exp && got.topicRaw !== exp.topicRaw) return false;
   return true;
 }
 type ParsedIntentResult = ReturnType<typeof parseIntent> | null;
@@ -431,7 +581,8 @@ async function runIntentFixtures(): Promise<void> {
   for (const fx of INTENT_FIXTURES) {
     const intent = parseIntent(fx.input);
     const inv = fx.scene.inventory ?? [];
-    if (!needsAiParse(intent, fx.scene.location, inv)) {
+    const flags = fx.scene.flags ?? {};
+    if (!needsAiParse(intent, fx.scene.location, inv, flags)) {
       offTotal++;
       if (intentMatches(intent, fx.expect)) offHit++;
       else offMisses.push(`  [off ] "${fx.input}" → ${intent.type}/${intent.targetId ?? '-'} (want ${fx.expect.type})`);
@@ -448,7 +599,7 @@ async function runIntentFixtures(): Promise<void> {
     const { aiService } = await import('../server/aiCore');
     for (const fx of aiCases) {
       const inv = fx.scene.inventory ?? [];
-      const candidates = buildParseCandidates(fx.scene.location, inv, {}, fx.scene.act, [], 0);
+      const candidates = buildParseCandidates(fx.scene.location, inv, {}, fx.scene.act, [], 0, {});
       const res = await aiService.parseAction(fx.input, candidates);
       if (res.invalidArgs) enumFailures++;
       tcTotal++;
@@ -527,7 +678,7 @@ async function main() {
         const act = (LOCATIONS as Record<string, { act?: number }>)[m.locId]?.act ?? 0;
         const { intent } = await aiService.parseAction(
           `examine ${m.text}`,
-          buildParseCandidates(m.locId, [], {}, act, [], 0),
+          buildParseCandidates(m.locId, [], {}, act, [], 0, {}),
         );
         const got = intent?.targetId ?? null;
         const ok = got === m.objectId;
@@ -575,7 +726,7 @@ async function main() {
       try {
         const { intent } = await aiService.parseAction(
           `talk to ${m.text}`,
-          buildParseCandidates(m.scene.location, [], {}, m.scene.act, [], 0),
+          buildParseCandidates(m.scene.location, [], {}, m.scene.act, [], 0, {}),
         );
         const got = intent?.targetId ?? null;
         const ok = got === m.npcId;

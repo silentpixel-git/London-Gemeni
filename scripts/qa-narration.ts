@@ -23,33 +23,42 @@ import {
   LOCATIONS,
   ACT_NAMES,
 } from '../engine/gameData';
+import { buildAct0NarrationContexts } from './qa-narration-fixtures';
+import { findInventions } from './qa-invention';
 
 // ── Base fixture factory ──────────────────────────────────────────────────────
 
 function makeCtx(overrides: Partial<NarrationContext>): NarrationContext {
   return {
+    // Defaults are Act 0 as reworked: the August Bank Holiday, 6 Aug 1888.
+    // No case, no campaign, no fog. Every non-act-0 fixture below overrides
+    // availableObjects/availableExits/npcsPresent explicitly, so these defaults
+    // only shape the act-0 scenarios.
     locationName: 'Baker Street',
-    locationAtmosphere: 'Warm and intellectual — the familiar chaos of Holmes\'s working method.',
-    locationDescription: 'The sitting room of 221B, lined with case notes and chemical apparatus.',
+    locationAtmosphere: 'Warm lamplight and warmer air, both windows thrown up to the street. Holmes\' sitting room on a holiday evening, with nothing in it that wants solving.',
+    locationDescription: 'The sitting room of 221B on a warm night, the windows open to the noise of the holiday below.',
     locationTimeframe: 'present',
     act: 0,
-    actName: 'The Baker Street Vigil',
-    npcsPresent: [{ label: 'Sherlock Holmes', npcId: 'holmes', isIntroduced: true }],
-    availableObjects: ['Case Files Wall', 'Telegrams Pile'],
-    availableExits: ['Dorset Street'],
+    actName: 'The Bank Holiday',
+    npcsPresent: [
+      { label: 'Sherlock Holmes', npcId: 'holmes', isIntroduced: true },
+      { label: 'Mrs. Kemp', npcId: 'mrs_kemp', isIntroduced: true },
+    ],
+    availableObjects: ["Nell's Pawn Ticket", 'The Concluded Case', "Holmes' Chemistry Table", 'The Violin Case'],
+    availableExits: [],
     inventory: ["Watson's Diary", 'Pocket Watch'],
     watsonStats: { medicalPoints: 0, moralPoints: 0 },
     actionType: 'move',
     actionSuccess: true,
     actionDescription: 'Watson surveys the room.',
-    actionResultNote: 'Watson takes stock of the investigation.',
+    actionResultNote: 'Watson takes stock of the room and the caller waiting in it.',
     narrationMode: 'full',
     newCluesDiscovered: [],
     npcRecentMemory: {},
     blockquoteHint: 'world_event',
-    timeLabel: '10:45 PM — Friday, 9 November 1888',
+    timeLabel: '8:30 PM — Monday, 6 August 1888',
     timePeriod: 'night',
-    weather: { condition: 'foggy', label: 'Foggy' },
+    weather: { condition: 'clear-warm', label: 'Warm, Clear' },
     locationVisitCount: 1,
     ...overrides,
   };
@@ -250,10 +259,10 @@ const fixtures: Array<{ label: string; rubric: string; ctx: NarrationContext }> 
     ctx: makeCtx({
       narrationMode: 'opening',
       act: 0,
-      actName: 'The Baker Street Vigil',
+      actName: 'The Bank Holiday',
       actionDescription: "Watson arrives at Baker Street.",
-      actionResultNote: "Watson enters 221B for the first time in this investigation.",
-      timeLabel: '10:00 PM — Thursday, 8 November 1888',
+      actionResultNote: "Watson comes up to 221B on the evening of the Bank Holiday, with no case in prospect.",
+      timeLabel: '8:30 PM — Monday, 6 August 1888',
       timePeriod: 'night',
     }),
   },
@@ -380,6 +389,38 @@ const fixtures: Array<{ label: string; rubric: string; ctx: NarrationContext }> 
     // as a natural in-scene introduction, not an info-dump.
   },
 ];
+
+// Derive live fixtures from real engine results so visibility, inventory,
+// presence, aliases and fallback sanitation cannot drift from game state.
+for (const event of buildAct0NarrationContexts()) {
+  fixtures.push({
+    label: `story-event-${event.id}`,
+    rubric: '2c_writing_quality',
+    ctx: event.ctx,
+  });
+}
+
+// ── Pronoun regression tripwire ────────────────────────────────────────────
+// A live playtest caught the model inventing "A man of wavering resolution"
+// for Mrs Kemp at act0_bell_rang, because that turn's context carries no NPC
+// entry for her yet (npcsPresent is gated on world_event_kemp_arrives) and
+// Gemini calls are single-shot with no memory of the wording two turns prior
+// (see act0_caller_noticed, which established her correctly).
+//
+// This only checks for the unambiguous noun-phrase form ("a/the man",
+// "gentleman") rather than any masculine pronoun ("he"/"his"/"him") —
+// Holmes is present and legitimately male in this scene, so a bare pronoun
+// regex false-positives on "Holmes... inclining his head" constantly. The
+// noun-phrase form is exactly what the real bug produced and has no
+// legitimate referent other than the caller, since Holmes is never
+// described that way.
+const GENDER_CHECK_LABELS = ['story-event-act0_bell_rang'];
+const WRONG_GENDER_PATTERN = /\b(a man|the man|gentleman)\b/i;
+function checkCallerGender(label: string, output: string): string | null {
+  if (!GENDER_CHECK_LABELS.includes(label)) return null;
+  const match = output.match(WRONG_GENDER_PATTERN);
+  return match ? `misgendered the caller ("${match[0]}") — she must read as a woman in every turn's own text, never inferred from an earlier turn` : null;
+}
 
 // ── Repetition analysis (3 sequential narrations, n-gram overlap) ─────────────
 
@@ -531,6 +572,7 @@ async function main() {
     '',
     'Read each narration output below and evaluate against the rubric for its section.',
     'Look for: anachronisms, spoiler leaks, voice consistency, Doyle fidelity.',
+    'For story-event fixtures, also verify every numbered semantic beat appears exactly once, in order, and the prose stays within the stated maximum.',
     'Add your findings under each section in the format:',
     '- **HISTORY_ERROR**: description',
     '- **SPOILER_LEAK**: description',
@@ -540,6 +582,9 @@ async function main() {
     '---',
     '',
   ];
+
+  const genderCheckFailures: string[] = [];
+  const inventionWarnings: string[] = [];
 
   // Group by rubric
   const rubrics = ['2a_historical_accuracy', '2b_spoiler_containment', '2c_writing_quality'];
@@ -567,12 +612,33 @@ async function main() {
       lines.push('');
       lines.push(`**Mode:** ${fixture.ctx.narrationMode} | **Act:** ${fixture.ctx.act} | **Location:** ${fixture.ctx.locationName}`);
       lines.push('');
+      if (fixture.ctx.storyEvent) {
+        lines.push(`**Required ordered beats (${fixture.ctx.storyEvent.maxWords} words max):**`);
+        lines.push('');
+        fixture.ctx.storyEvent.beats.forEach((beat, index) => lines.push(`${index + 1}. ${beat}`));
+        lines.push('');
+      }
       lines.push('**Narration output:**');
       lines.push('');
       lines.push('```');
       lines.push(output);
       lines.push('```');
       lines.push('');
+      const genderIssue = checkCallerGender(fixture.label, output);
+      if (genderIssue) {
+        lines.push(`**AUTOMATED CHECK — FAIL:** ${genderIssue}`);
+        genderCheckFailures.push(`${fixture.label}: ${genderIssue}`);
+        lines.push('');
+      }
+      // Invention detector — WARNING level, not a gate. Measured 0 false
+      // positives and 1 true catch across the Act 0 fixtures, but it has not
+      // yet run against Acts 1-6, so it reports rather than fails the build.
+      const inventions = findInventions(output, fixture.ctx);
+      if (inventions.length) {
+        lines.push(`**AUTOMATED CHECK — WARNING (invented specifics):** ${inventions.map(i => `${i.kind} "${i.token}"`).join(', ')} — present in the narration but in no field of this turn's context.`);
+        inventionWarnings.push(`${fixture.label}: ${inventions.map(i => i.token).join(', ')}`);
+        lines.push('');
+      }
       lines.push('**QA Agent findings:** _(fill in)_');
       lines.push('');
       lines.push('---');
@@ -591,6 +657,17 @@ async function main() {
   fs.writeFileSync(reportPath, report, 'utf8');
   console.log(`\nReport written to: ${reportPath}`);
   console.log('QA agent: read qa-narration-report.md and fill in findings for each section.');
+
+  if (inventionWarnings.length > 0) {
+    console.warn('\n! Invented specifics (warning, not a gate):');
+    inventionWarnings.forEach(w => console.warn(`  - ${w}`));
+  }
+
+  if (genderCheckFailures.length > 0) {
+    console.error('\n✗ Automated pronoun check FAILED:');
+    genderCheckFailures.forEach(f => console.error(`  - ${f}`));
+    process.exitCode = 1;
+  }
 }
 
 main().catch(err => {

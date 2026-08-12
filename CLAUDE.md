@@ -10,6 +10,8 @@ Bias toward caution over speed; use judgment on trivial tasks.
 - **Simplicity first.** Minimum code that solves the problem — no speculative abstractions, no unrequested configurability, no error handling for impossible scenarios.
 - **Surgical changes.** Touch only what the task requires. Don't refactor or reformat adjacent code. Match existing style. Remove imports/vars *your* change orphaned; leave pre-existing dead code alone (mention it, don't delete it).
 - **Goal-driven execution.** Turn tasks into verifiable checks ("fix the bug" → reproduce with a test, then make it pass) so multi-step work can be looped on independently.
+- **Never monitor open PRs.** The repo owner is the only developer — there are no reviewers to wait on and no CI feedback loop to babysit. Don't subscribe to PR activity, don't schedule PR check-in reminders, and don't poll PR/CI status. Push the branch, open the draft PR, report it, and stop. Only revisit a PR when explicitly asked.
+- **Solo project — deployed, but not "in production" in any way that constrains design.** The owner is the only player as well as the only developer. Don't hedge for other users, don't write save-migration shims or backward-compatibility layers, don't preserve old flag names for existing saves, and don't stage a breaking change behind a flag to protect a live audience. Breaking saves and rewriting story data wholesale are both fine. Still call out when a change breaks saves — the owner may want to start a fresh investigation — just don't design around avoiding it. This changes only when the owner says other people are playing.
 
 ## Project overview
 
@@ -32,11 +34,13 @@ Individual QA harnesses (all `npx tsx scripts/qa-*.ts`, exit 1 on FAIL, no brows
 |---|---|---|
 | `npm run qa:engine` | Drives `gameEngine.resolve()` with scripted intents; validates state transitions, act-gate logic, exit graph | No |
 | `npm run qa:parser` | Free-text → intent accuracy (exact/alias/typo/paraphrase) against every clue-bearing object; regression-gated against a recorded baseline | No (hybrid AI-fallback pass only if key present) |
+| `npm run qa:topics` | The same question for **TALK subjects**: every authored topic phrase (plus article variants) must resolve to its own fact, gated at 100%. Catches partial-match theft — one fact's phrase silently stealing another's. Tier 2 runs hand-written paraphrases through the live `parseTopic` fallback and hard-fails if a *decoy* gets a confident wrong answer | No (tier-2 paraphrase pass only if key present) |
 | `npm run qa:hints` | The Watson hint selector (`hints.ts` / `selectHint`) | No |
 | `npm run qa:diary-leads` | The silent-diary-lead detection system | No |
 | `npm run qa:validate` | Story-data referential integrity: dangling clue connections, trigger objects missing from their location, progression flags nothing can set, NPC placement gaps, spoiler leaks into public knowledge | No |
 | `npm run qa:narration-inject` | The mechanical seam that splices authored opening/act-bridge lines into streamed narration (`narrationFormat.ts` / `injectAfterHeading`) — **not** part of `qa:all`, run it directly after touching that seam | No |
-| `npx tsx scripts/qa-narration.ts` | Generates `qa-narration-report.md` from crafted `NarrationContext` fixtures for manual/agent review of prose quality, historical accuracy, spoiler containment | **Yes** |
+| `npx tsx scripts/qa-narration.ts` | Generates `qa-narration-report.md` from crafted `NarrationContext` fixtures for manual/agent review of prose quality, historical accuracy, spoiler containment. Also runs the invention detector below over every fixture (warning-level) | **Yes** |
+| `npx tsx scripts/qa-invention.ts` | Self-test for the **invented-specifics detector** (`findInventions`): flags proper nouns and numeric specifics present in narration but in **no field of that turn's own context**. Catches the two live bugs prompt rules missed — a name borrowed from wider Doyle canon, and a fabricated quantity. Imported by `qa:narration`; run directly to verify the detector itself | No (self-test only) |
 
 There is no unit-test framework (no jest/vitest) — correctness is enforced by `tsc --noEmit` plus these scripted QA harnesses. When changing `engine/`, `intentParser.ts`, or any `engine/stories/whitechapel-1888/*` data file, run the relevant `qa:*` script(s) directly rather than asking the user to.
 
@@ -77,6 +81,15 @@ NarrativeFeed.tsx         — renders streamed markdown with typewriter animatio
 
 `services/AIService.ts` (client-side) is a thin `fetch` wrapper around `/api/ai` with the same public method signatures as the server core — never import `server/aiCore.ts` from client code.
 
+### The two AI recovery tiers (both selection-only)
+
+The deterministic parse is layer one; when it misses, two narrow AI ops recover the turn. Both **select from a supplied candidate list and can never invent**, which is why they don't breach the engine/AI contract — and both are killed by `VITE_AI_PARSER='off'`.
+
+- **`parseAction`** (`server/parseAction.ts` + `engine/parseFallback.ts`) — resolves the *verb and target* when regex can't ("examine the thingy").
+- **`parseTopic`** (`server/parseTopic.ts` + `engine/topicFallback.ts`) — resolves the *subject after "about"* when `matchTopic`'s string containment can't ("ask kemp about her visit"). It rewrites `intent.topicRaw` to the winning **authored** phrase, so the engine then resolves it deterministically as if the player had typed it. Returning `none` is a normal outcome and falls through to the in-character deflection: **a confident wrong answer is worse than an honest miss**, and `qa:topics` hard-fails if a decoy gets one.
+
+Topic misses used to have no recovery at all, which made them the single biggest source of content bugs — an NPC denying knowledge of something they had just said aloud. Both tiers are orchestrated from `hooks/gameState/aiParse.ts`, the layer where engine and AI legitimately meet.
+
 ### Story data is a swappable manifest
 
 `engine/stories/whitechapel-1888/` holds every fact about this specific story (locations, NPCs, clues, suspects, acts, facts, world events, rumors). Individual files (`locations.ts`, `npcs.ts`, `clues.ts`, `suspects.ts`, `acts.ts`, `facts.ts`, `events.ts`, `rumors.ts`, `hints.ts`, `diaryLeads.ts`, `endings.ts`, `atmosphere.ts`, `diary*.ts`) are composed into one `StoryManifest` object in `manifest.ts`. **No engine file imports whitechapel-1888 data directly** — `GameEngine`'s constructor takes a `StoryManifest`, so the whole story is theoretically pluggable. Shared type contracts for any story live in `engine/stories/types.ts`.
@@ -112,5 +125,9 @@ VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 VITE_AI_PARSER=             # unset/anything but 'off' = AI parse fallback ON; 'off' = pure regex parsing (emergency rollback)
 ```
+
+**Getting `GEMINI_API_KEY` when a task needs it** (`qa:narration`, the hybrid `qa:parser` pass, any live AI path): copy it from the `.env` on the repo owner's main checkout — don't ask for it. Never paste the key into a tracked file, a commit, a PR body, or terminal output; write it only to a local `.env` (gitignored).
+
+Note for cloud sessions: that `.env` is untracked and local to the owner's machine, so it is *not* reachable from a Claude Code on the web container — `origin/main` carries only `.env.example`. In a cloud session, either the key is set as an environment variable in the remote environment's configuration (preferred — every future session inherits it, nothing to copy) or the key-dependent suites simply can't run there. Every `qa:*` suite except `qa:narration` and the `qa:parser` AI-fallback pass runs fine without it, so report the skip rather than treating it as a blocker.
 
 Path alias `@/*` → repo root (`tsconfig.json`, mirrored in `vite.config.ts`). Supabase schema lives in `supabase/migrations/*.sql`, applied in order via the Supabase SQL editor.
