@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<!--
+  THROWAWAY VERIFICATION HARNESS — not part of the app build.
+
+  Mounts the REAL TypewriterBlock/StoryRenderer against a simulated stream, so
+  the caret placement and reveal rate can be checked without booting the whole
+  game (auth, Supabase, live Gemini calls).
+
+  Dev server only: /prototypes/caret-check.html
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Caret check — real components</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Playfair:ital,wght@0,400;1,400&display=swap');
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.3",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.3/",
+    "react/": "https://aistudiocdn.com/react@^19.2.3/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.561.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/prototypes/caret-check.tsx"></script>
+</body>
+</html>

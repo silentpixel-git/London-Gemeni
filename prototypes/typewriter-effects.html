@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<!--
+  THROWAWAY PROTOTYPE — not part of the app build.
+
+  Question: what should narration reveal feel like, given the text arrives as
+  an AI stream rather than all at once?
+
+  Four variants of the reveal effect on one page, switchable via ?variant= and
+  the floating bottom bar. A is a faithful port of the live TypewriterBlock so
+  the others have a baseline to be judged against.
+
+  Served by the dev server at /prototypes/typewriter-effects.html. Vite's build
+  has a single entry (index.html), so this file never ships.
+-->
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Typewriter prototypes — London Bleeds</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Playfair:ital,wght@0,400;1,400&display=swap');
+
+/* Design tokens lifted from index.css so the prototype reads like the game. */
+:root {
+  --lb-bg: 253 249 245; --lb-paper: 255 255 255; --lb-primary: 41 51 81;
+  --lb-accent: 205 123 0; --lb-muted: 146 157 191; --lb-border: 197 203 221;
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  --lb-bg: 21 24 31; --lb-paper: 30 35 48; --lb-primary: 228 221 212;
+  --lb-accent: 212 146 10; --lb-muted: 94 106 136; --lb-border: 42 48 64;
+  color-scheme: dark;
+}
+[data-theme="evening"] {
+  --lb-bg: 240 226 209; --lb-paper: 250 241 230; --lb-primary: 58 46 42;
+  --lb-accent: 194 96 24; --lb-muted: 150 120 110; --lb-border: 214 190 168;
+  color-scheme: light;
+}
+[data-theme="night"] {
+  --lb-bg: 18 22 34; --lb-paper: 26 32 48; --lb-primary: 214 220 232;
+  --lb-accent: 196 150 70; --lb-muted: 96 108 138; --lb-border: 38 46 66;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: rgb(var(--lb-bg));
+  color: rgb(var(--lb-primary));
+  font-family: 'Lato', sans-serif;
+  min-height: 100vh;
+}
+
+.page { max-width: 48rem; margin: 0 auto; padding: 3rem 2rem 14rem; }
+
+h1.lockup {
+  font-family: 'Playfair Display', serif; font-size: 60px; line-height: 1;
+  margin: 0 0 0.35rem;
+}
+p.lockup-sub {
+  font-family: 'Playfair Display', serif; font-size: 30px; opacity: 0.9; margin: 0 0 3rem;
+}
+
+/* Player command line, as in NarrativeFeed */
+.cmd { margin: 2rem 0; padding-left: 1.5rem; border-left: 3px solid rgb(var(--lb-accent)); }
+.cmd span { color: rgb(var(--lb-accent)); font-weight: 500; font-size: 20px; }
+
+/* Scene chrome — renders instantly, never animated */
+.scene-head { margin-bottom: 1.75rem; }
+.scene-loc { display: flex; align-items: center; gap: 0.6rem; }
+.scene-loc svg { color: rgb(var(--lb-accent)); }
+.scene-loc span { font-weight: 700; font-size: 20px; }
+
+/* ── Prose surface, matching StoryRenderer ─────────────────────────────── */
+.prose { font-size: 20px; line-height: 1.8; min-height: 60vh; cursor: pointer; }
+.prose .blk { margin: 0 0 1.5rem; }
+.prose .blk.quote {
+  padding-left: 1.5rem; border-left: 3px solid rgb(var(--lb-accent));
+  margin: 1.5rem 0; font-family: 'Playfair', serif; font-style: italic;
+  font-size: 24px; opacity: 0.9;
+}
+.prose .blk.bullet { display: flex; align-items: flex-start; gap: 0.75rem; margin: 0.5rem 0 0.5rem 0.5rem; }
+.prose .blk.bullet::before {
+  content: ''; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 999px;
+  background: rgb(var(--lb-accent)); margin-top: 0.85em; opacity: 0.9;
+}
+.md-b { font-weight: 700; color: rgb(var(--lb-accent)); }
+.md-b.sys { color: rgb(var(--lb-primary)); }
+.md-i { font-style: italic; }
+.md-bi { font-weight: 700; font-style: italic; color: rgb(var(--lb-accent)); }
+
+/* Hard caret — variant A only. Inline-block so it sits on the text baseline
+   directly after the last character, wrapping with it onto the next line. */
+.caret {
+  display: inline-block; width: 6px; height: 1.1em; margin-left: 2px;
+  background: rgb(var(--lb-accent)); vertical-align: text-bottom;
+  transform: translateY(-0.1em); animation: caret-pulse 1.1s ease-in-out infinite;
+}
+@keyframes caret-pulse { 0%, 100% { opacity: 0.75; } 50% { opacity: 0.15; } }
+
+/* Word atoms for variants B and D. inline-block so transforms apply and a word
+   can never break across a line mid-animation. */
+.w { display: inline-block; will-change: opacity, transform, filter; }
+
+/* B — flowing: each word swims up out of the paper */
+@keyframes flow-in {
+  from { opacity: 0; transform: translateY(0.32em); filter: blur(4px); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: none; filter: none; }
+}
+.w.flow { animation: flow-in 520ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* C — ink bloom: character-level, no caret. The leading edge is a soft
+   gradient of half-developed ink rather than a hard cursor. */
+@keyframes bloom-in {
+  from { opacity: 0; filter: blur(5px); }
+  to   { opacity: 1; filter: none; }
+}
+/* Characters stay plain inline boxes; the word wrapper carries .w, so a word
+   can never break across lines even though it is built from many spans. */
+.c { animation: bloom-in 340ms ease-out both; }
+
+/* D — cadence: a whole clause settles at once, paused by punctuation weight */
+@keyframes settle-in {
+  from { opacity: 0; transform: translateY(0.18em); }
+  to   { opacity: 1; transform: none; }
+}
+.w.settle { animation: settle-in 300ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* ── Floating prototype bar — deliberately not part of the design ───────── */
+.bar {
+  position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  justify-content: center; max-width: calc(100vw - 2rem);
+  background: #111827; color: #f9fafb; border: 1px solid #374151;
+  border-radius: 999px; padding: 0.5rem 0.75rem;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+  z-index: 50;
+}
+.bar button, .bar select {
+  background: #1f2937; color: #f9fafb; border: 1px solid #374151;
+  border-radius: 999px; padding: 0.3rem 0.7rem; font: inherit; cursor: pointer;
+}
+.bar button:hover, .bar select:hover { background: #374151; }
+.bar .label { padding: 0 0.5rem; min-width: 15rem; text-align: center; }
+.bar .label b { color: #fbbf24; }
+.bar .sep { width: 1px; height: 20px; background: #374151; }
+.bar .metrics { color: #9ca3af; min-width: 14rem; text-align: center; }
+.bar .metrics b { color: #f9fafb; font-weight: 500; }
+.note {
+  position: fixed; left: 50%; bottom: 8.5rem; transform: translateX(-50%);
+  max-width: 40rem; text-align: center; font-size: 12px; line-height: 1.6;
+  color: rgb(var(--lb-muted)); background: rgb(var(--lb-bg) / 0.92);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; padding: 0.4rem 1rem;
+  border-radius: 0.5rem; z-index: 49; pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <h1 class="lockup">London Bleeds</h1>
+  <p class="lockup-sub">The Whitechapel Diaries</p>
+
+  <div class="cmd"><span id="cmd-text">examine the door</span></div>
+
+  <div class="scene-head">
+    <div class="scene-loc">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+      <span id="scene-location">Miller's Court</span>
+    </div>
+  </div>
+
+  <div class="prose" id="prose" title="click to skip to the end"></div>
+</div>
+
+<div class="note" id="note"></div>
+
+<div class="bar">
+  <button id="prev" title="previous variant (←)">←</button>
+  <div class="label" id="label"></div>
+  <button id="next" title="next variant (→)">→</button>
+  <div class="sep"></div>
+  <button id="replay" title="replay the stream (R)">⟳ replay</button>
+  <select id="speed" title="how fast the model streams — Gemini's call in the real game">
+    <option value="0.5">stream: slow</option>
+    <option value="1">stream: normal</option>
+    <option value="2" selected>stream: fast</option>
+    <option value="99">stream: instant</option>
+  </select>
+  <select id="reveal" title="how fast the typewriter empties its backlog — the knob we actually control">
+    <option value="1" selected>reveal: 1×</option>
+    <option value="1.6">reveal: 1.6×</option>
+    <option value="2.4">reveal: 2.4×</option>
+  </select>
+  <select id="passage" title="which narration shape">
+    <option value="scene">passage: scene</option>
+    <option value="compact">passage: reply</option>
+    <option value="long">passage: long</option>
+  </select>
+  <select id="theme">
+    <option value="light">light</option>
+    <option value="dark">dark</option>
+    <option value="evening">evening</option>
+    <option value="night">night</option>
+  </select>
+  <div class="sep"></div>
+  <div class="metrics" id="metrics"></div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   Sample passages — real house-voice output pulled from qa-narration-report.md
+   ══════════════════════════════════════════════════════════════════════════ */
+const PASSAGES = {
+  scene: {
+    command: 'enter miller’s court',
+    location: "Miller's Court",
+    text:
+`The November sun offered a deceptive warmth to the cobbles of Dorset Street, yet it failed to penetrate the gloom of Miller's Court. Within this narrow stone throat, the air hung heavy with the copper tang of fresh blood and the cloying stench of poverty. I stepped over a trickling gutter, my medical bag a leaden weight in my hand, as the silence of the gathered crowd outside began to feel like a physical pressure.
+
+One look at the splintered wood of the door to number thirteen forced the question: what manner of man could work such ruin in the heart of a city that never sleeps?
+
+> *A newsboy's cry carries down Dorset Street. Another edition, another name.*
+
+**Objects of interest:** Burned Clothing, The Bed, Bloodstained Sheets
+**Possible exits:** Dorset Street`
+  },
+  compact: {
+    command: 'ask abberline about the incisions',
+    location: 'H Division Police Station',
+    text:
+`Inspector Abberline leaned against the desk, his face etched with the weariness of a man who had not slept since the first leaf fell. "It is the one point of certainty in this wretched business, Watson," he said, his voice clipped and dry. "The killer knows exactly where to strike. Our own surgeons agree the incisions show a terrifying degree of medical knowledge. He does not merely cut; he dissects."
+
+I watched him carefully, noting how his hand shook as he adjusted his collar. The dogged inspector was clearly reaching the limits of his endurance.`
+  },
+  long: {
+    command: 'read the letter',
+    location: "Lusk's Office",
+    text:
+`The vellum-colored paper lay before me, its surface marred by a coarse, untidy hand that seemed to take a perverse pride in its own lack of refinement. I read the words 'From hell' at the head of the missive, my eyes tracing the jagged ink as the writer boasted of having fried and eaten the missing half of the kidney enclosed within the parcel. The stench of vinegar and decay rose from the box, a grim testament to the physical reality of the threat.
+
+I noted the peculiar orthography, particularly the word 'prasarved' which appeared twice. Holmes stood near, his gaze fixed upon the irregular characters. He remarked that the spelling suggested a man who had acquired his vocabulary through the ear rather than through any formal study of literature. It was the work of a person mimicking the uneducated, or perhaps one whose isolation had limited his exposure to the printed word.
+
+"Observe the pressure of the nib, Watson," said Holmes, tilting the sheet toward the window. "He writes slowly, and he writes standing. A man at a desk does not gouge his paper so."
+
+> *Somewhere east of the office, a church bell counts out eleven.*
+
+**Objects of interest:** The Letter, The Parcel, Lusk's Ledger
+**Possible exits:** Mile End Road, Whitechapel High Street`
+  }
+};
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Stream simulator — approximates Gemini's chunk cadence: a latency to first
+   token, then bursts of ~20-90 chars every ~60-190ms with jitter.
+   ══════════════════════════════════════════════════════════════════════════ */
+function startStream(full, speed, onChunk, onDone) {
+  let i = 0, cancelled = false, timer = null;
+  const firstDelay = 700 / speed;
+
+  function step() {
+    if (cancelled) return;
+    const size = Math.round((20 + Math.random() * 70) * Math.min(speed, 4));
+    i = Math.min(full.length, i + size);
+    onChunk(full.slice(0, i));
+    if (i >= full.length) { onDone(); return; }
+    timer = setTimeout(step, (60 + Math.random() * 130) / speed);
+  }
+
+  timer = setTimeout(step, firstDelay);
+  return () => { cancelled = true; clearTimeout(timer); };
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Markdown parsing, mirroring StoryRenderer's rules
+   ══════════════════════════════════════════════════════════════════════════ */
+const INLINE = /(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*|_.*?_)/g;
+
+function inlineSegments(line) {
+  const out = [];
+  for (const part of line.split(INLINE)) {
+    if (!part) continue;
+    if (part.length >= 6 && part.startsWith('***') && part.endsWith('***')) {
+      out.push({ text: part.slice(3, -3), cls: 'md-bi' });
+    } else if (part.length >= 4 && part.startsWith('**') && part.endsWith('**')) {
+      const content = part.slice(2, -2);
+      const sys = /^(Objects of interest|Possible exits)/.test(content);
+      out.push({ text: content, cls: sys ? 'md-b sys' : 'md-b' });
+    } else if (part.length >= 2 && part.startsWith('*') && part.endsWith('*')) {
+      out.push({ text: part.slice(1, -1), cls: 'md-i' });
+    } else if (part.length >= 2 && part.startsWith('_') && part.endsWith('_')) {
+      out.push({ text: part.slice(1, -1), cls: 'md-i' });
+    } else {
+      out.push({ text: part, cls: '' });
+    }
+  }
+  return out;
+}
+
+/** text -> [{ type, tokens: [{ kind:'word'|'space', text, cls }] }] */
+function parseBlocks(text) {
+  const blocks = [];
+  for (const rawLine of text.split('\n')) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) continue;
+
+    let type = 'p', line = rawLine;
+    if (trimmed.startsWith('>')) { type = 'quote'; line = trimmed.replace(/^>\s*/, ''); }
+    else if (/^[*-]\s/.test(trimmed)) { type = 'bullet'; line = trimmed.replace(/^[*-]\s/, ''); }
+
+    const tokens = [];
+    for (const seg of inlineSegments(line)) {
+      for (const piece of seg.text.split(/(\s+)/)) {
+        if (!piece) continue;
+        tokens.push({ kind: /^\s+$/.test(piece) ? 'space' : 'word', text: piece, cls: seg.cls });
+      }
+    }
+    if (tokens.length) blocks.push({ type, tokens });
+  }
+  return blocks;
+}
+
+/**
+ * Trim a mid-stream string back to a point that is safe to parse: no partial
+ * word, no unclosed emphasis marker. Without this, words appear letter by
+ * letter and a half-arrived `**` renders its own asterisks for a frame.
+ * The live implementation has this problem too — worth noting.
+ */
+function safeSlice(text, done) {
+  if (done) return text;
+  let s = text.slice(0, text.search(/\S*$/));
+  const nl = s.lastIndexOf('\n');
+  const head = s.slice(0, nl + 1);
+  let tail = s.slice(nl + 1);
+
+  let offset = 0;
+  const bulletOrQuote = /^\s*([*->]\s)/.exec(tail);
+  if (bulletOrQuote) { offset = bulletOrQuote[0].length; tail = tail.slice(offset); }
+
+  const masked = tail.replace(INLINE, m => '#'.repeat(m.length));
+  const bad = masked.search(/[*_]/);
+  if (bad >= 0) return head + s.slice(nl + 1, nl + 1 + offset + bad);
+  return s;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Incremental DOM appender. The stream is append-only and safeSlice holds back
+   partials, so the token prefix is stable: everything already on screen stays
+   put and only new tokens get built.
+   ══════════════════════════════════════════════════════════════════════════ */
+class Appender {
+  constructor(root) { this.root = root; this.reset(); }
+
+  reset() {
+    this.root.textContent = '';
+    this.blocks = [];      // { el, textEl, type, placed }
+    this.bi = 0;           // block cursor
+    this.ti = 0;           // token cursor within block
+    this.placed = 0;       // total tokens on screen
+  }
+
+  makeBlock(type) {
+    const el = document.createElement('div');
+    el.className = 'blk ' + type;
+    const textEl = type === 'bullet' ? document.createElement('div') : el;
+    if (textEl !== el) el.appendChild(textEl);
+    this.root.appendChild(el);
+    return { el, textEl, type };
+  }
+
+  /** Render tokens up to `upto` (flat index). decorate(span, nthInBatch). */
+  sync(blocks, upto, decorate) {
+    if (upto < this.placed) { this.reset(); }
+    let batchN = 0;
+
+    while (this.placed < upto && this.bi < blocks.length) {
+      const block = blocks[this.bi];
+      if (!this.blocks[this.bi]) {
+        this.blocks[this.bi] = this.makeBlock(block.type);
+      } else if (this.blocks[this.bi].type !== block.type) {
+        this.reset(); return this.sync(blocks, upto, decorate);
+      }
+      const target = this.blocks[this.bi].textEl;
+
+      while (this.ti < block.tokens.length && this.placed < upto) {
+        const tok = block.tokens[this.ti];
+        if (tok.kind === 'space') {
+          target.appendChild(document.createTextNode(tok.text));
+        } else {
+          const span = document.createElement('span');
+          span.textContent = tok.text;
+          if (tok.cls) span.className = tok.cls;
+          target.appendChild(decorate(span, batchN++, tok) || span);
+        }
+        this.ti++; this.placed++;
+      }
+
+      if (this.ti >= block.tokens.length) {
+        if (this.bi >= blocks.length - 1) break;  // block may still grow
+        this.bi++; this.ti = 0;
+      } else break;
+    }
+  }
+}
+
+/** Total word+space tokens in a block list. */
+const countTokens = blocks => blocks.reduce((n, b) => n + b.tokens.length, 0);
+
+/**
+ * Self-rescheduling timer that ignores a schedule() while one is already
+ * pending. Without this, every arriving stream chunk would restart the reveal
+ * timer and the reveal would inherit the stream's burstiness.
+ */
+function pacer(fn) {
+  let timer = null, pending = false;
+  return {
+    schedule(ms) {
+      if (pending) return;
+      pending = true;
+      timer = setTimeout(() => { pending = false; fn(); }, ms);
+    },
+    cancel() { clearTimeout(timer); pending = false; }
+  };
+}
+
+/**
+ * Non-animated render, used for skip-to-end and for variant A each tick.
+ * Returns the innermost inline container of the LAST block, which is where a
+ * caret has to go if it is to sit against the final character. Appending the
+ * caret to the prose root instead (what the live TypewriterBlock does, since
+ * the caret is a sibling of StoryRenderer's wrapper) drops it onto its own
+ * line under the paragraph.
+ */
+function renderStatic(root, blocks) {
+  root.textContent = '';
+  let tail = root;
+  for (const block of blocks) {
+    const el = document.createElement('div');
+    el.className = 'blk ' + block.type;
+    const target = block.type === 'bullet' ? document.createElement('div') : el;
+    if (target !== el) el.appendChild(target);
+    for (const tok of block.tokens) {
+      if (tok.kind === 'space' || !tok.cls) target.appendChild(document.createTextNode(tok.text));
+      else {
+        const s = document.createElement('span');
+        s.className = tok.cls; s.textContent = tok.text;
+        target.appendChild(s);
+      }
+    }
+    root.appendChild(el);
+    tail = target;
+  }
+  return tail;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   VARIANTS
+   Each returns { push(fullText, streamDone), finish(), destroy() }.
+   `push` receives the whole accumulated string, exactly like the live
+   TypewriterBlock's `text` prop.
+   ══════════════════════════════════════════════════════════════════════════ */
+const VARIANTS = {};
+
+/* ── A — Chunked typewriter (what ships today) ──────────────────────────── */
+VARIANTS.A = {
+  name: 'Chunked typewriter (current)',
+  note: 'The shipping approach: 12ms tick, 2/6/12 chars per tick depending on how far behind the stream it is, full re-render of the prose every tick. The caret rides the last character instead of sitting under the paragraph.',
+  create(root, onDone) {
+    let target = '', shown = 0, done = false, finished = false;
+    const clock = pacer(() => tick());
+
+    const paint = () => {
+      const tail = renderStatic(root, parseBlocks(target.slice(0, shown)));
+      if (finished) return;
+      const caret = document.createElement('span');
+      caret.className = 'caret';
+      // The re-render destroys the caret every tick, which would restart its
+      // blink and leave it permanently lit. Offsetting the animation into the
+      // past by the current phase of a shared clock keeps the blink continuous
+      // across all those re-creations.
+      caret.style.animationDelay = -(performance.now() % CARET_PERIOD) + 'ms';
+      tail.appendChild(caret);
+    };
+
+    const end = () => { if (finished) return; finished = true; paint(); onDone(); };
+
+    const tick = () => {
+      const distance = target.length - shown;
+      if (distance <= 0) { if (done) end(); return; }
+      const rate = revealScale();
+      const base = distance > 100 ? 12 : (distance > 40 ? 6 : 2);
+      shown = Math.min(target.length, shown + Math.max(1, Math.round(base * rate)));
+      paint();
+      clock.schedule(12);
+    };
+
+    return {
+      push(text, streamDone) { target = text; done = streamDone; clock.schedule(12); },
+      finish() { clock.cancel(); shown = target.length; end(); },
+      destroy() { clock.cancel(); }
+    };
+  }
+};
+
+/* ── B — Flowing words ──────────────────────────────────────────────────── */
+VARIANTS.B = {
+  name: 'Flowing (word by word)',
+  note: 'The word is the atom. Each one rises out of a blur on its own 520ms curve, staggered so three or four are always in flight. Reveal rate adapts to the backlog, so a bursty stream still reads as an even flow. No caret.',
+  create(root, onDone) {
+    const app = new Appender(root);
+    let blocks = [], total = 0, revealed = 0, done = false, ended = false;
+    const clock = pacer(() => tick());
+
+    const decorate = (span, n) => {
+      span.classList.add('w', 'flow');
+      span.style.animationDelay = (n * 34) + 'ms';
+      span.addEventListener('animationend', () => {
+        span.classList.remove('flow'); span.style.animationDelay = '';
+      }, { once: true });
+      return span;
+    };
+
+    const end = () => { if (ended) return; ended = true; onDone(); };
+
+    const tick = () => {
+      const backlog = total - revealed;
+      if (backlog <= 0) { if (done) end(); return; }
+      // one word at a time, faster the further behind we are
+      const step = backlog > 60 ? 3 : (backlog > 25 ? 2 : 1);
+      revealed = Math.min(total, revealed + step);
+      app.sync(blocks, revealed, decorate);
+      clock.schedule(backlog > 25 ? 26 : 48);
+    };
+
+    return {
+      push(text, streamDone) {
+        done = streamDone;
+        blocks = parseBlocks(safeSlice(text, streamDone));
+        total = countTokens(blocks);
+        clock.schedule(16);
+      },
+      finish() {
+        clock.cancel();
+        revealed = total;
+        app.sync(blocks, total, s => s);
+        end();
+      },
+      destroy() { clock.cancel(); }
+    };
+  }
+};
+
+/* ── C — Ink bloom ──────────────────────────────────────────────────────── */
+VARIANTS.C = {
+  name: 'Ink bloom (soft edge, per character)',
+  note: 'Still character-paced, but each character fades up from a blur over 340ms. Because the animations overlap, the leading edge is a soft gradient of half-developed ink instead of a hard cursor. Closest to today\'s rhythm, softest texture.',
+  create(root, onDone) {
+    const app = new Appender(root);
+    let blocks = [], total = 0, revealed = 0, done = false, ended = false;
+    const clock = pacer(() => tick());
+
+    // Words are split into per-character spans so the reveal edge lands
+    // mid-word. Delay is derived from character position within the batch.
+    const makeDecorator = () => {
+      let charN = 0;
+      return span => {
+        const text = span.textContent;
+        span.textContent = '';
+        span.classList.add('w');
+        for (const ch of text) {
+          const c = document.createElement('span');
+          c.className = 'c';
+          c.textContent = ch;
+          c.style.animationDelay = (charN++ * 15) + 'ms';
+          c.addEventListener('animationend', () => {
+            c.classList.remove('c'); c.style.animationDelay = '';
+          }, { once: true });
+          span.appendChild(c);
+        }
+        return span;
+      };
+    };
+
+    const end = () => { if (ended) return; ended = true; onDone(); };
+
+    const tick = () => {
+      const backlog = total - revealed;
+      if (backlog <= 0) { if (done) end(); return; }
+      const step = backlog > 60 ? 3 : (backlog > 25 ? 2 : 1);
+      revealed = Math.min(total, revealed + step);
+      app.sync(blocks, revealed, makeDecorator());
+      clock.schedule(backlog > 25 ? 24 : 44);
+    };
+
+    return {
+      push(text, streamDone) {
+        done = streamDone;
+        blocks = parseBlocks(safeSlice(text, streamDone));
+        total = countTokens(blocks);
+        clock.schedule(16);
+      },
+      finish() {
+        clock.cancel();
+        revealed = total;
+        app.sync(blocks, total, s => s);
+        end();
+      },
+      destroy() { clock.cancel(); }
+    };
+  }
+};
+
+/* ── D — Cadence ────────────────────────────────────────────────────────── */
+VARIANTS.D = {
+  name: 'Cadence (clause by clause)',
+  note: 'Reveals at punctuation boundaries. A whole clause settles at once, then holds for a beat scaled to the punctuation that ended it: comma short, semicolon longer, full stop longest, paragraph longest of all. Paced by reading rhythm rather than by characters.',
+  create(root, onDone) {
+    const app = new Appender(root);
+    let blocks = [], total = 0, revealed = 0, done = false, ended = false;
+    const clock = pacer(() => tick());
+
+    const decorate = span => { span.classList.add('w', 'settle'); return span; };
+
+    /** How many tokens make up the next clause, and the pause that follows. */
+    const nextClause = () => {
+      let count = 0, pause = 240, seen = 0;
+      outer:
+      for (let bi = 0, idx = 0; bi < blocks.length; bi++) {
+        for (let ti = 0; ti < blocks[bi].tokens.length; ti++, idx++) {
+          if (idx < revealed) continue;
+          count++;
+          const tok = blocks[bi].tokens[ti];
+          if (tok.kind === 'word') {
+            seen++;
+            const last = tok.text.slice(-1);
+            if (/[.!?]/.test(last) && seen >= 3) { pause = 460; break outer; }
+            if (/[;:]/.test(last) && seen >= 3) { pause = 300; break outer; }
+            if (/,/.test(last) && seen >= 4) { pause = 200; break outer; }
+            if (seen >= 14) { pause = 180; break outer; }
+          }
+          if (ti === blocks[bi].tokens.length - 1 && bi < blocks.length - 1) { pause = 560; break outer; }
+        }
+      }
+      return { count, pause };
+    };
+
+    const end = () => { if (ended) return; ended = true; onDone(); };
+
+    const tick = () => {
+      const backlog = total - revealed;
+      if (backlog <= 0) { if (done) end(); return; }
+      const { count, pause } = nextClause();
+      // Only commit a clause once its terminator has arrived, unless we are
+      // sitting on the tail of a finished stream.
+      if (!done && count >= backlog && backlog < 14) { clock.schedule(60); return; }
+      revealed = Math.min(total, revealed + Math.max(count, 1));
+      app.sync(blocks, revealed, decorate);
+      clock.schedule(backlog > 80 ? Math.round(pause * 0.45) : pause);
+    };
+
+    return {
+      push(text, streamDone) {
+        done = streamDone;
+        blocks = parseBlocks(safeSlice(text, streamDone));
+        total = countTokens(blocks);
+        clock.schedule(16);
+      },
+      finish() {
+        clock.cancel();
+        revealed = total;
+        app.sync(blocks, total, s => s);
+        end();
+      },
+      destroy() { clock.cancel(); }
+    };
+  }
+};
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Harness
+   ══════════════════════════════════════════════════════════════════════════ */
+const KEYS = ['A', 'B', 'C', 'D'];
+const CARET_PERIOD = 1100;   // must match the caret-pulse animation duration
+const prose = document.getElementById('prose');
+const metricsEl = document.getElementById('metrics');
+const labelEl = document.getElementById('label');
+const noteEl = document.getElementById('note');
+
+let current = null, stopStream = null;
+let t0 = 0, tStream = 0, tRender = 0;
+
+const params = () => new URLSearchParams(location.search);
+const variantKey = () => (KEYS.includes(params().get('variant')) ? params().get('variant') : 'A');
+const passageKey = () => (PASSAGES[params().get('passage')] ? params().get('passage') : 'scene');
+const speed = () => Number(document.getElementById('speed').value);
+
+/**
+ * How fast the typewriter empties its backlog, independent of how fast the
+ * model streams. In the real game the stream rate is Gemini's to decide, so
+ * this is the only reveal knob we actually control.
+ */
+const revealScale = () => Number(document.getElementById('reveal').value);
+
+function setParam(k, v) {
+  const p = params(); p.set(k, v);
+  history.replaceState(null, '', location.pathname + '?' + p.toString());
+}
+
+function paintMetrics() {
+  const s = tStream ? ((tStream - t0) / 1000).toFixed(1) + 's' : '…';
+  const r = tRender ? ((tRender - t0) / 1000).toFixed(1) + 's' : '…';
+  const d = (tStream && tRender) ? tRender - tStream : null;
+  const lag = d === null ? '…'
+    : (d < -50 ? '−' : '+') + (Math.abs(d) / 1000).toFixed(1) + 's';
+  metricsEl.innerHTML = `stream <b>${s}</b> · render <b>${r}</b> · lag <b>${lag}</b>`;
+}
+
+function run() {
+  if (stopStream) stopStream();
+  if (current) current.destroy();
+  prose.textContent = '';
+
+  const key = variantKey();
+  const passage = PASSAGES[passageKey()];
+  document.getElementById('cmd-text').textContent = passage.command;
+  document.getElementById('scene-location').textContent = passage.location;
+
+  const def = VARIANTS[key];
+  labelEl.innerHTML = `<b>${key}</b> — ${def.name}`;
+  noteEl.textContent = def.note;
+
+  t0 = performance.now(); tStream = 0; tRender = 0; paintMetrics();
+
+  current = def.create(prose, () => { tRender = performance.now(); paintMetrics(); });
+
+  stopStream = startStream(
+    passage.text, speed(),
+    text => current.push(text, false),
+    () => { tStream = performance.now(); paintMetrics(); current.push(passage.text, true); }
+  );
+}
+
+function cycle(delta) {
+  const i = KEYS.indexOf(variantKey());
+  setParam('variant', KEYS[(i + delta + KEYS.length) % KEYS.length]);
+  run();
+}
+
+document.getElementById('prev').onclick = () => cycle(-1);
+document.getElementById('next').onclick = () => cycle(1);
+document.getElementById('replay').onclick = run;
+document.getElementById('speed').onchange = e => { setParam('speed', e.target.value); run(); };
+document.getElementById('reveal').onchange = e => { setParam('reveal', e.target.value); run(); };
+document.getElementById('passage').onchange = e => { setParam('passage', e.target.value); run(); };
+document.getElementById('theme').onchange = e => document.documentElement.setAttribute('data-theme', e.target.value);
+
+prose.addEventListener('click', () => {
+  if (!window.getSelection().isCollapsed) return;  // don't kill text selection
+  if (current) current.finish();
+});
+
+window.addEventListener('keydown', e => {
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || document.activeElement?.isContentEditable) return;
+  if (e.key === 'ArrowLeft') { e.preventDefault(); cycle(-1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); cycle(1); }
+  if (e.key.toLowerCase() === 'r') run();
+});
+
+/** Restore any select whose value was pinned in the URL. */
+for (const id of ['passage', 'speed', 'reveal']) {
+  const el = document.getElementById(id);
+  const want = params().get(id);
+  if (want && [...el.options].some(o => o.value === want)) el.value = want;
+}
+run();
+</script>
+</body>
+</html>
