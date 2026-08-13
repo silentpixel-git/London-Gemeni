@@ -35,11 +35,24 @@ const normalizeInlineBlockquotes = (text: string): string =>
 interface StoryRendererProps {
   text: string;
   animate?: boolean;
+  /** Typewriter caret. Rendered inside the final block so it sits against the
+      last character rather than dropping onto its own line beneath the prose. */
+  caret?: React.ReactNode;
 }
 
-export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate = false }) => {
+export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate = false, caret }) => {
   const safeText = normalizeInlineBlockquotes(text || "");
   const lines = safeText.split('\n');
+
+  // Blank lines render nothing, so the caret belongs on the last line that has
+  // content. Before any text has arrived there is no block to put it in, and it
+  // falls back to the wrapper.
+  let caretLine = -1;
+  if (caret) {
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (lines[i].trim()) { caretLine = i; break; }
+    }
+  }
 
   return (
     <div className="
@@ -49,15 +62,18 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
       text-lb-primary
       max-w-3xl
     ">
+      {caretLine === -1 && caret}
       {lines.map((line, i) => {
         const trimmed = line.trim();
         if (!trimmed) return null;
+        const tail = i === caretLine ? caret : null;
 
         if (line.startsWith('###')) {
           return (
             <div key={i} className="pt-8 pb-4">
               <h4 className="text-sm font-bold tracking-[0.2em] uppercase text-lb-primary opacity-80 font-sans">
                 {line.replace(/###\s*/, '')}
+                {tail}
               </h4>
             </div>
           );
@@ -68,6 +84,7 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
             <div key={i} className="pl-6 border-l-[3px] border-lb-accent my-6 py-1">
               <p className="italic text-lb-primary font-playfair text-[20px] md:text-[24px] leading-relaxed opacity-90">
                 {parseInlineMarkdown(line.replace(/>\s*/, ''), animate)}
+                {tail}
               </p>
             </div>
           );
@@ -78,7 +95,7 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
           return (
             <div key={i} className="flex items-start gap-3 ml-2 my-2">
               <div className="mt-2.5 w-1.5 min-w-[6px] h-1.5 rounded-full bg-lb-accent opacity-90" />
-              <div>{parseInlineMarkdown(content, animate)}</div>
+              <div>{parseInlineMarkdown(content, animate)}{tail}</div>
             </div>
           );
         }
@@ -89,6 +106,7 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
         return (
           <p key={i} className={`${spacingClass} p-0`}>
             {parseInlineMarkdown(line, animate)}
+            {tail}
           </p>
         );
       })}
