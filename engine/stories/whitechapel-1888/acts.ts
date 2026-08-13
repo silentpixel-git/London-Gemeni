@@ -1,5 +1,5 @@
 import type { ActCondition, ActTimeConfig, WeatherCondition, ActWeather } from '../types';
-import { resolveActDay } from '../../time';
+import { resolveActDay } from '../../time.js';
 import type { StoryFlag } from './flags';
 
 export type { ActTimeConfig, WeatherCondition, ActWeather } from '../types';

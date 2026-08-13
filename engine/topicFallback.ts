@@ -23,7 +23,7 @@
 
 import type { ParsedIntent } from './intentParser';
 import type { StoryFact } from './stories/types';
-import { askableFacts, matchTopic } from './stories/knowledge';
+import { askableFacts, matchTopic } from './stories/knowledge.js';
 
 /** One selectable subject: the authored phrase, plus the fact it raises. */
 export interface TopicCandidate {

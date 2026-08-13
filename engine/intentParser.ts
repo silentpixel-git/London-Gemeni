@@ -8,7 +8,7 @@
  * Supports: move, examine, talk, take, use, inventory, deduce, other
  */
 
-import { LOCATIONS, NPCS, OBJECT_DISPLAY_NAMES, DEDUCTION_KEYWORDS } from './gameData';
+import { LOCATIONS, NPCS, OBJECT_DISPLAY_NAMES, DEDUCTION_KEYWORDS } from './gameData.js';
 import type { IntentType } from '../types';
 export type { IntentType };
 

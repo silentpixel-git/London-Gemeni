@@ -7,7 +7,7 @@
  * only minutes in, periods/labels out.
  */
 
-import { TimePeriod } from '../types';
+import type { TimePeriod } from '../types';
 import type { ActTimeConfig } from './stories/types';
 
 export function computeTimePeriod(totalMinutes: number): TimePeriod {
