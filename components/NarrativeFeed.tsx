@@ -123,7 +123,10 @@ export function NarrativeFeed({
                 className="my-8 scroll-mt-[120px]"
               >
                 <div className="pl-6 border-l-[3px] border-lb-accent">
-                  <span className="text-lb-accent font-sans font-medium text-[14px] md:text-[20px] leading-relaxed">
+                  {/* Same type ramp as the narration in StoryRenderer — the
+                      player's command should read at the weight of the prose it
+                      answers, not shrink away from it. */}
+                  <span className="text-lb-accent font-sans font-medium text-[16px] md:text-[18px] lg:text-[20px] leading-relaxed">
                     {msg.text}
                   </span>
                 </div>

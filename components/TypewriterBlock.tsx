@@ -44,7 +44,10 @@ export const TypewriterBlock: React.FC<TypewriterBlockProps> = ({
 
     const timeout = setTimeout(() => {
       const distance = text.length - displayedText.length;
-      const chunkSize = distance > 100 ? 12 : (distance > 40 ? 6 : 2);
+      // 2.4x the original 2/6/12, so the prose keeps pace with a live stream
+      // instead of trailing it by seconds. Rate chosen against the four-variant
+      // reveal explorer on the throwaway/typewriter-reveal-prototypes branch.
+      const chunkSize = distance > 100 ? 29 : (distance > 40 ? 14 : 5);
       setDisplayedText(text.slice(0, displayedText.length + chunkSize));
     }, 12);
 
@@ -65,8 +68,11 @@ export const TypewriterBlock: React.FC<TypewriterBlockProps> = ({
 
   return (
     <div className={className} onClick={handleSkip}>
-      <StoryRenderer text={displayedText} animate={true} />
-      {isTyping && <span className={cursorClassName} />}
+      <StoryRenderer
+        text={displayedText}
+        animate={true}
+        caret={isTyping ? <span className={cursorClassName} /> : undefined}
+      />
     </div>
   );
 };

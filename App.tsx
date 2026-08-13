@@ -27,6 +27,12 @@ import { ActBreakCurtain } from './components/ActBreakCurtain';
 import { useGameState } from './hooks/useGameState';
 import { useAudio } from './hooks/useAudio';
 
+// Tailwind's `lg` breakpoint — the width at or above which the Sidebar docks
+// beside the game instead of sliding over it as an overlay drawer. Matching the
+// CSS query rather than reading innerWidth keeps this in step with the `lg:`
+// classes on the Sidebar itself.
+const LG_QUERY = '(min-width: 1024px)';
+
 // ── Inner app (has access to Supabase context) ──────────────────────────────
 
 const AppContent: React.FC = () => {
@@ -34,8 +40,21 @@ const AppContent: React.FC = () => {
   // Open by default on desktop (lg+); closed on smaller devices where the
   // sidebar is an overlay drawer that would otherwise cover the game.
   const [isSidebarOpen, setIsSidebarOpen] = useState(
-    () => typeof window === 'undefined' || window.innerWidth >= 1024,
+    () => typeof window === 'undefined' || window.matchMedia(LG_QUERY).matches,
   );
+
+  // Below lg the sidebar covers most of the screen, so it must never be left
+  // open once the viewport drops into drawer territory — on rotate, on a
+  // desktop window being narrowed, or on a first paint that measured a wider
+  // viewport than the one the player ends up with. Widening again deliberately
+  // does NOT re-open it: a closed sidebar on desktop is the player's choice.
+  useEffect(() => {
+    const mq = window.matchMedia(LG_QUERY);
+    const closeIfNarrow = () => { if (!mq.matches) setIsSidebarOpen(false); };
+    closeIfNarrow();
+    mq.addEventListener('change', closeIfNarrow);
+    return () => mq.removeEventListener('change', closeIfNarrow);
+  }, []);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isFirstRunProfile, setIsFirstRunProfile] = useState(false);
