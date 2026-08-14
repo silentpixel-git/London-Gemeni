@@ -24,6 +24,7 @@ import { SaveSlotsModal } from './components/SaveSlotsModal';
 import { DiaryModal } from './components/DiaryModal';
 import { ResetPasswordModal } from './components/ResetPasswordModal';
 import { ActBreakCurtain } from './components/ActBreakCurtain';
+import { TurnFailureScreen } from './components/TurnFailureScreen';
 import { useGameState } from './hooks/useGameState';
 import { useAudio } from './hooks/useAudio';
 
@@ -193,6 +194,18 @@ const AppContent: React.FC = () => {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {gs.turnFailure && (
+          <TurnFailureScreen
+            key={`turn-failure-${gs.turnFailure.attempts}`}
+            failure={gs.turnFailure}
+            onSaveGame={gs.handleSaveGame}
+            connectionStatus={gs.connectionStatus}
+            onRetryConnection={gs.retryConnections}
+          />
+        )}
+      </AnimatePresence>
+
       <Sidebar
         isSidebarOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -246,7 +259,7 @@ const AppContent: React.FC = () => {
         />
 
         <CommandInput
-          isLoading={gs.isLoading || gs.pendingActTransition !== null || gs.isCurtainPlaying}
+          isLoading={gs.isLoading || gs.pendingActTransition !== null || gs.isCurtainPlaying || gs.turnFailure !== null}
           isGameOver={gs.isGameOver}
           isConsultingHolmes={gs.isConsultingHolmes}
           isAdvancingAct={gs.isAdvancingAct}

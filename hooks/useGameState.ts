@@ -46,7 +46,10 @@ import { useAppearance } from './gameState/useAppearance';
 import { useDiary } from './gameState/useDiary';
 import { useSceneStreams } from './gameState/useSceneStreams';
 import { usePersistence } from './gameState/usePersistence';
+import type { SaveGameOverrides } from './gameState/usePersistence';
 import { useActBreak } from './gameState/useActBreak';
+import { useTurnFailure } from './gameState/useTurnFailure';
+import type { TurnFailure } from './gameState/useTurnFailure';
 
 // ── Destructure hints and diary leads from the story manifest ────────────────
 const { selectHint } = WHITECHAPEL_MANIFEST;
@@ -116,9 +119,12 @@ export interface GameStateReturn {
   beginNextAct: () => Promise<void>;
   handleJournalTypewriterDone: () => void;
 
+  // Turn failure — blocking screen when a turn can't complete
+  turnFailure: TurnFailure | null;
+
   // Handlers
-  handleAction: (userAction: string) => Promise<void>;
-  handleSaveGame: (silent?: boolean) => Promise<boolean>;
+  handleAction: (userAction: string, isRetry?: boolean) => Promise<void>;
+  handleSaveGame: (silent?: boolean, overrides?: SaveGameOverrides) => Promise<boolean>;
   handleLoadGame: () => Promise<void>;
   handleConsultHolmes: () => Promise<void>;
   handleScroll: () => void;
@@ -199,6 +205,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // ── Persistence / UI ────────────────────────────────────────────────────
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const { connectionStatus, checkConnections } = useConnections({ isAuthReady, setNotification });
+  const { turnFailure, raiseTurnFailure, clearTurnFailure } = useTurnFailure();
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -367,22 +374,27 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // ── Main action handler ────────────────────────────────────────────────────
 
-  const handleAction = useCallback(async (userAction: string) => {
-    if (!userAction.trim() || isLoading) return;
+  const handleAction = useCallback(async (userAction: string, isRetry = false) => {
+    if (!isRetry && (!userAction.trim() || isLoading)) return;
 
+    clearTurnFailure();
     setIsLoading(true);
     setIsAutoScrollLocked(false);
 
-    setHistory(prev => [...prev, { role: 'user', text: userAction }]);
-    setHistory(prev => [...prev, { role: 'assistant', text: '' }]);
+    // A 'turn' retry (the engine never resolved) replays STEP 1 onward without
+    // re-adding the player's command — it's still the same turn, not a new one.
+    if (!isRetry) {
+      setHistory(prev => [...prev, { role: 'user', text: userAction }]);
+      setHistory(prev => [...prev, { role: 'assistant', text: '' }]);
 
-    // Persist user action to log
-    if (user && activeInvestigation) {
-      GameRepository.addLogEntry(activeInvestigation.id, {
-        timestamp: new Date().toISOString(),
-        type: 'action',
-        content: userAction,
-      });
+      // Persist user action to log
+      if (user && activeInvestigation) {
+        GameRepository.addLogEntry(activeInvestigation.id, {
+          timestamp: new Date().toISOString(),
+          type: 'action',
+          content: userAction,
+        });
+      }
     }
 
     const cloudWriteResults: boolean[] = [];
@@ -400,6 +412,55 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setNotification({ message: 'Cloud sync failed — recent progress may not be saved online.', type: 'error' });
       }
     };
+
+    // Turn-failure bookkeeping. `stateApplied` flips true right after STEP 4
+    // (optimistic apply) — everything before that point can throw only from
+    // gameEngine.resolve() itself (a story-data bug), since the AI recovery
+    // calls and Supabase reads in STEP 1-2 already swallow their own errors.
+    // A throw before that point means nothing was mutated, so the whole turn
+    // can be retried safely. A throw after it means the engine already ran and
+    // (for a signed-in player) the cloud write already committed — retrying
+    // must never re-run the engine, only re-request narration.
+    let stateApplied = false;
+    let postEngineOverrides: SaveGameOverrides | null = null;
+    let retryNarrationRef: (() => Promise<void>) | null = null;
+
+    const handleFailure = (error: unknown) => {
+      // If narration aborts after any cloud write was attempted, the per-turn
+      // save sequence is incomplete and must not clear (or hide) a failure streak.
+      finalizeCloudPersistence(false);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error('handleAction error:', errorMsg, error);
+
+      // Authored break-off line replaces the trailing placeholder — no debug
+      // prose, no "please try again" (the turn may have already resolved and
+      // persisted; retyping the action would risk running it twice).
+      setHistory(prev => {
+        const next = [...prev];
+        next[next.length - 1] = {
+          ...next[next.length - 1],
+          text: "> *The record breaks off here.*",
+        };
+        return next;
+      });
+
+      // A rejected fetch (no response reached the server) is a network drop;
+      // a thrown Error with a response status is the gateway itself failing.
+      const cause = !stateApplied
+        ? 'engine' as const
+        : error instanceof TypeError ? 'network' as const : 'ai' as const;
+
+      raiseTurnFailure({
+        cause,
+        debug: errorMsg,
+        retryKind: stateApplied ? 'narration' : 'turn',
+        saveOverrides: postEngineOverrides,
+        retry: stateApplied && retryNarrationRef
+          ? retryNarrationRef
+          : () => handleAction(userAction, true),
+      });
+    };
+
     try {
       // STEP 1: Parse intent deterministically
       let intent = parseIntent(userAction);
@@ -548,6 +609,23 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         setNpcStates(newNpcStates);
       }
 
+      // Everything STEP 4 just applied is also what a mid-turn failure needs
+      // to save — captured once so a later catch can hand it straight to
+      // handleSaveGame without re-deriving it. stim is deliberately omitted:
+      // it only changes via narration continuity, which hasn't run yet.
+      postEngineOverrides = {
+        location: newLocation,
+        inventory: newInventory,
+        medicalPoints: newMedicalPoints,
+        moralPoints: newMoralPoints,
+        npcStates: advancingAct ? npcStates : newNpcStates,
+        flags: newFlags,
+        introducedNpcs: newIntroducedNpcs,
+        currentAct,
+        rumorEvents: newRumorEvents,
+      };
+      stateApplied = true;
+
       // Update turns-without-progress counter (for Holmes nudge)
       const madeProgress = !!(result.newLocation || result.newAct ||
         (result.discoveredClueIds && result.discoveredClueIds.length > 0));
@@ -607,9 +685,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // Gate flags this turn satisfied with no existing diary text — filled in
       // asynchronously below (STEP 8b), once the turn's narration is known.
       let pendingLeadFlags: string[] = [];
-      // The turn's final narration text, captured inside the STEP 7 stream loop —
-      // used to ground STEP 8b's AI-generated diary prose.
-      let finalNarrationText = '';
       if (result.newAct) {
         const allActClueIds = [
           ...cluesFoundThisAct,
@@ -713,279 +788,297 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         }
       }
 
-      // STEP 6: Enrich a copy of the engine's context with hook-owned data
-      // (STIM, Holmes synthesis, anti-repetition memory). The engine's aiContext
-      // is treated as immutable.
-      const aiContext: NarrationContext = {
-        ...result.aiContext,
-        stim,
-        recentOpenings: recentOpenings.length > 0 ? recentOpenings : undefined,
-        clockEvent,
-      };
+      // STEP 6 through STEP 9 are wrapped in a retryable closure. A failure
+      // past this point (almost always the narration stream) must never
+      // re-run STEP 1-4: the engine already resolved and, for a signed-in
+      // player, STEP 5 already persisted. Retry re-enters this closure alone.
+      const runNarrationPipeline = async () => {
+        // STEP 6: Enrich a copy of the engine's context with hook-owned data
+        // (STIM, Holmes synthesis, anti-repetition memory). The engine's aiContext
+        // is treated as immutable.
+        const aiContext: NarrationContext = {
+          ...result.aiContext,
+          stim,
+          recentOpenings: recentOpenings.length > 0 ? recentOpenings : undefined,
+          clockEvent,
+        };
 
-      // STEP 6a: Holmes multi-clue synthesis — before Watson narrates
-      if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
-        audioManager.playSfx('clue-discovered');
-        const allDiscoveredIds = [...discoveredClueIds, ...result.discoveredClueIds];
-        const allClueObjects = allDiscoveredIds
-          .map(id => CLUE_DEFINITIONS[id])
-          .filter(Boolean)
-          .map(c => ({ name: c.name, description: c.description, holmesDeduction: c.holmesDeduction }));
-        const newClueNames = result.discoveredClueIds
-          .map(id => CLUE_DEFINITIONS[id]?.name)
-          .filter(Boolean) as string[];
-        try {
-          aiContext.holmesSynthesis = await aiService.consultHolmesMultiClue(
-            allClueObjects,
-            newClueNames,
-            aiContext.act,
-          );
-        } catch {
-          // Graceful fallback — Watson narrates with the hardcoded holmesDeduction per clue
-        }
-      }
-
-      // Engine-verified pickup notice — items the player actually gained this
-      // turn (examine can silently grant documents; the player must be told).
-      const itemsPickedUp = (result.inventoryAdd ?? []).filter(i => !inventory.includes(i));
-      if (itemsPickedUp.length > 0) audioManager.playSfx('item-pickup');
-      // Documents are "filed" (and stay filed after the bag empties); every
-      // other takeable is plainly "picked up".
-      const filedItems = itemsPickedUp.filter(i => DOCUMENT_ITEM_NAMES.has(i));
-      const plainItems = itemsPickedUp.filter(i => !DOCUMENT_ITEM_NAMES.has(i));
-      const pickupClauses = [
-        filedItems.length > 0 ? `**You filed:** ${filedItems.join(', ')}` : null,
-        plainItems.length > 0 ? `**You picked up:** ${plainItems.join(', ')}` : null,
-      ].filter(Boolean);
-      const pickupNote = pickupClauses.length > 0 ? `\n\n${pickupClauses.join('\n\n')}` : '';
-
-      // Location header — full-mode turns (successful move / target-less look)
-      // surface the engine-verified location name as feed chrome above the
-      // prose (see NarrativeFeed's SceneHeader). Compact turns get no header.
-      if (aiContext.narrationMode === 'full') {
-        const locationLabel = aiContext.locationName;
-        setHistory(prev => {
-          const next = [...prev];
-          next[next.length - 1] = { ...next[next.length - 1], location: locationLabel };
-          return next;
-        });
-      }
-
-      let narrationContinuity = {
-        npcStates: advancingAct ? npcStates : newNpcStates,
-        stim,
-      };
-      const narrationMemoryNpcIds = new Set<string>();
-
-      // STEP 7: Stream AI narration
-      for await (const update of aiService.stream(aiContext)) {
-        const { narrative, isComplete, parsed } = update;
-        // Defensive: full-mode prompts no longer ask for a heading, but strip
-        // any the model still emits (compact mode never produced one).
-        const cleaned = aiContext.narrationMode === 'full' ? stripLeadingActHeading(narrative) : narrative;
-        const displayText = isComplete ? cleaned + pickupNote : cleaned;
-
-        setHistory(prev => {
-          const next = [...prev];
-          next[next.length - 1] = { ...next[next.length - 1], text: displayText };
-          return next;
-        });
-
-        if (isComplete && parsed) {
-          finalNarrationText = parsed.markdownOutput;
-
-          // Anti-repetition memory: remember this narration's opening sentence
-          const opening = extractOpeningSentence(parsed.markdownOutput);
-          if (opening) {
-            setRecentOpenings(prev => [opening, ...prev].slice(0, 4));
-          }
-
-          if (user && activeInvestigation) {
-            GameRepository.addLogEntry(activeInvestigation.id, {
-              timestamp: new Date().toISOString(),
-              type: 'narration',
-              content: parsed.markdownOutput + pickupNote,
-            });
-          }
-
-          for (const npcId of Object.keys(parsed.npcMemoryUpdate ?? {})) {
-            narrationMemoryNpcIds.add(npcId);
-          }
-          narrationContinuity = mergeNarrationContinuity(narrationContinuity, parsed, turnCount);
-          setNpcStates(narrationContinuity.npcStates);
-          setStim(narrationContinuity.stim);
-        }
-      }
-
-      // A due deterministic fallback is presentation-only: its state effects
-      // were merged and persisted above with the triggering action. Narrate it
-      // only after that action's stream finishes, in its own assistant item.
-      if (result.followUpEvent) {
-        const parsed = await streamFollowUpNarration(
-          result.followUpEvent,
-          context => aiService.stream(context),
-          setHistory,
-        );
-        if (parsed) {
-          finalNarrationText = [finalNarrationText, parsed.markdownOutput]
+        // STEP 6a: Holmes multi-clue synthesis — before Watson narrates
+        if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
+          audioManager.playSfx('clue-discovered');
+          const allDiscoveredIds = [...discoveredClueIds, ...result.discoveredClueIds];
+          const allClueObjects = allDiscoveredIds
+            .map(id => CLUE_DEFINITIONS[id])
             .filter(Boolean)
-            .join('\n\n');
-
-          const opening = extractOpeningSentence(parsed.markdownOutput);
-          if (opening) setRecentOpenings(prev => [opening, ...prev].slice(0, 4));
-
-          if (user && activeInvestigation) {
-            GameRepository.addLogEntry(activeInvestigation.id, {
-              timestamp: new Date().toISOString(),
-              type: 'narration',
-              content: parsed.markdownOutput,
-            });
-          }
-
-          for (const npcId of Object.keys(parsed.npcMemoryUpdate ?? {})) {
-            narrationMemoryNpcIds.add(npcId);
-          }
-          narrationContinuity = mergeNarrationContinuity(narrationContinuity, parsed, turnCount);
-          setNpcStates(narrationContinuity.npcStates);
-          setStim(narrationContinuity.stim);
-        }
-      }
-
-      let narrationNpcPersisted = true;
-      if (user && activeInvestigation && narrationMemoryNpcIds.size > 0) {
-        narrationNpcPersisted = await GameRepository.applyNPCUpdates(
-          activeInvestigation.id,
-          Object.fromEntries([...narrationMemoryNpcIds].map(npcId => [
-            npcId,
-            { memory: narrationContinuity.npcStates[npcId]?.memory ?? [] },
-          ])),
-        );
-      }
-
-      // The turn's single auto-save happens only after both narration streams
-      // have merged continuity. Fresh overrides prevent this async handler's
-      // pre-turn React closure from clobbering the engine state persisted above.
-      let narrationStatePersisted = true;
-      if (!advancingAct) {
-        narrationStatePersisted = await handleSaveGame(true, {
-          location: newLocation,
-          inventory: newInventory,
-          medicalPoints: newMedicalPoints,
-          moralPoints: newMoralPoints,
-          npcStates: narrationContinuity.npcStates,
-          flags: newFlags,
-          stim: narrationContinuity.stim,
-          introducedNpcs: newIntroducedNpcs,
-          currentAct,
-          rumorEvents: newRumorEvents,
-        });
-      }
-      if (user && activeInvestigation) {
-        cloudWriteResults.push(narrationCloudPersisted(
-          narrationNpcPersisted,
-          narrationStatePersisted,
-        ));
-        finalizeCloudPersistence(true);
-      }
-
-      // STEP 8: Generate act journal after narration stream completes (act advance only)
-      if (pendingJournalSummary) {
-        let appendedJournal = false;
-        try {
-          const journalText = await aiService.generateJournalEntry(pendingJournalSummary);
-          if (journalText) {
-            setHistory(prev => [
-              ...prev,
-              { role: 'assistant', text: journalText, type: 'journal' },
-            ]);
-            appendedJournal = true;
-
-            // Also save the reflective entry into Watson's diary as the act's
-            // closing note (the in-feed beat stays; this makes it re-readable).
-            // An authored act-closing entry (diaryActs.ts) overrides the AI
-            // journal text for the archived diary only.
-            const authoredActText = resolveActDiary(pendingJournalSummary.actNumber, flags);
-            const actEntry: DiaryEntry = {
-              id: crypto.randomUUID(),
-              kind: 'act',
-              refId: String(pendingJournalSummary.actNumber),
-              actNumber: pendingJournalSummary.actNumber,
-              sequence: diarySeqRef.current++,
-              text: authoredActText ?? journalText,
-              timeLabel: captureTimeLabel, // the clock at the act's close
-            };
-            setDiaryEntries(prev => [...prev, actEntry]);
-            if (user && activeInvestigation) {
-              GameRepository.addDiaryEntries(activeInvestigation.id, [actEntry]);
-            }
-          }
-        } catch {
-          // Journal is bonus content — never block the game on failure
-        }
-        // No diary to type out → reveal the Begin button immediately (no softlock).
-        if (!appendedJournal) setIsActBreakReady(true);
-      }
-
-      // STEP 8b: Fill any progression-gate flags this turn left with no diary
-      // text. Async, after narration — mirrors STEP 8, never blocks the turn.
-      if (pendingLeadFlags.length > 0) {
-        const actName = ACT_NAMES[currentAct] || `Act ${currentAct}`;
-        for (const leadFlag of pendingLeadFlags) {
-          const context = leadContextFor(currentAct, leadFlag);
-          if (!context) continue; // no hint objective mapped to this flag — skip rather than guess
+            .map(c => ({ name: c.name, description: c.description, holmesDeduction: c.holmesDeduction }));
+          const newClueNames = result.discoveredClueIds
+            .map(id => CLUE_DEFINITIONS[id]?.name)
+            .filter(Boolean) as string[];
           try {
-            const { title, body } = await aiService.generateLeadDiaryEntry({
-              actName,
-              verb: context.verb,
-              subject: context.subject,
-              narrationText: finalNarrationText,
-            });
-            if (title && body) {
-              captureDiaryEntries([{
-                kind: 'decision',
-                refId: leadFlag,
-                actNumber: currentAct,
-                timeLabel: captureTimeLabel,
-                text: `${title}\n${body}`,
-                isLead: true,
-              }]);
+            aiContext.holmesSynthesis = await aiService.consultHolmesMultiClue(
+              allClueObjects,
+              newClueNames,
+              aiContext.act,
+            );
+          } catch {
+            // Graceful fallback — Watson narrates with the hardcoded holmesDeduction per clue
+          }
+        }
+
+        // Engine-verified pickup notice — items the player actually gained this
+        // turn (examine can silently grant documents; the player must be told).
+        const itemsPickedUp = (result.inventoryAdd ?? []).filter(i => !inventory.includes(i));
+        if (itemsPickedUp.length > 0) audioManager.playSfx('item-pickup');
+        // Documents are "filed" (and stay filed after the bag empties); every
+        // other takeable is plainly "picked up".
+        const filedItems = itemsPickedUp.filter(i => DOCUMENT_ITEM_NAMES.has(i));
+        const plainItems = itemsPickedUp.filter(i => !DOCUMENT_ITEM_NAMES.has(i));
+        const pickupClauses = [
+          filedItems.length > 0 ? `**You filed:** ${filedItems.join(', ')}` : null,
+          plainItems.length > 0 ? `**You picked up:** ${plainItems.join(', ')}` : null,
+        ].filter(Boolean);
+        const pickupNote = pickupClauses.length > 0 ? `\n\n${pickupClauses.join('\n\n')}` : '';
+
+        // Location header — full-mode turns (successful move / target-less look)
+        // surface the engine-verified location name as feed chrome above the
+        // prose (see NarrativeFeed's SceneHeader). Compact turns get no header.
+        if (aiContext.narrationMode === 'full') {
+          const locationLabel = aiContext.locationName;
+          setHistory(prev => {
+            const next = [...prev];
+            next[next.length - 1] = { ...next[next.length - 1], location: locationLabel };
+            return next;
+          });
+        }
+
+        let narrationContinuity = {
+          npcStates: advancingAct ? npcStates : newNpcStates,
+          stim,
+        };
+        const narrationMemoryNpcIds = new Set<string>();
+        // The turn's final narration text, captured inside the STEP 7 stream
+        // loop — used to ground STEP 8b's AI-generated diary prose. Declared
+        // fresh per attempt so a retry never carries a failed attempt's text.
+        let finalNarrationText = '';
+
+        // STEP 7: Stream AI narration
+        for await (const update of aiService.stream(aiContext)) {
+          const { narrative, isComplete, parsed } = update;
+          // Defensive: full-mode prompts no longer ask for a heading, but strip
+          // any the model still emits (compact mode never produced one).
+          const cleaned = aiContext.narrationMode === 'full' ? stripLeadingActHeading(narrative) : narrative;
+          const displayText = isComplete ? cleaned + pickupNote : cleaned;
+
+          setHistory(prev => {
+            const next = [...prev];
+            next[next.length - 1] = { ...next[next.length - 1], text: displayText };
+            return next;
+          });
+
+          if (isComplete && parsed) {
+            finalNarrationText = parsed.markdownOutput;
+
+            // Anti-repetition memory: remember this narration's opening sentence
+            const opening = extractOpeningSentence(parsed.markdownOutput);
+            if (opening) {
+              setRecentOpenings(prev => [opening, ...prev].slice(0, 4));
+            }
+
+            if (user && activeInvestigation) {
+              GameRepository.addLogEntry(activeInvestigation.id, {
+                timestamp: new Date().toISOString(),
+                type: 'narration',
+                content: parsed.markdownOutput + pickupNote,
+              });
+            }
+
+            for (const npcId of Object.keys(parsed.npcMemoryUpdate ?? {})) {
+              narrationMemoryNpcIds.add(npcId);
+            }
+            narrationContinuity = mergeNarrationContinuity(narrationContinuity, parsed, turnCount);
+            setNpcStates(narrationContinuity.npcStates);
+            setStim(narrationContinuity.stim);
+          }
+        }
+
+        // A due deterministic fallback is presentation-only: its state effects
+        // were merged and persisted above with the triggering action. Narrate it
+        // only after that action's stream finishes, in its own assistant item.
+        if (result.followUpEvent) {
+          const parsed = await streamFollowUpNarration(
+            result.followUpEvent,
+            context => aiService.stream(context),
+            setHistory,
+          );
+          if (parsed) {
+            finalNarrationText = [finalNarrationText, parsed.markdownOutput]
+              .filter(Boolean)
+              .join('\n\n');
+
+            const opening = extractOpeningSentence(parsed.markdownOutput);
+            if (opening) setRecentOpenings(prev => [opening, ...prev].slice(0, 4));
+
+            if (user && activeInvestigation) {
+              GameRepository.addLogEntry(activeInvestigation.id, {
+                timestamp: new Date().toISOString(),
+                type: 'narration',
+                content: parsed.markdownOutput,
+              });
+            }
+
+            for (const npcId of Object.keys(parsed.npcMemoryUpdate ?? {})) {
+              narrationMemoryNpcIds.add(npcId);
+            }
+            narrationContinuity = mergeNarrationContinuity(narrationContinuity, parsed, turnCount);
+            setNpcStates(narrationContinuity.npcStates);
+            setStim(narrationContinuity.stim);
+          }
+        }
+
+        let narrationNpcPersisted = true;
+        if (user && activeInvestigation && narrationMemoryNpcIds.size > 0) {
+          narrationNpcPersisted = await GameRepository.applyNPCUpdates(
+            activeInvestigation.id,
+            Object.fromEntries([...narrationMemoryNpcIds].map(npcId => [
+              npcId,
+              { memory: narrationContinuity.npcStates[npcId]?.memory ?? [] },
+            ])),
+          );
+        }
+
+        // The turn's single auto-save happens only after both narration streams
+        // have merged continuity. Fresh overrides prevent this async handler's
+        // pre-turn React closure from clobbering the engine state persisted above.
+        let narrationStatePersisted = true;
+        if (!advancingAct) {
+          narrationStatePersisted = await handleSaveGame(true, {
+            location: newLocation,
+            inventory: newInventory,
+            medicalPoints: newMedicalPoints,
+            moralPoints: newMoralPoints,
+            npcStates: narrationContinuity.npcStates,
+            flags: newFlags,
+            stim: narrationContinuity.stim,
+            introducedNpcs: newIntroducedNpcs,
+            currentAct,
+            rumorEvents: newRumorEvents,
+          });
+        }
+        if (user && activeInvestigation) {
+          cloudWriteResults.push(narrationCloudPersisted(
+            narrationNpcPersisted,
+            narrationStatePersisted,
+          ));
+          finalizeCloudPersistence(true);
+        }
+
+        // STEP 8: Generate act journal after narration stream completes (act advance only)
+        if (pendingJournalSummary) {
+          let appendedJournal = false;
+          try {
+            const journalText = await aiService.generateJournalEntry(pendingJournalSummary);
+            if (journalText) {
+              setHistory(prev => [
+                ...prev,
+                { role: 'assistant', text: journalText, type: 'journal' },
+              ]);
+              appendedJournal = true;
+
+              // Also save the reflective entry into Watson's diary as the act's
+              // closing note (the in-feed beat stays; this makes it re-readable).
+              // An authored act-closing entry (diaryActs.ts) overrides the AI
+              // journal text for the archived diary only.
+              const authoredActText = resolveActDiary(pendingJournalSummary.actNumber, flags);
+              const actEntry: DiaryEntry = {
+                id: crypto.randomUUID(),
+                kind: 'act',
+                refId: String(pendingJournalSummary.actNumber),
+                actNumber: pendingJournalSummary.actNumber,
+                sequence: diarySeqRef.current++,
+                text: authoredActText ?? journalText,
+                timeLabel: captureTimeLabel, // the clock at the act's close
+              };
+              setDiaryEntries(prev => [...prev, actEntry]);
+              if (user && activeInvestigation) {
+                GameRepository.addDiaryEntries(activeInvestigation.id, [actEntry]);
+              }
             }
           } catch {
-            // Lead prose is bonus content — never block the game on failure
+            // Journal is bonus content — never block the game on failure
+          }
+          // No diary to type out → reveal the Begin button immediately (no softlock).
+          if (!appendedJournal) setIsActBreakReady(true);
+        }
+
+        // STEP 8b: Fill any progression-gate flags this turn left with no diary
+        // text. Async, after narration — mirrors STEP 8, never blocks the turn.
+        if (pendingLeadFlags.length > 0) {
+          const actName = ACT_NAMES[currentAct] || `Act ${currentAct}`;
+          for (const leadFlag of pendingLeadFlags) {
+            const context = leadContextFor(currentAct, leadFlag);
+            if (!context) continue; // no hint objective mapped to this flag — skip rather than guess
+            try {
+              const { title, body } = await aiService.generateLeadDiaryEntry({
+                actName,
+                verb: context.verb,
+                subject: context.subject,
+                narrationText: finalNarrationText,
+              });
+              if (title && body) {
+                captureDiaryEntries([{
+                  kind: 'decision',
+                  refId: leadFlag,
+                  actNumber: currentAct,
+                  timeLabel: captureTimeLabel,
+                  text: `${title}\n${body}`,
+                  isLead: true,
+                }]);
+              }
+            } catch {
+              // Lead prose is bonus content — never block the game on failure
+            }
           }
         }
-      }
 
-      // STEP 9: The true ending's scripted coda — authored verbatim, never
-      // AI-generated. Fires once, after the final narration completes.
-      // (Cold-case endings keep their AI diary epilogue from the main stream.)
-      if (result.gameOver && result.endingType === 'true_ending') {
-        setHistory(prev => [
-          ...prev,
-          { role: 'assistant', text: TRUE_ENDING_CODA, type: 'journal' },
-        ]);
-      }
+        // STEP 9: The true ending's scripted coda — authored verbatim, never
+        // AI-generated. Fires once, after the final narration completes.
+        // (Cold-case endings keep their AI diary epilogue from the main stream.)
+        if (result.gameOver && result.endingType === 'true_ending') {
+          setHistory(prev => [
+            ...prev,
+            { role: 'assistant', text: TRUE_ENDING_CODA, type: 'journal' },
+          ]);
+        }
+      };
+
+      // A retry after a narration-phase failure re-enters only this closure,
+      // never STEP 1-4, and shares handleFailure so a second failure re-arms
+      // the screen with attempts incremented instead of throwing unhandled.
+      const retryNarration = async () => {
+        setIsLoading(true);
+        setIsAutoScrollLocked(false);
+        try {
+          await runNarrationPipeline();
+          clearTurnFailure();
+        } catch (err) {
+          handleFailure(err);
+        } finally {
+          setIsLoading(false);
+          setIsAutoScrollLocked(true);
+        }
+      };
+      retryNarrationRef = retryNarration;
+
+      await runNarrationPipeline();
 
     } catch (error) {
-      // If narration aborts after any cloud write was attempted, the per-turn
-      // save sequence is incomplete and must not clear (or hide) a failure streak.
-      finalizeCloudPersistence(false);
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error('handleAction error:', errorMsg, error);
-      setHistory(prev => {
-        const next = [...prev];
-        next[next.length - 1] = {
-          ...next[next.length - 1],
-          text: `> *The connection to the investigation archives was momentarily lost. Please try again.*\n\n> *(Debug: ${errorMsg})*`,
-        };
-        return next;
-      });
+      handleFailure(error);
     } finally {
       setIsLoading(false);
       setIsAutoScrollLocked(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, lastApproachAtMinutes, handleSaveGame, captureDiaryEntries, captureLocationArrival]);
+  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, lastApproachAtMinutes, handleSaveGame, captureDiaryEntries, captureLocationArrival, clearTurnFailure, raiseTurnFailure]);
 
   // ── Holmes hint ───────────────────────────────────────────────────────────
 
@@ -1071,6 +1164,8 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     isAdvancingAct,
     beginNextAct,
     handleJournalTypewriterDone,
+
+    turnFailure,
 
     handleAction,
     handleSaveGame,

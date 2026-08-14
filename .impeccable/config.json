@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "lato",
+        "reason": "User confirmed Lato is intentional: chosen for legibility, and already the app's font-sans in tailwind.config.js",
+        "createdAt": "2026-08-14T11:32:20.742Z"
+      }
+    ]
+  }
+}
