@@ -281,9 +281,6 @@ const CLUE_DEFINITIONS_DATA = {
   },
 } satisfies Record<string, ClueDefinition>;
 
-/** Every authored clue id — the keys of the data table, kept alive by `satisfies`. */
-export type ClueId = keyof typeof CLUE_DEFINITIONS_DATA;
-
 // Re-exported under the original wide type so consumers keep string-keyed access.
 export const CLUE_DEFINITIONS: Record<string, ClueDefinition> = CLUE_DEFINITIONS_DATA;
 

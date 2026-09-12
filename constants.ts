@@ -6,12 +6,6 @@
  * Color tokens: lb-bg, lb-paper, lb-primary, lb-accent, lb-muted, lb-border
  * Font tokens:  font-sans (Lato), font-serif (Playfair Display)
  */
-export const THEME = {
-  fonts: {
-    heading: 'font-serif',
-    body: 'font-sans'
-  }
-};
 
 export const INITIAL_LOCATION = 'baker_street';
 export const INITIAL_ACT = 0;
