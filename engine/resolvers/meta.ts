@@ -96,7 +96,11 @@ export function resolveQuery(story: StoryManifest, intent: ParsedIntent, session
         `WORLD QUERY — Answer Watson's specific question or observation in 1–2 sentences, Watson's first-person voice. ` +
         `Draw on: (1) the location atmosphere and description for immediate scene detail; ` +
         `(2) Watson's knowledge as a Victorian doctor and gentleman for questions about 1888 London life, ` +
-        `customs, trades, objects, and period context — he need not limit himself to the immediate scene. ` +
+        `customs, trades, objects, and period context — he need not limit himself to the immediate scene; ` +
+        `(3) anything already established earlier in this scene or session — an NPC he has met, a caller who was ` +
+        `just announced, an event already narrated, or a household fixture such as Mrs Hudson, their landlady. ` +
+        `If the question names someone or something already established this way, answer consistently with it — ` +
+        `never deny knowledge of them or invent a conflicting identity or account for who or what they are. ` +
         `If the question concerns something that did not exist in 1888 London — modern technology, post-1888 events, ` +
         `or concepts foreign to a Victorian gentleman — Watson should briefly and gracefully acknowledge he has no ` +
         `knowledge of such a thing, in character. Do not invent anachronistic answers. ` +
