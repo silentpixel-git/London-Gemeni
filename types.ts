@@ -28,19 +28,6 @@ export interface PendingActTransition {
   npcUpdates: Record<string, Partial<NPCState>>;
 }
 
-export interface DispositionStats {
-  trust: number;
-  annoyance: number;
-}
-
-export interface GameDispositions {
-  holmes: DispositionStats;
-  abberline: DispositionStats;
-  bond: DispositionStats;
-  edmund: DispositionStats;
-  lusk: DispositionStats;
-}
-
 // --- Granular World Entities ---
 
 export type InvestigationStatus = 'active' | 'cold_case' | 'solved' | 'archived';
@@ -66,14 +53,6 @@ export interface Investigation {
   lastApproachAtMinutes?: number; // in-game clock value of the last NPC approach (30-min cooldown)
   rumorEvents?: RumorEvents; // Phase 4b — rumor-event log (see RumorEvents)
   createdAt: string;
-  updatedAt: string;
-}
-
-export interface LocationState {
-  locationId: string;
-  isCrimeScene?: boolean;
-  isLocked?: boolean;
-  mutations?: Record<string, any>;
   updatedAt: string;
 }
 
@@ -125,47 +104,6 @@ export interface GameState {
   currentAct?: number;
   // Phase 4b — rumor-event log. Optional for back-compat with older saves.
   rumorEvents?: RumorEvents;
-}
-
-export interface WorldLocation {
-  name: string;
-  shortName?: string;
-  act: number;
-  atmosphere: string;
-  description: string;
-  exits: string[];
-  interactables: string[];
-}
-
-export interface GameResponse {
-  thoughtProcess?: string;
-  markdownOutput: string;
-  newLocationId?: string;
-  inventoryUpdate?: {
-    add?: string[];
-    remove?: string[];
-  };
-  dispositionUpdate?: {
-    [key in keyof GameDispositions]?: Partial<DispositionStats>;
-  };
-  flagsUpdate?: Record<string, boolean>;
-  // Phase 4b — rumor-event log entries recorded this turn (merge into the
-  // session log; a rumor records at most once per playthrough).
-  rumorEventsUpdate?: RumorEvents;
-  sanityUpdate?: number;
-  medicalPointsUpdate?: number;
-  moralPointsUpdate?: number;
-  locationMutations?: {
-    [locationId: string]: Partial<LocationState>;
-  };
-  npcMutations?: {
-    [npcId: string]: Partial<NPCState>;
-  };
-  npcMemoryUpdate?: {
-    [npcId: string]: string; // A 10-word summary of the interaction
-  };
-  discoveredClues?: Clue[];
-  gameOver?: boolean;
 }
 
 // ============================================================
