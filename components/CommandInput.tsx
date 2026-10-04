@@ -7,7 +7,7 @@
  * know about the raw text field state.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Feather, Lightbulb, Send, Eye, Search, Glasses, Compass, Brain, Microscope, BookOpen, DoorOpen, User, type LucideIcon } from 'lucide-react';
 import { GameHistoryItem } from '../types';
@@ -46,6 +46,8 @@ const PROMPTS_MOBILE = [
 
 interface CommandInputProps {
   scene: SceneView;
+  /** An unfinished sentence from the case rail; each new nonce replaces the field and focuses it. */
+  fill: { text: string; nonce: number } | null;
   isLoading: boolean;
   isGameOver: boolean;
   isConsultingHolmes: boolean;
@@ -57,6 +59,7 @@ interface CommandInputProps {
 
 export const CommandInput: React.FC<CommandInputProps> = ({
   scene,
+  fill,
   isLoading,
   isGameOver,
   isConsultingHolmes,
@@ -67,6 +70,18 @@ export const CommandInput: React.FC<CommandInputProps> = ({
 }) => {
   const reducedMotion = useReducedMotion();
   const [input, setInput] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!fill) return;
+    setInput(fill.text);
+    const el = inputRef.current;
+    if (el) {
+      el.focus();
+      // Caret after the trailing space, ready for the player to finish the sentence.
+      requestAnimationFrame(() => el.setSelectionRange(fill.text.length, fill.text.length));
+    }
+  }, [fill?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pick a random starting message once per wait; the CSS rotation loop
   // (see index.css lb-rot-*) cycles onward from there.
@@ -166,6 +181,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
 
         <div className="relative flex items-center">
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}

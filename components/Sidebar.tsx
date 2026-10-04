@@ -3,14 +3,17 @@
  *
  * Left-hand case rail: current location and weather, then collapsible panels
  * for the medical bag, present NPCs, objects of interest, and available exits.
- * Scene data arrives pre-derived (components/sceneView.ts).
+ * Scene data arrives pre-derived (components/sceneView.ts). Tapping a person,
+ * object or carried item expands it to its verbs: single-step verbs run at once,
+ * verbs that need a second noun or a topic fill the command bar for the player
+ * to finish (see RailAction).
  */
 
 import React, { useState } from 'react';
-import { MapPin, Briefcase, DoorOpen, User, Search, X, ChevronDown, CloudFog, CloudDrizzle, CloudRain, Cloudy, Moon, Haze, type LucideIcon } from 'lucide-react';
+import { MapPin, Briefcase, DoorOpen, User, Search, X, ChevronDown, ArrowRight, CloudFog, CloudDrizzle, CloudRain, Cloudy, Moon, Haze, type LucideIcon } from 'lucide-react';
 import { LOCATIONS } from '../engine/gameData';
 import type { ActWeather, WeatherCondition } from '../engine/gameData';
-import type { SceneView } from './sceneView';
+import { deriveInventory, type SceneView, type SceneItem, type RailAction } from './sceneView';
 
 // UI-layer mapping: weather condition → Lucide icon. Kept here (not in the
 // engine) so story data stays free of React/Lucide dependencies.
@@ -83,6 +86,70 @@ const Bullet: React.FC<{ hollow?: boolean }> = ({ hollow }) => (
   <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${hollow ? 'border border-lb-accent' : 'bg-lb-accent'}`} />
 );
 
+interface ActionRowProps {
+  item: SceneItem;
+  hollow?: boolean;
+  note?: string;
+  expanded: boolean;
+  disabled: boolean;
+  onToggle: () => void;
+  onAction: (action: RailAction) => void;
+}
+
+/** A list row that expands in place to its verbs: one filled primary button, quieter secondaries. */
+const ActionRow: React.FC<ActionRowProps> = ({ item, hollow, note, expanded, disabled, onToggle, onAction }) => {
+  // Nothing to offer (not yet addressable, or not an object): a plain row.
+  if (item.actions.length === 0) {
+    return (
+      <div className="flex items-center gap-3 text-lb-primary opacity-90">
+        <Bullet hollow={hollow} />
+        <span className="font-sans text-md">{item.name}</span>
+        {note && <span className="font-sans text-sm italic text-lb-primary opacity-60">{note}</span>}
+      </div>
+    );
+  }
+  return (
+  <div>
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      className="w-full flex items-center gap-3 text-left text-lb-primary opacity-90 hover:opacity-100 hover:text-lb-accent pressable"
+    >
+      <Bullet hollow={hollow} />
+      <span className="font-sans text-md">{item.name}</span>
+      {note && <span className="font-sans text-sm italic text-lb-primary opacity-60">{note}</span>}
+      <ChevronDown
+        size={12}
+        className={`ml-auto shrink-0 text-lb-muted transition-transform duration-200 ease-out ${expanded ? '' : '-rotate-90'}`}
+      />
+    </button>
+    <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+      <div className="overflow-hidden">
+        <div className="flex flex-wrap gap-2 pt-2.5 pl-[18px]" role="group" aria-label={`Actions for ${item.name}`}>
+          {item.actions.map(action => (
+            <button
+              key={action.key}
+              type="button"
+              tabIndex={expanded ? 0 : -1}
+              disabled={disabled}
+              onClick={() => onAction(action)}
+              className={`rounded-full px-3 py-1 text-sm font-sans disabled:opacity-40 pressable ${
+                action.primary
+                  ? 'bg-lb-accent text-white hover:brightness-110'
+                  : 'border border-lb-border bg-lb-paper text-lb-primary/80 hover:border-lb-accent hover:text-lb-accent'
+              }`}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+  );
+};
+
 interface SidebarProps {
   isSidebarOpen: boolean;
   onClose: () => void;
@@ -92,6 +159,10 @@ interface SidebarProps {
   displayTime: string;
   displayDate: string;
   weather: ActWeather;
+  /** True while a turn is resolving — verbs are disabled so a tap can't queue a second action. */
+  isBusy: boolean;
+  onRunCommand: (command: string) => void;
+  onFillCommand: (command: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -103,9 +174,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
   displayTime,
   displayDate,
   weather,
+  isBusy,
+  onRunCommand,
+  onFillCommand,
 }) => {
   const WeatherIcon = WEATHER_ICON[weather.condition];
   const [collapsed, setCollapsed] = useState(loadCollapsed);
+  // One row open at a time — the rail is narrow and a stack of open menus reads as clutter.
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  const bagItems = React.useMemo(() => deriveInventory(inventory), [inventory]);
+
+  const toggleRow = (key: string) => setOpenRow(prev => (prev === key ? null : key));
+  const runAction = (action: RailAction) => {
+    setOpenRow(null);
+    if (action.mode === 'run') onRunCommand(action.command);
+    else onFillCommand(action.command);
+  };
+  const rowProps = (key: string, item: SceneItem) => ({
+    item,
+    expanded: openRow === key,
+    disabled: isBusy,
+    onToggle: () => toggleRow(key),
+    onAction: runAction,
+  });
 
   const togglePanel = (id: PanelId) => {
     setCollapsed(prev => {
@@ -155,11 +246,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <Panel {...panelProps('bag')} icon={Briefcase} title="Medical Bag" count={inventory.length}>
             <ul className="space-y-3">
-              {inventory.map((item, idx) => (
-                <li key={idx} className="flex items-center gap-3 text-lb-primary opacity-90">
-                  <Bullet />
-                  <span className="font-sans text-md">{item}</span>
-                </li>
+              {bagItems.map(item => (
+                <li key={item.id}><ActionRow {...rowProps(`bag:${item.id}`, item)} /></li>
               ))}
             </ul>
           </Panel>
@@ -170,36 +258,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ) : (
               <ul className="space-y-3">
                 {scene.npcs.map(npc => (
-                  <li key={npc.npcId} className="flex items-center gap-3 text-lb-primary opacity-90">
-                    <Bullet />
-                    <span className="font-sans text-md capitalize">{npc.displayName}</span>
+                  <li key={npc.npcId}>
+                    <ActionRow {...rowProps(`npc:${npc.npcId}`, { id: npc.npcId, name: npc.displayName, actions: npc.actions })} />
                   </li>
                 ))}
               </ul>
             )}
           </Panel>
 
-          {/* Objects of interest — a reminder of what's in the current scene,
-              mirrored from the narration text. Static list, not interactive. */}
+          {/* Objects of interest — what's in the current scene, mirrored from the
+              narration text. Each row expands to its verbs. */}
           <Panel {...panelProps('objects')} icon={Search} title="Objects of Interest" count={scene.objects.length}>
             {scene.objects.length > 0 ? (
               <ul className="space-y-3">
                 {scene.objects.map(obj => (
                   <li key={obj.id}>
-                    <div className="flex items-center gap-3 text-lb-primary opacity-90">
-                      <Bullet />
-                      <span className="font-sans text-md">{obj.name}</span>
-                      {obj.closed && (
-                        <span className="font-sans text-sm italic text-lb-primary opacity-60">closed</span>
-                      )}
-                    </div>
+                    <ActionRow {...rowProps(`obj:${obj.id}`, obj)} note={obj.closed ? 'closed' : undefined} />
                     {obj.children.length > 0 && (
                       <ul className="mt-3 ml-6 space-y-3">
-                        {obj.children.map((childName, cIdx) => (
-                          <li key={cIdx} className="flex items-center gap-3 text-lb-primary opacity-90">
-                            <Bullet hollow />
-                            <span className="font-sans text-md">{childName}</span>
-                          </li>
+                        {obj.children.map(child => (
+                          <li key={child.id}><ActionRow {...rowProps(`obj:${child.id}`, child)} hollow /></li>
                         ))}
                       </ul>
                     )}
@@ -215,9 +293,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {scene.exits.length > 0 ? (
               <ul className="space-y-3">
                 {scene.exits.map(exit => (
-                  <li key={exit.id} className="flex items-center gap-3 text-lb-primary opacity-90">
-                    <Bullet />
-                    <span className="font-sans text-md">{exit.name}</span>
+                  <li key={exit.id}>
+                    {/* A single verb, so no expand step: one tap goes. */}
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={() => onRunCommand(`Go to ${exit.name}`)}
+                      className="w-full flex items-center gap-3 text-left text-lb-primary opacity-90 hover:opacity-100 hover:text-lb-accent disabled:opacity-40 pressable"
+                    >
+                      <Bullet />
+                      <span className="font-sans text-md">{exit.name}</span>
+                      <ArrowRight size={13} className="ml-auto shrink-0 text-lb-muted" />
+                    </button>
                   </li>
                 ))}
               </ul>

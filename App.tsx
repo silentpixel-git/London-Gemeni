@@ -88,6 +88,17 @@ const AppContent: React.FC = () => {
     [gs.location, gs.currentAct, gs.npcStates, gs.introducedNpcs, gs.flags],
   );
 
+  // A turn is resolving, or the act curtain / failure screen is up: no new commands.
+  const isBusy = gs.isLoading || gs.pendingActTransition !== null || gs.isCurtainPlaying || gs.turnFailure !== null;
+
+  // Rail verbs that need a second noun or topic drop an unfinished sentence into
+  // the command bar; the nonce lets the same sentence be filled twice in a row.
+  const [commandFill, setCommandFill] = useState<{ text: string; nonce: number } | null>(null);
+  // Below lg the rail is a drawer covering the game — close it once a verb is chosen.
+  const closeDrawerIfNarrow = () => { if (!window.matchMedia(LG_QUERY).matches) setIsSidebarOpen(false); };
+  const handleRailRun = (command: string) => { closeDrawerIfNarrow(); void gs.handleAction(command); };
+  const handleRailFill = (command: string) => { closeDrawerIfNarrow(); setCommandFill({ text: command, nonce: Date.now() }); };
+
   const diaryUnreadCount = Math.max(0, gs.diaryEntries.length - diarySeenCount);
   const openDiary = () => {
     // Capture which entries are new (logged since the last open) before resetting
@@ -227,6 +238,9 @@ const AppContent: React.FC = () => {
         displayTime={gs.displayTime}
         displayDate={gs.displayDate}
         weather={gs.weather}
+        isBusy={isBusy}
+        onRunCommand={handleRailRun}
+        onFillCommand={handleRailFill}
       />
 
       <div className="flex-1 flex flex-col h-full relative w-full transition-[width] duration-300 ease-out-expo">
@@ -269,7 +283,8 @@ const AppContent: React.FC = () => {
 
         <CommandInput
           scene={scene}
-          isLoading={gs.isLoading || gs.pendingActTransition !== null || gs.isCurtainPlaying || gs.turnFailure !== null}
+          fill={commandFill}
+          isLoading={isBusy}
           isGameOver={gs.isGameOver}
           isConsultingHolmes={gs.isConsultingHolmes}
           isAdvancingAct={gs.isAdvancingAct}
