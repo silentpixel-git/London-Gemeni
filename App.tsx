@@ -9,12 +9,13 @@
  * Everything else lives in hooks/useGameState.ts and the focused components.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { SupabaseProvider, useSupabase } from './components/SupabaseProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Notification } from './components/Notification';
 import { Sidebar } from './components/Sidebar';
+import { deriveScene } from './components/sceneView';
 import { Header } from './components/Header';
 import { NarrativeFeed } from './components/NarrativeFeed';
 import { CommandInput } from './components/CommandInput';
@@ -75,6 +76,17 @@ const AppContent: React.FC = () => {
     soundEffects: gs.soundEffects,
     ambientAudio: gs.ambientAudio,
   });
+
+  const scene = useMemo(
+    () => deriveScene({
+      location: gs.location,
+      currentAct: gs.currentAct,
+      npcStates: gs.npcStates,
+      introducedNpcs: gs.introducedNpcs,
+      flags: gs.flags,
+    }),
+    [gs.location, gs.currentAct, gs.npcStates, gs.introducedNpcs, gs.flags],
+  );
 
   const diaryUnreadCount = Math.max(0, gs.diaryEntries.length - diarySeenCount);
   const openDiary = () => {
@@ -139,7 +151,7 @@ const AppContent: React.FC = () => {
     setIsFirstRunProfile(false);
   };
 
-  // Swipe to open/close the sidebar drawer on mobile (matches the Sidebar's
+  // Swipe in from the right edge to open / out to close the case-rail drawer on mobile (matches the Sidebar's
   // lg:hidden overlay behavior — desktop keeps the sidebar docked, no swipe).
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -154,9 +166,9 @@ const AppContent: React.FC = () => {
     const dx = t.clientX - start.x;
     const dy = t.clientY - start.y;
     if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    if (dx > 0 && start.x < 40 && !isSidebarOpen) {
+    if (dx < 0 && start.x > window.innerWidth - 40 && !isSidebarOpen) {
       setIsSidebarOpen(true);
-    } else if (dx < 0 && isSidebarOpen) {
+    } else if (dx > 0 && isSidebarOpen) {
       setIsSidebarOpen(false);
     }
   };
@@ -206,20 +218,6 @@ const AppContent: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <Sidebar
-        isSidebarOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        location={gs.location}
-        inventory={gs.inventory}
-        currentAct={gs.currentAct}
-        npcStates={gs.npcStates}
-        introducedNpcs={gs.introducedNpcs}
-        displayTime={gs.displayTime}
-        displayDate={gs.displayDate}
-        weather={gs.weather}
-        flags={gs.flags}
-      />
-
       <div className="flex-1 flex flex-col h-full relative w-full transition-[width] duration-300 ease-out-expo">
         <Header
           isSidebarOpen={isSidebarOpen}
@@ -259,6 +257,7 @@ const AppContent: React.FC = () => {
         />
 
         <CommandInput
+          scene={scene}
           isLoading={gs.isLoading || gs.pendingActTransition !== null || gs.isCurtainPlaying || gs.turnFailure !== null}
           isGameOver={gs.isGameOver}
           isConsultingHolmes={gs.isConsultingHolmes}
@@ -268,6 +267,17 @@ const AppContent: React.FC = () => {
           onConsultHolmes={gs.handleConsultHolmes}
         />
       </div>
+
+      <Sidebar
+        isSidebarOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        location={gs.location}
+        inventory={gs.inventory}
+        scene={scene}
+        displayTime={gs.displayTime}
+        displayDate={gs.displayDate}
+        weather={gs.weather}
+      />
 
       {/* Modals */}
       <SaveSlotsModal

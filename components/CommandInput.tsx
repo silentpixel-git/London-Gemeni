@@ -9,10 +9,11 @@
 
 import React, { useState, useMemo } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Feather, Lightbulb, Send, Eye, Search, Glasses, Compass, Brain, Microscope, BookOpen, type LucideIcon } from 'lucide-react';
+import { Feather, Lightbulb, Send, Eye, Search, Glasses, Compass, Brain, Microscope, BookOpen, DoorOpen, User, type LucideIcon } from 'lucide-react';
 import { GameHistoryItem } from '../types';
 import { zoomFade } from './motionTokens';
 import { Tooltip } from './Tooltip';
+import { buildChips, type SceneView } from './sceneView';
 
 const LOADING_VARIANTS: Array<{ icon: LucideIcon; text: string }> = [
   { icon: Eye,        text: 'Surveying the scene...' },
@@ -44,6 +45,7 @@ const PROMPTS_MOBILE = [
 ];
 
 interface CommandInputProps {
+  scene: SceneView;
   isLoading: boolean;
   isGameOver: boolean;
   isConsultingHolmes: boolean;
@@ -54,6 +56,7 @@ interface CommandInputProps {
 }
 
 export const CommandInput: React.FC<CommandInputProps> = ({
+  scene,
   isLoading,
   isGameOver,
   isConsultingHolmes,
@@ -79,6 +82,8 @@ export const CommandInput: React.FC<CommandInputProps> = ({
 
   if (isGameOver) return null;
 
+  const chips = buildChips(scene);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -98,7 +103,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
     <div className="absolute bottom-0 left-0 right-0 px-8 pb-[max(2rem,env(safe-area-inset-bottom))] pt-10 md:px-16 md:pb-[max(3rem,env(safe-area-inset-bottom))] md:pt-16 lg:pt-18 bg-gradient-to-t from-lb-bg to-transparent pointer-events-none">
       <form
         onSubmit={handleSubmit}
-        className="relative pointer-events-auto max-w-3xl mx-auto"
+        className="relative pointer-events-auto max-w-2xl mx-auto"
       >
         <AnimatePresence>
         {isStreaming && (
@@ -138,6 +143,26 @@ export const CommandInput: React.FC<CommandInputProps> = ({
           </motion.div>
         )}
         </AnimatePresence>
+
+        {chips.length > 0 && (
+          <div className="mb-3 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-1 px-1" role="group" aria-label="Suggestions">
+            {chips.map(chip => {
+              const Icon = chip.kind === 'object' ? Search : chip.kind === 'npc' ? User : DoorOpen;
+              return (
+                <button
+                  key={chip.command}
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => onAction(chip.command)}
+                  className="shrink-0 flex items-center gap-1.5 rounded-full border border-lb-border bg-lb-paper px-3 py-1.5 text-sm font-sans text-lb-primary/80 hover:border-lb-accent hover:text-lb-accent disabled:opacity-40 pressable"
+                >
+                  <Icon size={13} className="text-lb-accent shrink-0" />
+                  <span className="whitespace-nowrap">{chip.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         <div className="relative flex items-center">
           <input

@@ -28,6 +28,9 @@ export default {
         sans:     ['"Lato"', 'sans-serif'],
         serif:    ['"Playfair Display"', 'serif'],
         playfair: ['"Playfair"', 'serif'],
+        // Long-form reading face for narration — Playfair is a display cut and
+        // tires the eye over paragraphs.
+        book:     ['"Newsreader"', 'Georgia', 'serif'],
       },
       // Motion vocabulary — see plans/002 for the full rationale.
       //   hover/controls: duration-150 ease-out
