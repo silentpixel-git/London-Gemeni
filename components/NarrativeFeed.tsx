@@ -97,7 +97,7 @@ export function NarrativeFeed({
       <h1 className="font-serif text-4xl md:text-6xl text-lb-primary leading-none mb-2 text-balance">
         London Bleeds
       </h1>
-      <p className="font-serif italic text-xl md:text-3xl text-lb-primary opacity-80">
+      <p className="font-serif text-xl md:text-3xl text-lb-primary opacity-90">
         The Whitechapel Diaries
       </p>
     </div>
@@ -126,7 +126,7 @@ export function NarrativeFeed({
                   {/* Same type ramp as the narration in StoryRenderer — the
                       player's command should read at the weight of the prose it
                       answers, not shrink away from it. */}
-                  <span className="text-lb-accent font-book italic font-semibold text-[18px] md:text-[20px] lg:text-[21px] leading-relaxed">
+                  <span className="text-lb-accent font-sans font-medium text-[16px] md:text-[18px] lg:text-[20px] leading-relaxed">
                     {msg.text}
                   </span>
                 </div>

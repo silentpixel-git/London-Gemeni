@@ -151,7 +151,7 @@ const AppContent: React.FC = () => {
     setIsFirstRunProfile(false);
   };
 
-  // Swipe in from the right edge to open / out to close the case-rail drawer on mobile (matches the Sidebar's
+  // Swipe in from the left edge to open / out to close the case-rail drawer on mobile (matches the Sidebar's
   // lg:hidden overlay behavior — desktop keeps the sidebar docked, no swipe).
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -166,9 +166,9 @@ const AppContent: React.FC = () => {
     const dx = t.clientX - start.x;
     const dy = t.clientY - start.y;
     if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    if (dx < 0 && start.x > window.innerWidth - 40 && !isSidebarOpen) {
+    if (dx > 0 && start.x < 40 && !isSidebarOpen) {
       setIsSidebarOpen(true);
-    } else if (dx > 0 && isSidebarOpen) {
+    } else if (dx < 0 && isSidebarOpen) {
       setIsSidebarOpen(false);
     }
   };
@@ -217,6 +217,17 @@ const AppContent: React.FC = () => {
           />
         )}
       </AnimatePresence>
+
+      <Sidebar
+        isSidebarOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        location={gs.location}
+        inventory={gs.inventory}
+        scene={scene}
+        displayTime={gs.displayTime}
+        displayDate={gs.displayDate}
+        weather={gs.weather}
+      />
 
       <div className="flex-1 flex flex-col h-full relative w-full transition-[width] duration-300 ease-out-expo">
         <Header
@@ -267,17 +278,6 @@ const AppContent: React.FC = () => {
           onConsultHolmes={gs.handleConsultHolmes}
         />
       </div>
-
-      <Sidebar
-        isSidebarOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        location={gs.location}
-        inventory={gs.inventory}
-        scene={scene}
-        displayTime={gs.displayTime}
-        displayDate={gs.displayDate}
-        weather={gs.weather}
-      />
 
       {/* Modals */}
       <SaveSlotsModal

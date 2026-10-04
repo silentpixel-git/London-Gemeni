@@ -56,9 +56,9 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
 
   return (
     <div className="
-      space-y-6 font-book
-      text-[18px] md:text-[20px] lg:text-[21px]
-      leading-[1.7] lg:leading-[1.75]
+      space-y-6 font-sans
+      text-[16px] md:text-[18px] lg:text-[20px]
+      leading-relaxed md:leading-relaxed lg:leading-[1.8]
       text-lb-primary
       max-w-2xl
     ">

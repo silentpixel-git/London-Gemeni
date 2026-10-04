@@ -1,7 +1,7 @@
 /**
  * components/Sidebar.tsx
  *
- * Right-hand case rail: current location and weather, then collapsible panels
+ * Left-hand case rail: current location and weather, then collapsible panels
  * for the medical bag, present NPCs, objects of interest, and available exits.
  * Scene data arrives pre-derived (components/sceneView.ts).
  */
@@ -121,8 +121,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <aside
       aria-label="Case notes"
       className={`
-      fixed right-0 lg:relative z-50 h-full border-l border-lb-border transition-[width,transform,opacity] duration-300 ease-out-expo flex flex-col bg-lb-bg flex-shrink-0 overflow-hidden w-80
-      ${isSidebarOpen ? 'translate-x-0 opacity-100' : 'translate-x-full lg:w-0 lg:translate-x-0 lg:opacity-0'}
+      fixed left-0 lg:relative z-50 h-full border-r border-lb-border transition-[width,transform,opacity] duration-300 ease-out-expo flex flex-col bg-lb-bg flex-shrink-0 overflow-hidden w-80
+      ${isSidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-full lg:w-0 lg:translate-x-0 lg:opacity-0'}
     `}>
       {/* Mobile close button */}
       <div className="flex justify-between items-center px-6 pt-6 lg:hidden">

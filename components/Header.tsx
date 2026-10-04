@@ -14,7 +14,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { User } from '@supabase/supabase-js';
 import type { UserProfile } from '../services/GameRepository';
 import {
-  PanelRightClose, PanelRightOpen, User as UserIcon,
+  PanelLeftClose, PanelLeftOpen, User as UserIcon,
   ChevronDown, ChevronLeft, ChevronRight, Save, FolderOpen, LogOut, LogIn, Pencil, RefreshCw,
   Settings, BookOpenText,
 } from 'lucide-react';
@@ -189,8 +189,18 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="sticky top-0 z-30 px-8 md:px-16 py-4 flex items-center gap-2 bg-lb-bg/90 backdrop-blur-sm border-b border-lb-border">
 
-      {/* Left — connection dots */}
+      {/* Left — sidebar toggle + connection dots */}
       <div className="flex items-center gap-4 mr-auto">
+        <Tooltip label={isSidebarOpen ? 'Hide the panel' : 'Show the panel'}>
+          <button
+            onClick={onToggleSidebar}
+            className="w-10 h-10 flex items-center justify-center text-lb-primary hover:bg-lb-primary/5 rounded-full shrink-0 pressable pressable-icon"
+            aria-label={isSidebarOpen ? 'Hide the panel' : 'Show the panel'}
+          >
+            {isSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
+          </button>
+        </Tooltip>
+
         <div className="hidden md:flex items-center gap-3 px-3 py-1.5 bg-lb-paper/50 rounded-full border border-lb-border/50">
           {/* Engine dot */}
           <div
@@ -487,17 +497,6 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         )}
       </div>
-
-      {/* Case-rail toggle — the rail docks on the right */}
-      <Tooltip label={isSidebarOpen ? 'Hide the panel' : 'Show the panel'}>
-        <button
-          onClick={onToggleSidebar}
-          className="w-10 h-10 flex items-center justify-center text-lb-primary hover:bg-lb-primary/5 rounded-full shrink-0 pressable pressable-icon"
-          aria-label={isSidebarOpen ? 'Hide the panel' : 'Show the panel'}
-        >
-          {isSidebarOpen ? <PanelRightClose size={20} /> : <PanelRightOpen size={20} />}
-        </button>
-      </Tooltip>
     </header>
   );
 };
