@@ -85,6 +85,23 @@ export function resolveExamine(story: StoryManifest, intent: ParsedIntent, sessi
       };
     }
 
+    // Carried keepsake: an inventory item with no scene presence, examinable
+    // anywhere (Watson's diary). The authored note decides the beat.
+    const keepsake = story.keepsakes?.[targetId];
+    if (keepsake && session.inventory.includes(keepsake.item)) {
+      return {
+        actionSuccess: true,
+        actionType: 'examine',
+        discoveredClueIds: [],
+        aiContext: buildNarrationContext(story, intent, session, {
+          success: true,
+          actionDescription: `Watson thought of ${keepsake.item}, kept in his medical bag.`,
+          actionResultNote: keepsake.note,
+          newClueDefs: [],
+        }),
+      };
+    }
+
     const objectName = story.objectDisplayNames[targetId] || intent.targetRaw;
     return blocked(story,
       intent,

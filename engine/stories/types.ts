@@ -434,6 +434,14 @@ export interface StoryManifest {
   clueTriggers: Record<string, Record<string, string[]>>;
   atmosphericNotes: Record<string, Record<string, string>>;
   takeableObjects: Record<string, string>;
+  /** Optional: carried keepsakes — inventory items that are NOT takeable scene
+   *  objects (no location presence, no clues) but that the player may still
+   *  EXAMINE or READ anywhere while carrying them. Keyed by object id (the id
+   *  the intent parser resolves the item's name to). `note` is the authored
+   *  actionResultNote handed to the narrator, so the response is decided
+   *  here and the AI only voices it. Without an entry, naming such an item
+   *  fails as "Watson does not see it here". */
+  keepsakes?: Record<string, { item: string; note: string }>;
   /** Optional gate: object may only be taken once this flag is set. Blocked
    *  takes go through the standard blocked() path in narrator voice. */
   takeableRequiresFlag: Record<string, string>;

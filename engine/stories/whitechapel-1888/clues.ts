@@ -520,6 +520,28 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Keepsakes — carried items the player may EXAMINE / READ anywhere (see
+// StoryManifest.keepsakes). They own no scene presence and yield no clues.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const KEEPSAKES: Record<string, { item: string; note: string }> = {
+  // Watson's diary is his oldest confidant. Asking after it is not an errand:
+  // it is where it always is, and he is fond of it. The line below is the
+  // authored beat; the narrator voices it, never replaces it. The diary is also
+  // opened from the diary panel, so this must not describe its contents.
+  watson_diary: {
+    item: "Watson's Diary",
+    note:
+      `SUCCESS — Watson's diary is where it always is, in his medical bag. He does not take it out or write in it now. ` +
+      `Give ONE short beat: Watson answers in the first person (to himself, or to whoever is present), warm and a little wry — ` +
+      `the diary is his oldest confidant and he is fond of it. Include this line verbatim, in quotation marks: ` +
+      `"It is in my medical bag, where it always is — the one confidant who never interrupts and never forgets." ` +
+      `Add at most one short sentence of scene around it. Do NOT describe the diary's contents, invent new objects or places, ` +
+      `or suggest it is missing.`,
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TAKEABLE GATES — object may only be taken once this flag is set. The pawn
 // ticket remains on Mrs Kemp's table until Watson resolves what to tell her.
 // ─────────────────────────────────────────────────────────────────────────────

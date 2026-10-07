@@ -1160,6 +1160,36 @@ function runPartialObjectMatching() {
     : fail(`PartialMatch: "examine ghostly vapours" false-matched targetId=${r3.targetId}`);
 }
 
+// ── Scenario: Carried keepsake (Watson's diary) ──────────────────────────────
+
+function runKeepsakeDiary() {
+  console.log('\n=== SCENARIO: keepsake-diary ===');
+
+  // Same wording the rail inserts when the player taps the name, plus the bare noun.
+  const phrasings = ["examine Watson's Diary", 'examine diary', 'read diary', 'look at my diary'];
+  // Anywhere Watson might be standing — the diary is carried, not a scene object.
+  for (const location of ['baker_street', 'dorset_street', 'whitechapel_mortuary']) {
+    const s = buildSnapshot({ location });
+    for (const text of phrasings) {
+      const r = gameEngine.resolve(parseIntent(text), s);
+      const label = `Keepsake: "${text}" at ${location}`;
+      r.actionSuccess ? pass(`${label} → succeeds`) : fail(`${label} → should succeed`, r.blockedReason);
+      r.aiContext.actionResultNote.includes('medical bag')
+        ? pass(`${label} → note says it is in the medical bag`)
+        : fail(`${label} → note missing the medical-bag beat`, r.aiContext.actionResultNote.slice(0, 120));
+      const mutates = r.inventoryAdd?.length || r.inventoryRemove?.length || r.discoveredClueIds?.length || r.newLocation;
+      !mutates ? pass(`${label} → changes no state`) : fail(`${label} → must not change inventory, clues or location`);
+    }
+  }
+
+  // Only while carried: with the diary gone the same words fall back to "not here".
+  const without = buildSnapshot({ inventory: ['Pocket Watch'] });
+  const gone = gameEngine.resolve(parseIntent('examine diary'), without);
+  !gone.actionSuccess
+    ? pass('Keepsake: not carried → examine diary is blocked')
+    : fail('Keepsake: examine diary should be blocked when the diary is not carried');
+}
+
 // ── Scenario 17: Unresolved target narration ─────────────────────────────────
 
 function runUnresolvedTargetNarration() {
@@ -3156,6 +3186,7 @@ try {
   runShowDative();
   runPartialObjectMatching();
   runUnresolvedTargetNarration();
+  runKeepsakeDiary();
   runFactGraphDerivation();
   testScheduleParity();
   testWait();
