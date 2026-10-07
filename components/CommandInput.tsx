@@ -46,8 +46,8 @@ const PROMPTS_MOBILE = [
 
 interface CommandInputProps {
   scene: SceneView;
-  /** An unfinished sentence from the case rail; each new nonce replaces the field and focuses it. */
-  fill: { text: string; nonce: number } | null;
+  /** A name tapped in the case rail; each new nonce inserts it at the caret and focuses the field. */
+  mention: { text: string; nonce: number } | null;
   isLoading: boolean;
   isGameOver: boolean;
   isConsultingHolmes: boolean;
@@ -59,7 +59,7 @@ interface CommandInputProps {
 
 export const CommandInput: React.FC<CommandInputProps> = ({
   scene,
-  fill,
+  mention,
   isLoading,
   isGameOver,
   isConsultingHolmes,
@@ -73,15 +73,29 @@ export const CommandInput: React.FC<CommandInputProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!fill) return;
-    setInput(fill.text);
+    if (!mention) return;
     const el = inputRef.current;
+    const start = el?.selectionStart ?? input.length;
+    const end = el?.selectionEnd ?? input.length;
+    const before = input.slice(0, start);
+    const after = input.slice(end).replace(/^\s+/, '');
+    // Keep words apart: a space before the name unless we're at the start or already after one.
+    const lead = before && !/\s$/.test(before) ? ' ' : '';
+    // Names carry their own article ("The Open Window"): lower-case it mid-sentence,
+    // and drop it when the player has already typed one ("about the" + "The Open Window").
+    let name = mention.text;
+    if (before.trim()) {
+      name = /\b(the|a|an)\s*$/i.test(before)
+        ? name.replace(/^(the|an?)\s+/i, '')
+        : name.replace(/^(The|An?)\s+/, m => m.toLowerCase());
+    }
+    const inserted = `${before}${lead}${name} `;
+    setInput(inserted + after);
     if (el) {
       el.focus();
-      // Caret after the trailing space, ready for the player to finish the sentence.
-      requestAnimationFrame(() => el.setSelectionRange(fill.text.length, fill.text.length));
+      requestAnimationFrame(() => el.setSelectionRange(inserted.length, inserted.length));
     }
-  }, [fill?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mention?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pick a random starting message once per wait; the CSS rotation loop
   // (see index.css lb-rot-*) cycles onward from there.
