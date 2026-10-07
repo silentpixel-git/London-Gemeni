@@ -330,6 +330,12 @@ section('Clues');
       fail(`KEEPSAKES[${objId}]: empty narrator note`);
       keepsakesOk = false;
     }
+    for (const [verb, r] of Object.entries(k.refusals ?? {})) {
+      if (!r.reason.trim() || !r.note.trim()) {
+        fail(`KEEPSAKES[${objId}].refusals.${verb}: empty reason or narrator note`);
+        keepsakesOk = false;
+      }
+    }
     if (matchObjectId(k.item) !== objId) {
       fail(`KEEPSAKES[${objId}]: the parser resolves "${k.item}" to "${matchObjectId(k.item)}", not "${objId}"`);
       keepsakesOk = false;

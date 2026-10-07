@@ -1,4 +1,4 @@
-import type { ClueDefinition, ShowInteraction, UseCombination } from '../types';
+import type { ClueDefinition, KeepsakeDefinition, ShowInteraction, UseCombination } from '../types';
 import type { StoryFlag } from './flags';
 
 export type { ShowInteraction, UseCombination } from '../types';
@@ -524,11 +524,15 @@ export const TAKEABLE_OBJECTS: Record<string, string> = {
 // StoryManifest.keepsakes). They own no scene presence and yield no clues.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const KEEPSAKES: Record<string, { item: string; note: string }> = {
-  // Watson's diary is his oldest confidant. Asking after it is not an errand:
-  // it is where it always is, and he is fond of it. The line below is the
-  // authored beat; the narrator voices it, never replaces it. The diary is also
-  // opened from the diary panel, so this must not describe its contents.
+// Shared guard for every keepsake beat: one fond moment, nothing invented.
+const KEEPSAKE_BEAT_LIMITS =
+  `Add at most one short sentence of scene around it. Do NOT describe the diary's contents, name any game mechanism, ` +
+  `invent new objects or places, write dialogue for anyone else, or suggest the diary is missing.`;
+
+export const KEEPSAKES: Record<string, KeepsakeDefinition> = {
+  // Watson's diary is his oldest confidant, and it is private. Every line below
+  // is an authored beat the narrator voices, never replaces. None may describe
+  // the diary's contents: it is also opened from the diary panel.
   watson_diary: {
     item: "Watson's Diary",
     note:
@@ -536,8 +540,38 @@ export const KEEPSAKES: Record<string, { item: string; note: string }> = {
       `Give ONE short beat: Watson answers in the first person (to himself, or to whoever is present), warm and a little wry — ` +
       `the diary is his oldest confidant and he is fond of it. Include this line verbatim, in quotation marks: ` +
       `"It is in my medical bag, where it always is — the one confidant who never interrupts and never forgets." ` +
-      `Add at most one short sentence of scene around it. Do NOT describe the diary's contents, invent new objects or places, ` +
-      `or suggest it is missing.`,
+      `${KEEPSAKE_BEAT_LIMITS}`,
+    refusals: {
+      take: {
+        reason: `Watson already carries his diary; it never leaves his side.`,
+        note:
+          `TAKE blocked: the diary is already in Watson's medical bag. Give ONE short, fond beat in Watson's first person. ` +
+          `Include this line verbatim, in quotation marks: "It has not left my side once, and I do not intend that it should." ` +
+          `${KEEPSAKE_BEAT_LIMITS}`,
+      },
+      drop: {
+        reason: `Watson would not set his diary down.`,
+        note:
+          `DROP blocked: Watson will not part with the diary. Give ONE short, fond beat in Watson's first person. ` +
+          `Include this line verbatim, in quotation marks: "I could no more leave it behind than my own right hand." ` +
+          `${KEEPSAKE_BEAT_LIMITS}`,
+      },
+      show: {
+        reason: `Watson would never show his diary to anyone; it is private.`,
+        note:
+          `SHOW blocked: Watson's diary is private and he never shows it to anyone, however trusted. Give ONE short beat: ` +
+          `Watson declines gently, without rudeness, still holding it close. ` +
+          `Include this line verbatim, in quotation marks: "No — it is not for other eyes. What I confide to its pages is between the diary and myself." ` +
+          `${KEEPSAKE_BEAT_LIMITS}`,
+      },
+      open: {
+        reason: `Watson will write in his diary when the day's work is done, not now.`,
+        note:
+          `OPEN blocked: Watson does not open the diary now; it will keep until the day's work is done. Give ONE short, fond beat in Watson's first person. ` +
+          `Include this line verbatim, in quotation marks: "Not now. It will keep until the day's work is done; it always does." ` +
+          `${KEEPSAKE_BEAT_LIMITS}`,
+      },
+    },
   },
 };
 

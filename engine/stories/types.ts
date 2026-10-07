@@ -421,6 +421,20 @@ export interface DiaryLeadHelpers {
   }): string[];
 }
 
+/** The verbs a keepsake can refuse in its own voice. */
+export type KeepsakeRefusalVerb = 'take' | 'drop' | 'show' | 'open';
+
+export interface KeepsakeDefinition {
+  /** The inventory entry this keepsake is (must be carried for any of it to apply). */
+  item: string;
+  /** Narrator note for EXAMINE / READ / USE — a success beat. */
+  note: string;
+  /** Authored in-voice refusals for verbs that make no sense for the item.
+   *  `reason` is the short blockedReason; `note` is the narrator guidance. A
+   *  verb with no entry keeps the engine's generic failure. */
+  refusals?: Partial<Record<KeepsakeRefusalVerb, { reason: string; note: string }>>;
+}
+
 export interface StoryManifest {
   id: string;
 
@@ -441,7 +455,7 @@ export interface StoryManifest {
    *  actionResultNote handed to the narrator, so the response is decided
    *  here and the AI only voices it. Without an entry, naming such an item
    *  fails as "Watson does not see it here". */
-  keepsakes?: Record<string, { item: string; note: string }>;
+  keepsakes?: Record<string, KeepsakeDefinition>;
   /** Optional gate: object may only be taken once this flag is set. Blocked
    *  takes go through the standard blocked() path in narrator voice. */
   takeableRequiresFlag: Record<string, string>;

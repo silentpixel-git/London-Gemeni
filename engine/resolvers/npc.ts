@@ -3,7 +3,7 @@ import { ParsedIntent } from '../intentParser';
 import type { StoryManifest } from '../stories/types';
 import type { SessionSnapshot } from '../session';
 import { periodOf } from './support';
-import { buildNarrationContext, blocked, absentNpcBlocked } from '../narrationContext';
+import { buildNarrationContext, blocked, absentNpcBlocked, keepsakeRefusal } from '../narrationContext';
 import { npcLocationAt, getPresentNpcIds } from '../presence';
 import { visibleInteractables } from '../visibility';
 import { matchTopic } from '../stories/knowledge';
@@ -106,6 +106,9 @@ export function resolveShow(story: StoryManifest, intent: ParsedIntent, session:
       `SHOW blocked: no item specified.`
     );
   }
+
+  const keepsakeNo = keepsakeRefusal(story, intent, session, 'show');
+  if (keepsakeNo) return keepsakeNo;
 
   // Item must be in inventory
   const inventoryName = story.takeableObjects[targetId];

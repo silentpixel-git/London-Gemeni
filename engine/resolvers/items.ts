@@ -3,7 +3,7 @@ import { ParsedIntent } from '../intentParser';
 import type { StoryManifest } from '../stories/types';
 import type { SessionSnapshot } from '../session';
 import { triggerClues, checkActProgression } from './support';
-import { buildNarrationContext, blocked } from '../narrationContext';
+import { buildNarrationContext, blocked, keepsakeRefusal } from '../narrationContext';
 import { resolveExamine } from './examine';
 import { visibleInteractables } from '../visibility';
 
@@ -15,6 +15,9 @@ export function resolveTake(story: StoryManifest, intent: ParsedIntent, session:
   const currentLoc = story.locations[session.location];
   const targetId = intent.targetId;
   const objectName = targetId ? (story.objectDisplayNames[targetId] || intent.targetRaw) : intent.targetRaw;
+
+  const keepsakeNo = keepsakeRefusal(story, intent, session, 'take');
+  if (keepsakeNo) return keepsakeNo;
 
   if (!targetId || !visibleInteractables(story, session.location, session.flags).includes(targetId)) {
     return blocked(story,
@@ -233,6 +236,9 @@ export function resolveDrop(story: StoryManifest, intent: ParsedIntent, session:
   const objectName = targetId
     ? (story.takeableObjects[targetId] ?? story.objectDisplayNames[targetId] ?? intent.targetRaw ?? targetId)
     : (intent.targetRaw ?? 'that item');
+
+  const keepsakeNo = keepsakeRefusal(story, intent, session, 'drop');
+  if (keepsakeNo) return keepsakeNo;
 
   // Find matching inventory item
   const inventoryItem = targetId
