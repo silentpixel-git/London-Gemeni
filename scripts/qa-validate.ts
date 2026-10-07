@@ -316,6 +316,32 @@ section('Clues');
     }
   }
   if (triggersOk) pass('CLUE_TRIGGERS locations, objects, and clue ids all resolve');
+
+  // Keepsakes: each must be reachable (an item the player can carry), have an
+  // authored note, and be named by an object id the parser actually produces.
+  let keepsakesOk = true;
+  const carriable = new Set([...INITIAL_INVENTORY, ...Object.values(WHITECHAPEL_MANIFEST.takeableObjects)]);
+  for (const [objId, k] of Object.entries(WHITECHAPEL_MANIFEST.keepsakes ?? {})) {
+    if (!carriable.has(k.item)) {
+      fail(`KEEPSAKES[${objId}]: item "${k.item}" is neither in the opening kit nor a takeable object`);
+      keepsakesOk = false;
+    }
+    if (!k.note.trim()) {
+      fail(`KEEPSAKES[${objId}]: empty narrator note`);
+      keepsakesOk = false;
+    }
+    for (const [verb, r] of Object.entries(k.refusals ?? {})) {
+      if (!r.reason.trim() || !r.note.trim()) {
+        fail(`KEEPSAKES[${objId}].refusals.${verb}: empty reason or narrator note`);
+        keepsakesOk = false;
+      }
+    }
+    if (matchObjectId(k.item) !== objId) {
+      fail(`KEEPSAKES[${objId}]: the parser resolves "${k.item}" to "${matchObjectId(k.item)}", not "${objId}"`);
+      keepsakesOk = false;
+    }
+  }
+  if (keepsakesOk) pass('KEEPSAKES items are carriable, authored, and resolve through the parser');
 }
 
 // ── 3. Act progression gates ─────────────────────────────────────────────────

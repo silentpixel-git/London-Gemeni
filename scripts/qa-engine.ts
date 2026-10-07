@@ -1160,6 +1160,60 @@ function runPartialObjectMatching() {
     : fail(`PartialMatch: "examine ghostly vapours" false-matched targetId=${r3.targetId}`);
 }
 
+// ── Scenario: Carried keepsake (Watson's diary) ──────────────────────────────
+
+function runKeepsakeDiary() {
+  console.log('\n=== SCENARIO: keepsake-diary ===');
+
+  // Same wording the rail inserts when the player taps the name, plus the bare noun.
+  const phrasings = ["examine Watson's Diary", 'examine diary', 'read diary', 'look at my diary'];
+  // Anywhere Watson might be standing — the diary is carried, not a scene object.
+  for (const location of ['baker_street', 'dorset_street', 'whitechapel_mortuary']) {
+    const s = buildSnapshot({ location });
+    for (const text of phrasings) {
+      const r = gameEngine.resolve(parseIntent(text), s);
+      const label = `Keepsake: "${text}" at ${location}`;
+      r.actionSuccess ? pass(`${label} → succeeds`) : fail(`${label} → should succeed`, r.blockedReason);
+      r.aiContext.actionResultNote.includes('medical bag')
+        ? pass(`${label} → note says it is in the medical bag`)
+        : fail(`${label} → note missing the medical-bag beat`, r.aiContext.actionResultNote.slice(0, 120));
+      const mutates = r.inventoryAdd?.length || r.inventoryRemove?.length || r.discoveredClueIds?.length || r.newLocation;
+      !mutates ? pass(`${label} → changes no state`) : fail(`${label} → must not change inventory, clues or location`);
+    }
+  }
+
+  // Verbs that make no sense for the diary are refused in Watson's own voice,
+  // each with its authored line — and none of them may touch state.
+  const refusals: Array<{ inputs: string[]; line: string }> = [
+    { inputs: ['take diary', "pick up Watson's Diary"], line: 'has not left my side' },
+    { inputs: ['drop diary', "put down Watson's Diary"], line: 'my own right hand' },
+    { inputs: ['show diary to holmes', "show Watson's Diary to Mrs Kemp", 'give diary to holmes'], line: 'not for other eyes' },
+    { inputs: ['open diary'], line: "it always does" },
+  ];
+  const home = buildSnapshot();
+  for (const { inputs, line } of refusals) {
+    for (const text of inputs) {
+      const r = gameEngine.resolve(parseIntent(text), home);
+      const label = `Keepsake refusal: "${text}"`;
+      !r.actionSuccess && r.blockedReason
+        ? pass(`${label} → refused with a reason`)
+        : fail(`${label} → should be refused with an authored reason`, `success=${r.actionSuccess} reason=${r.blockedReason}`);
+      r.aiContext.actionResultNote.includes(line)
+        ? pass(`${label} → carries its authored line`)
+        : fail(`${label} → authored line "${line}" missing`, r.aiContext.actionResultNote.slice(0, 140));
+      const mutates = r.inventoryAdd?.length || r.inventoryRemove?.length || r.discoveredClueIds?.length || r.newLocation;
+      !mutates ? pass(`${label} → changes no state`) : fail(`${label} → must not change inventory, clues or location`);
+    }
+  }
+
+  // Only while carried: with the diary gone the same words fall back to "not here".
+  const without = buildSnapshot({ inventory: ['Pocket Watch'] });
+  const gone = gameEngine.resolve(parseIntent('examine diary'), without);
+  !gone.actionSuccess
+    ? pass('Keepsake: not carried → examine diary is blocked')
+    : fail('Keepsake: examine diary should be blocked when the diary is not carried');
+}
+
 // ── Scenario 17: Unresolved target narration ─────────────────────────────────
 
 function runUnresolvedTargetNarration() {
@@ -3156,6 +3210,7 @@ try {
   runShowDative();
   runPartialObjectMatching();
   runUnresolvedTargetNarration();
+  runKeepsakeDiary();
   runFactGraphDerivation();
   testScheduleParity();
   testWait();

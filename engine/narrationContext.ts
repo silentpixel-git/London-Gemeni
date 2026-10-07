@@ -9,7 +9,7 @@
 
 import { EngineResult, NarrationContext, NPCState } from '../types';
 import { ParsedIntent } from './intentParser';
-import type { StoryManifest, NPCDefinition } from './stories/types';
+import type { StoryManifest, NPCDefinition, KeepsakeRefusalVerb } from './stories/types';
 import { deriveKnowledgeEnvelope, suggestTopics } from './stories/knowledge';
 import { computeTimePeriod, formatTimeLabel, resolveActDay } from './time';
 import { getPresentNpcIds, maturedSpreadsFor, npcLocationAt, returnsPeriodFor } from './presence';
@@ -502,6 +502,24 @@ export function blocked(
       newClueDefs: [],
     }),
   };
+}
+
+/**
+ * An authored in-voice refusal for a verb applied to a carried keepsake (Watson
+ * will not hand over, set down or open his diary). Returns null when the target
+ * is not a carried keepsake with a refusal for this verb, so callers fall
+ * through to their ordinary handling.
+ */
+export function keepsakeRefusal(
+  story: StoryManifest,
+  intent: ParsedIntent,
+  session: SessionSnapshot,
+  verb: KeepsakeRefusalVerb
+): EngineResult | null {
+  const keepsake = intent.targetId ? story.keepsakes?.[intent.targetId] : undefined;
+  const refusal = keepsake?.refusals?.[verb];
+  if (!keepsake || !refusal || !session.inventory.includes(keepsake.item)) return null;
+  return blocked(story, intent, session, refusal.reason, refusal.note);
 }
 
 /**

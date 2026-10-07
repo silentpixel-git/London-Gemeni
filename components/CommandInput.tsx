@@ -7,12 +7,13 @@
  * know about the raw text field state.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Feather, Lightbulb, Send, Eye, Search, Glasses, Compass, Brain, Microscope, BookOpen, type LucideIcon } from 'lucide-react';
+import { Feather, Lightbulb, Send, Eye, Search, Glasses, Compass, Brain, Microscope, BookOpen, DoorOpen, User, type LucideIcon } from 'lucide-react';
 import { GameHistoryItem } from '../types';
 import { zoomFade } from './motionTokens';
 import { Tooltip } from './Tooltip';
+import { buildChips, type SceneView } from './sceneView';
 
 const LOADING_VARIANTS: Array<{ icon: LucideIcon; text: string }> = [
   { icon: Eye,        text: 'Surveying the scene...' },
@@ -44,6 +45,9 @@ const PROMPTS_MOBILE = [
 ];
 
 interface CommandInputProps {
+  scene: SceneView;
+  /** A name tapped in the case rail; each new nonce inserts it at the caret and focuses the field. */
+  mention: { text: string; nonce: number } | null;
   isLoading: boolean;
   isGameOver: boolean;
   isConsultingHolmes: boolean;
@@ -54,6 +58,8 @@ interface CommandInputProps {
 }
 
 export const CommandInput: React.FC<CommandInputProps> = ({
+  scene,
+  mention,
   isLoading,
   isGameOver,
   isConsultingHolmes,
@@ -64,6 +70,32 @@ export const CommandInput: React.FC<CommandInputProps> = ({
 }) => {
   const reducedMotion = useReducedMotion();
   const [input, setInput] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!mention) return;
+    const el = inputRef.current;
+    const start = el?.selectionStart ?? input.length;
+    const end = el?.selectionEnd ?? input.length;
+    const before = input.slice(0, start);
+    const after = input.slice(end).replace(/^\s+/, '');
+    // Keep words apart: a space before the name unless we're at the start or already after one.
+    const lead = before && !/\s$/.test(before) ? ' ' : '';
+    // Names carry their own article ("The Open Window"): lower-case it mid-sentence,
+    // and drop it when the player has already typed one ("about the" + "The Open Window").
+    let name = mention.text;
+    if (before.trim()) {
+      name = /\b(the|a|an)\s*$/i.test(before)
+        ? name.replace(/^(the|an?)\s+/i, '')
+        : name.replace(/^(The|An?)\s+/, m => m.toLowerCase());
+    }
+    const inserted = `${before}${lead}${name} `;
+    setInput(inserted + after);
+    if (el) {
+      el.focus();
+      requestAnimationFrame(() => el.setSelectionRange(inserted.length, inserted.length));
+    }
+  }, [mention?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pick a random starting message once per wait; the CSS rotation loop
   // (see index.css lb-rot-*) cycles onward from there.
@@ -78,6 +110,8 @@ export const CommandInput: React.FC<CommandInputProps> = ({
   const placeholder = prompts[history.length % prompts.length];
 
   if (isGameOver) return null;
+
+  const chips = buildChips(scene);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +132,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
     <div className="absolute bottom-0 left-0 right-0 px-8 pb-[max(2rem,env(safe-area-inset-bottom))] pt-10 md:px-16 md:pb-[max(3rem,env(safe-area-inset-bottom))] md:pt-16 lg:pt-18 bg-gradient-to-t from-lb-bg to-transparent pointer-events-none">
       <form
         onSubmit={handleSubmit}
-        className="relative pointer-events-auto max-w-3xl mx-auto"
+        className="relative pointer-events-auto max-w-2xl mx-auto"
       >
         <AnimatePresence>
         {isStreaming && (
@@ -139,8 +173,29 @@ export const CommandInput: React.FC<CommandInputProps> = ({
         )}
         </AnimatePresence>
 
+        {chips.length > 0 && (
+          <div className="mb-3 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden -mx-1 px-1" role="group" aria-label="Suggestions">
+            {chips.map(chip => {
+              const Icon = chip.kind === 'object' ? Search : chip.kind === 'npc' ? User : DoorOpen;
+              return (
+                <button
+                  key={chip.command}
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => onAction(chip.command)}
+                  className="shrink-0 flex items-center gap-1.5 rounded-full border border-lb-border bg-lb-paper px-3 py-1.5 text-sm font-sans text-lb-primary/80 hover:border-lb-accent hover:text-lb-accent disabled:opacity-40 pressable"
+                >
+                  <Icon size={13} className="text-lb-accent shrink-0" />
+                  <span className="whitespace-nowrap">{chip.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <div className="relative flex items-center">
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}

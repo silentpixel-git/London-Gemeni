@@ -187,10 +187,10 @@ export const Header: React.FC<HeaderProps> = ({
   );
 
   return (
-    <header className="sticky top-0 z-30 px-8 md:px-16 py-4 flex items-center justify-between bg-lb-bg/90 backdrop-blur-sm border-b border-lb-border">
+    <header className="sticky top-0 z-30 px-8 md:px-16 py-4 flex items-center gap-2 bg-lb-bg/90 backdrop-blur-sm border-b border-lb-border">
 
       {/* Left — sidebar toggle + connection dots */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 mr-auto">
         <Tooltip label={isSidebarOpen ? 'Hide the panel' : 'Show the panel'}>
           <button
             onClick={onToggleSidebar}

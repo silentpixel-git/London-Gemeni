@@ -3,7 +3,7 @@ import { ParsedIntent } from '../intentParser';
 import type { StoryManifest } from '../stories/types';
 import type { SessionSnapshot } from '../session';
 import { checkActProgression } from './support';
-import { buildNarrationContext, blocked } from '../narrationContext';
+import { buildNarrationContext, blocked, keepsakeRefusal } from '../narrationContext';
 import { visibleInteractables } from '../visibility';
 
 /**
@@ -17,6 +17,9 @@ export function resolveOpen(story: StoryManifest, intent: ParsedIntent, session:
   const currentLoc = story.locations[session.location];
   const targetId = intent.targetId;
   const objectName = targetId ? (story.objectDisplayNames[targetId] || intent.targetRaw) : intent.targetRaw;
+
+  const keepsakeNo = keepsakeRefusal(story, intent, session, 'open');
+  if (keepsakeNo) return keepsakeNo;
 
   if (!targetId || !visibleInteractables(story, session.location, session.flags).includes(targetId)) {
     return blocked(story, intent, session,

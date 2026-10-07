@@ -9,12 +9,13 @@
  * Everything else lives in hooks/useGameState.ts and the focused components.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { SupabaseProvider, useSupabase } from './components/SupabaseProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Notification } from './components/Notification';
 import { Sidebar } from './components/Sidebar';
+import { deriveScene } from './components/sceneView';
 import { Header } from './components/Header';
 import { NarrativeFeed } from './components/NarrativeFeed';
 import { CommandInput } from './components/CommandInput';
@@ -75,6 +76,29 @@ const AppContent: React.FC = () => {
     soundEffects: gs.soundEffects,
     ambientAudio: gs.ambientAudio,
   });
+
+  const scene = useMemo(
+    () => deriveScene({
+      location: gs.location,
+      currentAct: gs.currentAct,
+      npcStates: gs.npcStates,
+      introducedNpcs: gs.introducedNpcs,
+      flags: gs.flags,
+    }),
+    [gs.location, gs.currentAct, gs.npcStates, gs.introducedNpcs, gs.flags],
+  );
+
+  // A turn is resolving, or the act curtain / failure screen is up: no new commands.
+  const isBusy = gs.isLoading || gs.pendingActTransition !== null || gs.isCurtainPlaying || gs.turnFailure !== null;
+
+  // Tapping a name in the rail inserts it into the command bar like an @mention;
+  // the nonce lets the same name be inserted twice in a row.
+  const [mention, setMention] = useState<{ text: string; nonce: number } | null>(null);
+  const handleMention = (name: string) => {
+    setMention({ text: name, nonce: Date.now() });
+    // Below lg the rail is a drawer covering the game — close it so the input is visible.
+    if (!window.matchMedia(LG_QUERY).matches) setIsSidebarOpen(false);
+  };
 
   const diaryUnreadCount = Math.max(0, gs.diaryEntries.length - diarySeenCount);
   const openDiary = () => {
@@ -139,7 +163,7 @@ const AppContent: React.FC = () => {
     setIsFirstRunProfile(false);
   };
 
-  // Swipe to open/close the sidebar drawer on mobile (matches the Sidebar's
+  // Swipe in from the left edge to open / out to close the case-rail drawer on mobile (matches the Sidebar's
   // lg:hidden overlay behavior — desktop keeps the sidebar docked, no swipe).
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -211,13 +235,11 @@ const AppContent: React.FC = () => {
         onClose={() => setIsSidebarOpen(false)}
         location={gs.location}
         inventory={gs.inventory}
-        currentAct={gs.currentAct}
-        npcStates={gs.npcStates}
-        introducedNpcs={gs.introducedNpcs}
+        scene={scene}
         displayTime={gs.displayTime}
         displayDate={gs.displayDate}
         weather={gs.weather}
-        flags={gs.flags}
+        onMention={handleMention}
       />
 
       <div className="flex-1 flex flex-col h-full relative w-full transition-[width] duration-300 ease-out-expo">
@@ -259,7 +281,9 @@ const AppContent: React.FC = () => {
         />
 
         <CommandInput
-          isLoading={gs.isLoading || gs.pendingActTransition !== null || gs.isCurtainPlaying || gs.turnFailure !== null}
+          scene={scene}
+          mention={mention}
+          isLoading={isBusy}
           isGameOver={gs.isGameOver}
           isConsultingHolmes={gs.isConsultingHolmes}
           isAdvancingAct={gs.isAdvancingAct}

@@ -60,7 +60,7 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
       text-[16px] md:text-[18px] lg:text-[20px]
       leading-relaxed md:leading-relaxed lg:leading-[1.8]
       text-lb-primary
-      max-w-3xl
+      max-w-2xl
     ">
       {caretLine === -1 && caret}
       {lines.map((line, i) => {
