@@ -25,11 +25,11 @@ Holmes had spent the afternoon in a chemical silence. It had ended a little afte
 
 "Most men would call that a cause for celebration."
 
-"Most men have occupations." He nodded down into the street. "Look at them. Not one of them is doing anything that requires the smallest explanation. The licensed victualler by the pillar box has kept his daughter out an hour past the time her mother allowed, and will be made to pay for it. The man under the lamp walked in from Hampstead this morning to save the fare, and has spent it since on something he already regrets. There is the whole of the street's mystery, and I have had it since six."
+"Most men have occupations." He nodded down into the street. "Look at them. Not one of them is doing anything that requires the smallest explanation. The licensed victualler by the pillar box has kept his daughter out an hour past the time her mother allowed, and will be made to pay for it. The man under the lamp walked in from Hampstead this morning to save the fare, and has spent it since on something he already regrets. There is the whole of the street's mystery, and I have had it since seven."
 
 "You cannot possibly know that he walked."
 
-"I observe that his boots are white to the ankle with the dust of the Heath road. That is a fact. I infer that he walked, which is not, though I should be very much surprised to be wrong." He glanced at me at last. "You will note the difference between those two things, Watson, because nobody else in London does."
+He lowered the little opera glass he had been holding and set it on the mantel. "I observe that his boots are white to the ankle with the dust of the Heath road. That is a fact. I infer that he walked, which is not, though I should be very much surprised to be wrong." He glanced at me at last. "You will note the difference between those two things, Watson, because nobody else in London does."
 
 I said, with some feeling, that it was a very good parlour trick, and that any man might do it who had nothing else to do with his evening.
 
@@ -71,7 +71,7 @@ I looked. Along the hairline, where a careless towel had missed it, there was a 
 
 "Greasepaint," I said, and felt foolish.
 
-"Greasepaint. He is an actor, between the matinée and the evening performance at the Princess's in Oxford Street, which I should guess is a melodrama with a clergyman in it, because he has not troubled to change. He is going over his lines because he has been given new ones today and does not trust them." He took the glass back. "You saw a black coat and a white tie, and you stopped looking, because you had your answer. Everybody does it. It is the commonest error in the world, and the most expensive. One to me."
+"Greasepaint. He is an actor, between the matinée and the evening performance at one of the West End houses — a melodrama with a clergyman in it, I should guess — and he is not wanted until the second act, or he would not be standing in Baker Street in his costume. He is going over his lines because he has been given new ones today and does not trust them." He took the glass back. "You saw a black coat and a white tie, and you stopped looking, because you had your answer. Everybody does it. It is the commonest error in the world, and the most expensive. One to me."
 
 > **Branch — the player DID use the glass on the clergyman first:**
 
@@ -81,7 +81,7 @@ I had taken Holmes's opera glass from the mantel before I gave my answer, and it
 
 Holmes looked at me for so long that I began to fear I had made some fresh error.
 
-"The Princess's, in Oxford Street," he said at last. "A melodrama with a clergyman in it. You have it exactly." He sat down rather heavily in his chair. "I begin to think I shall have to find another occupation."
+"A West End house," he said at last, "and a melodrama with a clergyman in it, and he is not wanted until the second act. You have it exactly." He sat down rather heavily in his chair. "I begin to think I shall have to find another occupation."
 
 ---
 
@@ -122,7 +122,7 @@ I have thought of that evening a good deal since. The windows stood open until p
 | 1 | **The demonstration.** Holmes reads the victualler and the Hampstead man; observation vs inference | TALK to Holmes, or EXAMINE the window/crowd | TALK / EXAMINE | Yes | `act0_demonstration_seen` |
 | 2 | **The wager.** Watson scoffs, Holmes proposes the bet and names the two figures | TALK to Holmes again (any topic, or "parlour trick", "the wager") | TALK | Yes | `act0_wager_offered` |
 | 3 | **Read the soldier.** Watson's medical reading. He always gets it right | EXAMINE the soldier, then TALK to Holmes about the soldier | EXAMINE → TALK | Yes | `act0_soldier_read` |
-| 4 | **The glass (optional, rewarded).** Holmes's opera glass on the mantel | TAKE the glass; USE the glass WITH the clergyman (or the street) | TAKE / USE…WITH | No | `act0_glass_used_on_clergyman` |
+| 4 | **The glass (optional, rewarded).** Holmes's opera glass on the mantel | TAKE the glass; USE the glass WITH the clergyman (also works on the soldier and the crowd, with authored results) | TAKE / USE…WITH | No | `act0_glass_used_on_clergyman` |
 | 5 | **Read the clergyman.** Wrong without the glass (Holmes corrects him, a point to Holmes); right with it (a point to Watson) | EXAMINE the clergyman, then TALK to Holmes about the clergyman | EXAMINE → TALK | Yes | `act0_clergyman_read` (+ `act0_wager_won` if the glass was used first) |
 | 6 | **The unremarkable man.** Holmes's closing observation: "we see what asks to be seen" | TALK to Holmes (any topic) | TALK | Yes | `act0_closing_complete` |
 | 7 | **Coda** (narrated): violin kept silent or monograph read, then the open windows | — | — | — | (diary variant keyed on `act0_wager_won`) |
@@ -141,4 +141,4 @@ I have thought of that evening a good deal since. The windows stood open until p
 2. **Foreshadowing:** Holmes's "a man who asks nothing of anybody… never once be looked at" is the game's thesis about the killer, stated in August before anything has happened. It doesn't hint at a murder, but it is deliberate dramatic irony. It's your call whether that's too pointed for the current Act 0 rule ("nothing may be hinted at"). The softer version cuts the last sentence of Holmes's speech.
 3. **The last line of the coda** ("the last evening… on which it did not occur to me to [close the windows]") is the only darkness in the act. Keep it or cut it.
 4. **The bridge to Act 1:** `ACT_BRIDGES[1]` currently starts "Our night's vigil had availed nothing…", left over from the old prologue. It needs rewriting to fit, whatever Act 1 turns out to be (currently Miller's Court, 9 Nov).
-5. **History:** the Princess's Theatre, Oxford Street, was running in 1888. Watson's Afghan service (Peshawar base hospital) and the seven years of friendship (they met in 1881) are both canon. Holmes smokes a pipe; the violin is canon. Nothing here is set after August 1888.
+5. **History:** the theatre is deliberately unnamed ("a West End house"); the Princess's was checked and rejected, since its summer 1888 bill was a fire-engine melodrama with no clergyman in it. Watson's Afghan service (Peshawar base hospital) and the seven years of friendship (they met in 1881) are both canon. Holmes smokes a pipe; the violin is canon. Nothing here is set after August 1888.
