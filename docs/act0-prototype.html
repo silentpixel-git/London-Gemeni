@@ -1,0 +1,972 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--ARTIFACT-START-->
+<title>The Wager Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Playfair:ital,wght@0,400;1,400&display=swap">
+<style>
+/* Layout: the real game screen. A fixed sidebar on the left, the main column (header, narrative feed,
+   floating command pill) on the right. Tokens are the game's own --lb-* channels from index.css. */
+:root {
+  --lb-bg: 253 249 245;      /* parchment */
+  --lb-paper: 255 255 255;
+  --lb-primary: 41 51 81;
+  --lb-accent: 205 123 0;
+  --lb-muted: 146 157 191;
+  --lb-border: 197 203 221;
+  --font-sans: "Lato", "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Playfair Display", Georgia, "Times New Roman", serif;
+  --font-playfair: "Playfair", "Playfair Display", Georgia, serif;
+  --ease: cubic-bezier(.16,1,.3,1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --lb-bg: 21 24 31; --lb-paper: 30 35 48; --lb-primary: 228 221 212;
+    --lb-accent: 212 146 10; --lb-muted: 94 106 136; --lb-border: 42 48 64;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --lb-bg: 21 24 31; --lb-paper: 30 35 48; --lb-primary: 228 221 212;
+  --lb-accent: 212 146 10; --lb-muted: 94 106 136; --lb-border: 42 48 64;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: rgb(var(--lb-bg));
+  color: rgb(var(--lb-primary));
+  font-family: var(--font-sans);
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: rgb(var(--lb-accent) / .35); }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus-visible {
+  outline: 2px solid rgb(var(--lb-accent)); outline-offset: 2px;
+}
+.pressable { transition: transform .15s var(--ease); }
+.pressable:active { transform: scale(.97); }
+
+.app { display: flex; height: 100%; width: 100%; overflow: hidden; }
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  width: 320px; flex: none; height: 100%; overflow-y: auto;
+  border-right: 1px solid rgb(var(--lb-border));
+  background: rgb(var(--lb-bg));
+  padding: 32px;
+  display: flex; flex-direction: column; gap: 32px;
+  transition: margin-left .3s var(--ease), transform .3s var(--ease);
+}
+.app.sidebar-closed .sidebar { margin-left: -320px; }
+.side-section { display: flex; flex-direction: column; gap: 12px; }
+.side-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: rgb(var(--lb-accent));
+}
+.side-head svg { width: 15px; height: 15px; }
+.loc-name { font-family: var(--font-serif); font-size: 24px; line-height: 1.2; margin: 0; text-wrap: balance; }
+.loc-time { font-style: italic; color: rgb(var(--lb-primary) / .75); margin: 0; font-variant-numeric: tabular-nums; }
+.loc-weather { display: flex; align-items: center; gap: 8px; color: rgb(var(--lb-primary) / .75); font-size: 14px; }
+.loc-weather svg { width: 16px; height: 16px; color: rgb(var(--lb-accent)); }
+.side-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.side-item {
+  display: flex; align-items: baseline; gap: 10px; width: 100%;
+  background: none; border: 0; padding: 4px 6px; margin-left: -6px; border-radius: 6px;
+  text-align: left; cursor: pointer; font-size: 15px; line-height: 1.4;
+}
+.side-item:hover { background: rgb(var(--lb-primary) / .05); }
+.side-item .dot { width: 6px; height: 6px; border-radius: 50%; background: rgb(var(--lb-accent)); flex: none; transform: translateY(-2px); }
+.side-item small { color: rgb(var(--lb-muted)); font-size: 12px; }
+.side-empty { font-style: italic; color: rgb(var(--lb-muted)); font-size: 14px; margin: 0; }
+.side-new { animation: lb-arrive .6s var(--ease); }
+@keyframes lb-arrive { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Main column ---------- */
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
+.header {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 64px;
+  background: rgb(var(--lb-bg) / .9); backdrop-filter: blur(4px);
+  border-bottom: 1px solid rgb(var(--lb-border));
+}
+.header-left, .header-right { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.icon-btn {
+  width: 40px; height: 40px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; cursor: pointer;
+  background: none; border: 1px solid rgb(var(--lb-primary) / .3);
+}
+.icon-btn:hover { border-color: rgb(var(--lb-accent)); color: rgb(var(--lb-accent)); }
+.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn.inert { cursor: default; opacity: .45; }
+.icon-btn.inert:hover { border-color: rgb(var(--lb-primary) / .3); color: inherit; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: rgb(var(--lb-primary)); color: rgb(var(--lb-bg)); font-weight: 700; font-size: 14px; opacity: .45; flex: none; }
+.status-pill {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  padding: 6px 12px; border-radius: 999px; background: rgb(var(--lb-paper) / .5);
+  border: 1px solid rgb(var(--lb-border));
+  font-size: 9px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.status-pill .led { width: 6px; height: 6px; border-radius: 50%; background: rgb(var(--lb-accent)); flex: none; }
+
+.feed { flex: 1; overflow-y: auto; padding: 0 64px; scroll-behavior: smooth; }
+.feed-inner { max-width: 768px; margin: 0 auto; padding-block: 56px 50vh; display: flex; flex-direction: column; gap: 24px; }
+.lockup { display: flex; flex-direction: column; gap: 6px; margin-bottom: 24px; }
+.lockup h1 { font-family: var(--font-serif); font-weight: 400; font-size: clamp(44px, 7vw, 76px); line-height: 1.05; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+.lockup p { font-family: var(--font-serif); font-size: clamp(22px, 3.4vw, 40px); margin: 0; opacity: .9; }
+.lockup .proto-note { font-family: var(--font-sans); font-size: 13px; opacity: 1; color: rgb(var(--lb-muted)); margin-top: 14px; max-width: 60ch; line-height: 1.5; }
+
+.act-heading { font-size: 14px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; opacity: .8; margin: 8px 0 0; }
+.scene-loc { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 18px; }
+.scene-loc svg { width: 18px; height: 18px; color: rgb(var(--lb-accent)); }
+
+.turn { display: flex; flex-direction: column; gap: 24px; }
+.story { display: flex; flex-direction: column; gap: 24px; font-size: 18px; line-height: 1.8; max-width: 68ch; }
+.story p { margin: 0; }
+.story strong { color: rgb(var(--lb-accent)); font-weight: 700; }
+.story blockquote {
+  margin: 0; padding-left: 24px; border-left: 3px solid rgb(var(--lb-accent));
+  font-family: var(--font-playfair); font-style: italic; font-size: 22px; line-height: 1.5;
+}
+.story .caret { display: inline-block; width: 6px; height: 1.1em; background: rgb(var(--lb-accent)); opacity: .7; vertical-align: text-bottom; margin-left: 2px; animation: lb-pulse 1s infinite; }
+@keyframes lb-pulse { 50% { opacity: .15; } }
+.cmd { padding-left: 24px; border-left: 3px solid rgb(var(--lb-accent)); color: rgb(var(--lb-accent)); font-weight: 700; font-size: 18px; line-height: 1.6; overflow-wrap: anywhere; }
+.journal { border-left: 2px solid rgb(var(--lb-muted) / .4); padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.journal-label { display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: rgb(var(--lb-muted)); }
+.journal-label svg { width: 14px; height: 14px; }
+.journal p { margin: 0; font-family: var(--font-serif); font-style: italic; font-size: 15px; line-height: 1.7; color: rgb(var(--lb-primary) / .7); }
+.end-btn {
+  align-self: flex-start; cursor: pointer;
+  border: 1px solid rgb(var(--lb-accent) / .5); background: none; border-radius: 4px;
+  padding: 10px 20px; font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: rgb(var(--lb-accent));
+}
+.end-btn:hover { background: rgb(var(--lb-accent) / .08); }
+
+/* ---------- Command input ---------- */
+.dock {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 4;
+  padding: 48px 64px calc(24px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, rgb(var(--lb-bg)) 72%, rgb(var(--lb-bg) / 0));
+  pointer-events: none;
+}
+.dock-inner { max-width: 768px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; pointer-events: auto; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chips-label { font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: rgb(var(--lb-muted)); margin-right: 4px; }
+.chip {
+  cursor: pointer; border: 1px dashed rgb(var(--lb-muted) / .7); background: rgb(var(--lb-paper) / .7);
+  border-radius: 999px; padding: 6px 12px; font-size: 13px; color: rgb(var(--lb-primary) / .85);
+}
+.chip:hover { border-color: rgb(var(--lb-accent)); color: rgb(var(--lb-accent)); }
+.cmd-form { position: relative; }
+.cmd-input {
+  width: 100%; background: rgb(var(--lb-paper)); border: 1px solid rgb(var(--lb-border));
+  border-radius: 999px; padding: 16px 104px 16px 24px; font-size: 18px; font-family: var(--font-sans);
+  color: rgb(var(--lb-primary)); box-shadow: 0 1px 2px rgb(var(--lb-primary) / .06);
+}
+.cmd-input::placeholder { color: rgb(var(--lb-muted)); font-style: italic; }
+.cmd-input:focus { outline: none; border-color: rgb(var(--lb-accent)); }
+.cmd-actions { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: flex; gap: 4px; }
+.cmd-actions button { width: 40px; height: 40px; border-radius: 50%; border: 0; background: none; cursor: pointer; display: grid; place-items: center; color: rgb(var(--lb-muted)); }
+.cmd-actions button:hover { color: rgb(var(--lb-accent)); background: rgb(var(--lb-accent) / .08); }
+.cmd-actions svg { width: 20px; height: 20px; }
+
+/* ---------- Prototype panel ---------- */
+.proto {
+  margin-top: auto; background: rgb(var(--lb-paper)); border: 1px dashed rgb(var(--lb-muted) / .7);
+  border-radius: 10px; font-size: 13px;
+}
+.proto summary { cursor: pointer; padding: 10px 14px; font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: rgb(var(--lb-muted)); list-style: none; display: flex; justify-content: space-between; }
+.proto summary::-webkit-details-marker { display: none; }
+.proto summary::after { content: "+"; }
+.proto[open] summary::after { content: "–"; }
+.proto-body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.beats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.beats li { display: flex; gap: 8px; align-items: center; color: rgb(var(--lb-primary) / .55); }
+.beats li .tick { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid rgb(var(--lb-muted)); flex: none; }
+.beats li.done { color: rgb(var(--lb-primary)); }
+.beats li.done .tick { background: rgb(var(--lb-accent)); border-color: rgb(var(--lb-accent)); }
+.beats li.opt { font-style: italic; }
+.wager-state { padding: 8px 10px; border-radius: 6px; background: rgb(var(--lb-primary) / .05); line-height: 1.4; }
+.proto-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.proto-btn { cursor: pointer; border: 1px solid rgb(var(--lb-border)); background: none; border-radius: 6px; padding: 6px 10px; font-size: 12px; }
+.proto-btn:hover { border-color: rgb(var(--lb-accent)); color: rgb(var(--lb-accent)); }
+.proto label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+
+/* ---------- Curtain ---------- */
+.curtain {
+  position: fixed; inset: 0; z-index: 20; background: rgb(var(--lb-bg));
+  display: grid; place-items: center; padding: 16px; text-align: center;
+  animation: lb-fade .6s ease-out;
+}
+@keyframes lb-fade { from { opacity: 0; } to { opacity: 1; } }
+.curtain-stack { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.curtain .eyebrow { font-size: 12px; letter-spacing: .3em; text-transform: uppercase; color: rgb(var(--lb-muted)); }
+.curtain .fleuron { color: rgb(var(--lb-accent)); opacity: .6; font-size: 20px; letter-spacing: .3em; }
+.curtain .act-no { font-size: 13px; letter-spacing: .3em; text-transform: uppercase; color: rgb(var(--lb-accent)); font-weight: 700; }
+.curtain h2 { font-family: var(--font-serif); font-weight: 400; font-size: clamp(30px, 5vw, 40px); margin: 0; }
+.curtain .result { font-style: italic; color: rgb(var(--lb-primary) / .7); max-width: 40ch; line-height: 1.6; margin: 0; }
+.curtain .proto-row { justify-content: center; margin-top: 12px; }
+
+.scrim { display: none; }
+
+/* ---------- Narrow screens ---------- */
+@media (max-width: 900px) {
+  .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 10; width: min(320px, 86vw); padding: 24px 20px; box-shadow: 0 0 40px rgb(0 0 0 / .2); transform: translateX(-105%); margin-left: 0 !important; padding-top: calc(24px + env(safe-area-inset-top, 0px)); }
+  .app.sidebar-open .sidebar { transform: none; }
+  .app.sidebar-open .scrim { display: block; position: fixed; inset: 0; z-index: 9; background: rgb(0 0 0 / .5); }
+  .header { padding: 12px 16px; }
+  .feed { padding: 0 16px; }
+  .feed-inner { padding-top: 32px; }
+  .dock { padding: 40px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .story, .cmd { font-size: 16px; }
+  .story blockquote { font-size: 19px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <div class="scrim" id="scrim"></div>
+
+  <aside class="sidebar" id="sidebar" aria-label="Case sidebar">
+    <section class="side-section">
+      <div class="side-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>Current Location</div>
+      <h2 class="loc-name">221B Baker Street</h2>
+      <p class="loc-time" id="locTime">7:30 PM — Monday, 6 August 1888</p>
+      <div class="loc-weather"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span id="weather">Warm, Clear</span></div>
+    </section>
+    <section class="side-section">
+      <div class="side-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M12 11v6M9 14h6"/></svg>Medical Bag</div>
+      <div id="invList"></div>
+    </section>
+    <section class="side-section">
+      <div class="side-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>Present in Location</div>
+      <ul class="side-list" id="npcList"></ul>
+    </section>
+    <section class="side-section">
+      <div class="side-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>Objects of Interest</div>
+      <ul class="side-list" id="objList"></ul>
+    </section>
+    <section class="side-section">
+      <div class="side-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m16.2 7.8-2.1 6.3-6.3 2.1 2.1-6.3z"/></svg>Avenues</div>
+      <ul class="side-list" id="exitList"></ul>
+    </section>
+    <details class="proto" id="proto" open>
+  <summary>Prototype · beats</summary>
+  <div class="proto-body">
+    <ul class="beats" id="beats"></ul>
+    <div class="wager-state" id="wagerState"></div>
+    <label><input type="checkbox" id="chipToggle" checked> Show suggestions</label>
+    <div class="proto-row">
+      <button class="proto-btn" id="restartBtn" type="button">Restart</button>
+      <button class="proto-btn" id="skipBtn" type="button">Skip typing</button>
+    </div>
+  </div>
+</details>
+  </aside>
+
+  <div class="main">
+    <header class="header">
+      <div class="header-left">
+        <button class="icon-btn pressable" id="sideToggle" aria-label="Toggle sidebar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg></button>
+        <div class="status-pill" title="This prototype runs a scripted stand-in for the game engine and the narrator."><span class="led"></span>Prototype · not connected</div>
+      </div>
+      <div class="header-right">
+        <span class="icon-btn inert" aria-hidden="true" title="Watson's Diary (not in this prototype)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg></span>
+        <span class="avatar" aria-hidden="true">JW</span>
+      </div>
+    </header>
+
+    <main class="feed" id="feed">
+      <div class="feed-inner" id="feedInner">
+        <div class="lockup">
+          <h1>London Bleeds</h1>
+          <p>The Whitechapel Diaries</p>
+          <p class="proto-note">Prototype of the Prologue, <em>The Wager</em>. The narration is scripted to stand in for the AI narrator, and nothing here talks to the game engine. Type commands as you would in the game, or use the suggestions and the sidebar.</p>
+        </div>
+        <p class="act-heading">Prologue — The Wager</p>
+        <div class="scene-loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>221B Baker Street</div>
+        <div id="log" class="turn"></div>
+      </div>
+    </main>
+
+    <div class="dock">
+      <div class="dock-inner">
+        <div class="chips" id="chips"></div>
+        <form class="cmd-form" id="cmdForm" autocomplete="off">
+          <label for="cmd" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Command</label>
+          <input class="cmd-input" id="cmd" type="text" placeholder="How do you choose to proceed, Doctor?" spellcheck="false">
+          <div class="cmd-actions">
+            <button type="button" id="hintBtn" aria-label="Gather your thoughts" title="Gather your thoughts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M15.1 14c.2-1 .7-1.7 1.4-2.5A5.7 5.7 0 0 0 18 7.5a6 6 0 0 0-12 0c0 1.5.6 2.9 1.5 4 .7.8 1.2 1.5 1.4 2.5"/></svg></button>
+            <button type="submit" aria-label="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="curtain" id="curtain" hidden>
+  <div class="curtain-stack">
+    <div class="eyebrow">End of Prologue</div>
+    <div class="fleuron">❧ ⸻ ❧</div>
+    <div class="act-no">Prologue</div>
+    <h2>The Wager</h2>
+    <p class="result" id="curtainResult"></p>
+    <p class="result">Act I follows. The transition is not part of this prototype.</p>
+    <div class="proto-row">
+      <button class="end-btn" id="againBtn" type="button">Play again</button>
+      <button class="end-btn" id="closeCurtain" type="button">Back to the page</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ───────────────────────── Authored text ─────────────────────────
+  // Beat-sized stand-ins for the AI narrator, condensed from docs/act0-window-wager.md.
+  const T = {
+    opening: [
+      "It had been a close and airless bank holiday, the sort of day that empties London of everyone who can afford to be emptied and leaves the rest of us to sit in our shirtsleeves and resent them. By half past seven both windows of our sitting room stood open to Baker Street, and the holiday came up off the pavement in waves: barrel-organs, a brass band somewhere towards the Park, and under it all the long murmur of a hundred thousand people with nowhere they were obliged to be.",
+      "Holmes had spent the afternoon in a chemical silence. It had ended a little after seven, when something on his bench went black and stank, and since then he had been at the open window with his hands behind him, looking down upon the crowd as a naturalist looks into a pond in which nothing of interest has bred."
+    ],
+    demonstration: [
+      "\"London has taken a holiday from wickedness, Watson,\" he said, without turning. \"I find I resent it more than I can easily express. Look at them. The licensed victualler by the pillar box has kept his daughter out an hour past the time her mother allowed, and will be made to pay for it. The man under the lamp walked in from Hampstead this morning to save the fare, and has spent it since on something he already regrets.\"",
+      "\"You cannot possibly know that he walked.\"",
+      "He lowered the little opera glass he had been holding and set it on the mantel. \"I observe that his boots are white to the ankle with the dust of the Heath road. That is a fact. I infer that he walked, which is not, though I should be very much surprised to be wrong. You will note the difference between those two things, Watson, because nobody else in London does.\""
+    ],
+    wager: [
+      "I said, with some feeling, that it was a very good parlour trick, and that any man might do it who had nothing else to do with his evening.",
+      "It was a mistake, and I knew it as it left my mouth. Holmes turned from the window with the look of a man who has been offered a diversion and does not intend to let it go.",
+      "\"Any man,\" he said. \"Very well. A wager. I shall choose two people in that street, and you shall read them for me: who they are, what they have been doing, what they are about. Read them both correctly and I give you my word that I shall not touch the violin before midnight. Fail, and you shall read my monograph upon the ashes of the various tobaccos, all hundred and forty varieties of it, and you shall not skip the plates.\" He gestured at the window as a man holds open a door. \"**The old soldier** on the kerb by the cab rank. And **the clergyman** outside the chemist's. Take your time. I have nothing whatever else to do.\""
+    ],
+    exSoldier: [
+      "He was perhaps sixty, in a decent coat too heavy for August, and he stood at the kerb as though somebody had told him to stand there and had not yet told him to stop: heels together, chin up, a stick in his left hand that he leaned on rather more than he would wish to. When he moved to let a perambulator by, I saw how he carried the left leg, a short stiff swing from the hip with the knee hardly bending at all. His neck, below the line of a cap he no longer wore, was burned a deep brick colour that no English summer gives a man."
+    ],
+    exClergy: [
+      "He stood outside the chemist's in a long black coat and a white tie, with a small book open in his hand. The coat was shiny at the seams, the cuffs had been turned, and the hat was a good one gone to the bad. He was reading with his lips moving, and now and then he looked up and away over the heads of the crowd, as a man does who is repeating something to himself.",
+      "He was a long way off. At that distance I could make out the coat and the book, and not a great deal more."
+    ],
+    exClergyAfterGlass: [
+      "The black coat, the white tie, the turned cuffs. Through the glass I had seen the rest of him too: the faint brownish line along his hairline, and a book that was no prayer-book."
+    ],
+    glassSoldier: [
+      "Through the glass the old man leapt close. On the breast of the heavy coat there was a strip of ribbon, faded almost to nothing, of the kind a man wears for a campaign and never takes off. The stick, I saw now, had been cut down from something longer."
+    ],
+    glassClergy: [
+      "I raised the glass, and the clergyman came close enough to touch. Along the line of his hair, beside the ear, where a careless towel had missed it, there was a faint brownish line upon the skin, too even to be dirt. The book was not a prayer-book. It was a thin paper volume in a coloured wrapper, much thumbed, and the lines in it were set out in short, uneven lengths that no psalm was ever printed in.",
+      "I lowered the glass and looked at him for some time."
+    ],
+    glassCrowd: [
+      "Faces leapt close in the glass and fell away again: straw hats, a sailor, a great many children, a woman laughing at something I could not hear. None of them held still long enough to be read, and none of them had been chosen."
+    ],
+    glassHolmes: [
+      "I turned the glass upon Holmes. He regarded me through the wrong end of it with great patience. \"The street, Watson,\" he said. \"I am not part of the wager.\""
+    ],
+    readSoldier: [
+      "\"A soldier,\" I said. \"An infantryman, by the way he stands; cavalrymen stand otherwise. He has served in India, and not lately; the colour is old, and has gone into the skin. He was wounded in the left thigh, a fracture set by a regimental surgeon in a hurry, and it has healed short. I watched men learn that walk in the hospital at Peshawar. A sergeant, I should think. He has the look of one.\"",
+      "Holmes was silent for a moment.",
+      "\"Admirable,\" he said, and I believe he meant it. \"Every word of it. You have seen the leg better than I could, which is your profession and not mine. I should only have added that he is waiting for a grandchild, because he keeps looking at the height of a child's head in the crowd and not at the height of a man's. One to you, Watson.\""
+    ],
+    readSoldierRibbon: "\"And the ribbon on his coat,\" I added, \"is a campaign ribbon, worn so long it has faded white.\" Holmes inclined his head. \"So it is.\"",
+    readSoldierUnseen: "I had not yet studied him properly, so I studied him now, while Holmes waited.",
+    readClergyWin: [
+      "\"He would like you to think him a curate,\" I said slowly. \"He is no such thing. That is greasepaint at his hairline, and he is learning a part, not a lesson. He is an actor between performances, and he has not troubled to change out of his costume.\"",
+      "Holmes looked at me for so long that I began to fear I had made some fresh error.",
+      "\"A West End house,\" he said at last, \"and a melodrama with a clergyman in it, and he is not wanted until the second act, or he would not be standing in Baker Street in his costume. You have it exactly.\" He sat down rather heavily in his chair. \"I begin to think I shall have to find another occupation.\""
+    ],
+    readClergyLoseIntro: "\"A curate,\" I said. \"A poor parish, by his coat; somewhere in the country, I should think, since he has come up for the holiday and does not much care for it. He is getting tomorrow's lesson by heart. A conscientious man, and an underpaid one.\"",
+    readClergyLoseHand: "\"Ah,\" said Holmes, very gently, and took his opera glass from the mantel and handed it to me. \"Look again. Not at his coat; you have done his coat very thoroughly. Look at the line of his hair, beside the ear, and at the book.\"",
+    readClergyLoseHeld: "\"Ah,\" said Holmes, very gently. \"You have my glass in your hand, Watson. Use it. Not on his coat; you have done his coat very thoroughly. Look at the line of his hair, beside the ear, and at the book.\"",
+    readClergyLoseRest: [
+      "I looked. Along the hairline there was a faint brownish line upon the skin, too even to be dirt, and the book was a thin paper volume in a coloured wrapper with its lines set out in short, uneven lengths.",
+      "\"Greasepaint,\" I said, and felt foolish.",
+      "\"Greasepaint. He is an actor between the matinée and the evening performance at one of the West End houses, a melodrama with a clergyman in it, I should guess, and he is not wanted until the second act. You saw a black coat and a white tie, and you stopped looking, because you had your answer. Everybody does it. It is the commonest error in the world, and the most expensive. One to me.\""
+    ],
+    readClergyGuess: [
+      "\"An actor,\" I said, on an impulse I could not have defended.",
+      "\"Indeed?\" said Holmes, with interest. \"On what evidence?\"",
+      "I opened my mouth and found I had none. A black coat, a white tie, a book, and a feeling."
+    ],
+    readClergyGuessEnd: "\"Greasepaint,\" said Holmes. \"You were right, Watson, and you did not know why, which is the same as being wrong with better luck. A guess is not a reading. One to me.\"",
+    settleWin: "\"Two to you, then,\" said Holmes, and glanced at the violin case as a man glances at a friend he has promised not to visit. \"Midnight. I am a man of my word.\"",
+    settleLose: "\"One apiece,\" said Holmes, \"which by the terms of our wager is to say that I win.\" He looked towards the shelf where the monograph stood with an expression of the purest benevolence.",
+    lamplighter: "The lamplighter came down the far side of Baker Street with his long pole, and one by one the lamps went up, small and yellow against a sky that had not yet finished with the day.",
+    closing: [
+      "The light was going. The gas was up in the windows opposite, and the crowd below had thickened rather than thinned, as holiday crowds do when the public-houses begin to be the only places still open. Holmes had gone back to the window.",
+      "\"You did very well, Watson,\" he said. \"Better than you know. But I will tell you the thing that struck me while you were at work, and it is not a comfortable thing. We chose those two because they were remarkable. The soldier by his stance, the actor by his coat. Each of them did something to catch the eye. Now, how many people have passed under this window since you began?\"",
+      "\"I have not the least idea. Some hundreds.\"",
+      "\"Some hundreds. Describe one of them to me. One. Any one you like, that I did not point out to you.\"",
+      "I tried. I could not do it. I could recall the general sense of them, straw hats and a great many children and a sailor, but not one face, not one coat, not one particular man.",
+      "\"Nor could I,\" said Holmes. \"Nor could any constable on any beat in London. We see what asks to be seen. A man who asks nothing of anybody, who dresses as the street dresses and walks as the street walks, might pass under this window every evening for a year and never once be looked at.\" He let the curtain fall. \"It is the whole of my complaint against this city, Watson, and I have never found a remedy for it.\"",
+      "I said that it was hardly a complaint at all, on a holiday evening, and that London might be forgiven a little dullness once a year. He smiled at that, and did not answer."
+    ],
+    codaWin: "Holmes took up the violin from its case, looked at it, and put it down again; and he kept his word until midnight, which was more than I had dared to expect.",
+    codaLose: "Holmes took down the monograph upon the ashes of the various tobaccos and laid it in my lap with great tenderness, and I read it, plates and all, until the street was quiet.",
+    lastLine: "I have thought of that evening a good deal since. The windows stood open until past midnight, and the noise of the holiday went on below them, warm and foolish and entirely harmless, and neither of us thought to close them. It was, I believe, the last evening of that summer on which it did not occur to me to do so."
+  };
+
+  // Askable facts (spec §F). `gate` names the flag that must be set first.
+  const FACTS = {
+    heath: { gate: "demonstration", text: "\"Heath-road gravel is chalk-pale, unlike anything nearer the city,\" said Holmes, \"and four miles of walking on a dry August day presses it into the welt of a boot in a way no cab ride ever would. That is why I said Hampstead and not merely somewhere north.\"" },
+    victualler: { gate: "demonstration", text: "\"His coat was good cloth once, kept rather than replaced: a tradesman's economy, not a gentleman's. The girl walked with the easy step of a daughter out with her father on a holiday. Clothes and bearing together, Watson; nothing more mysterious than that.\"" },
+    method: { gate: "demonstration", text: "\"The dust on a boot is what the eye records. That is observation, and you might have named it yourself. That the man walked from Hampstead is what the mind builds from the dust. That is inference, and it wants practice before it wants confidence.\"" },
+    holiday: { gate: null, text: "\"Not one of them is doing anything that requires the smallest explanation,\" said Holmes. \"London has taken a holiday from wickedness, and left me nothing to do but watch it enjoy itself.\"" },
+    wager: { gate: "wager", text: "\"Two readings, Watson: the old soldier and the clergyman. Both correct, and the violin stays in its case until midnight. Anything less, and you read the monograph, plates and all.\"" },
+    violin: { gate: "wager", text: "\"I have been at it, on and off, since Saturday,\" said Holmes, without the least sign of contrition. \"If you wish me to stop, Watson, you know the price.\"" },
+    monograph: { gate: "wager", text: "\"Upon the distinction between the ashes of the various tobaccos,\" said Holmes, with real warmth. \"A hundred and forty forms, with coloured plates. It is a far more useful document than the newspapers allow, and you have never read past the first page.\"" },
+    grandchild: { gate: "soldierRead", text: "\"He watches the crowd at the height of a child's head,\" said Holmes. \"A man waiting for a friend looks for a hat. That old fellow is looking for a grandchild who has been promised the holiday and is late for it.\"" },
+    actor: { gate: "clergyRead", text: "\"Greasepaint at the hairline, a script in a coloured wrapper, and a part he has been given today and does not yet trust,\" said Holmes. \"A West End melodrama with a clergyman in it, and he is not wanted until the second act. The coat told you a story, Watson, and you believed the first chapter.\"" },
+    afghanistan: { gate: null, text: "\"You have been in Afghanistan, I perceive. I said it to you the day we met, and I have not had cause to revise it,\" said Holmes. \"Your eye for a soldier's leg is the surgeon's, not the detective's. I envy it a little.\"" },
+    glass: { gate: "demonstration", text: "\"A good glass,\" said Holmes. \"French. Bought for the opera and used for everything else. The eye is the instrument, Watson; the glass merely brings the street nearer.\"" },
+    crowd: { gate: null, text: "\"A hundred thousand of them out of doors tonight, at the least,\" said Holmes, \"and not one with a secret worth the keeping.\"" }
+  };
+
+  const OBJECTS = {
+    window: { name: "The open window", aliases: ["window", "open window", "windows", "street", "view", "baker street", "outside"] },
+    crowd: { name: "The holiday crowd", aliases: ["crowd", "people", "passers-by", "passersby", "bystanders", "holiday crowd", "victualler", "daughter", "hampstead man", "man under the lamp"] },
+    soldier: { name: "The old soldier", aliases: ["soldier", "old soldier", "old man", "old fellow", "veteran", "man by the cab rank", "cab rank", "sergeant"], needs: "wager" },
+    clergyman: { name: "The clergyman", aliases: ["clergyman", "curate", "parson", "vicar", "priest", "man outside the chemist's", "man outside the chemists", "chemist's", "chemists", "actor"], needs: "wager" },
+    glass: { name: "Holmes's opera glass", aliases: ["opera glass", "glass", "glasses", "field glass", "spyglass", "telescope", "binoculars", "opera glasses"] },
+    mantel: { name: "The mantel", aliases: ["mantel", "mantelpiece", "mantle", "fireplace"], hidden: true },
+    violin: { name: "The violin", aliases: ["violin", "fiddle", "violin case", "case"] },
+    monograph: { name: "The monograph", aliases: ["monograph", "tobacco monograph", "ashes", "tobacco"] },
+    holmes: { name: "Sherlock Holmes", aliases: ["holmes", "sherlock", "sherlock holmes", "mr holmes", "him"], hidden: true },
+    room: { name: "The sitting room", aliases: ["room", "sitting room", "around", "here", "221b"], hidden: true },
+    bench: { name: "The chemistry bench", aliases: ["bench", "chemistry bench", "experiment", "chemicals"], hidden: true }
+  };
+
+  const TOPIC_KEYS = [
+    ["actor", ["greasepaint", "actor", "second act", "the play", "theatre", "theater", "script"]],
+    ["clergyman", ["clergyman", "curate", "parson", "vicar", "priest", "chemist"]],
+    ["grandchild", ["grandchild", "grandson", "granddaughter", "what i missed"]],
+    ["soldier", ["soldier", "old man", "old fellow", "veteran", "sergeant", "cab rank"]],
+    ["afghanistan", ["afghanistan", "peshawar", "my service", "your service", "my wound", "the war", "india"]],
+    ["wager", ["wager", "bet", "terms", "stakes", "parlour", "parlor", "trick", "accept", "challenge"]],
+    ["violin", ["violin", "fiddle", "midnight"]],
+    ["monograph", ["monograph", "tobacco", "ashes", "plates"]],
+    ["heath", ["heath", "hampstead", "dust", "boots", "walked"]],
+    ["victualler", ["victualler", "publican", "daughter", "pillar box", "girl"]],
+    ["method", ["observation", "inference", "observe", "infer", "difference", "method", "deduction"]],
+    ["glass", ["opera glass", "glass", "glasses"]],
+    ["holiday", ["holiday", "bank holiday", "crime", "bored", "boredom", "wickedness", "dull", "experiment", "bench"]],
+    ["crowd", ["crowd", "people", "noticed", "notice", "remember", "street", "passers"]]
+  ];
+
+  const HINTS = {
+    start: "Holmes has been at the window this hour past. I might ask him what he finds so absorbing down there.",
+    demo: "I had a strong opinion about Holmes's little performance, and a mind to tell him so.",
+    wager: "Holmes named two figures. The old soldier by the cab rank looked the easier of them to read.",
+    soldierSeen: "I had looked the old man over. Holmes would want to hear what I made of him.",
+    clergy: "The clergyman stood a long way off, outside the chemist's. Holmes's opera glass was lying on the mantel where he had left it.",
+    clergyGlass: "I knew what I had seen through the glass. It remained to tell Holmes what it meant.",
+    verdict: "The wager was settled. Holmes had gone back to the window, and seemed to be waiting for something.",
+    done: "The evening is over. Restart the prototype to play the other branch."
+  };
+
+  // ───────────────────────── State ─────────────────────────
+  let S;
+  function fresh() {
+    return {
+      clock: 1170, turns: 0, lampLit: false,
+      demonstration: false, wager: false,
+      soldierExamined: false, clergyExamined: false,
+      soldierRead: false, clergyRead: false, clergyCorrect: false,
+      glassHeld: false, glassOnSoldier: false, glassOnClergy: false,
+      verdictTurn: null, closing: false, won: false, ended: false
+    };
+  }
+  const COST = { talk: 5, examine: 2, take: 1, use: 2, other: 1 };
+
+  // ───────────────────────── Parsing ─────────────────────────
+  const ARTICLES = /\b(the|a|an|that|this|his|my)\b/g;
+  function norm(s) {
+    return s.toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9' -]/g, " ").replace(/\s+/g, " ").trim();
+  }
+  function bare(s) { return s.replace(ARTICLES, " ").replace(/\s+/g, " ").trim(); }
+  function hasWord(p, w) {
+    const e = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp("(^|[ '])" + e + "(?=$|[ ']|s\\b)").test(p);
+  }
+  function findObject(phrase) {
+    const p = bare(phrase);
+    if (!p) return null;
+    let best = null, bestLen = 0;
+    for (const [id, o] of Object.entries(OBJECTS)) {
+      for (const a of o.aliases) {
+        const al = bare(a);
+        if (al && hasWord(p, al) && al.length > bestLen) { best = id; bestLen = al.length; }
+      }
+    }
+    return best;
+  }
+  function findTopic(phrase) {
+    const p = norm(phrase);
+    for (const [id, keys] of TOPIC_KEYS) for (const k of keys) if (hasWord(p, k)) return id;
+    return null;
+  }
+  function parse(raw) {
+    const s = norm(raw);
+    if (!s) return null;
+    let m;
+    if (/^(hint|help|\?|think|gather my thoughts)$/.test(s)) return { verb: "hint" };
+    if (/^(i|inv|inventory|bag|check bag|look in bag)$/.test(s)) return { verb: "inventory" };
+    if ((m = s.match(/^(?:look|peer|stare|gaze|study|watch|examine|observe|spy) (?:through|with|using) (.+?) (?:at|on|towards|toward) (.+)$/))) return { verb: "use", a: m[1], b: m[2] };
+    if ((m = s.match(/^(?:look|peer|stare|gaze|study|watch|examine|observe|spy)(?: at| on)? (.+?) (?:through|with|using) (.+)$/))) return { verb: "use", a: m[2], b: m[1] };
+    if ((m = s.match(/^(?:use|hold|point|raise|turn|train|aim|lift)(?: up)? (.+?) (?:on|at|with|to|towards|toward|upon) (.+)$/))) return { verb: "use", a: m[1], b: m[2] };
+    if ((m = s.match(/^(?:use|raise|lift) (.+)$/))) return { verb: "use", a: m[1], b: "" };
+    if ((m = s.match(/^(?:take|get|grab|pick up|pick|fetch|borrow|collect)(?: up)? (.+)$/))) return { verb: "take", a: m[1] };
+    if (/^(go|walk|leave|exit|head|run|descend|step|n|s|e|w|north|south|east|west|out)\b/.test(s) || /\b(go|walk|head) (down|out|outside|downstairs)/.test(s)) return { verb: "move" };
+    if ((m = s.match(/^(?:ask|question|quiz)(?: holmes| sherlock| him)?(?: about| re| regarding| on)? ?(.*)$/))) return { verb: "talk", topic: m[1] };
+    if ((m = s.match(/^(?:talk|speak|chat|converse)(?: to| with)?(?: holmes| sherlock| him)?(?: about| of| on| regarding)? ?(.*)$/))) return { verb: "talk", topic: m[1] };
+    if ((m = s.match(/^(?:tell|say to|answer|inform)(?: holmes| sherlock| him)?(?: about| that)? ?(.*)$/))) return { verb: "talk", topic: m[1] };
+    if (/^(accept|i accept|accept wager|accept the wager|take the bet|agreed|very well|you're on|done)$/.test(s)) return { verb: "talk", topic: "wager" };
+    if (/^(holmes|sherlock|hello|hello holmes|good evening|say hello|greet holmes)$/.test(s)) return { verb: "talk", topic: "" };
+    if ((m = s.match(/^(?:examine|x|look|l|inspect|study|watch|observe|read|check|view|search|regard|consider)(?: at| over| around| in)? ?(.*)$/))) return { verb: "examine", a: m[1] };
+    // Bare noun: treat as examine if it names an object.
+    if (findObject(s)) return { verb: "examine", a: s };
+    return { verb: "unknown" };
+  }
+
+  // ───────────────────────── Resolution ─────────────────────────
+  function visible(id) {
+    const o = OBJECTS[id];
+    return !o.needs || S[o.needs];
+  }
+  function resolve(cmd) {
+    const out = { paras: [], quote: null, cost: COST.other, journal: null, endButton: false };
+    const say = (...p) => out.paras.push(...p.flat());
+    const verdictPending = () => S.soldierRead && S.clergyRead && !S.closing;
+
+    switch (cmd.verb) {
+      case "hint": {
+        say(currentHint());
+        out.cost = 0; out.isHint = true;
+        return out;
+      }
+      case "inventory": {
+        say(S.glassHeld ? "Besides the usual instruments, my bag held nothing of note. Holmes's opera glass was in my hand." : "My medical bag held the usual instruments, and nothing that would help me read a stranger at forty yards.");
+        out.cost = 0;
+        return out;
+      }
+      case "move": {
+        out.cost = 0;
+        say(S.wager
+          ? "I had half a mind to go down into the street and settle the matter at close quarters; but Holmes would never forgive me for leaving with the wager unsettled, and I confess I should not have forgiven myself."
+          : "The holiday held no attraction for me. The street was hot and loud, and Holmes, for once, was the more interesting prospect.");
+        return out;
+      }
+      case "take": {
+        out.cost = COST.take;
+        const id = findObject(cmd.a);
+        if (id === "glass") {
+          if (!S.demonstration) { say("Something small and brass glinted in Holmes's hand at the window. Whatever it was, he had not finished with it."); return out; }
+          if (S.glassHeld) { say("I already had the glass in my hand."); return out; }
+          S.glassHeld = true;
+          say("I took Holmes's opera glass from the mantel. It was a small thing in brass and black enamel, still warm from his hand. Holmes saw me take it and said nothing at all.");
+          out.notice = "**You picked up:** Opera Glass";
+          return out;
+        }
+        if (id === "violin") { say("I had no wish to provoke him. I left the violin where it lay."); return out; }
+        if (id === "monograph") { say("I had no intention of touching the monograph unless the terms of a wager obliged me to."); return out; }
+        say("There was nothing there I had any use for.");
+        return out;
+      }
+      case "use": {
+        out.cost = COST.use;
+        const a = findObject(cmd.a), b = findObject(cmd.b || "");
+        const tool = a === "glass" ? "glass" : (b === "glass" ? "glass" : null);
+        const target = a === "glass" ? b : (b === "glass" ? a : b);
+        if (!tool) { say("I could not see how that would help."); return out; }
+        if (!S.demonstration) { say("Holmes still had his glass at the window. I would have to wait my turn."); return out; }
+        if (!S.glassHeld) { say("The opera glass was on the mantel, across the room. I should have to take it up first."); return out; }
+        if (!target) { say("I raised the glass. On what, though? Holmes had named his two figures."); return out; }
+        if (target === "soldier" && visible("soldier")) { S.glassOnSoldier = true; say(T.glassSoldier); return out; }
+        if (target === "clergyman" && visible("clergyman")) {
+          if (S.clergyRead) { say("I looked at him again through the glass. The greasepaint was still there, and so was my embarrassment."); return out; }
+          S.glassOnClergy = true; S.clergyExamined = true; say(T.glassClergy); return out;
+        }
+        if (target === "window" || target === "crowd" || ((target === "soldier" || target === "clergyman") && !S.wager)) { say(T.glassCrowd); return maybeClose(out, false); }
+        if (target === "holmes") { say(T.glassHolmes); return out; }
+        say("I looked at it through the glass, and it was larger, and no more informative.");
+        return out;
+      }
+      case "examine": {
+        out.cost = COST.examine;
+        const id = cmd.a ? findObject(cmd.a) : "room";
+        if (!id) { say("I could see nothing of that description."); return out; }
+        if (OBJECTS[id].needs && !visible(id)) {
+          say(id === "soldier" ? "There were a great many old men in Baker Street that evening. Holmes had not yet chosen one for me." : "There were a great many black coats in Baker Street that evening. Holmes had not yet chosen one for me.");
+          return out;
+        }
+        if (id === "window" || id === "crowd") {
+          if (!S.demonstration) return demonstration(out, true);
+          if (!S.wager) return wager(out);
+          if (verdictPending()) return closing(out);
+          say("Below, the holiday went on: barrel-organs, straw hats, the brass band somewhere towards the Park. The old soldier still stood by the cab rank; the clergyman was still at his book outside the chemist's.");
+          return out;
+        }
+        if (id === "soldier") {
+          S.soldierExamined = true; say(T.exSoldier);
+          return maybeClose(out, false);
+        }
+        if (id === "clergyman") {
+          S.clergyExamined = true; say(S.glassOnClergy ? T.exClergyAfterGlass : T.exClergy);
+          return maybeClose(out, false);
+        }
+        if (id === "glass" || id === "mantel") {
+          if (!S.demonstration) { say("On the mantel stood the usual litter: the Persian slipper, the jack-knife and its correspondence, a pipe or two. Holmes had something small and brass in his hand at the window."); return out; }
+          say(S.glassHeld ? "Holmes's opera glass, small and brass and black enamel. I had it in my hand." : "Holmes's opera glass lay on the mantel where he had put it down, small and brass and black enamel, a good French glass.");
+          return maybeClose(out, false);
+        }
+        if (id === "violin") { say("The violin lay in its open case on the sofa, the bow across it. He had been at it, on and off, since Saturday."); return maybeClose(out, false); }
+        if (id === "monograph") { say("A slim volume on the shelf by the fireplace: Upon the Distinction between the Ashes of the Various Tobaccos. I had never got past the first page."); return maybeClose(out, false); }
+        if (id === "bench") { say("Holmes's chemistry bench stood in the corner, where something had gone black in a retort and still smelled of it."); return maybeClose(out, false); }
+        if (id === "holmes") {
+          say(S.closing ? "Holmes stood at the window with his pipe gone out, watching the street." : S.wager ? "Holmes had taken the basket chair by the window and was watching me rather than the street, with an expression of the most irritating patience." : "Holmes stood at the open window with his hands behind him, a small opera glass in one of them, and looked down upon the holiday with the air of a man who has been promised a feast and served bread.");
+          return maybeClose(out, false);
+        }
+        // room
+        say("Our sitting room, with both windows thrown up to the holiday. Late sun lay across the carpet. The chemistry bench in the corner still smelled of whatever had gone black in it, the violin lay in its open case on the sofa, and the mantel held its usual litter." + (S.demonstration && !S.glassHeld ? " Holmes's opera glass lay among it." : ""));
+        return maybeClose(out, false);
+      }
+      case "talk": {
+        out.cost = COST.talk;
+        const topic = cmd.topic ? findTopic(cmd.topic) : null;
+        const specific = !!cmd.topic && !!topic;
+        if (!S.demonstration) return demonstration(out, false);
+        if (!S.wager) {
+          if (specific && ["heath", "victualler", "method", "holiday", "glass", "afghanistan", "crowd"].includes(topic)) { say(FACTS[topic].text); return out; }
+          return wager(out);
+        }
+        if (topic === "soldier" && !S.soldierRead) return readSoldier(out);
+        if ((topic === "clergyman" || topic === "actor") && !S.clergyRead) return readClergy(out, topic === "actor");
+        if (specific) {
+          const f = FACTS[topic === "soldier" ? "grandchild" : topic === "clergyman" ? "actor" : topic];
+          if (f && (!f.gate || S[f.gate])) { say(f.text); if (verdictPending()) out.followup = true; return verdictPending() ? maybeClose(out, true) : out; }
+          if (f && f.gate) { say("\"All in good time, Watson,\" said Holmes. \"You have a wager to settle first.\""); return out; }
+        }
+        if (cmd.topic && !topic) {
+          say("Holmes regarded me over his pipe. \"I have no opinion on that, Watson, and tonight I am disinclined to form one. You have two strangers to read.\"");
+          return verdictPending() ? maybeClose(out, true) : out;
+        }
+        // Bare talk.
+        if (verdictPending()) return closing(out);
+        if (!S.soldierRead || !S.clergyRead) {
+          say("\"Well?\" said Holmes, settling into the basket chair. \"The old soldier by the cab rank, and the clergyman outside the chemist's. I am waiting, Watson, and I am in no hurry at all.\"");
+          return out;
+        }
+        say(FACTS.crowd.text);
+        return out;
+      }
+      default: {
+        out.cost = 0;
+        say("I was not entirely sure how to go about that. (Try examining something, talking to Holmes, or taking up what lies to hand.)");
+        return maybeClose(out, false);
+      }
+    }
+  }
+
+  function demonstration(out, viaWindow) {
+    S.demonstration = true;
+    if (viaWindow) out.paras.push("I joined Holmes at the window. Below us the holiday went on: barrel-organs, straw hats, a sailor with a girl on each arm.");
+    out.paras.push(...T.demonstration);
+    return out;
+  }
+  function wager(out) {
+    S.wager = true;
+    out.paras.push(...T.wager);
+    return out;
+  }
+  function readSoldier(out) {
+    if (!S.soldierExamined) { out.paras.push(T.readSoldierUnseen); S.soldierExamined = true; }
+    out.paras.push(...T.readSoldier);
+    if (S.glassOnSoldier) out.paras.push(T.readSoldierRibbon);
+    S.soldierRead = true;
+    return settleIfDone(out);
+  }
+  function readClergy(out, guessedActor) {
+    S.clergyRead = true;
+    if (S.glassOnClergy) {
+      S.clergyCorrect = true;
+      out.paras.push(...T.readClergyWin);
+    } else if (guessedActor) {
+      S.clergyCorrect = false;
+      out.paras.push(...T.readClergyGuess, S.glassHeld ? T.readClergyLoseHeld : T.readClergyLoseHand, ...T.readClergyLoseRest.slice(0, 1), T.readClergyGuessEnd);
+    } else {
+      S.clergyCorrect = false;
+      out.paras.push(T.readClergyLoseIntro, S.glassHeld ? T.readClergyLoseHeld : T.readClergyLoseHand, ...T.readClergyLoseRest);
+    }
+    return settleIfDone(out);
+  }
+  function settleIfDone(out) {
+    if (S.soldierRead && S.clergyRead) {
+      S.won = S.clergyCorrect;
+      S.verdictTurn = S.turns + 1;
+      out.paras.push(S.won ? T.settleWin : T.settleLose);
+    }
+    return out;
+  }
+  // Closing fires on the next action after the verdict that is not a specific question to Holmes,
+  // or as a fallback three turns after the verdict.
+  function maybeClose(out, wasQuestion) {
+    if (!(S.soldierRead && S.clergyRead) || S.closing) return out;
+    if (S.turns + 1 === S.verdictTurn) return out; // same turn as the verdict
+    const fallback = S.turns + 1 - S.verdictTurn >= 3;
+    if (!wasQuestion || fallback) return closing(out);
+    return out;
+  }
+  function closing(out) {
+    S.closing = true; S.ended = true;
+    out.paras.push(...T.closing);
+    out.journal = S.won ? T.codaWin : T.codaLose;
+    out.after = T.lastLine;
+    out.endButton = true;
+    S.glassHeld = false; // returned to the mantel
+    return out;
+  }
+
+  function currentHint() {
+    if (S.ended) return HINTS.done;
+    if (!S.demonstration) return HINTS.start;
+    if (!S.wager) return HINTS.demo;
+    if (S.soldierRead && S.clergyRead) return HINTS.verdict;
+    if (!S.soldierRead) return S.soldierExamined ? HINTS.soldierSeen : (S.clergyRead ? HINTS.wager : HINTS.wager);
+    if (!S.clergyRead) return S.glassOnClergy ? HINTS.clergyGlass : HINTS.clergy;
+    return HINTS.verdict;
+  }
+
+  // ───────────────────────── Rendering ─────────────────────────
+  const $ = (id) => document.getElementById(id);
+  const log = $("log"), feed = $("feed");
+  let typing = null;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function inline(s) { return esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*])\*([^*]+?)\*/g, "$1<em>$2</em>"); }
+
+  function finishTyping() {
+    if (!typing) return;
+    typing.nodes.forEach(([n, t]) => { n.nodeValue = t; });
+    typing.caret.remove();
+    clearInterval(typing.timer);
+    const done = typing.done; typing = null; done && done();
+    feed.scrollTop = feed.scrollHeight;
+  }
+  function typeInto(el, done) {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const nodes = []; let n;
+    while ((n = walker.nextNode())) { nodes.push([n, n.nodeValue]); n.nodeValue = ""; }
+    const caret = document.createElement("span"); caret.className = "caret";
+    let i = 0, pos = 0;
+    const total = nodes.reduce((a, [, t]) => a + t.length, 0);
+    let shown = 0;
+    typing = { nodes, caret, done, timer: null };
+    if (reduced || !nodes.length) { finishTyping(); return; }
+    typing.timer = setInterval(() => {
+      const remaining = total - shown;
+      let step = remaining > 100 ? 29 : remaining > 40 ? 14 : 5;
+      while (step > 0 && i < nodes.length) {
+        const [node, text] = nodes[i];
+        const take = Math.min(step, text.length - pos);
+        node.nodeValue = text.slice(0, pos + take);
+        pos += take; shown += take; step -= take;
+        node.parentNode.insertBefore(caret, node.nextSibling);
+        if (pos >= text.length) { i++; pos = 0; }
+      }
+      feed.scrollTop = feed.scrollHeight;
+      if (i >= nodes.length) finishTyping();
+    }, 12);
+  }
+
+  function renderTurn(input, out) {
+    finishTyping();
+    if (input) {
+      const c = document.createElement("div"); c.className = "cmd"; c.textContent = input; log.appendChild(c);
+    }
+    const story = document.createElement("div"); story.className = "story";
+    const paras = out.paras.slice();
+    let html = paras.map((p) => `<p>${inline(p)}</p>`).join("");
+    if (out.quote) html += `<blockquote>${inline(out.quote)}</blockquote>`;
+    if (out.notice) html += `<p>${inline(out.notice)}</p>`;
+    story.innerHTML = html;
+    log.appendChild(story);
+    const tail = [];
+    if (out.journal) {
+      const j = document.createElement("div"); j.className = "journal";
+      j.innerHTML = `<div class="journal-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.2 6.2a5.5 5.5 0 0 0-7.8 0L5 13.6V19h5.4l7.4-7.4a5.5 5.5 0 0 0 0-7.8ZM16 8 2 22M17.5 15H9"/></svg>Watson's Journal</div><p>${inline(out.journal)}</p>`;
+      tail.push(j);
+    }
+    if (out.after) {
+      const s2 = document.createElement("div"); s2.className = "story"; s2.innerHTML = `<p>${inline(out.after)}</p>`; tail.push(s2);
+    }
+    if (out.endButton) {
+      const b = document.createElement("button"); b.className = "end-btn pressable"; b.type = "button"; b.textContent = "End of Prologue →";
+      b.addEventListener("click", showCurtain); tail.push(b);
+    }
+    typeInto(story, () => {
+      tail.forEach((t) => { log.appendChild(t); if (t.classList.contains("story")) typeInto(t, null); });
+      feed.scrollTop = feed.scrollHeight;
+    });
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  function fmtClock(m) {
+    const h = Math.floor(m / 60) % 24, mm = m % 60;
+    const h12 = ((h + 11) % 12) + 1;
+    return `${h12}:${String(mm).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
+  }
+
+  function item(label, cmd, note) {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "side-item"; b.title = `Prototype aid: puts "${cmd}" in the command line`;
+    b.innerHTML = `<span class="dot"></span><span>${esc(label)}${note ? ` <small>${esc(note)}</small>` : ""}</span>`;
+    b.addEventListener("click", () => { prefill(cmd); closeSidebarIfMobile(); });
+    li.appendChild(b);
+    return li;
+  }
+  let seenObjs = new Set();
+  function renderSidebar() {
+    $("locTime").textContent = `${fmtClock(S.clock)} — Monday, 6 August 1888`;
+    $("weather").textContent = S.clock >= 1180 ? "Warm, Dusk" : "Warm, Clear";
+    const inv = $("invList"); inv.innerHTML = "";
+    if (S.glassHeld) { const ul = document.createElement("ul"); ul.className = "side-list"; ul.appendChild(item("Opera Glass", "use the opera glass on ")); inv.appendChild(ul); }
+    else { const p = document.createElement("p"); p.className = "side-empty"; p.textContent = "The usual instruments."; inv.appendChild(p); }
+    const npc = $("npcList"); npc.innerHTML = ""; npc.appendChild(item("Sherlock Holmes", "talk to holmes"));
+    const objs = $("objList"); objs.innerHTML = "";
+    const list = [["window", "The open window", "examine the window"], ["crowd", "The holiday crowd", "examine the crowd"]];
+    if (S.wager) list.push(["soldier", "The old soldier", "examine the old soldier"], ["clergyman", "The clergyman", "examine the clergyman"]);
+    if (S.demonstration && !S.glassHeld) list.push(["glass", "Holmes's opera glass", "examine the opera glass", "on the mantel"]);
+    list.push(["violin", "The violin", "examine the violin"], ["monograph", "The monograph", "examine the monograph"]);
+    list.forEach(([id, label, cmd, note]) => {
+      const li = item(label, cmd, note);
+      if (!seenObjs.has(id) && S.turns > 0) li.firstChild.classList.add("side-new");
+      seenObjs.add(id); objs.appendChild(li);
+    });
+    const ex = $("exitList"); ex.innerHTML = ""; ex.appendChild(item("Down to Baker Street", "go downstairs"));
+  }
+
+  function chipsFor() {
+    if (S.ended) return [];
+    if (!S.demonstration) return ["talk to holmes", "examine the window", "look around"];
+    if (!S.wager) return ["ask holmes about the heath road", "tell holmes it is a parlour trick", "examine the mantel"];
+    const c = [];
+    if (!S.soldierRead) c.push(S.soldierExamined ? "tell holmes about the soldier" : "examine the old soldier");
+    if (!S.clergyRead) c.push(S.clergyExamined ? "tell holmes about the clergyman" : "examine the clergyman");
+    if (S.soldierRead && S.clergyRead) c.push(S.clergyCorrect ? "ask holmes about the actor" : "ask holmes about the greasepaint", "examine the window", "ask holmes about the grandchild");
+    else c.push("examine the mantel", "ask holmes about the wager");
+    return c.slice(0, 4);
+  }
+  function renderChips() {
+    const el = $("chips"); el.innerHTML = "";
+    if (!$("chipToggle").checked) return;
+    const list = chipsFor(); if (!list.length) return;
+    const lab = document.createElement("span"); lab.className = "chips-label"; lab.textContent = "Try"; el.appendChild(lab);
+    list.forEach((t) => {
+      const b = document.createElement("button"); b.type = "button"; b.className = "chip pressable"; b.textContent = t;
+      b.addEventListener("click", () => submit(t)); el.appendChild(b);
+    });
+  }
+  function renderPanel() {
+    const beats = [
+      ["The demonstration", S.demonstration],
+      ["The wager", S.wager],
+      ["Read the old soldier", S.soldierRead],
+      ["Opera glass on the clergyman (optional)", S.glassOnClergy, true],
+      ["Read the clergyman", S.clergyRead],
+      ["Closing: what asks to be seen", S.closing]
+    ];
+    $("beats").innerHTML = beats.map(([l, d, opt]) => `<li class="${d ? "done" : ""} ${opt ? "opt" : ""}"><span class="tick"></span>${esc(l)}</li>`).join("");
+    let w;
+    if (!S.wager) w = "Wager not yet offered.";
+    else if (!(S.soldierRead && S.clergyRead)) w = `Readings: soldier ${S.soldierRead ? "✓" : "–"}, clergyman ${S.clergyRead ? (S.clergyCorrect ? "✓" : "✗") : "–"}. Glass used on him first: ${S.glassOnClergy ? "yes" : "no"}.`;
+    else w = S.won ? "Watson wins. The violin stays quiet until midnight." : "Holmes wins. Watson reads the monograph.";
+    $("wagerState").textContent = w;
+    $("curtainResult").textContent = S.won ? "Watson won the wager." : "Holmes won the wager.";
+  }
+  function renderAll() { renderSidebar(); renderChips(); renderPanel(); }
+
+  // ───────────────────────── Input ─────────────────────────
+  function submit(raw) {
+    const text = raw.trim();
+    if (!text) return;
+    $("cmd").value = "";
+    if (S.ended && !/^(hint|help|\?)$/i.test(text)) {
+      renderTurn(text, { paras: ["The evening is over. Use \"End of Prologue\" below, or restart the prototype from the panel to play the other branch."] });
+      return;
+    }
+    const cmd = parse(text);
+    if (!cmd) return;
+    const out = resolve(cmd);
+    if (!out.isHint) {
+      S.turns += 1;
+      const before = S.clock;
+      S.clock += out.cost;
+      if (!S.lampLit && before < 1180 && S.clock >= 1180 && !S.closing) { S.lampLit = true; out.quote = T.lamplighter; }
+    }
+    renderTurn(out.isHint ? null : text, out);
+    renderAll();
+  }
+  function prefill(cmd) { const i = $("cmd"); i.value = cmd; i.focus(); }
+
+  $("cmdForm").addEventListener("submit", (e) => { e.preventDefault(); submit($("cmd").value); });
+  $("hintBtn").addEventListener("click", () => {
+    finishTyping();
+    const j = document.createElement("div"); j.className = "journal";
+    j.innerHTML = `<div class="journal-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M15.1 14c.2-1 .7-1.7 1.4-2.5A5.7 5.7 0 0 0 18 7.5a6 6 0 0 0-12 0c0 1.5.6 2.9 1.5 4 .7.8 1.2 1.5 1.4 2.5"/></svg>Watson's thoughts</div><p>${inline(currentHint())}</p>`;
+    log.appendChild(j); feed.scrollTop = feed.scrollHeight;
+  });
+  feed.addEventListener("click", (e) => { if (e.target.closest(".story")) finishTyping(); });
+  $("skipBtn").addEventListener("click", finishTyping);
+  $("chipToggle").addEventListener("change", renderChips);
+
+  const app = $("app");
+  const mobile = () => window.matchMedia("(max-width: 900px)").matches;
+  $("sideToggle").addEventListener("click", () => {
+    if (mobile()) app.classList.toggle("sidebar-open"); else app.classList.toggle("sidebar-closed");
+  });
+  $("scrim").addEventListener("click", () => app.classList.remove("sidebar-open"));
+  function closeSidebarIfMobile() { if (mobile()) app.classList.remove("sidebar-open"); }
+
+  function showCurtain() { finishTyping(); $("curtain").hidden = false; }
+  $("closeCurtain").addEventListener("click", () => { $("curtain").hidden = true; });
+  $("againBtn").addEventListener("click", () => { $("curtain").hidden = true; start(); });
+  $("restartBtn").addEventListener("click", start);
+
+  const placeholders = ["How do you choose to proceed, Doctor?", "What do you do next?", "Holmes is waiting, Watson.", "Examine, talk, take, use…"];
+  let ph = 0;
+  setInterval(() => { ph = (ph + 1) % placeholders.length; $("cmd").placeholder = placeholders[ph]; }, 6000);
+
+
+  function start() {
+    finishTyping();
+    S = fresh(); seenObjs = new Set(); log.innerHTML = "";
+    renderTurn(null, { paras: T.opening });
+    renderAll();
+    feed.scrollTop = 0;
+  }
+  // Expose a tiny hook for automated checks.
+  window.__proto = { submit, state: () => S, finishTyping };
+  start();
+})();
+</script>
+<!--ARTIFACT-END-->
+</body>
+</html>
