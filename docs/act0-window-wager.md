@@ -17,7 +17,7 @@
 
 ## The story
 
-It had been a close and airless bank holiday, the sort of day that empties London of everyone who can afford to be emptied and leaves the rest of us to sit in our shirtsleeves and resent them. By eight o'clock both windows of our sitting room stood open to Baker Street, and the holiday came up off the pavement in waves: barrel-organs, a brass band somewhere towards the Park, and under it all the long, unbroken murmur of a hundred thousand people with nothing to do and nowhere they were obliged to be.
+It had been a close and airless bank holiday, the sort of day that empties London of everyone who can afford to be emptied and leaves the rest of us to sit in our shirtsleeves and resent them. By half past seven both windows of our sitting room stood open to Baker Street, and the holiday came up off the pavement in waves: barrel-organs, a brass band somewhere towards the Park, and under it all the long, unbroken murmur of a hundred thousand people with nothing to do and nowhere they were obliged to be.
 
 Holmes had spent the afternoon in a chemical silence. It had ended a little after seven, when something on his bench went black and stank, and since then he had been at the window with his hands behind him, looking down upon the crowd as a naturalist looks into a pond in which nothing of interest has bred.
 
