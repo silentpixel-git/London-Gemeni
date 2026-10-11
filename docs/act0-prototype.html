@@ -7,7 +7,7 @@
 <title>The Wager Prototype</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Playfair:ital,wght@0,400;1,400&family=Patrick+Hand&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Playfair:ital,wght@0,400;1,400&display=swap">
 <style>
 /* Layout: the real game screen. A fixed sidebar on the left, the main column (header, narrative feed,
    floating command pill) on the right. Tokens are the game's own --lb-* channels from index.css. */
@@ -21,7 +21,6 @@
   --font-sans: "Lato", "Helvetica Neue", Arial, sans-serif;
   --font-serif: "Playfair Display", Georgia, "Times New Roman", serif;
   --font-playfair: "Playfair", "Playfair Display", Georgia, serif;
-  --font-hand: "Patrick Hand", "Bradley Hand", "Segoe Print", cursive;
   --ease: cubic-bezier(.16,1,.3,1);
 }
 @media (prefers-color-scheme: dark) {
@@ -247,23 +246,34 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
 @keyframes lb-rise { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
 .diary-top { display: flex; justify-content: space-between; align-items: center; }
 .diary-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: rgb(var(--lb-muted)); }
-.diary-head { display: flex; flex-direction: column; gap: 6px; }
 .diary-act { font-family: var(--font-serif); font-weight: 400; font-size: 30px; line-height: 1.15; margin: 0; text-wrap: balance; }
-.diary-date { margin: 0; font-family: var(--font-playfair); font-style: italic; font-size: 16px; color: rgb(var(--lb-primary) / .7); }
-.entries { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; }
-.entry { display: grid; grid-template-columns: 52px minmax(0, 1fr) 150px; column-gap: 16px; align-items: start; }
-.entry .time { font-size: 13px; color: rgb(var(--lb-muted)); font-variant-numeric: tabular-nums; padding-top: 3px; line-height: 1.5; }
-.entry .time em { display: block; font-size: 12px; color: rgb(var(--lb-accent)); }
-.entry .body { margin: 0; font-size: 16px; line-height: 1.65; }
-.margin-note {
-  position: relative; margin: 0; padding-left: 22px; align-self: start;
-  font-family: var(--font-hand); font-size: 19px; line-height: 1.15; color: rgb(var(--lb-accent));
-  transform: rotate(-2deg); transform-origin: left top;
+.dtabs { display: inline-flex; align-self: flex-start; gap: 4px; padding: 4px; border-radius: 999px; background: rgb(var(--lb-primary) / .06); }
+.dtab {
+  border: 0; background: none; cursor: pointer; border-radius: 999px; padding: 6px 16px;
+  font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgb(var(--lb-primary) / .6);
 }
-.margin-note svg { position: absolute; left: 0; top: 2px; width: 18px; height: 14px; }
-.entry.closing { grid-template-columns: 52px minmax(0, 1fr); padding-top: 14px; border-top: 1px solid rgb(var(--lb-border)); }
-.entry.closing .body { font-family: var(--font-playfair); font-style: italic; font-size: 18px; }
-.entry.closing .sig { display: block; text-align: right; font-family: var(--font-hand); font-style: normal; font-size: 19px; color: rgb(var(--lb-primary) / .7); margin-top: 6px; }
+.dtab[aria-selected="true"] { background: rgb(var(--lb-paper)); color: rgb(var(--lb-primary)); box-shadow: 0 1px 3px rgb(0 0 0 / .1); }
+.dtab .n { color: rgb(var(--lb-accent)); margin-left: 6px; }
+.dpanel { display: flex; flex-direction: column; gap: 18px; }
+.dact { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: rgb(var(--lb-muted)); }
+.dday { margin: -10px 0 0; font-family: var(--font-serif); font-size: 22px; font-weight: 400; }
+.jlist, .klist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.jentry { display: grid; grid-template-columns: 56px minmax(0, 1fr); column-gap: 16px; align-items: start; }
+.tile {
+  position: relative; display: grid; place-items: center; height: 44px; border-radius: 8px;
+  background: rgb(var(--lb-primary) / .06); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.tile .dot { position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--lb-accent)); box-shadow: 0 0 0 2px rgb(var(--lb-paper)); }
+.jlabel { display: block; font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: rgb(var(--lb-accent)); margin: 2px 0 4px; }
+.jline { margin: 0; font-family: var(--font-serif); font-size: 17px; line-height: 1.5; }
+.jentry.reflection .jline { font-style: italic; }
+.klist li { display: flex; flex-direction: column; gap: 8px; }
+.klist blockquote {
+  margin: 0; padding: 12px 14px; border-radius: 4px; background: rgb(var(--lb-accent) / .12);
+  font-family: var(--font-serif); font-size: 17px; line-height: 1.6;
+}
+.klist .src { margin: 0; font-size: 13px; color: rgb(var(--lb-muted)); }
+.klist .src .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: rgb(var(--lb-accent)); margin-right: 8px; vertical-align: 1px; }
 .diary-empty { margin: 0; font-style: italic; color: rgb(var(--lb-muted)); }
 .toast {
   position: fixed; left: 50%; top: calc(76px + env(safe-area-inset-top, 0px)); z-index: 16; transform: translateX(-50%);
@@ -288,8 +298,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   .diary-backdrop { place-items: end stretch; padding: 0; }
   .diary-card { max-width: none; max-height: 86vh; border-radius: 16px 16px 0 0; padding: 20px 20px calc(28px + env(safe-area-inset-bottom, 0px)); gap: 22px; }
   .diary-act { font-size: 26px; }
-  .entry { grid-template-columns: 44px minmax(0, 1fr); }
-  .margin-note { grid-column: 2; justify-self: end; margin-top: 6px; }
+  .jentry { grid-template-columns: 48px minmax(0, 1fr); column-gap: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
@@ -385,15 +394,24 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
 <div class="diary-backdrop" id="diary" hidden>
   <div class="diary-card" role="dialog" aria-modal="true" aria-labelledby="diaryTitle">
     <div class="diary-top">
-      <span class="diary-eyebrow">Watson's Diary</span>
+      <span class="diary-eyebrow">221B Baker Street</span>
       <button class="icon-btn pressable" id="diaryClose" type="button" aria-label="Close the diary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
-    <div class="diary-head">
-      <h2 class="diary-act" id="diaryTitle">Prologue — The Wager</h2>
-      <p class="diary-date">Monday, 6 August 1888 · 221B Baker Street</p>
+    <h2 class="diary-act" id="diaryTitle">Watson's Diary</h2>
+    <div class="dtabs" role="tablist" aria-label="Diary sections">
+      <button class="dtab" id="tabJournal" role="tab" type="button" aria-selected="true" aria-controls="panelJournal">Journal</button>
+      <button class="dtab" id="tabKept" role="tab" type="button" aria-selected="false" aria-controls="panelKept">Kept</button>
     </div>
-    <ol class="entries" id="entries"></ol>
-    <p class="diary-empty" id="diaryEmpty">Nothing written yet.</p>
+    <div class="dpanel" id="panelJournal" role="tabpanel" aria-labelledby="tabJournal">
+      <p class="dact">Prologue — The Wager</p>
+      <h3 class="dday">Monday, 6 August 1888</h3>
+      <ol class="jlist" id="journalList"></ol>
+      <p class="diary-empty" id="journalEmpty">Nothing written yet.</p>
+    </div>
+    <div class="dpanel" id="panelKept" role="tabpanel" aria-labelledby="tabKept" hidden>
+      <ul class="klist" id="keptList"></ul>
+      <p class="diary-empty" id="keptEmpty">Nothing kept yet. Lines worth keeping will be copied here.</p>
+    </div>
   </div>
 </div>
 <div class="toast" id="toast" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Noted in my diary</div>
@@ -1018,41 +1036,47 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   function renderAll() { renderSidebar(); renderChips(); renderPanel(); }
 
   // ───────────────────────── Diary ─────────────────────────
-  // Watson's journal: short dated entries, oldest first. The ones that
-  // mattered carry his margin note; the notes are the leads. Nothing is
-  // shown for what has not happened or was missed.
-  const ENTRIES = [
-    { key: "demo", when: () => S.demonstration,
-      text: () => "Holmes at the window, reading the holiday like print. A man from Hampstead, by the dust on his boots.",
-      note: () => "observe, then infer" },
-    { key: "wager", when: () => S.wager,
-      text: () => "I called it a parlour trick, and so found myself in a wager: two strangers to read, the violin against his monograph.",
-      note: () => null },
-    { key: "glass", when: () => S.glassHeld || S.glassUsed,
-      text: () => "Took Holmes's opera glass from the mantel. He said nothing, which is his way of saying something.",
-      note: () => null },
-    { key: "soldier", when: () => S.soldierRead,
-      text: () => "The old soldier by the cab rank: infantry, India, a thigh healed short. I knew that walk from Peshawar.",
-      note: () => S.glassOnSoldier ? "ribbon, faded white" : "one to me" },
-    { key: "clergy", when: () => S.clergyRead,
-      text: () => S.clergyCorrect ? "The clergyman was no clergyman. Greasepaint at the hairline, a script in his hand."
-        : S.clergyGuessed ? "I said “actor” before I could say why. Holmes took the point, and fairly."
-        : "The clergyman was no clergyman. Greasepaint, and I saw the coat and stopped looking.",
-      note: () => S.clergyCorrect ? "the glass!" : S.clergyGuessed ? "a guess is not a reading" : "should have looked" },
-    { key: "unseen", when: () => S.closing,
-      text: () => "Holmes asked me to describe one other face from the street. I could not.",
-      note: () => "who is never looked at?" },
-    { key: "close", closing: true, when: () => S.closing,
+  // Journal: one dated line per thing that happened (5 Minute Journal pattern).
+  // Kept: Watson's verbatim keepsakes from the scene (Medium/Pocket pattern).
+  // The kept quotes are the leads. Both are stamped with the in-game clock.
+  const JOURNAL = [
+    { key: "demo", label: "Encounter", when: () => S.demonstration,
+      text: () => "Holmes read a man from Hampstead by the dust on his boots." },
+    { key: "wager", label: "Decision", when: () => S.wager,
+      text: () => "I called it a parlour trick, and took his wager." },
+    { key: "glass", label: "Clue", when: () => S.glassHeld || S.glassUsed,
+      text: () => "Took Holmes's opera glass from the mantel." },
+    { key: "soldier", label: "Clue", when: () => S.soldierRead,
+      text: () => "The old soldier: infantry, India, a thigh healed short." },
+    { key: "clergy", label: "Clue", when: () => S.clergyRead,
+      text: () => S.clergyCorrect ? "The clergyman was an actor; greasepaint at the hairline."
+        : S.clergyGuessed ? "The clergyman was an actor. I guessed it, and the point went to Holmes."
+        : "The clergyman was an actor. I saw the coat and stopped looking." },
+    { key: "unseen", label: "Encounter", when: () => S.closing,
+      text: () => "Holmes asked me to describe one other face from the street. I could not." },
+    { key: "close", label: "Reflection", when: () => S.closing,
       text: () => S.won ? "Two strangers read and the violin quiet till midnight."
         : S.clergyGuessed ? "One stranger read, one guessed, and a monograph on tobacco ash for my trouble."
-        : "One stranger read, one misread, and a monograph on tobacco ash for my trouble.",
-      note: () => null }
+        : "One stranger read, one misread, and a monograph on tobacco ash for my trouble." }
   ];
-  const HOOK = '<svg viewBox="0 0 18 14" aria-hidden="true"><path d="M17 3C11 1 5 3 2 10M2 10l-1-4M2 10l4-1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  // Stamp entries that became true this turn with the in-game clock.
+  // Every quote must appear word for word in the narration (checked by the test suite).
+  const KEPT = [
+    { key: "boots", when: () => S.demonstration, source: () => "Holmes, at the window",
+      quote: () => "I observe that his boots are white to the ankle with the dust of the Heath road. That is a fact. I infer that he walked, which is not…" },
+    { key: "peshawar", when: () => S.soldierRead, source: () => "My own reading, the old soldier",
+      quote: () => "I watched men learn that walk in the hospital at Peshawar." },
+    { key: "coat", when: () => S.clergyRead,
+      source: () => S.clergyCorrect ? "My own reading, the clergyman" : "Holmes, on the clergyman",
+      quote: () => S.clergyCorrect ? "That is greasepaint at his hairline, and he is learning a part, not a lesson."
+        : S.clergyGuessed ? "A guess is not a reading."
+        : "You saw a black coat and a white tie, and you stopped looking, because you had your answer." },
+    { key: "asks", when: () => S.closing, source: () => "Holmes, at the window",
+      quote: () => "We see what asks to be seen." }
+  ];
+  const ALL_DIARY = [...JOURNAL.map((e) => ["j:" + e.key, e]), ...KEPT.map((e) => ["k:" + e.key, e])];
   function stampEntries() {
     let added = false;
-    ENTRIES.forEach((e) => { if (!(e.key in S.stamps) && e.when()) { S.stamps[e.key] = S.clock; added = true; } });
+    ALL_DIARY.forEach(([id, e]) => { if (!(id in S.stamps) && e.when()) { S.stamps[id] = S.clock; added = true; } });
     return added;
   }
   function diaryUnread() { return Object.keys(S.stamps).filter((k) => !S.diarySeenKeys[k]).length; }
@@ -1069,25 +1093,42 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     b.hidden = n === 0; b.textContent = n > 9 ? "9+" : String(n);
     $("diaryBtn").setAttribute("aria-label", n ? `Open Watson's diary, ${n} new` : "Open Watson's diary");
   }
-  function renderDiary() {
-    const list = $("entries"); list.innerHTML = "";
-    const order = ENTRIES.map((e, i) => [e, i]).filter(([e]) => e.key in S.stamps)
-      .sort((a, b) => (S.stamps[a[0].key] - S.stamps[b[0].key]) || (a[1] - b[1]));
-    order.forEach(([e]) => {
-      const li = document.createElement("li");
-      li.className = "entry" + (e.closing ? " closing" : "");
-      li.dataset.key = e.key;
-      const isNew = !S.diarySeenKeys[e.key];
-      if (isNew) li.dataset.new = "1";
-      const time = `<span class="time">${e.closing ? "" : fmtClock(S.stamps[e.key]).replace(" PM", "").replace(" AM", "")}${isNew ? "<em>new</em>" : ""}</span>`;
-      const note = e.note();
-      li.innerHTML = e.closing
-        ? `${time}<p class="body">${esc(e.text())}<span class="sig">— J.W.</span></p>`
-        : `${time}<p class="body">${esc(e.text())}</p>${note ? `<p class="margin-note">${HOOK}${esc(note)}</p>` : ""}`;
-      list.appendChild(li);
-    });
-    $("diaryEmpty").hidden = order.length > 0;
+  const clockShort = (m) => fmtClock(m).replace(/ (AM|PM)$/, "");
+  function sorted(list, prefix) {
+    return list.map((e, i) => [e, i]).filter(([e]) => (prefix + e.key) in S.stamps)
+      .sort((a, b) => (S.stamps[prefix + a[0].key] - S.stamps[prefix + b[0].key]) || (a[1] - b[1])).map(([e]) => e);
   }
+  function renderDiary() {
+    const jl = $("journalList"), kl = $("keptList");
+    jl.innerHTML = ""; kl.innerHTML = "";
+    const js = sorted(JOURNAL, "j:"), ks = sorted(KEPT, "k:");
+    js.forEach((e) => {
+      const id = "j:" + e.key, li = document.createElement("li");
+      li.className = "jentry" + (e.label === "Reflection" ? " reflection" : "");
+      li.dataset.key = e.key; if (!S.diarySeenKeys[id]) li.dataset.new = "1";
+      li.innerHTML = `<span class="tile">${clockShort(S.stamps[id])}${S.diarySeenKeys[id] ? "" : '<span class="dot" aria-label="new"></span>'}</span>`
+        + `<div><span class="jlabel">${esc(e.label)}</span><p class="jline">${esc(e.text())}</p></div>`;
+      jl.appendChild(li);
+    });
+    ks.forEach((e) => {
+      const id = "k:" + e.key, li = document.createElement("li");
+      li.dataset.key = e.key; if (!S.diarySeenKeys[id]) li.dataset.new = "1";
+      li.innerHTML = `<blockquote>${esc(e.quote())}</blockquote><p class="src">${S.diarySeenKeys[id] ? "" : '<span class="dot" aria-label="new"></span>'}— ${esc(e.source())} · ${clockShort(S.stamps[id])}</p>`;
+      kl.appendChild(li);
+    });
+    $("journalEmpty").hidden = js.length > 0;
+    $("keptEmpty").hidden = ks.length > 0;
+    const newKept = ks.filter((e) => !S.diarySeenKeys["k:" + e.key]).length;
+    $("tabKept").innerHTML = "Kept" + (newKept ? `<span class="n">${newKept}</span>` : "");
+  }
+  function selectTab(which) {
+    const j = which === "journal";
+    $("tabJournal").setAttribute("aria-selected", String(j));
+    $("tabKept").setAttribute("aria-selected", String(!j));
+    $("panelJournal").hidden = !j; $("panelKept").hidden = j;
+  }
+  $("tabJournal").addEventListener("click", () => selectTab("journal"));
+  $("tabKept").addEventListener("click", () => selectTab("kept"));
   let diaryOpener = null;
   function openDiary() {
     finishTyping();
@@ -1171,6 +1212,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     renderTurn(null, { paras: T.opening });
     renderAll();
     $("diary").hidden = true;
+    selectTab("journal");
     setTimeout(diaryAfterTurn, 1200);
     feed.scrollTop = 0;
   }
