@@ -346,6 +346,12 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
 (() => {
   // ───────────────────────── Audio core ─────────────────────────
   const AUDIO = "act0-prototype-audio/";
+  // Mix rule: the street bed leads; every one-shot sits at half its level,
+  // so effects read as quieter than the ambience, never on top of it.
+  const BED_LEVEL = 0.35, BED_DIP = 0.2, SFX_RATIO = 0.5;
+  // Per-file trim for takes mastered louder or softer than the rest (1 = as is).
+  const SFX_TRIM = { lamplighter: 0.8 };
+  const SFX_FILE = { lamplighter: "lamplighter.wav" };
   let soundOn = false;
   const sfxLog = [];
   const bed = new Audio(AUDIO + "holiday-street.mp3");
@@ -361,11 +367,11 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
       if (k >= 1) { clearInterval(fadeTimer); if (target === 0) bed.pause(); }
     }, 50);
   }
-  function playSfx(id, vol) {
+  function playSfx(id) {
     if (!soundOn) return;
-    sfxLog.push(id);
-    const a = new Audio(AUDIO + id + ".mp3");
-    a.volume = vol == null ? 0.6 : vol;
+    const a = new Audio(AUDIO + (SFX_FILE[id] || id + ".mp3"));
+    a.volume = BED_LEVEL * SFX_RATIO * (SFX_TRIM[id] ?? 1);
+    sfxLog.push({ id, volume: a.volume });
     a.play().catch(() => {});
   }
 
@@ -767,7 +773,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   function closing(out) {
     S.closing = true; S.ended = true;
     out.sfx.push(S.won ? "violin-pluck" : "pages-riffle");
-    bedTo(0.2, 2500);
+    bedTo(BED_DIP, 2500);
     out.paras.push(...T.closing);
     out.journal = S.won ? T.codaWin : T.codaLose;
     out.after = T.lastLine;
@@ -980,7 +986,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   $("scrim").addEventListener("click", () => app.classList.remove("sidebar-open"));
   function closeSidebarIfMobile() { if (mobile()) app.classList.remove("sidebar-open"); }
 
-  function showCurtain() { finishTyping(); $("curtain").hidden = false; playSfx("bell", 0.5); bedTo(0, 3000); }
+  function showCurtain() { finishTyping(); $("curtain").hidden = false; playSfx("bell"); bedTo(0, 3000); }
   $("closeCurtain").addEventListener("click", () => { $("curtain").hidden = true; });
   $("againBtn").addEventListener("click", () => { $("curtain").hidden = true; start(); });
   $("restartBtn").addEventListener("click", start);
@@ -992,7 +998,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
 
   function start() {
     finishTyping();
-    if (soundOn) { bed.play().catch(() => {}); bedTo(0.35, 1500); }
+    if (soundOn) { bed.play().catch(() => {}); bedTo(BED_LEVEL, 1500); }
     S = fresh(); seenObjs = new Set(); log.innerHTML = "";
     renderTurn(null, { paras: T.opening });
     renderAll();
@@ -1008,7 +1014,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     b.setAttribute("aria-pressed", String(on));
     b.setAttribute("aria-label", on ? "Turn ambient sound off" : "Turn ambient sound on");
     try { localStorage.setItem("lb-proto-sound", on ? "1" : "0"); } catch (e) {}
-    if (on) { bed.play().catch(() => {}); bedTo(S && S.closing ? 0.2 : 0.35, 1500); }
+    if (on) { bed.play().catch(() => {}); bedTo(S && S.closing ? BED_DIP : BED_LEVEL, 1500); }
     else bedTo(0, 600);
   }
   $("soundBtn").addEventListener("click", () => soundToggle(!soundOn));

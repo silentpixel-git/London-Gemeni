@@ -15,7 +15,12 @@ The code references these exact paths; a missing file is silently skipped — ne
 
 **SFX** (one-shots)
 - Short (0.4–2.5 s), single gesture, clean tail, no loop.
-- Slightly more present than the beds (target ≈ −18 LUFS) but never startling.
+- **Quieter than the bed: about half its level** (≈ 6 dB under the bed, ≈ −30 LUFS). One-shots sit
+  *under* the ambience, never on top of it. (Owner decision, Act 0 prototype; `services/AudioManager.ts`
+  gains still follow the old rule and need retuning when this lands in the game.)
+- Sounds that happen in the street (a lamplighter, a cab, a shout) are heard **from inside, through a
+  window**: prompt them that way, and soften them further if needed (a low-pass around 1.7 kHz and a
+  touch of reflection). They must never sound as if they are in the room.
 - Mono or stereo, `.mp3`.
 
 > **POC status.** Only the **starred (★)** files are wired into the build right now
