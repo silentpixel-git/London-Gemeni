@@ -7,7 +7,7 @@
 <title>The Wager Prototype</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Playfair:ital,wght@0,400;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Playfair:ital,wght@0,400;1,400&family=Patrick+Hand&display=swap">
 <style>
 /* Layout: the real game screen. A fixed sidebar on the left, the main column (header, narrative feed,
    floating command pill) on the right. Tokens are the game's own --lb-* channels from index.css. */
@@ -21,6 +21,7 @@
   --font-sans: "Lato", "Helvetica Neue", Arial, sans-serif;
   --font-serif: "Playfair Display", Georgia, "Times New Roman", serif;
   --font-playfair: "Playfair", "Playfair Display", Georgia, serif;
+  --font-hand: "Patrick Hand", "Bradley Hand", "Segoe Print", cursive;
   --ease: cubic-bezier(.16,1,.3,1);
 }
 @media (prefers-color-scheme: dark) {
@@ -249,23 +250,21 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
 .diary-head { display: flex; flex-direction: column; gap: 6px; }
 .diary-act { font-family: var(--font-serif); font-weight: 400; font-size: 30px; line-height: 1.15; margin: 0; text-wrap: balance; }
 .diary-date { margin: 0; font-family: var(--font-playfair); font-style: italic; font-size: 16px; color: rgb(var(--lb-primary) / .7); }
-.diary-sec { display: flex; flex-direction: column; gap: 14px; }
-.diary-sec-head {
-  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-  padding-bottom: 8px; border-bottom: 1px solid rgb(var(--lb-border));
-  font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: rgb(var(--lb-accent));
+.entries { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; }
+.entry { display: grid; grid-template-columns: 52px minmax(0, 1fr) 150px; column-gap: 16px; align-items: start; }
+.entry .time { font-size: 13px; color: rgb(var(--lb-muted)); font-variant-numeric: tabular-nums; padding-top: 3px; line-height: 1.5; }
+.entry .time em { display: block; font-size: 12px; color: rgb(var(--lb-accent)); }
+.entry .body { margin: 0; font-size: 16px; line-height: 1.65; }
+.margin-note {
+  position: relative; margin: 0; padding-left: 22px; align-self: start;
+  font-family: var(--font-hand); font-size: 19px; line-height: 1.15; color: rgb(var(--lb-accent));
+  transform: rotate(-2deg); transform-origin: left top;
 }
-.diary-sec-head .count { color: rgb(var(--lb-muted)); letter-spacing: .08em; font-variant-numeric: tabular-nums; }
-.qlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
-.q { display: grid; grid-template-columns: 16px 1fr auto; column-gap: 12px; row-gap: 4px; padding-left: 10px; border-left: 2px solid transparent; }
-.q.new { border-left-color: rgb(var(--lb-accent)); }
-.q .mark { grid-row: 1; width: 12px; height: 12px; margin-top: 7px; }
-.q .qt { font-family: var(--font-serif); font-size: 18px; line-height: 1.4; min-width: 0; }
-.q .tag { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: rgb(var(--lb-muted)); align-self: start; margin-top: 6px; }
-.q .ans { grid-column: 2 / 4; margin: 0; font-style: italic; font-size: 15px; line-height: 1.6; color: rgb(var(--lb-primary) / .75); }
-.q.missed .qt { text-decoration: line-through; text-decoration-color: rgb(var(--lb-muted)); color: rgb(var(--lb-primary) / .55); }
-.q.missed .ans { color: rgb(var(--lb-muted)); }
-.diary-closing { margin: 0; font-family: var(--font-playfair); font-style: italic; font-size: 19px; line-height: 1.6; }
+.margin-note svg { position: absolute; left: 0; top: 2px; width: 18px; height: 14px; }
+.entry.closing { grid-template-columns: 52px minmax(0, 1fr); padding-top: 14px; border-top: 1px solid rgb(var(--lb-border)); }
+.entry.closing .body { font-family: var(--font-playfair); font-style: italic; font-size: 18px; }
+.entry.closing .sig { display: block; text-align: right; font-family: var(--font-hand); font-style: normal; font-size: 19px; color: rgb(var(--lb-primary) / .7); margin-top: 6px; }
+.diary-empty { margin: 0; font-style: italic; color: rgb(var(--lb-muted)); }
 .toast {
   position: fixed; left: 50%; top: calc(76px + env(safe-area-inset-top, 0px)); z-index: 16; transform: translateX(-50%);
   display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px;
@@ -289,6 +288,8 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   .diary-backdrop { place-items: end stretch; padding: 0; }
   .diary-card { max-width: none; max-height: 86vh; border-radius: 16px 16px 0 0; padding: 20px 20px calc(28px + env(safe-area-inset-bottom, 0px)); gap: 22px; }
   .diary-act { font-size: 26px; }
+  .entry { grid-template-columns: 44px minmax(0, 1fr); }
+  .margin-note { grid-column: 2; justify-self: end; margin-top: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
@@ -391,18 +392,8 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
       <h2 class="diary-act" id="diaryTitle">Prologue — The Wager</h2>
       <p class="diary-date">Monday, 6 August 1888 · 221B Baker Street</p>
     </div>
-    <section class="diary-sec">
-      <div class="diary-sec-head"><span>Questions</span><span class="count" id="diaryCount"></span></div>
-      <ul class="qlist" id="qMain"></ul>
-    </section>
-    <section class="diary-sec" id="secStanding" hidden>
-      <div class="diary-sec-head"><span>Still open</span></div>
-      <ul class="qlist" id="qStanding"></ul>
-    </section>
-    <section class="diary-sec" id="secClosing" hidden>
-      <div class="diary-sec-head"><span>The evening, in a line</span></div>
-      <p class="diary-closing" id="closingLine"></p>
-    </section>
+    <ol class="entries" id="entries"></ol>
+    <p class="diary-empty" id="diaryEmpty">Nothing written yet.</p>
   </div>
 </div>
 <div class="toast" id="toast" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Noted in my diary</div>
@@ -605,7 +596,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
       soldierExamined: false, clergyExamined: false,
       soldierRead: false, clergyRead: false, clergyCorrect: false,
       glassHeld: false, glassOnSoldier: false, glassOnClergy: false, glassUsed: false, clergyGuessed: false,
-      diarySeen: {}, lastSigs: {},
+      stamps: {}, diarySeenKeys: {},
       verdictTurn: null, closing: false, won: false, ended: false
     };
   }
@@ -1027,39 +1018,47 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   function renderAll() { renderSidebar(); renderChips(); renderPanel(); }
 
   // ───────────────────────── Diary ─────────────────────────
-  // Leads are questions Watson writes down when they arise and answers in a
-  // line when found. State is derived from S, never stored twice.
-  const LEADS = [
-    { id: "window", kind: "required", q: "What holds Holmes at the window?",
-      view: () => ({ open: true, answer: S.demonstration ? "Boots white with Heath-road dust. He observes, then infers." : null }) },
-    { id: "soldier", kind: "required", q: "The old man by the cab rank.",
-      view: () => ({ open: S.wager, answer: S.soldierRead ? "Infantry. India, long ago. A thigh healed short. Waiting for a grandchild." + (S.glassOnSoldier ? " A campaign ribbon, faded white." : "") : null }) },
-    { id: "clergyman", kind: "required", q: "The clergyman outside the chemist's.",
-      view: () => ({ open: S.wager, answer: !S.clergyRead ? null : S.clergyCorrect ? "No clergyman. Greasepaint and a script: an actor, still in costume." : S.clergyGuessed ? "An actor, though I guessed it. A guess is not a reading." : "An actor. I saw the coat and stopped looking." }) },
-    { id: "glass", kind: "aside", q: "Holmes's opera glass, on the mantel.",
-      view: () => ({ open: S.demonstration, answer: S.glassUsed ? (S.glassOnClergy ? "It brings the street nearer. The greasepaint was there to be seen." : "It brings the street nearer.") : null, missed: S.closing && !S.glassUsed }) },
-    { id: "unseen", kind: "standing", q: "Who passes under the window and is never looked at?",
-      view: () => ({ open: S.closing, answer: null }) }
+  // Watson's journal: short dated entries, oldest first. The ones that
+  // mattered carry his margin note; the notes are the leads. Nothing is
+  // shown for what has not happened or was missed.
+  const ENTRIES = [
+    { key: "demo", when: () => S.demonstration,
+      text: () => "Holmes at the window, reading the holiday like print. A man from Hampstead, by the dust on his boots.",
+      note: () => "observe, then infer" },
+    { key: "wager", when: () => S.wager,
+      text: () => "I called it a parlour trick, and so found myself in a wager: two strangers to read, the violin against his monograph.",
+      note: () => null },
+    { key: "glass", when: () => S.glassHeld || S.glassUsed,
+      text: () => "Took Holmes's opera glass from the mantel. He said nothing, which is his way of saying something.",
+      note: () => null },
+    { key: "soldier", when: () => S.soldierRead,
+      text: () => "The old soldier by the cab rank: infantry, India, a thigh healed short. I knew that walk from Peshawar.",
+      note: () => S.glassOnSoldier ? "ribbon, faded white" : "one to me" },
+    { key: "clergy", when: () => S.clergyRead,
+      text: () => S.clergyCorrect ? "The clergyman was no clergyman. Greasepaint at the hairline, a script in his hand."
+        : S.clergyGuessed ? "I said “actor” before I could say why. Holmes took the point, and fairly."
+        : "The clergyman was no clergyman. Greasepaint, and I saw the coat and stopped looking.",
+      note: () => S.clergyCorrect ? "the glass!" : S.clergyGuessed ? "a guess is not a reading" : "should have looked" },
+    { key: "unseen", when: () => S.closing,
+      text: () => "Holmes asked me to describe one other face from the street. I could not.",
+      note: () => "who is never looked at?" },
+    { key: "close", closing: true, when: () => S.closing,
+      text: () => S.won ? "Two strangers read and the violin quiet till midnight."
+        : S.clergyGuessed ? "One stranger read, one guessed, and a monograph on tobacco ash for my trouble."
+        : "One stranger read, one misread, and a monograph on tobacco ash for my trouble.",
+      note: () => null }
   ];
-  const CLOSING_LINES = {
-    won: "Two strangers read and the violin quiet till midnight. Holmes was right about the rest: I could not describe one other face.",
-    lost: "One stranger read, one misread, and a monograph on tobacco ash for my trouble. I saw the coat and stopped looking."
-  };
-  function leadSigs() {
-    const sigs = {};
-    LEADS.forEach((l) => { const v = l.view(); if (v.open) sigs[l.id] = v.missed ? "missed" : (v.answer ? "answered:" + v.answer : "open"); });
-    return sigs;
+  const HOOK = '<svg viewBox="0 0 18 14" aria-hidden="true"><path d="M17 3C11 1 5 3 2 10M2 10l-1-4M2 10l4-1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  // Stamp entries that became true this turn with the in-game clock.
+  function stampEntries() {
+    let added = false;
+    ENTRIES.forEach((e) => { if (!(e.key in S.stamps) && e.when()) { S.stamps[e.key] = S.clock; added = true; } });
+    return added;
   }
-  function diaryUnread() {
-    const sigs = leadSigs();
-    return Object.keys(sigs).filter((id) => S.diarySeen[id] !== sigs[id]).length;
-  }
+  function diaryUnread() { return Object.keys(S.stamps).filter((k) => !S.diarySeenKeys[k]).length; }
   let toastTimer = null;
   function diaryAfterTurn() {
-    const sigs = leadSigs();
-    const changed = Object.keys(sigs).some((id) => S.lastSigs[id] !== sigs[id]);
-    S.lastSigs = sigs;
-    if (changed && $("diary").hidden) {
+    if (stampEntries() && $("diary").hidden) {
       const t = $("toast"); t.hidden = true; void t.offsetWidth; t.hidden = false;
       clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2700);
     }
@@ -1070,41 +1069,31 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     b.hidden = n === 0; b.textContent = n > 9 ? "9+" : String(n);
     $("diaryBtn").setAttribute("aria-label", n ? `Open Watson's diary, ${n} new` : "Open Watson's diary");
   }
-  const MARK = {
-    answered: '<svg class="mark" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="rgb(var(--lb-accent))"/></svg>',
-    open: '<svg class="mark" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill="none" stroke="rgb(var(--lb-primary) / .6)" stroke-width="1.5"/></svg>',
-    dashed: '<svg class="mark" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill="none" stroke="rgb(var(--lb-muted))" stroke-width="1.5" stroke-dasharray="2.2 2"/></svg>'
-  };
-  function renderDiary(newIds) {
-    const main = $("qMain"), standing = $("qStanding");
-    main.innerHTML = ""; standing.innerHTML = "";
-    let req = 0, done = 0;
-    LEADS.forEach((l) => {
-      const v = l.view();
-      if (!v.open) return;
-      if (l.kind === "required") { req++; if (v.answer) done++; }
+  function renderDiary() {
+    const list = $("entries"); list.innerHTML = "";
+    const order = ENTRIES.map((e, i) => [e, i]).filter(([e]) => e.key in S.stamps)
+      .sort((a, b) => (S.stamps[a[0].key] - S.stamps[b[0].key]) || (a[1] - b[1]));
+    order.forEach(([e]) => {
       const li = document.createElement("li");
-      const state = v.missed ? "missed" : v.answer ? "answered" : "open";
-      li.className = `q ${state}${newIds.has(l.id) ? " new" : ""}`;
-      li.dataset.lead = l.id; li.dataset.state = state;
-      const mark = state === "answered" ? MARK.answered : (l.kind === "required" ? MARK.open : MARK.dashed);
-      const tag = l.kind === "aside" ? '<span class="tag">aside</span>' : "<span></span>";
-      const ans = v.missed ? "Never taken up." : v.answer;
-      li.innerHTML = `${mark}<span class="qt">${esc(l.q)}</span>${tag}${ans ? `<p class="ans">${esc(ans)}</p>` : ""}`;
-      (l.kind === "standing" ? standing : main).appendChild(li);
+      li.className = "entry" + (e.closing ? " closing" : "");
+      li.dataset.key = e.key;
+      const isNew = !S.diarySeenKeys[e.key];
+      if (isNew) li.dataset.new = "1";
+      const time = `<span class="time">${e.closing ? "" : fmtClock(S.stamps[e.key]).replace(" PM", "").replace(" AM", "")}${isNew ? "<em>new</em>" : ""}</span>`;
+      const note = e.note();
+      li.innerHTML = e.closing
+        ? `${time}<p class="body">${esc(e.text())}<span class="sig">— J.W.</span></p>`
+        : `${time}<p class="body">${esc(e.text())}</p>${note ? `<p class="margin-note">${HOOK}${esc(note)}</p>` : ""}`;
+      list.appendChild(li);
     });
-    $("diaryCount").textContent = `${done} of ${req} answered`;
-    $("secStanding").hidden = !standing.children.length;
-    $("secClosing").hidden = !S.closing;
-    $("closingLine").textContent = S.closing ? CLOSING_LINES[S.won ? "won" : "lost"] : "";
+    $("diaryEmpty").hidden = order.length > 0;
   }
   let diaryOpener = null;
   function openDiary() {
     finishTyping();
-    const sigs = leadSigs();
-    const newIds = new Set(Object.keys(sigs).filter((id) => S.diarySeen[id] !== sigs[id]));
-    renderDiary(newIds);
-    S.diarySeen = { ...sigs };
+    stampEntries();
+    renderDiary();
+    Object.keys(S.stamps).forEach((k) => { S.diarySeenKeys[k] = true; });
     renderBadge();
     diaryOpener = document.activeElement;
     $("toast").hidden = true;
