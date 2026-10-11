@@ -109,6 +109,10 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
 .icon-btn:hover { border-color: rgb(var(--lb-accent)); color: rgb(var(--lb-accent)); }
 .icon-btn svg { width: 18px; height: 18px; }
 .icon-btn.inert { cursor: default; opacity: .45; }
+.icon-btn.sound-on { border-color: rgb(var(--lb-accent)); color: rgb(var(--lb-accent)); }
+.icon-btn .ico-on { display: none; }
+.icon-btn.sound-on .ico-on { display: block; }
+.icon-btn.sound-on .ico-off { display: none; }
 .icon-btn.inert:hover { border-color: rgb(var(--lb-primary) / .3); color: inherit; }
 .avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: rgb(var(--lb-primary)); color: rgb(var(--lb-bg)); font-weight: 700; font-size: 14px; opacity: .45; flex: none; }
 .status-pill {
@@ -287,6 +291,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
         <div class="status-pill" title="This prototype runs a scripted stand-in for the game engine and the narrator."><span class="led"></span>Prototype · not connected</div>
       </div>
       <div class="header-right">
+        <button class="icon-btn pressable" id="soundBtn" type="button" aria-pressed="false" aria-label="Turn ambient sound on" title="Ambient sound (prototype)"><svg class="ico-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m22 9-6 6M16 9l6 6"/></svg><svg class="ico-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg></button>
         <span class="icon-btn inert" aria-hidden="true" title="Watson's Diary (not in this prototype)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg></span>
         <span class="avatar" aria-hidden="true">JW</span>
       </div>
@@ -339,6 +344,31 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
 
 <script>
 (() => {
+  // ───────────────────────── Audio core ─────────────────────────
+  const AUDIO = "act0-prototype-audio/";
+  let soundOn = false;
+  const sfxLog = [];
+  const bed = new Audio(AUDIO + "holiday-street.mp3");
+  bed.loop = true; bed.volume = 0; bed.preload = "none";
+  let fadeTimer = null;
+  function bedTo(target, ms) {
+    clearInterval(fadeTimer);
+    if (!soundOn && target > 0) return;
+    const start = bed.volume, t0 = performance.now();
+    fadeTimer = setInterval(() => {
+      const k = Math.min(1, (performance.now() - t0) / ms);
+      bed.volume = Math.max(0, Math.min(1, start + (target - start) * k));
+      if (k >= 1) { clearInterval(fadeTimer); if (target === 0) bed.pause(); }
+    }, 50);
+  }
+  function playSfx(id, vol) {
+    if (!soundOn) return;
+    sfxLog.push(id);
+    const a = new Audio(AUDIO + id + ".mp3");
+    a.volume = vol == null ? 0.6 : vol;
+    a.play().catch(() => {});
+  }
+
   // ───────────────────────── Authored text ─────────────────────────
   // Beat-sized stand-ins for the AI narrator, condensed from docs/act0-window-wager.md.
   const T = {
@@ -550,7 +580,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     return !o.needs || S[o.needs];
   }
   function resolve(cmd) {
-    const out = { paras: [], quote: null, cost: COST.other, journal: null, endButton: false };
+    const out = { paras: [], quote: null, cost: COST.other, journal: null, endButton: false, sfx: [] };
     const say = (...p) => out.paras.push(...p.flat());
     const verdictPending = () => S.soldierRead && S.clergyRead && !S.closing;
 
@@ -579,6 +609,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
           if (!S.demonstration) { say("Something small and brass glinted in Holmes's hand at the window. Whatever it was, he had not finished with it."); return out; }
           if (S.glassHeld) { say("I already had the glass in my hand."); return out; }
           S.glassHeld = true;
+          out.sfx.push("pickup");
           say("I took Holmes's opera glass from the mantel. It was a small thing in brass and black enamel, still warm from his hand. Holmes saw me take it and said nothing at all.");
           out.notice = "**You picked up:** Opera Glass";
           return out;
@@ -685,6 +716,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
 
   function demonstration(out, viaWindow) {
     S.demonstration = true;
+    out.sfx.push("glass-down");
     if (viaWindow) out.paras.push("I joined Holmes at the window. Below us the holiday went on: barrel-organs, straw hats, a sailor with a girl on each arm.");
     out.paras.push(...T.demonstration);
     return out;
@@ -734,6 +766,8 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   }
   function closing(out) {
     S.closing = true; S.ended = true;
+    out.sfx.push(S.won ? "violin-pluck" : "pages-riffle");
+    bedTo(0.2, 2500);
     out.paras.push(...T.closing);
     out.journal = S.won ? T.codaWin : T.codaLose;
     out.after = T.lastLine;
@@ -919,10 +953,11 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
       S.turns += 1;
       const before = S.clock;
       S.clock += out.cost;
-      if (!S.lampLit && before < 1180 && S.clock >= 1180 && !S.closing) { S.lampLit = true; out.quote = T.lamplighter; }
+      if (!S.lampLit && before < 1180 && S.clock >= 1180 && !S.closing) { S.lampLit = true; out.quote = T.lamplighter; out.sfx.push("lamplighter"); }
     }
     renderTurn(out.isHint ? null : text, out);
     renderAll();
+    (out.sfx || []).forEach((id, i) => setTimeout(() => playSfx(id), (id === "violin-pluck" || id === "pages-riffle") ? 1800 : 250 + i * 700));
   }
   function prefill(cmd) { const i = $("cmd"); i.value = cmd; i.focus(); }
 
@@ -945,7 +980,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   $("scrim").addEventListener("click", () => app.classList.remove("sidebar-open"));
   function closeSidebarIfMobile() { if (mobile()) app.classList.remove("sidebar-open"); }
 
-  function showCurtain() { finishTyping(); $("curtain").hidden = false; }
+  function showCurtain() { finishTyping(); $("curtain").hidden = false; playSfx("bell", 0.5); bedTo(0, 3000); }
   $("closeCurtain").addEventListener("click", () => { $("curtain").hidden = true; });
   $("againBtn").addEventListener("click", () => { $("curtain").hidden = true; start(); });
   $("restartBtn").addEventListener("click", start);
@@ -957,13 +992,37 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
 
   function start() {
     finishTyping();
+    if (soundOn) { bed.play().catch(() => {}); bedTo(0.35, 1500); }
     S = fresh(); seenObjs = new Set(); log.innerHTML = "";
     renderTurn(null, { paras: T.opening });
     renderAll();
     feed.scrollTop = 0;
   }
+  // ───────────────────────── Sound ─────────────────────────
+  // Sound starts off (browsers block autoplay); one click turns it on. A missing
+  // or blocked file is silent, never an error, as in services/AudioManager.ts.
+  function soundToggle(on) {
+    soundOn = on;
+    const b = $("soundBtn");
+    b.classList.toggle("sound-on", on);
+    b.setAttribute("aria-pressed", String(on));
+    b.setAttribute("aria-label", on ? "Turn ambient sound off" : "Turn ambient sound on");
+    try { localStorage.setItem("lb-proto-sound", on ? "1" : "0"); } catch (e) {}
+    if (on) { bed.play().catch(() => {}); bedTo(S && S.closing ? 0.2 : 0.35, 1500); }
+    else bedTo(0, 600);
+  }
+  $("soundBtn").addEventListener("click", () => soundToggle(!soundOn));
+  // Honour a remembered "on" at the first gesture, since play() needs one.
+  let wanted = false;
+  try { wanted = localStorage.getItem("lb-proto-sound") === "1"; } catch (e) {}
+  if (wanted) {
+    const first = () => { if (!soundOn) soundToggle(true); };
+    document.addEventListener("pointerdown", first, { once: true });
+    document.addEventListener("keydown", first, { once: true });
+  }
+
   // Expose a tiny hook for automated checks.
-  window.__proto = { submit, state: () => S, finishTyping };
+  window.__proto = { submit, state: () => S, finishTyping, sfxLog, soundToggle };
   start();
 })();
 </script>
