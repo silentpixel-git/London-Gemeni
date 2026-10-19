@@ -1029,18 +1029,23 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   let speed = "game";
   try { const v = localStorage.getItem("lb-proto-speed"); if (SPEEDS.includes(v)) speed = v; } catch (e) {}
 
-  // Follow the text only once it reaches the input dock, and never while the reader scrolls back.
+  // Follow the text only once it reaches three-quarters down the screen (or the input dock, if
+  // that is higher), and never while the reader scrolls back.
   const dockInner = document.querySelector(".dock-inner"), feedInner = $("feedInner");
   let followPaused = false;
+  function followLine() {
+    const f = feed.getBoundingClientRect();
+    return Math.min(f.top + f.height * 0.75, dockInner.getBoundingClientRect().top - 24);
+  }
   function followCaret() {
     if (followPaused) return;
     const el = typing && typing.caret.isConnected ? typing.caret : log.lastElementChild;
     if (!el) return;
-    const over = el.getBoundingClientRect().bottom - (dockInner.getBoundingClientRect().top - 24);
+    const over = el.getBoundingClientRect().bottom - followLine();
     if (over > 0) feed.scrollTop += Math.ceil(over);
   }
   function syncDockPad() {
-    const pad = feed.getBoundingClientRect().bottom - dockInner.getBoundingClientRect().top + 24;
+    const pad = feed.getBoundingClientRect().bottom - followLine();
     feedInner.style.paddingBottom = Math.max(0, Math.round(pad)) + "px";
   }
   new ResizeObserver(syncDockPad).observe(dockInner);
