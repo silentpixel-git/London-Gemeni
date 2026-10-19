@@ -127,7 +127,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
 .status-pill .led { width: 6px; height: 6px; border-radius: 50%; background: rgb(var(--lb-accent)); flex: none; }
 
 .feed { flex: 1; overflow-y: auto; padding: 0 64px; }
-.feed-inner { max-width: 768px; margin: 0 auto; padding-block: 56px 50vh; display: flex; flex-direction: column; gap: 24px; }
+.feed-inner { max-width: 768px; margin: 0 auto; padding-block: 56px 240px; display: flex; flex-direction: column; gap: 24px; }
 .lockup { display: flex; flex-direction: column; gap: 6px; margin-bottom: 24px; }
 .lockup h1 { font-family: var(--font-serif); font-weight: 400; font-size: clamp(44px, 7vw, 76px); line-height: 1.05; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
 .lockup p { font-family: var(--font-serif); font-size: clamp(22px, 3.4vw, 40px); margin: 0; opacity: .9; }
@@ -145,7 +145,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   margin: 0; padding-left: 24px; border-left: 3px solid rgb(var(--lb-accent));
   font-family: var(--font-playfair); font-style: italic; font-size: 22px; line-height: 1.5;
 }
-.story .caret { display: inline-block; width: 6px; height: 1.1em; background: rgb(var(--lb-accent)); opacity: .7; vertical-align: text-bottom; margin-left: 2px; animation: lb-pulse 1s infinite; }
+.caret { display: inline-block; width: 6px; height: 1.1em; background: rgb(var(--lb-accent)); opacity: .7; vertical-align: text-bottom; margin-left: 2px; animation: lb-pulse 1s infinite; }
 @keyframes lb-pulse { 50% { opacity: .15; } }
 .cmd { padding-left: 24px; border-left: 3px solid rgb(var(--lb-accent)); color: rgb(var(--lb-accent)); font-weight: 700; font-size: 18px; line-height: 1.6; overflow-wrap: anywhere; }
 .journal { border-left: 2px solid rgb(var(--lb-muted) / .4); padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
@@ -209,6 +209,13 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
 .proto-btn { cursor: pointer; border: 1px solid rgb(var(--lb-border)); background: none; border-radius: 6px; padding: 6px 10px; font-size: 12px; }
 @media (hover: hover) and (pointer: fine) { .proto-btn:hover { border-color: rgb(var(--lb-accent)); color: rgb(var(--lb-accent)); } }
 .proto label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.seg { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.seg-label { font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: rgb(var(--lb-muted)); margin-right: 6px; }
+.proto .seg label { position: relative; gap: 0; }
+.seg input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.seg span.opt { padding: 4px 10px; border: 1px solid rgb(var(--lb-border)); border-radius: 999px; font-size: 12px; transition: background-color .15s ease, border-color .15s ease, color .15s ease; }
+.seg input:checked + span.opt { background: rgb(var(--lb-accent) / .1); border-color: rgb(var(--lb-accent)); color: rgb(var(--lb-accent)); }
+.seg input:focus-visible + span.opt { outline: 2px solid rgb(var(--lb-accent)); outline-offset: 2px; }
 
 /* ---------- Curtain ---------- */
 .curtain {
@@ -365,9 +372,12 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   .story, .cmd { font-size: 16px; }
   .story blockquote { font-size: 19px; }
   .diary-backdrop { place-items: end stretch; padding: 0; }
-  .dcard { max-width: none; height: 86vh; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); border-radius: 16px 16px 0 0;
-    transform: translateY(100%); opacity: 1; transition: transform .24s var(--ease-out); }
-  .diary-backdrop[data-open] .dcard { transform: none; opacity: 1; transition: transform .38s var(--ease-drawer); }
+  /* The sheet fits its content (height set from script, capped at 86vh) and eases between sizes. */
+  .dcard { max-width: none; height: 86vh; max-height: 86vh; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); border-radius: 16px 16px 0 0;
+    transform: translateY(100%); opacity: 1; transition: transform .24s var(--ease-out), height .32s var(--ease-drawer); }
+  .diary-backdrop[data-open] .dcard { transform: none; opacity: 1; transition: transform .38s var(--ease-drawer), height .32s var(--ease-drawer); }
+  .dcard.sizing { transition: none !important; }
+  .dpanel { align-self: start; max-height: 100%; }
   .grab { display: block; position: absolute; top: 0; left: 0; right: 0; height: 22px; touch-action: none; cursor: grab; z-index: 1; }
   .grab::before { content: ""; position: absolute; top: 8px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: rgb(var(--lb-muted) / .5); }
   .spine { padding-top: 24px; }
@@ -398,7 +408,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   .stagger, .side-new, .curtain-stack > * { animation: lb-fade .15s ease both !important; }
   .tab-ind, .sidebar, .pressable { transition: none !important; }
   .pressable:active { transform: none; }
-  .story .caret { animation: none; }
+  .caret { animation: none; }
 }
 </style>
 </head>
@@ -436,6 +446,12 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     <ul class="beats" id="beats"></ul>
     <div class="wager-state" id="wagerState"></div>
     <label><input type="checkbox" id="chipToggle" checked> Show suggestions</label>
+    <div class="seg" role="radiogroup" aria-labelledby="speedLabel">
+      <span class="seg-label" id="speedLabel">Typing</span>
+      <label><input type="radio" name="speed" value="slow"><span class="opt">Slow</span></label>
+      <label><input type="radio" name="speed" value="game"><span class="opt">Game</span></label>
+      <label><input type="radio" name="speed" value="fast"><span class="opt">Fast</span></label>
+    </div>
     <div class="proto-row">
       <button class="proto-btn" id="restartBtn" type="button">Restart</button>
       <button class="proto-btn" id="panelDiaryBtn" type="button">Open the diary</button>
@@ -1006,36 +1022,83 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   function inline(s) { return esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*])\*([^*]+?)\*/g, "$1<em>$2</em>"); }
 
+  // Typing pace. In the game, TypewriterBlock reveals 29/14/5 characters every 12 ms, but only
+  // as fast as Gemini streams the text in; "game" simulates that stream (bursts of 60–90
+  // characters every 250 ms), "fast" is the reveal ungated, "slow" a steady hand with pauses.
+  const SPEEDS = ["slow", "game", "fast"];
+  let speed = "game";
+  try { const v = localStorage.getItem("lb-proto-speed"); if (SPEEDS.includes(v)) speed = v; } catch (e) {}
+
+  // Follow the text only once it reaches the input dock, and never while the reader scrolls back.
+  const dockInner = document.querySelector(".dock-inner"), feedInner = $("feedInner");
+  let followPaused = false;
+  function followCaret() {
+    if (followPaused) return;
+    const el = typing && typing.caret.isConnected ? typing.caret : log.lastElementChild;
+    if (!el) return;
+    const over = el.getBoundingClientRect().bottom - (dockInner.getBoundingClientRect().top - 24);
+    if (over > 0) feed.scrollTop += Math.ceil(over);
+  }
+  function syncDockPad() {
+    const pad = feed.getBoundingClientRect().bottom - dockInner.getBoundingClientRect().top + 24;
+    feedInner.style.paddingBottom = Math.max(0, Math.round(pad)) + "px";
+  }
+  new ResizeObserver(syncDockPad).observe(dockInner);
+  window.addEventListener("resize", syncDockPad);
+  feed.addEventListener("wheel", (e) => { if (e.deltaY < 0 && typing) followPaused = true; }, { passive: true });
+  let touchY = 0;
+  feed.addEventListener("touchstart", (e) => { touchY = e.touches[0].clientY; }, { passive: true });
+  feed.addEventListener("touchmove", (e) => { if (e.touches[0].clientY > touchY + 6 && typing) followPaused = true; }, { passive: true });
+
+  // Finishes the current block and anything queued behind it.
   function finishTyping() {
-    if (!typing) return;
-    typing.nodes.forEach(([n, t]) => { n.nodeValue = t; });
-    typing.caret.remove();
-    clearInterval(typing.timer);
-    const done = typing.done; typing = null; done && done();
-    feed.scrollTop = feed.scrollHeight;
+    while (typing) {
+      const t = typing;
+      t.nodes.forEach(([n, text]) => { n.nodeValue = text; });
+      t.caret.remove();
+      clearInterval(t.timer);
+      typing = null;
+      t.done && t.done();
+    }
+    followCaret();
   }
   function typeInto(el, done) {
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
     const nodes = []; let n;
     while ((n = walker.nextNode())) { nodes.push([n, n.nodeValue]); n.nodeValue = ""; }
     const caret = document.createElement("span"); caret.className = "caret";
-    let i = 0, pos = 0;
+    let i = 0, pos = 0, shown = 0;
     const total = nodes.reduce((a, [, t]) => a + t.length, 0);
-    let shown = 0;
+    const mode = speed;
+    let avail = mode === "fast" ? total : 0, nextBurst = 0, clock = performance.now();
     typing = { nodes, caret, done, timer: null };
     if (reduced || !nodes.length) { finishTyping(); return; }
-    typing.timer = setInterval(() => {
-      const remaining = total - shown;
-      let step = remaining > 100 ? 29 : remaining > 40 ? 14 : 5;
-      while (step > 0 && i < nodes.length) {
+    function reveal(k) {
+      let last = "";
+      while (k > 0 && i < nodes.length) {
         const [node, text] = nodes[i];
-        const take = Math.min(step, text.length - pos);
+        const take = Math.min(k, text.length - pos);
         node.nodeValue = text.slice(0, pos + take);
-        pos += take; shown += take; step -= take;
+        pos += take; shown += take; k -= take;
+        if (take) last = text[pos - 1];
         node.parentNode.insertBefore(caret, node.nextSibling);
         if (pos >= text.length) { i++; pos = 0; }
       }
-      feed.scrollTop = feed.scrollHeight;
+      return last;
+    }
+    typing.timer = setInterval(() => {
+      const now = performance.now();
+      if (mode === "slow") {
+        while (i < nodes.length && clock <= now) {
+          const c = reveal(1);
+          clock += 14 + (/[.!?]/.test(c) ? 220 : /[,;:—]/.test(c) ? 80 : 0);
+        }
+      } else {
+        if (mode === "game" && now >= nextBurst) { avail = Math.min(total, avail + 60 + Math.floor(Math.random() * 31)); nextBurst = now + 250; }
+        const remaining = avail - shown;
+        if (remaining > 0) reveal(Math.min(remaining, remaining > 100 ? 29 : remaining > 40 ? 14 : 5));
+      }
+      followCaret();
       if (i >= nodes.length) finishTyping();
     }, 12);
   }
@@ -1065,11 +1128,15 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
       const b = document.createElement("button"); b.className = "end-btn pressable"; b.type = "button"; b.textContent = "End of Prologue →";
       b.addEventListener("click", showCurtain); tail.push(b);
     }
-    typeInto(story, () => {
-      tail.forEach((t) => { log.appendChild(t); if (t.classList.contains("story")) typeInto(t, null); });
-      feed.scrollTop = feed.scrollHeight;
-    });
-    feed.scrollTop = feed.scrollHeight;
+    // Each block after the narration types in turn, journal lines included.
+    const next = () => {
+      const t = tail.shift(); if (!t) return;
+      log.appendChild(t);
+      const body = t.classList.contains("story") ? t : t.classList.contains("journal") ? t.querySelector("p") : null;
+      if (body) typeInto(body, next); else { followCaret(); next(); }
+    };
+    typeInto(story, next);
+    followCaret();
   }
 
   function fmtClock(m) {
@@ -1271,6 +1338,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
       const el = $(tab); el.querySelector(".ndot")?.remove();
       if (unseenIn(prefix)) el.querySelector(".t").insertAdjacentHTML("beforeend", '<span class="ndot" aria-label="new"></span>');
     });
+    if (!$("diary").hidden) fitSheet(true);
   }
 
   // ── Tabs: animated, direction-aware, no layout jump ──
@@ -1300,6 +1368,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     });
     currentTab = name;
     moveIndicator(instant);
+    fitSheet(!instant);
     if (mobile()) $(TAB_EL[name]).scrollIntoView({ block: "nearest", inline: "nearest", behavior: instant || reduced ? "auto" : "smooth" });
     if (prev === name) return;
     const out = $(PANEL_EL[prev]), inn = $(PANEL_EL[name]);
@@ -1399,6 +1468,16 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     cardEl.style.transform = "";
     if (s2.dy > cardEl.offsetHeight * 0.25 || v > VELOCITY) closeDiary();
   }
+  // Mobile sheet height follows the active panel's content, capped at 86vh.
+  function fitSheet(animate) {
+    if (!mobile()) { cardEl.style.height = ""; return; }
+    if ($("diary").hidden) return;
+    const content = cardEl.offsetHeight - cardEl.clientHeight + document.querySelector(".spine").offsetHeight + $(PANEL_EL[currentTab]).scrollHeight;
+    const h = Math.round(Math.min(window.innerHeight * 0.86, Math.max(260, content)));
+    if (!animate || reduced) cardEl.classList.add("sizing");
+    cardEl.style.height = h + "px";
+    if (!animate || reduced) { void cardEl.offsetHeight; cardEl.classList.remove("sizing"); }
+  }
   $("grab").addEventListener("pointerup", endSheet);
   $("grab").addEventListener("pointercancel", endSheet);
 
@@ -1412,7 +1491,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
       li.classList.add("flash"); setTimeout(() => li.classList.remove("flash"), 1200);
     }, reduced ? 0 : 260);
   });
-  window.addEventListener("resize", () => { if (!$("diary").hidden) moveIndicator(); });
+  window.addEventListener("resize", () => { if (!$("diary").hidden) { moveIndicator(); fitSheet(false); } });
 
   let diaryOpener = null;
   function openDiary() {
@@ -1428,6 +1507,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     d.hidden = false;
     $("dtablist").setAttribute("aria-orientation", mobile() ? "horizontal" : "vertical");
     moveIndicator(true);
+    fitSheet(false);                  // size first, so the sheet slides up already at its height
     void d.offsetWidth;               // commit the closed state so the open transition runs
     d.dataset.open = "";
     cardEl.focus({ preventScroll: true });
@@ -1452,6 +1532,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     const text = raw.trim();
     if (!text) return;
     $("cmd").value = "";
+    followPaused = false;
     if (S.ended && !/^(hint|help|\?)$/i.test(text)) {
       renderTurn(text, { paras: ["The evening is over. Use \"End of Prologue\" below, or restart the prototype from the panel to play the other branch."] });
       return;
@@ -1477,25 +1558,40 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     finishTyping();
     const j = document.createElement("div"); j.className = "journal";
     j.innerHTML = `<div class="journal-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M15.1 14c.2-1 .7-1.7 1.4-2.5A5.7 5.7 0 0 0 18 7.5a6 6 0 0 0-12 0c0 1.5.6 2.9 1.5 4 .7.8 1.2 1.5 1.4 2.5"/></svg>Watson's thoughts</div><p>${inline(currentHint())}</p>`;
-    log.appendChild(j); feed.scrollTop = feed.scrollHeight;
+    log.appendChild(j);
+    followPaused = false;
+    typeInto(j.querySelector("p"), null);
+    followCaret();
   });
-  feed.addEventListener("click", (e) => { if (e.target.closest(".story")) finishTyping(); });
+  feed.addEventListener("click", (e) => { if (e.target.closest(".story, .journal")) finishTyping(); });
+  document.querySelectorAll('input[name="speed"]').forEach((r) => {
+    r.checked = r.value === speed;
+    r.addEventListener("change", () => {
+      if (!r.checked) return;
+      speed = r.value;
+      try { localStorage.setItem("lb-proto-speed", speed); } catch (e) {}
+    });
+  });
   $("skipBtn").addEventListener("click", finishTyping);
   $("chipToggle").addEventListener("change", renderChips);
 
   const app = $("app");
   const mobile = () => window.matchMedia("(max-width: 900px)").matches;
-  // Desktop collapse: one layout change, then FLIP the sidebar and main column with transforms.
+  // Desktop collapse: one layout change, then FLIP each piece that moves. The text column has a
+  // fixed width, so it only glides sideways; transforming all of .main instead showed the
+  // reflowed column jump under the transform.
   $("sideToggle").addEventListener("click", () => {
     if (mobile()) { app.classList.toggle("sidebar-open"); return; }
-    const main = document.querySelector(".main"), side = $("sidebar");
-    const before = main.getBoundingClientRect().left;
+    const movers = [$("sidebar"), ...document.querySelectorAll(".feed-inner, .dock-inner, .header-left")];
+    const before = movers.map((el) => el.getBoundingClientRect().left);
+    movers.forEach((el) => el.getAnimations().forEach((a) => a.cancel()));
     app.classList.toggle("sidebar-closed");
-    const dx = before - main.getBoundingClientRect().left;
-    if (reduced || !dx) return;
+    if (reduced) return;
     const opts = { duration: 260, easing: "cubic-bezier(.77,0,.175,1)" };
-    main.animate([{ transform: `translateX(${dx}px)` }, { transform: "none" }], opts);
-    side.animate([{ transform: `translateX(${dx}px)` }, { transform: "none" }], opts);
+    movers.forEach((el, k) => {
+      const dx = before[k] - el.getBoundingClientRect().left;
+      if (dx) el.animate([{ transform: `translateX(${dx}px)` }, { transform: "none" }], opts);
+    });
   });
   $("scrim").addEventListener("click", () => app.classList.remove("sidebar-open"));
   function closeSidebarIfMobile() { if (mobile()) app.classList.remove("sidebar-open"); }
@@ -1519,6 +1615,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     $("diary").hidden = true; delete $("diary").dataset.open;
     selectTab("journal", { instant: true });
     setTimeout(diaryAfterTurn, 1200);
+    followPaused = false;
     feed.scrollTop = 0;
   }
   // ───────────────────────── Sound ─────────────────────────
@@ -1545,7 +1642,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   }
 
   // Expose a tiny hook for automated checks.
-  window.__proto = { submit, state: () => S, finishTyping, sfxLog, soundToggle, openDiary, closeDiary };
+  window.__proto = { submit, state: () => S, finishTyping, typing: () => !!typing, sfxLog, soundToggle, openDiary, closeDiary };
   start();
 })();
 </script>
