@@ -236,44 +236,90 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   position: fixed; inset: 0; z-index: 15; display: grid; place-items: center; padding: 16px;
   background: rgb(41 51 81 / .75); backdrop-filter: blur(4px); animation: lb-fade .3s ease-out;
 }
-.diary-card {
-  width: 100%; max-width: 640px; max-height: 88vh; overflow-y: auto;
+.diary-backdrop.closing { animation: lb-fade-out .24s ease-in forwards; }
+@keyframes lb-fade-out { to { opacity: 0; } }
+.dcard {
+  position: relative; width: 100%; max-width: 780px; height: min(640px, 86vh);
+  display: grid; grid-template-columns: 200px minmax(0, 1fr); overflow: hidden;
   background: rgb(var(--lb-paper)); color: rgb(var(--lb-primary));
   border: 1px solid rgb(var(--lb-border)); border-radius: 12px; box-shadow: 0 24px 60px rgb(0 0 0 / .25);
-  padding: 28px 36px 36px; display: flex; flex-direction: column; gap: 28px;
-  animation: lb-rise .3s var(--ease);
+  animation: lb-rise .32s var(--ease);
 }
-@keyframes lb-rise { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
-.diary-top { display: flex; justify-content: space-between; align-items: center; }
-.diary-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: rgb(var(--lb-muted)); }
-.diary-act { font-family: var(--font-serif); font-weight: 400; font-size: 30px; line-height: 1.15; margin: 0; text-wrap: balance; }
-.dtabs { display: inline-flex; align-self: flex-start; gap: 4px; padding: 4px; border-radius: 999px; background: rgb(var(--lb-primary) / .06); }
+.diary-backdrop.closing .dcard { animation: lb-sink .24s ease-in forwards; }
+@keyframes lb-rise { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes lb-sink { to { transform: translateY(10px); opacity: 0; } }
+.dclose { position: absolute; top: 14px; right: 14px; z-index: 2; background: rgb(var(--lb-paper)); }
+
+/* Spine: title, guarded line, vertical tabs (from the game's diary) */
+.spine { display: flex; flex-direction: column; gap: 24px; padding: 28px 0 24px; background: rgb(var(--lb-primary) / .04); border-right: 1px solid rgb(var(--lb-border)); min-width: 0; }
+.spine-title { padding: 0 24px; display: flex; flex-direction: column; gap: 8px; }
+.spine-title h2 { margin: 0; font-family: var(--font-serif); font-weight: 400; font-size: 28px; line-height: 1.05; }
+.spine-title .private { margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.spine-title .private span { font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: rgb(var(--lb-muted)); }
+.spine-title .private em { font-family: var(--font-playfair); font-size: 14px; color: rgb(var(--lb-primary) / .7); }
+.dcard:focus { outline: none; }
+.dtablist { position: relative; display: flex; flex-direction: column; }
 .dtab {
-  border: 0; background: none; cursor: pointer; border-radius: 999px; padding: 6px 16px;
-  font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgb(var(--lb-primary) / .6);
+  position: relative; display: grid; gap: 2px; text-align: left; cursor: pointer;
+  border: 0; background: none; padding: 12px 24px; color: rgb(var(--lb-primary));
+  transition: background-color .2s ease;
 }
-.dtab[aria-selected="true"] { background: rgb(var(--lb-paper)); color: rgb(var(--lb-primary)); box-shadow: 0 1px 3px rgb(0 0 0 / .1); }
-.dtab .n { color: rgb(var(--lb-accent)); margin-left: 6px; }
-.dpanel { display: flex; flex-direction: column; gap: 18px; }
+.dtab:hover { background: rgb(var(--lb-primary) / .04); }
+.dtab .t { font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: rgb(var(--lb-primary) / .55); transition: color .2s ease; }
+.dtab .c { font-size: 12px; color: rgb(var(--lb-muted)); font-variant-numeric: tabular-nums; }
+.dtab[aria-selected="true"] { background: rgb(var(--lb-paper)); }
+.dtab[aria-selected="true"] .t { color: rgb(var(--lb-primary)); }
+.dtab .ndot { position: absolute; right: 18px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: rgb(var(--lb-accent)); }
+.dtab:focus-visible { outline: 2px solid rgb(var(--lb-accent)); outline-offset: -2px; }
+.tab-ind { position: absolute; left: 0; top: 0; width: 3px; height: 0; background: rgb(var(--lb-accent)); transition: transform .32s var(--ease), height .32s var(--ease), width .32s var(--ease); pointer-events: none; }
+
+/* Panels: stacked in one cell so switching never changes the card's size */
+.dpanels { display: grid; min-height: 0; min-width: 0; overflow: hidden; touch-action: pan-y; }
+.dpanel {
+  grid-area: 1 / 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding: 28px 64px 36px 32px; display: flex; flex-direction: column; gap: 18px;
+  visibility: hidden; opacity: 0;
+}
+.dpanel.is-active, .dpanel.leaving { visibility: visible; opacity: 1; }
+.dpanel.entering { animation: d-in .26s var(--ease) both; }
+.dpanel.leaving { animation: d-out .2s ease-in both; pointer-events: none; }
+@keyframes d-in { from { opacity: 0; transform: var(--from, none); } to { opacity: 1; transform: none; } }
+@keyframes d-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: var(--to, none); } }
 .dact { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: rgb(var(--lb-muted)); }
-.dday { margin: -10px 0 0; font-family: var(--font-serif); font-size: 22px; font-weight: 400; }
-.jlist, .klist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
-.jentry { display: grid; grid-template-columns: 56px minmax(0, 1fr); column-gap: 16px; align-items: start; }
+.dday { margin: -10px 0 0; font-family: var(--font-serif); font-size: 22px; font-weight: 400; line-height: 1.3; }
+.dday span { font-family: var(--font-playfair); font-style: italic; font-size: 16px; color: rgb(var(--lb-primary) / .65); }
+.jlist, .klist, .plist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.jentry { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; column-gap: 16px; align-items: start; }
 .tile {
   position: relative; display: grid; place-items: center; height: 44px; border-radius: 8px;
   background: rgb(var(--lb-primary) / .06); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums;
 }
-.tile .dot { position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--lb-accent)); box-shadow: 0 0 0 2px rgb(var(--lb-paper)); }
+.tile .dot, .src .dot, .pname .dot { width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--lb-accent)); }
+.tile .dot { position: absolute; top: -3px; right: -3px; box-shadow: 0 0 0 2px rgb(var(--lb-paper)); }
 .jlabel { display: block; font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: rgb(var(--lb-accent)); margin: 2px 0 4px; }
 .jline { margin: 0; font-family: var(--font-serif); font-size: 17px; line-height: 1.5; }
-.jentry.reflection .jline { font-style: italic; }
-.klist li { display: flex; flex-direction: column; gap: 8px; }
+.qlink {
+  width: 32px; height: 32px; margin-top: 4px; border-radius: 50%; border: 1px solid rgb(var(--lb-border)); background: none;
+  display: grid; place-items: center; cursor: pointer; color: rgb(var(--lb-accent));
+}
+.qlink:hover { background: rgb(var(--lb-accent) / .08); border-color: rgb(var(--lb-accent)); }
+.qlink svg { width: 15px; height: 15px; }
+.reflection { margin-top: 6px; padding-left: 18px; border-left: 2px solid rgb(var(--lb-muted) / .4); }
+.reflection .rlabel { font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: rgb(var(--lb-muted)); }
+.reflection p { margin: 6px 0 0; font-family: var(--font-playfair); font-style: italic; font-size: 18px; line-height: 1.6; }
+.reflection .sig { display: block; text-align: right; font-style: normal; font-size: 14px; color: rgb(var(--lb-primary) / .6); margin-top: 6px; }
+.klist li { display: flex; flex-direction: column; gap: 8px; border-radius: 6px; transition: box-shadow .4s ease; }
+.klist li.flash { box-shadow: 0 0 0 3px rgb(var(--lb-accent) / .45); }
 .klist blockquote {
   margin: 0; padding: 12px 14px; border-radius: 4px; background: rgb(var(--lb-accent) / .12);
   font-family: var(--font-serif); font-size: 17px; line-height: 1.6;
 }
-.klist .src { margin: 0; font-size: 13px; color: rgb(var(--lb-muted)); }
-.klist .src .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: rgb(var(--lb-accent)); margin-right: 8px; vertical-align: 1px; }
+.src, .psrc { margin: 0; font-size: 13px; color: rgb(var(--lb-muted)); display: flex; align-items: center; gap: 8px; }
+.plist li { display: flex; flex-direction: column; gap: 4px; padding-bottom: 14px; border-bottom: 1px solid rgb(var(--lb-border)); }
+.plist li:last-child { border-bottom: 0; }
+.pname { margin: 0; display: flex; align-items: center; gap: 8px; font-family: var(--font-serif); font-size: 19px; }
+.pname s { text-decoration-color: rgb(var(--lb-accent)); text-decoration-thickness: 2px; color: rgb(var(--lb-primary) / .55); }
+.ptext { margin: 0; font-size: 15px; line-height: 1.6; }
 .diary-empty { margin: 0; font-style: italic; color: rgb(var(--lb-muted)); }
 .toast {
   position: fixed; left: 50%; top: calc(76px + env(safe-area-inset-top, 0px)); z-index: 16; transform: translateX(-50%);
@@ -282,6 +328,8 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   animation: lb-toast 2.6s var(--ease) forwards; pointer-events: none; white-space: nowrap;
 }
 .toast svg { width: 14px; height: 14px; color: rgb(var(--lb-accent)); }
+@keyframes lb-sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes lb-sheet-out { to { transform: translateY(100%); } }
 @keyframes lb-toast { 0% { opacity: 0; transform: translate(-50%, -6px); } 12%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -6px); } }
 
 /* ---------- Narrow screens ---------- */
@@ -296,8 +344,23 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   .story, .cmd { font-size: 16px; }
   .story blockquote { font-size: 19px; }
   .diary-backdrop { place-items: end stretch; padding: 0; }
-  .diary-card { max-width: none; max-height: 86vh; border-radius: 16px 16px 0 0; padding: 20px 20px calc(28px + env(safe-area-inset-bottom, 0px)); gap: 22px; }
-  .diary-act { font-size: 26px; }
+  .dcard { max-width: none; height: 86vh; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); border-radius: 16px 16px 0 0; animation: lb-sheet-in .34s var(--ease); }
+  .diary-backdrop.closing .dcard { animation: lb-sheet-out .26s ease-in forwards; }
+  .spine { gap: 10px; padding: 18px 0 0; border-right: 0; border-bottom: 1px solid rgb(var(--lb-border)); }
+  .spine-title { padding: 0 64px 0 20px; flex-direction: row; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .spine-title h2 { font-size: 24px; }
+  .dtablist { flex-direction: row; overflow-x: auto; scrollbar-width: none; padding: 0 8px; }
+  .dtablist::-webkit-scrollbar { display: none; }
+  .dtab { flex: none; padding: 10px 9px 12px; }
+  .dtab .t { letter-spacing: .07em; }
+  .spine-title .private { flex-direction: row; gap: 8px; align-items: baseline; }
+  .dtab .c { display: none; }
+  .dtab[aria-selected="true"] { background: none; }
+  .dtab .ndot { position: static; display: inline-block; margin: 0 0 0 6px; vertical-align: 2px; }
+  .dtab { display: block; }
+  .tab-ind { top: auto; bottom: 0; height: 2px; width: 0; }
+  .dpanel { padding: 20px 20px calc(28px + env(safe-area-inset-bottom, 0px)); }
+  .jentry { grid-template-columns: 48px minmax(0, 1fr) auto; column-gap: 12px; }
   .jentry { grid-template-columns: 48px minmax(0, 1fr); column-gap: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -392,25 +455,40 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
 
 
 <div class="diary-backdrop" id="diary" hidden>
-  <div class="diary-card" role="dialog" aria-modal="true" aria-labelledby="diaryTitle">
-    <div class="diary-top">
-      <span class="diary-eyebrow">221B Baker Street</span>
-      <button class="icon-btn pressable" id="diaryClose" type="button" aria-label="Close the diary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  <div class="dcard" role="dialog" aria-modal="true" aria-labelledby="diaryTitle" tabindex="-1">
+    <button class="icon-btn pressable dclose" id="diaryClose" type="button" aria-label="Close the diary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    <div class="spine">
+      <div class="spine-title">
+        <h2 id="diaryTitle">Watson's Diary</h2>
+        <p class="private"><span>Private</span><em>J. H. Watson, M.D.</em></p>
+      </div>
+      <div class="dtablist" role="tablist" aria-label="Diary sections" aria-orientation="vertical" id="dtablist">
+        <button class="dtab" id="tabJournal" role="tab" type="button" aria-selected="true" aria-controls="panelJournal" data-tab="journal"><span class="t">Journal</span><span class="c" id="cJournal"></span></button>
+        <button class="dtab" id="tabNotes" role="tab" type="button" aria-selected="false" aria-controls="panelNotes" data-tab="notes" tabindex="-1"><span class="t">Quick notes</span><span class="c" id="cNotes"></span></button>
+        <button class="dtab" id="tabPersons" role="tab" type="button" aria-selected="false" aria-controls="panelPersons" data-tab="persons" tabindex="-1"><span class="t">Persons</span><span class="c" id="cPersons"></span></button>
+        <button class="dtab" id="tabDocuments" role="tab" type="button" aria-selected="false" aria-controls="panelDocuments" data-tab="documents" tabindex="-1"><span class="t">Documents</span><span class="c" id="cDocuments"></span></button>
+        <span class="tab-ind" id="tabInd" aria-hidden="true"></span>
+      </div>
     </div>
-    <h2 class="diary-act" id="diaryTitle">Watson's Diary</h2>
-    <div class="dtabs" role="tablist" aria-label="Diary sections">
-      <button class="dtab" id="tabJournal" role="tab" type="button" aria-selected="true" aria-controls="panelJournal">Journal</button>
-      <button class="dtab" id="tabKept" role="tab" type="button" aria-selected="false" aria-controls="panelKept">Kept</button>
-    </div>
-    <div class="dpanel" id="panelJournal" role="tabpanel" aria-labelledby="tabJournal">
-      <p class="dact">Prologue — The Wager</p>
-      <h3 class="dday">Monday, 6 August 1888</h3>
-      <ol class="jlist" id="journalList"></ol>
-      <p class="diary-empty" id="journalEmpty">Nothing written yet.</p>
-    </div>
-    <div class="dpanel" id="panelKept" role="tabpanel" aria-labelledby="tabKept" hidden>
-      <ul class="klist" id="keptList"></ul>
-      <p class="diary-empty" id="keptEmpty">Nothing kept yet. Lines worth keeping will be copied here.</p>
+    <div class="dpanels" id="dpanels">
+      <section class="dpanel is-active" id="panelJournal" role="tabpanel" aria-labelledby="tabJournal" tabindex="0">
+        <p class="dact">Prologue — The Wager</p>
+        <h3 class="dday">Monday, 6 August 1888 <span>· 221B Baker Street</span></h3>
+        <ol class="jlist" id="journalList"></ol>
+        <p class="diary-empty" id="journalEmpty">Nothing written yet.</p>
+        <div class="reflection" id="reflection" hidden><span class="rlabel">Reflection</span><p><span id="reflectionText"></span><span class="sig">— J. H. W.</span></p></div>
+      </section>
+      <section class="dpanel" id="panelNotes" role="tabpanel" aria-labelledby="tabNotes" tabindex="0">
+        <ul class="klist" id="notesList"></ul>
+        <p class="diary-empty" id="notesEmpty">No quick notes yet. Words worth keeping will be copied here.</p>
+      </section>
+      <section class="dpanel" id="panelPersons" role="tabpanel" aria-labelledby="tabPersons" tabindex="0">
+        <ul class="plist" id="personsList"></ul>
+        <p class="diary-empty" id="personsEmpty">No names in the ledger yet.</p>
+      </section>
+      <section class="dpanel" id="panelDocuments" role="tabpanel" aria-labelledby="tabDocuments" tabindex="0">
+        <p class="diary-empty">No papers filed yet.</p>
+      </section>
     </div>
   </div>
 </div>
@@ -1036,33 +1114,32 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   function renderAll() { renderSidebar(); renderChips(); renderPanel(); }
 
   // ───────────────────────── Diary ─────────────────────────
-  // Journal: one dated line per thing that happened (5 Minute Journal pattern).
-  // Kept: Watson's verbatim keepsakes from the scene (Medium/Pocket pattern).
-  // The kept quotes are the leads. Both are stamped with the in-game clock.
+  // The game's diary frame (spine, vertical tabs, ledger) with a lighter
+  // content model: Journal lines, Quick notes (verbatim words from the scene,
+  // these are the leads), Persons, Documents. Everything is clock-stamped.
   const JOURNAL = [
-    { key: "demo", label: "Encounter", when: () => S.demonstration,
+    { key: "demo", label: "Encounter", note: "boots", when: () => S.demonstration,
       text: () => "Holmes read a man from Hampstead by the dust on his boots." },
     { key: "wager", label: "Decision", when: () => S.wager,
       text: () => "I called it a parlour trick, and took his wager." },
     { key: "glass", label: "Clue", when: () => S.glassHeld || S.glassUsed,
       text: () => "Took Holmes's opera glass from the mantel." },
-    { key: "soldier", label: "Clue", when: () => S.soldierRead,
+    { key: "soldier", label: "Clue", note: "peshawar", when: () => S.soldierRead,
       text: () => "The old soldier: infantry, India, a thigh healed short." },
-    { key: "clergy", label: "Clue", when: () => S.clergyRead,
+    { key: "clergy", label: "Clue", note: "coat", when: () => S.clergyRead,
       text: () => S.clergyCorrect ? "The clergyman was an actor; greasepaint at the hairline."
         : S.clergyGuessed ? "The clergyman was an actor. I guessed it, and the point went to Holmes."
         : "The clergyman was an actor. I saw the coat and stopped looking." },
-    { key: "unseen", label: "Encounter", when: () => S.closing,
-      text: () => "Holmes asked me to describe one other face from the street. I could not." },
-    { key: "close", label: "Reflection", when: () => S.closing,
-      text: () => S.won ? "Two strangers read and the violin quiet till midnight."
-        : S.clergyGuessed ? "One stranger read, one guessed, and a monograph on tobacco ash for my trouble."
-        : "One stranger read, one misread, and a monograph on tobacco ash for my trouble." }
+    { key: "unseen", label: "Encounter", note: "asks", when: () => S.closing,
+      text: () => "Holmes asked me to describe one other face from the street. I could not." }
   ];
-  // Every quote must appear word for word in the narration (checked by the test suite).
-  const KEPT = [
+  const REFLECTION = () => S.won ? "Two strangers read and the violin quiet till midnight."
+    : S.clergyGuessed ? "One stranger read, one guessed, and a monograph on tobacco ash for my trouble."
+    : "One stranger read, one misread, and a monograph on tobacco ash for my trouble.";
+  // Quick notes: whole sentences, word for word from the narration (the test suite checks this).
+  const NOTES = [
     { key: "boots", when: () => S.demonstration, source: () => "Holmes, at the window",
-      quote: () => "I observe that his boots are white to the ankle with the dust of the Heath road. That is a fact. I infer that he walked, which is not…" },
+      quote: () => "I observe that his boots are white to the ankle with the dust of the Heath road. That is a fact. I infer that he walked, which is not, though I should be very much surprised to be wrong." },
     { key: "peshawar", when: () => S.soldierRead, source: () => "My own reading, the old soldier",
       quote: () => "I watched men learn that walk in the hospital at Peshawar." },
     { key: "coat", when: () => S.clergyRead,
@@ -1073,7 +1150,19 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     { key: "asks", when: () => S.closing, source: () => "Holmes, at the window",
       quote: () => "We see what asks to be seen." }
   ];
-  const ALL_DIARY = [...JOURNAL.map((e) => ["j:" + e.key, e]), ...KEPT.map((e) => ["k:" + e.key, e])];
+  const PERSONS = [
+    { key: "soldier", when: () => S.soldierRead, name: () => "The old soldier",
+      text: () => "Infantry. India, long ago. A thigh healed short. Waiting for a grandchild.",
+      source: () => "My reading, by the cab rank" },
+    { key: "clergy", when: () => S.clergyRead, struck: true, name: () => "The clergyman",
+      text: () => "An actor between performances, still in costume.",
+      source: () => S.clergyCorrect ? "My reading, through the glass" : "Holmes's reading" }
+  ];
+  const DOCUMENTS = [];
+  const ALL_DIARY = [
+    ...JOURNAL.map((e) => ["j:" + e.key, e]), ["j:close", { when: () => S.closing }],
+    ...NOTES.map((e) => ["n:" + e.key, e]), ...PERSONS.map((e) => ["p:" + e.key, e])
+  ];
   function stampEntries() {
     let added = false;
     ALL_DIARY.forEach(([id, e]) => { if (!(id in S.stamps) && e.when()) { S.stamps[id] = S.clock; added = true; } });
@@ -1094,41 +1183,123 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     $("diaryBtn").setAttribute("aria-label", n ? `Open Watson's diary, ${n} new` : "Open Watson's diary");
   }
   const clockShort = (m) => fmtClock(m).replace(/ (AM|PM)$/, "");
-  function sorted(list, prefix) {
+  const isNew = (id) => !S.diarySeenKeys[id];
+  const DOT = '<span class="dot" aria-label="new"></span>';
+  const QUILL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.2 6.2a5.5 5.5 0 0 0-7.8 0L5 13.6V19h5.4l7.4-7.4a5.5 5.5 0 0 0 0-7.8ZM16 8 2 22M17.5 15H9"/></svg>';
+  function stamped(list, prefix) {
     return list.map((e, i) => [e, i]).filter(([e]) => (prefix + e.key) in S.stamps)
       .sort((a, b) => (S.stamps[prefix + a[0].key] - S.stamps[prefix + b[0].key]) || (a[1] - b[1])).map(([e]) => e);
   }
+  const plural = (n, one, many, none) => n === 0 ? none : `${n} ${n === 1 ? one : many}`;
   function renderDiary() {
-    const jl = $("journalList"), kl = $("keptList");
-    jl.innerHTML = ""; kl.innerHTML = "";
-    const js = sorted(JOURNAL, "j:"), ks = sorted(KEPT, "k:");
-    js.forEach((e) => {
-      const id = "j:" + e.key, li = document.createElement("li");
-      li.className = "jentry" + (e.label === "Reflection" ? " reflection" : "");
-      li.dataset.key = e.key; if (!S.diarySeenKeys[id]) li.dataset.new = "1";
-      li.innerHTML = `<span class="tile">${clockShort(S.stamps[id])}${S.diarySeenKeys[id] ? "" : '<span class="dot" aria-label="new"></span>'}</span>`
-        + `<div><span class="jlabel">${esc(e.label)}</span><p class="jline">${esc(e.text())}</p></div>`;
-      jl.appendChild(li);
-    });
-    ks.forEach((e) => {
-      const id = "k:" + e.key, li = document.createElement("li");
-      li.dataset.key = e.key; if (!S.diarySeenKeys[id]) li.dataset.new = "1";
-      li.innerHTML = `<blockquote>${esc(e.quote())}</blockquote><p class="src">${S.diarySeenKeys[id] ? "" : '<span class="dot" aria-label="new"></span>'}— ${esc(e.source())} · ${clockShort(S.stamps[id])}</p>`;
-      kl.appendChild(li);
-    });
+    const js = stamped(JOURNAL, "j:"), ns = stamped(NOTES, "n:"), ps = stamped(PERSONS, "p:");
+    $("journalList").innerHTML = js.map((e) => {
+      const id = "j:" + e.key;
+      const link = e.note && ("n:" + e.note) in S.stamps
+        ? `<button class="qlink" type="button" data-note="${e.note}" aria-label="See the quick note" title="See the quick note">${QUILL}</button>` : "<span></span>";
+      return `<li class="jentry" data-key="${e.key}"${isNew(id) ? ' data-new="1"' : ""}><span class="tile">${clockShort(S.stamps[id])}${isNew(id) ? DOT : ""}</span>`
+        + `<div><span class="jlabel">${esc(e.label)}</span><p class="jline">${esc(e.text())}</p></div>${link}</li>`;
+    }).join("");
     $("journalEmpty").hidden = js.length > 0;
-    $("keptEmpty").hidden = ks.length > 0;
-    const newKept = ks.filter((e) => !S.diarySeenKeys["k:" + e.key]).length;
-    $("tabKept").innerHTML = "Kept" + (newKept ? `<span class="n">${newKept}</span>` : "");
+    $("reflection").hidden = !S.closing;
+    $("reflectionText").textContent = S.closing ? REFLECTION() : "";
+    $("notesList").innerHTML = ns.map((e) => {
+      const id = "n:" + e.key;
+      return `<li data-key="${e.key}" id="note-${e.key}"${isNew(id) ? ' data-new="1"' : ""}><blockquote>${esc(e.quote())}</blockquote>`
+        + `<p class="src">${isNew(id) ? DOT : ""}— ${esc(e.source())} · ${clockShort(S.stamps[id])}</p></li>`;
+    }).join("");
+    $("notesEmpty").hidden = ns.length > 0;
+    $("personsList").innerHTML = ps.map((e) => {
+      const id = "p:" + e.key;
+      const name = e.struck ? `<s>${esc(e.name())}</s>` : esc(e.name());
+      return `<li data-key="${e.key}"${isNew(id) ? ' data-new="1"' : ""}><p class="pname">${name}${isNew(id) ? DOT : ""}</p>`
+        + `<p class="ptext">${esc(e.text())}</p><p class="psrc">— ${esc(e.source())} · ${clockShort(S.stamps[id])}</p></li>`;
+    }).join("");
+    $("personsEmpty").hidden = ps.length > 0;
+    const jc = js.length + (S.closing ? 1 : 0);
+    $("cJournal").textContent = plural(jc, "entry", "entries", "nothing yet");
+    $("cNotes").textContent = plural(ns.length, "noted", "noted", "none yet");
+    $("cPersons").textContent = plural(ps.length, "recorded", "recorded", "none yet");
+    $("cDocuments").textContent = plural(DOCUMENTS.length, "filed", "filed", "none yet");
+    const unseenIn = (prefix) => Object.keys(S.stamps).some((k) => k.startsWith(prefix) && isNew(k));
+    [["tabJournal", "j:"], ["tabNotes", "n:"], ["tabPersons", "p:"]].forEach(([tab, prefix]) => {
+      const el = $(tab); el.querySelector(".ndot")?.remove();
+      if (unseenIn(prefix)) el.querySelector(".t").insertAdjacentHTML("beforeend", '<span class="ndot" aria-label="new"></span>');
+    });
   }
-  function selectTab(which) {
-    const j = which === "journal";
-    $("tabJournal").setAttribute("aria-selected", String(j));
-    $("tabKept").setAttribute("aria-selected", String(!j));
-    $("panelJournal").hidden = !j; $("panelKept").hidden = j;
+
+  // ── Tabs: animated, direction-aware, no layout jump ──
+  const TABS = ["journal", "notes", "persons", "documents"];
+  const TAB_EL = { journal: "tabJournal", notes: "tabNotes", persons: "tabPersons", documents: "tabDocuments" };
+  const PANEL_EL = { journal: "panelJournal", notes: "panelNotes", persons: "panelPersons", documents: "panelDocuments" };
+  let currentTab = "journal";
+  function moveIndicator() {
+    const ind = $("tabInd"), tab = $(TAB_EL[currentTab]);
+    if (mobile()) {
+      ind.style.height = ""; ind.style.width = tab.offsetWidth + "px";
+      ind.style.transform = `translateX(${tab.offsetLeft}px)`;
+    } else {
+      ind.style.width = ""; ind.style.height = tab.offsetHeight + "px";
+      ind.style.transform = `translateY(${tab.offsetTop}px)`;
+    }
   }
-  $("tabJournal").addEventListener("click", () => selectTab("journal"));
-  $("tabKept").addEventListener("click", () => selectTab("kept"));
+  function selectTab(name, opts = {}) {
+    const instant = opts.instant || $("diary").hidden;
+    const prev = currentTab;
+    TABS.forEach((t) => {
+      const on = t === name;
+      $(TAB_EL[t]).setAttribute("aria-selected", String(on));
+      $(TAB_EL[t]).tabIndex = on ? 0 : -1;
+    });
+    currentTab = name;
+    moveIndicator();
+    if (mobile()) $(TAB_EL[name]).scrollIntoView({ block: "nearest", inline: "nearest", behavior: instant || reduced ? "auto" : "smooth" });
+    if (prev === name) return;
+    const out = $(PANEL_EL[prev]), inn = $(PANEL_EL[name]);
+    TABS.forEach((t) => $(PANEL_EL[t]).classList.remove("entering", "leaving"));
+    out.classList.remove("is-active"); inn.classList.add("is-active");
+    if (instant) return;
+    const dir = TABS.indexOf(name) > TABS.indexOf(prev) ? 1 : -1;
+    const axis = mobile() ? "X" : "Y";
+    const d = reduced ? 0 : 14;
+    inn.style.setProperty("--from", `translate${axis}(${d * dir}px)`);
+    out.style.setProperty("--to", `translate${axis}(${-d * dir}px)`);
+    out.classList.add("leaving"); inn.classList.add("entering");
+    out.addEventListener("animationend", () => out.classList.remove("leaving"), { once: true });
+    inn.addEventListener("animationend", () => inn.classList.remove("entering"), { once: true });
+  }
+  TABS.forEach((t) => $(TAB_EL[t]).addEventListener("click", () => selectTab(t)));
+  $("dtablist").addEventListener("keydown", (e) => {
+    const i = TABS.indexOf(currentTab);
+    const next = { ArrowDown: i + 1, ArrowRight: i + 1, ArrowUp: i - 1, ArrowLeft: i - 1, Home: 0, End: TABS.length - 1 }[e.key];
+    if (next === undefined) return;
+    e.preventDefault();
+    const t = TABS[(next + TABS.length) % TABS.length];
+    selectTab(t); $(TAB_EL[t]).focus();
+  });
+  // Swipe between tabs on touch screens.
+  let swipe = null;
+  $("dpanels").addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") swipe = { x: e.clientX, y: e.clientY }; });
+  $("dpanels").addEventListener("pointerup", (e) => {
+    if (!swipe) return;
+    const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y; swipe = null;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const i = TABS.indexOf(currentTab) + (dx < 0 ? 1 : -1);
+    if (i >= 0 && i < TABS.length) selectTab(TABS[i]);
+  });
+  $("dpanels").addEventListener("pointercancel", () => { swipe = null; });
+  // Quill on a journal line → the quick note it produced.
+  $("journalList").addEventListener("click", (e) => {
+    const b = e.target.closest(".qlink"); if (!b) return;
+    selectTab("notes");
+    const li = $("note-" + b.dataset.note);
+    setTimeout(() => {
+      li.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
+      li.classList.add("flash"); setTimeout(() => li.classList.remove("flash"), 1200);
+    }, reduced ? 0 : 260);
+  });
+  window.addEventListener("resize", () => { if (!$("diary").hidden) moveIndicator(); });
+
   let diaryOpener = null;
   function openDiary() {
     finishTyping();
@@ -1138,12 +1309,18 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     renderBadge();
     diaryOpener = document.activeElement;
     $("toast").hidden = true;
-    $("diary").hidden = false;
-    $("diaryClose").focus();
+    const d = $("diary"); d.classList.remove("closing"); d.hidden = false;
+    $("dtablist").setAttribute("aria-orientation", mobile() ? "horizontal" : "vertical");
+    requestAnimationFrame(moveIndicator);
+    document.querySelector(".dcard").focus({ preventScroll: true });
   }
   function closeDiary() {
-    $("diary").hidden = true;
-    (diaryOpener && diaryOpener.focus ? diaryOpener : $("diaryBtn")).focus();
+    const d = $("diary");
+    if (d.hidden || d.classList.contains("closing")) return;
+    const done = () => { d.hidden = true; d.classList.remove("closing"); (diaryOpener && diaryOpener.focus ? diaryOpener : $("diaryBtn")).focus(); };
+    if (reduced) return done();
+    d.classList.add("closing");
+    setTimeout(done, 260);
   }
   $("diaryBtn").addEventListener("click", openDiary);
   $("panelDiaryBtn").addEventListener("click", () => { closeSidebarIfMobile(); openDiary(); });
@@ -1212,7 +1389,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
     renderTurn(null, { paras: T.opening });
     renderAll();
     $("diary").hidden = true;
-    selectTab("journal");
+    selectTab("journal", { instant: true });
     setTimeout(diaryAfterTurn, 1200);
     feed.scrollTop = 0;
   }
