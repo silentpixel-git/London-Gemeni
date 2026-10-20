@@ -90,6 +90,8 @@ export interface GameStateReturn {
 
   // UI / persistence
   diaryEntries: DiaryEntry[];
+  /** Increments whenever play records new diary entries (not on load). */
+  diaryCaptureCount: number;
   isSaving: boolean;
 
   // Appearance + atmosphere settings. themeMode is the single appearance choice
@@ -155,7 +157,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     INITIAL_NPC_STATES as Record<string, NPCState>
   );
   const [activeInvestigation, setActiveInvestigation] = useState<Investigation | null>(null);
-  const { diaryEntries, setDiaryEntries, diarySeqRef, loggedLocationsRef, captureDiaryEntries, captureLocationArrival } =
+  const { diaryEntries, setDiaryEntries, diarySeqRef, captureDiaryEntries, diaryCaptureCount } =
     useDiary({ user, activeInvestigation });
   const [currentAct, setCurrentAct] = useState(INITIAL_ACT);
   const [stim, setStim] = useState<Record<string, STIMEntry>>({});
@@ -239,7 +241,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsLoading,
       setFlags,
       scrollRef,
-      captureLocationArrival,
       previousNpcIdsRef,
     });
 
@@ -295,7 +296,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     diaryEntries,
     setDiaryEntries,
     diarySeqRef,
-    loggedLocationsRef,
     hasGeneratedOpening,
     generateOpeningScene,
     streamResumeScene,
@@ -315,7 +315,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setNpcStates,
     setInventory,
     setIsLoading,
-    captureLocationArrival,
     streamArrivalScene,
     handleSaveGameRef,
   });
@@ -727,10 +726,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           }
         }
         captureDiaryEntries(captured);
-        // First arrival at a new location within the act.
-        if (result.newLocation && !advancingAct) {
-          captureLocationArrival(result.newLocation, currentAct, captureTimeLabel);
-        }
         // Gate flags with no existing diary coverage — filled in async, STEP 8b.
         if (result.flagsUpdate) {
           pendingLeadFlags = detectSilentLeadFlags({
@@ -1029,7 +1024,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       setIsLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, lastApproachAtMinutes, handleSaveGame, captureDiaryEntries, captureLocationArrival, clearTurnFailure, raiseTurnFailure]);
+  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, lastApproachAtMinutes, handleSaveGame, captureDiaryEntries, clearTurnFailure, raiseTurnFailure]);
 
   // ── Holmes hint ───────────────────────────────────────────────────────────
 
@@ -1088,6 +1083,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     weather: ACT_WEATHER[currentAct] ?? ACT_WEATHER[1],
 
     diaryEntries,
+    diaryCaptureCount,
     isSaving,
     themeMode,
     setThemeMode,

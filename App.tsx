@@ -22,7 +22,8 @@ import { CommandInput } from './components/CommandInput';
 import { AuthModal } from './components/AuthModal';
 import { EditProfileModal } from './components/EditProfileModal';
 import { SaveSlotsModal } from './components/SaveSlotsModal';
-import { DiaryModal } from './components/DiaryModal';
+import { DiaryModal, diaryTabTotals, type DiaryTab } from './components/DiaryModal';
+import { DiaryToast } from './components/DiaryToast';
 import { ResetPasswordModal } from './components/ResetPasswordModal';
 import { ActBreakCurtain } from './components/ActBreakCurtain';
 import { TurnFailureScreen } from './components/TurnFailureScreen';
@@ -66,6 +67,10 @@ const AppContent: React.FC = () => {
   const [diarySeenCount, setDiarySeenCount] = useState(0);
   // Ids of entries logged since the last open — flagged as "new" in the diary.
   const [diaryNewIds, setDiaryNewIds] = useState<Set<string>>(new Set());
+  // Per-tab item counts at the last open, and the tabs that have grown since.
+  const diarySeenTabs = useRef<Record<DiaryTab, number> | null>(null);
+  const [diaryNewTabs, setDiaryNewTabs] = useState<Set<DiaryTab>>(new Set());
+  const [isDiaryToastShown, setIsDiaryToastShown] = useState(false);
 
   const gs = useGameState({ user, isAuthReady, userProfile });
 
@@ -83,8 +88,22 @@ const AppContent: React.FC = () => {
     // the seen boundary; entries are appended in sequence order.
     setDiaryNewIds(new Set(gs.diaryEntries.slice(diarySeenCount).map(e => e.id)));
     setDiarySeenCount(gs.diaryEntries.length);
+    const totals = diaryTabTotals(gs.diaryEntries, gs.flags);
+    const seen = diarySeenTabs.current;
+    setDiaryNewTabs(new Set((Object.keys(totals) as DiaryTab[]).filter(t => totals[t] > (seen?.[t] ?? 0))));
+    diarySeenTabs.current = totals;
+    setIsDiaryToastShown(false);
     setIsDiaryOpen(true);
   };
+
+  // "Noted in the diary": a short toast when play records something while the diary is closed.
+  useEffect(() => {
+    if (gs.diaryCaptureCount === 0 || isDiaryOpen) return;
+    setIsDiaryToastShown(true);
+    const t = window.setTimeout(() => setIsDiaryToastShown(false), 2400);
+    return () => window.clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gs.diaryCaptureCount]);
 
   // Tracks the user id we've already run login setup for. Supabase fires
   // onAuthStateChange (SIGNED_IN / TOKEN_REFRESHED) whenever the tab regains
@@ -212,6 +231,8 @@ const AppContent: React.FC = () => {
         />
       )}
 
+      <DiaryToast show={isDiaryToastShown} />
+
       <AnimatePresence>
         {gs.isCurtainPlaying && gs.pendingActTransition && (
           <ActBreakCurtain
@@ -315,6 +336,7 @@ const AppContent: React.FC = () => {
         flags={gs.flags}
         inventory={gs.inventory}
         newEntryIds={diaryNewIds}
+        newTabs={diaryNewTabs}
       />
       <ResetPasswordModal isOpen={isPasswordRecovery} />
       <AuthModal

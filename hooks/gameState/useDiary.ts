@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { User } from '@supabase/supabase-js';
 import { GameRepository } from '../../services/GameRepository';
-import { LOCATION_DIARY } from '../../engine/gameData';
 import { DiaryEntry, Investigation } from '../../types';
 
 export interface DiaryDeps {
@@ -15,8 +14,8 @@ export function useDiary(deps: DiaryDeps) {
   // ── Watson's diary (auto-captured casebook) ───────────────────────────────
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
   const diarySeqRef = useRef(0); // next monotonic sequence number for new entries
-  // Locations already recorded — dedupes arrival entries across reloads/paths.
-  const loggedLocationsRef = useRef<Set<string>>(new Set());
+  // Bumps on each capture during play (never on a load), so the UI can announce new notes.
+  const [diaryCaptureCount, setDiaryCaptureCount] = useState(0);
 
   // Append diary entries: stamp id + sequence, update state, persist if signed in.
   const captureDiaryEntries = useCallback(
@@ -28,6 +27,7 @@ export function useDiary(deps: DiaryDeps) {
         sequence: diarySeqRef.current++,
       }));
       setDiaryEntries(prev => [...prev, ...created]);
+      setDiaryCaptureCount(n => n + 1);
       if (user && activeInvestigation) {
         GameRepository.addDiaryEntries(activeInvestigation.id, created);
       }
@@ -35,16 +35,5 @@ export function useDiary(deps: DiaryDeps) {
     [user, activeInvestigation],
   );
 
-  // Record the first arrival at a location (authored Watson line, once per place).
-  const captureLocationArrival = useCallback(
-    (locationId: string, actNumber: number, timeLabel: string) => {
-      if (!LOCATION_DIARY[locationId]) return;
-      if (loggedLocationsRef.current.has(locationId)) return;
-      loggedLocationsRef.current.add(locationId);
-      captureDiaryEntries([{ kind: 'location', refId: locationId, actNumber, timeLabel }]);
-    },
-    [captureDiaryEntries],
-  );
-
-  return { diaryEntries, setDiaryEntries, diarySeqRef, loggedLocationsRef, captureDiaryEntries, captureLocationArrival };
+  return { diaryEntries, setDiaryEntries, diarySeqRef, captureDiaryEntries, diaryCaptureCount };
 }

@@ -1,33 +1,38 @@
 /**
  * components/DiaryModal.tsx
  *
- * Watson's casebook. A browsable, read-only record of the investigation,
- * organized into four tabs behind a desktop spine / mobile ribbon:
+ * Watson's diary — the frame and motion of the Act 0 prototype
+ * (docs/act0-prototype.html, docs/diary-design.md) over today's data:
  *
- *  - Journal: the auto-captured act accordion (clue discoveries, act
- *    milestones, major decisions), unchanged from the diary's original form.
- *    Acts behave as an accordion — exactly one is open, defaulting to the
- *    current act; earlier acts collapse. Each act header shows a progress
- *    pill: the current act displays "leads" as pips (its ACT_PROGRESSION
- *    gate — every action needed to advance), and finished acts read as
- *    Complete. Entries store only a reference; the Watson-voiced text is
- *    resolved from authored story data via resolveDiaryEntry().
- *  - Evidence: a ledger of discovered clues.
- *  - Persons: a suspect ledger mirroring the engine's NOTEBOOK verb.
- *  - Documents: papers Watson is carrying, verbatim.
+ *  - Spine: "Watson's Diary", a guarded "Private / J. H. Watson, M.D." line,
+ *    and vertical tabs with a count line and an amber dot for anything new.
+ *    On mobile the spine becomes a title row and a horizontal tab ribbon.
+ *  - Panels share one grid cell; a tab change is a direction-aware crossfade
+ *    (interruptible CSS transitions), keyboard switches are instant, and on
+ *    touch a horizontal swipe follows the finger.
+ *  - Desktop: a fixed-size card. Mobile: a bottom sheet that sizes to the
+ *    active panel (capped at 86vh), eases between heights, and closes on a
+ *    downward drag of its handle.
  *
- * Read-only throughout. Built entirely from lb-* theme tokens so it adapts
- * across all theme palettes.
+ *  - Journal: the act accordion of captured entries (clues, decisions, the
+ *    act's closing reflection). Entries store only a reference; the
+ *    Watson-voiced text is resolved from story data via resolveDiaryEntry().
+ *  - Evidence: discovered clues.
+ *  - Persons: the suspect ledger mirroring the engine's NOTEBOOK verb.
+ *  - Documents: papers Watson has filed, verbatim.
+ *
+ * Read-only throughout. Built from lb-* theme tokens so it adapts to every palette.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { X, Search, Gavel, MessageSquare, Feather, MapPin, ChevronDown, Check, type LucideIcon } from 'lucide-react';
+import { X, ChevronDown } from 'lucide-react';
 import { ModalBackdrop } from './ModalBackdrop';
-import { Tooltip } from './Tooltip';
-import { overlayPresence, zoomFadeVariants, DUR_PANEL, DUR_EXIT, EASE_OUT, EASE_OUT_EXPO } from './motionTokens';
+import { overlayPresence, DUR_EXIT, EASE_OUT_EXPO, EASE_OUT_QUINT, EASE_DRAWER } from './motionTokens';
 import type { DiaryEntry } from '../types';
-import { resolveDiaryEntry, ACT_NAMES, ACT_PROGRESSION, CLUE_DEFINITIONS, LOCATIONS, PERSONS_OF_INTEREST, TAKEABLE_OBJECTS, DOCUMENT_TEXT, DOCUMENT_OBJECT_IDS } from '../engine/gameData';
+import { resolveDiaryEntry, ACT_NAMES, CLUE_DEFINITIONS, LOCATIONS, PERSONS_OF_INTEREST, TAKEABLE_OBJECTS, DOCUMENT_TEXT, DOCUMENT_OBJECT_IDS } from '../engine/gameData';
+
+export type DiaryTab = 'journal' | 'evidence' | 'persons' | 'documents';
 
 interface DiaryModalProps {
   isOpen: boolean;
@@ -37,9 +42,9 @@ interface DiaryModalProps {
   flags: Record<string, boolean>;
   inventory: string[];
   newEntryIds?: Set<string>;
+  /** Tabs with something added since the diary was last opened. */
+  newTabs?: Set<DiaryTab>;
 }
-
-type DiaryTab = 'journal' | 'evidence' | 'persons' | 'documents';
 
 const TABS: { id: DiaryTab; label: string }[] = [
   { id: 'journal',   label: 'Journal' },
@@ -48,104 +53,190 @@ const TABS: { id: DiaryTab; label: string }[] = [
   { id: 'documents', label: 'Documents' },
 ];
 
-/** 1 → "I", 4 → "IV" … supports the full clue count (≤ 20). */
-const roman = (n: number): string => {
-  const map: Array<[number, string]> = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
-  let out = '';
-  for (const [v, s] of map) while (n >= v) { out += s; n -= v; }
-  return out;
+const MOBILE_QUERY = '(max-width: 639px)';
+const VELOCITY = 0.11; // px per ms — a flick commits a swipe or closes the sheet
+
+// Location-arrival entries are no longer written; older saves may still hold some.
+const journalEntries = (entries: DiaryEntry[]) => entries.filter(e => e.kind !== 'location');
+const clueEntries = (entries: DiaryEntry[]) => entries.filter(e => e.kind === 'clue' && CLUE_DEFINITIONS[e.refId]);
+const visiblePersons = (flags: Record<string, boolean>) => PERSONS_OF_INTEREST.filter(p => !p.requiresFlag || flags[p.requiresFlag]);
+const filedDocuments = (flags: Record<string, boolean>) => DOCUMENT_OBJECT_IDS.filter(id => flags[`filed_${id}`]);
+
+/** How many items each tab holds — App compares these across visits for the tabs' new-dots. */
+export const diaryTabTotals = (entries: DiaryEntry[], flags: Record<string, boolean>): Record<DiaryTab, number> => ({
+  journal: journalEntries(entries).length,
+  evidence: clueEntries(entries).length,
+  persons: visiblePersons(flags).length,
+  documents: filedDocuments(flags).length,
+});
+
+const plural = (n: number, one: string, many: string) => (n === 0 ? 'none yet' : `${n} ${n === 1 ? one : many}`);
+/** "7:35 PM" → "7:35" for the journal's time tile. */
+const shortTime = (label?: string) => (label ? label.replace(/\s*(AM|PM)$/i, '') : '—');
+
+const KIND_LABEL: Record<DiaryEntry['kind'], string> = {
+  clue: 'Clue',
+  decision: 'Decision',
+  revelation: 'Revelation',
+  act: 'Reflection',
+  location: 'Arrival',
 };
+
+const actLabel = (act: number): string => {
+  const name = ACT_NAMES[act];
+  if (act === 0) return name || 'Prologue';
+  return name ? `Act ${act} — ${name}` : `Act ${act}`;
+};
+
+const NewDot: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <span className={`w-2 h-2 rounded-full bg-lb-accent shrink-0 ${className}`} aria-label="new" />
+);
+
+const Empty: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p className="m-0 italic text-[15px] text-lb-primary/75">{children}</p>
+);
 
 // --- Panels ------------------------------------------------------------
-const EvidencePanel: React.FC<{ entries: DiaryEntry[] }> = ({ entries }) => {
-  // Discovered clues, newest first. Numbering is chronological (oldest = No. I).
-  const clues = entries
-    .filter(e => e.kind === 'clue' && CLUE_DEFINITIONS[e.refId])
-    .sort((a, b) => b.sequence - a.sequence);
 
-  if (clues.length === 0) {
-    return (
-      <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
-        Watson has found nothing he would call evidence yet.
-      </p>
-    );
-  }
+const JournalPanel: React.FC<{
+  entries: DiaryEntry[];
+  currentAct: number;
+  openAct: number | null;
+  onToggleAct: (act: number) => void;
+  newEntryIds?: Set<string>;
+}> = ({ entries, currentAct, openAct, onToggleAct, newEntryIds }) => {
+  const list = journalEntries(entries);
+  if (list.length === 0) return <Empty>Watson has yet to commit anything to his diary.</Empty>;
+
+  const byAct = new Map<number, DiaryEntry[]>();
+  for (const e of list) byAct.set(e.actNumber, [...(byAct.get(e.actNumber) ?? []), e]);
+  const acts = Array.from(byAct.keys()).sort((a, b) => b - a);
+  let fresh = 0; // stagger index across the newly added entries
 
   return (
-    <div>
-      <p className="uppercase tracking-widest text-[11px] font-bold text-lb-accent mb-1">Case Notes</p>
-      <h3 className="font-serif text-2xl font-bold text-lb-primary mb-2">Evidence</h3>
-      {clues.map((entry, i) => {
+    <div className="flex flex-col gap-2">
+      {acts.map(act => {
+        const expanded = openAct === act;
+        // Newest first, except the act's closing reflection, which always reads last.
+        const actEntries = [...byAct.get(act)!].sort((a, b) => {
+          if (a.kind === 'act' && b.kind !== 'act') return 1;
+          if (b.kind === 'act' && a.kind !== 'act') return -1;
+          return b.sequence - a.sequence;
+        });
+        return (
+          <section key={act}>
+            <button
+              type="button"
+              onClick={() => onToggleAct(act)}
+              aria-expanded={expanded}
+              className="w-full flex items-center justify-between gap-3 py-2 text-left"
+            >
+              <span className={`text-[11px] font-bold uppercase tracking-[0.18em] ${act === currentAct ? 'text-lb-accent' : 'text-lb-primary/60'}`}>
+                {actLabel(act)}
+              </span>
+              <ChevronDown size={16} className={`text-lb-primary/50 transition-transform duration-200 ${expanded ? '' : '-rotate-90'}`} />
+            </button>
+            <div className={`grid transition-[grid-template-rows] duration-300 ease-out-quint ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+              <div className="overflow-hidden">
+                <ul className="list-none m-0 p-0 flex flex-col gap-3.5 pt-2 pb-4">
+                  {actEntries.map(entry => {
+                    const resolved = resolveDiaryEntry(entry);
+                    if (!resolved) return null;
+                    const isNew = newEntryIds?.has(entry.id) ?? false;
+                    const stagger = isNew ? { className: 'lb-stagger', style: { '--i': fresh++ } as React.CSSProperties } : {};
+                    if (entry.kind === 'act') {
+                      return (
+                        <li key={entry.id} {...stagger} className={`mt-1.5 pl-[18px] border-l-2 border-lb-muted/40 ${stagger.className ?? ''}`}>
+                          <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-lb-primary/60">
+                            Reflection{isNew && <NewDot />}
+                          </span>
+                          <p className="mt-1.5 mb-0 font-playfair italic text-[18px] leading-relaxed text-lb-primary">{resolved.body}</p>
+                          <span className="block text-right text-sm text-lb-primary/60 mt-1.5">— J. H. W.</span>
+                        </li>
+                      );
+                    }
+                    return (
+                      <li key={entry.id} {...stagger} className={`grid grid-cols-[48px_minmax(0,1fr)] sm:grid-cols-[56px_minmax(0,1fr)] gap-x-3 sm:gap-x-4 items-start ${stagger.className ?? ''}`}>
+                        <span className="relative grid place-items-center h-11 rounded-lg bg-lb-primary/[0.06] text-sm font-bold tabular-nums">
+                          {shortTime(entry.timeLabel)}
+                          {isNew && <NewDot className="absolute -top-[3px] -right-[3px] ring-2 ring-lb-paper" />}
+                        </span>
+                        <div className="min-w-0">
+                          <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-lb-accent mt-0.5 mb-1">
+                            {KIND_LABEL[entry.kind]}
+                          </span>
+                          <p className="m-0 font-serif text-[17px] leading-snug text-lb-primary">{resolved.title}</p>
+                          {resolved.body && (
+                            <p className="mt-1 mb-0 text-[15px] leading-relaxed text-lb-primary/85">{resolved.body}</p>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+};
+
+const EvidencePanel: React.FC<{ entries: DiaryEntry[]; newEntryIds?: Set<string> }> = ({ entries, newEntryIds }) => {
+  const clues = clueEntries(entries).sort((a, b) => b.sequence - a.sequence);
+  if (clues.length === 0) return <Empty>Watson has found nothing he would call evidence yet.</Empty>;
+  let fresh = 0;
+  return (
+    <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
+      {clues.map(entry => {
         const def = CLUE_DEFINITIONS[entry.refId];
         const where = LOCATIONS[def.locationFound]?.name ?? def.locationFound;
+        const isNew = newEntryIds?.has(entry.id) ?? false;
         return (
-          <div
+          <li
             key={entry.id}
-            className={`grid grid-cols-1 sm:grid-cols-[6.5rem_1fr] gap-1 sm:gap-5 py-4 ${i > 0 ? 'border-t border-lb-border' : ''}`}
+            className={`flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0 ${isNew ? 'lb-stagger' : ''}`}
+            style={isNew ? ({ '--i': fresh++ } as React.CSSProperties) : undefined}
           >
-            <div className="sm:text-right pt-0.5">
-              <span className="font-serif italic text-lb-accent">No. {roman(clues.length - i)}</span>
-              <span className="block uppercase tracking-wider text-[10px] text-lb-muted mt-1 leading-relaxed">
-                {where}
-                {entry.timeLabel && <><br />{entry.timeLabel}</>}
-              </span>
-            </div>
-            <div>
-              <h4 className="font-serif text-lg font-bold text-lb-primary mb-1">{def.name}</h4>
-              <p className="text-[15px] text-lb-primary/90 leading-relaxed">{def.diaryNote}</p>
-            </div>
-          </div>
+            <p className="m-0 font-serif text-[19px] text-lb-primary">{def.name}</p>
+            <p className="m-0 text-[15px] leading-relaxed text-lb-primary/90">{def.diaryNote}</p>
+            <p className="m-0 flex items-center gap-2 text-[13px] text-lb-primary/70">
+              {isNew && <NewDot />}— {where}{entry.timeLabel && ` · ${entry.timeLabel}`}
+            </p>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 };
+
 const PersonsPanel: React.FC<{ flags: Record<string, boolean> }> = ({ flags }) => {
-  const visible = PERSONS_OF_INTEREST.filter(p => !p.requiresFlag || flags[p.requiresFlag]);
-
-  if (visible.length === 0) {
-    return (
-      <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
-        Watson has no names in his ledger yet.
-      </p>
-    );
-  }
-
+  const visible = visiblePersons(flags);
+  if (visible.length === 0) return <Empty>Watson has no names in his ledger yet.</Empty>;
   return (
-    <div>
-      <p className="uppercase tracking-widest text-[11px] font-bold text-lb-accent mb-1">The Running Ledger</p>
-      <h3 className="font-serif text-2xl font-bold text-lb-primary mb-2">Persons of Interest</h3>
-      {visible.map((p, i) => {
+    <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
+      {visible.map(p => {
         const cleared = Boolean(p.clearedByFlag && flags[p.clearedByFlag]);
         return (
-          <div key={p.id} className={`py-4 ${i > 0 ? 'border-t border-lb-border' : ''}`}>
-            <div className="flex items-baseline justify-between gap-4">
-              <span
-                className={`font-serif text-lg font-bold ${
-                  cleared
-                    ? 'text-lb-primary/55 line-through decoration-red-800/70 decoration-[1.5px]'
-                    : 'text-lb-primary'
-                }`}
-              >
-                {p.label}
-              </span>
-              <span
-                className={`shrink-0 uppercase tracking-[0.2em] text-[10px] font-bold ${
-                  cleared ? 'text-red-800/70' : 'text-lb-accent'
-                }`}
-              >
-                {cleared ? 'Cleared' : 'Open'}
-              </span>
-            </div>
-            <p className={`mt-1 text-[15px] leading-relaxed ${cleared ? 'text-lb-primary/55' : 'text-lb-primary/85'}`}>
+          <li key={p.id} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
+            <p className="m-0 font-serif text-[19px]">
+              {cleared ? (
+                <s className="text-lb-primary/55 decoration-lb-accent decoration-2">{p.label}</s>
+              ) : (
+                <span className="text-lb-primary">{p.label}</span>
+              )}
+            </p>
+            <p className={`m-0 text-[15px] leading-relaxed ${cleared ? 'text-lb-primary/65' : 'text-lb-primary/90'}`}>
               {cleared && p.clearedNote ? p.clearedNote : p.detail}
             </p>
-          </div>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 };
+
 /** One parsed line of a filed document's text. */
 type DocLine =
   | { kind: 'body'; text: string }
@@ -155,9 +246,8 @@ type DocLine =
 /**
  * Split a document's authored text into a provenance header (the leading
  * run of *…* caption lines — what the paper is, who took it, when) and the
- * lines that follow. Provenance is header material and renders as a caption
- * under the title; only a long caption later in the text is a true aside
- * (Watson's voice) and gets the tinted-block treatment.
+ * lines that follow. Provenance renders as the source line under the title;
+ * only a long caption later in the text is a true aside (Watson's voice).
  */
 const parseDocumentText = (raw: string): { provenance: string[]; lines: DocLine[] } => {
   const provenance: string[] = [];
@@ -183,63 +273,38 @@ const parseDocumentText = (raw: string): { provenance: string[]; lines: DocLine[
 const ASIDE_LABEL_RE = /^Watson's note:\s*/i;
 
 /**
- * Filed once, kept forever — driven by the engine's `filed_<objectId>` flags
- * (set the moment a document-bearing item is gained, see GameEngine.resolve),
- * not by live inventory. A document Watson has since used, dropped, or lost
- * to an act transition still belongs to the casebook.
- *
- * NOTE on colors: supplement text deliberately avoids `text-lb-muted` — at
- * body sizes it measures ~2.7:1 (light) / ~2.9:1 (dark) against lb-paper,
- * failing WCAG AA (4.5:1). `text-lb-primary/75` passes in every theme.
+ * Filed once, kept forever — driven by the engine's `filed_<objectId>` flags,
+ * not live inventory. NOTE on colors: secondary text avoids `text-lb-muted`,
+ * which fails WCAG AA at body sizes against lb-paper; `text-lb-primary/70+` passes.
  */
 const DocumentsPanel: React.FC<{ flags: Record<string, boolean>; inventory: string[] }> = ({ flags, inventory }) => {
-  const docs = DOCUMENT_OBJECT_IDS
-    .filter(objectId => flags[`filed_${objectId}`])
-    .map(objectId => ({
-      objectId,
-      name: TAKEABLE_OBJECTS[objectId],
-      carried: inventory.includes(TAKEABLE_OBJECTS[objectId]),
-    }));
-
-  if (docs.length === 0) {
-    return (
-      <p className="text-[15px] text-lb-primary/75 font-sans italic py-8 text-center">
-        Watson has filed no papers yet.
-      </p>
-    );
-  }
-
+  const docs = filedDocuments(flags).map(objectId => ({
+    objectId,
+    name: TAKEABLE_OBJECTS[objectId],
+    carried: inventory.includes(TAKEABLE_OBJECTS[objectId]),
+  }));
+  if (docs.length === 0) return <Empty>No papers filed yet.</Empty>;
   return (
-    <div>
-      <p className="uppercase tracking-widest text-[11px] font-bold text-lb-accent mb-1">The Casebook</p>
-      <h3 className="font-serif text-2xl font-bold text-lb-primary mb-2">Documents</h3>
-      {docs.map((doc, i) => {
+    <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
+      {docs.map(doc => {
         const { provenance, lines } = parseDocumentText(DOCUMENT_TEXT[doc.objectId]);
+        const source = [...provenance, ...(doc.carried ? [] : ['filed'])].join(' · ');
         return (
-          <div key={doc.objectId} className={`py-4 ${i > 0 ? 'border-t border-lb-border' : ''}`}>
-            <div className="flex items-baseline justify-between gap-3">
-              <h4 className="font-serif text-lg font-bold text-lb-primary">{doc.name}</h4>
-              {!doc.carried && (
-                <span className="shrink-0 uppercase tracking-[0.2em] text-[10px] font-bold text-lb-primary/75 border border-lb-border rounded-full px-2.5 py-0.5">Filed</span>
-              )}
-            </div>
-            {provenance.length > 0 && (
-              <p className="mt-1 text-[13px] tracking-[0.02em] text-lb-primary/75">
-                {provenance.join(' · ')}
-              </p>
-            )}
-            <div className="mt-3 space-y-3">
+          <li key={doc.objectId} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
+            <p className="m-0 font-serif text-[19px] text-lb-primary">{doc.name}</p>
+            {source && <p className="m-0 text-[13px] text-lb-primary/70">— {source}</p>}
+            <div className="mt-2 flex flex-col gap-3">
               {lines.map((line, j) => {
                 if (line.kind === 'body') {
-                  return <p key={j} className="italic text-[15px] text-lb-primary/90 leading-relaxed">{line.text}</p>;
+                  return <p key={j} className="m-0 font-serif italic text-[16px] text-lb-primary/90 leading-relaxed">{line.text}</p>;
                 }
                 if (line.kind === 'label') {
-                  return <p key={j} className="uppercase tracking-wider text-[10px] font-bold text-lb-primary/75">{line.text}</p>;
+                  return <p key={j} className="m-0 uppercase tracking-wider text-[10px] font-bold text-lb-primary/75">{line.text}</p>;
                 }
                 const noteText = line.text.replace(ASIDE_LABEL_RE, '');
                 const hasLabel = noteText !== line.text;
                 return (
-                  <div key={j} className="bg-lb-primary/5 rounded-lg px-[18px] py-3.5 text-[14px] font-sans not-italic text-lb-primary/85 leading-relaxed">
+                  <div key={j} className="bg-lb-accent/[0.12] rounded px-3.5 py-3 text-[14px] text-lb-primary/90 leading-relaxed">
                     {hasLabel && (
                       <span className="uppercase tracking-[0.07em] text-[11px] font-bold text-lb-primary mr-2">Watson's note</span>
                     )}
@@ -248,150 +313,253 @@ const DocumentsPanel: React.FC<{ flags: Record<string, boolean>; inventory: stri
                 );
               })}
             </div>
-          </div>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 };
 
-const KIND_ICON: Record<DiaryEntry['kind'], LucideIcon> = {
-  clue: Search,
-  act: Feather,
-  decision: Gavel,
-  revelation: MessageSquare,
-  location: MapPin,
-};
+// --- Modal -------------------------------------------------------------
 
-const actLabel = (act: number): string => {
-  const name = ACT_NAMES[act];
-  if (act === 0) return name || 'Prologue';
-  return name ? `Act ${act} — ${name}` : `Act ${act}`;
-};
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_QUERY);
+    const on = () => setMobile(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return mobile;
+}
 
-/**
- * Per-act progress = the act's advancement gate (ACT_PROGRESSION.requireFlags) —
- * every action needed to push the story forward. Sentinel flags (Act 5's
- * deduction gate, prefixed `__`) are excluded; acts with no real gate flags
- * return null (no pill). Returns how many of those flags are currently set.
- */
-const actLeads = (
-  actNumber: number,
-  flags: Record<string, boolean>,
-): { found: number; total: number } | null => {
-  const gate = ACT_PROGRESSION[actNumber];
-  if (!gate) return null;
-  const real = gate.requireFlags.filter(f => !f.startsWith('__'));
-  if (real.length === 0) return null;
-  return { found: real.filter(f => flags[f]).length, total: real.length };
-};
-
-export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries, currentAct, flags, inventory, newEntryIds }) => {
+export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries, currentAct, flags, inventory, newEntryIds, newTabs }) => {
   const reducedMotion = useReducedMotion();
-  // Accordion: exactly one act open at a time; defaults to the current act.
+  const isMobile = useIsMobile();
   const [openAct, setOpenAct] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<DiaryTab>('journal');
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [sheetH, setSheetH] = useState<number | null>(null);
+  const [animateHeight, setAnimateHeight] = useState(false);
 
-  // A tab switched while scrolled deep into a long Journal reads as an abrupt
-  // jump (the incoming panel renders far below the fold, or the transition is
-  // masked entirely) — snap back to the top of the panel on every tab change.
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 0 });
-  }, [activeTab]);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const spineRef = useRef<HTMLDivElement>(null);
+  const indRef = useRef<HTMLSpanElement>(null);
+  const panelsRef = useRef<HTMLDivElement>(null);
+  const panelRefs = useRef<Partial<Record<DiaryTab, HTMLDivElement | null>>>({});
+  const tabRefs = useRef<Partial<Record<DiaryTab, HTMLButtonElement | null>>>({});
+  const openerRef = useRef<HTMLElement | null>(null);
+  const shownTab = useRef<DiaryTab>('journal');   // the panel currently in data-state="active"
+  const nextInstant = useRef(true);               // the next panel change skips its animation
+  const leaveTimer = useRef<number | undefined>(undefined);
 
-  // Lock body scroll; ESC to close (mirrors SaveSlotsModal)
+  // Body scroll lock and Esc. Focus goes into the dialog on open and back to the opener on close.
   useEffect(() => {
     if (!isOpen) return;
+    openerRef.current = document.activeElement as HTMLElement | null;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
+    cardRef.current?.focus({ preventScroll: true });
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleKey);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', handleKey);
+      openerRef.current?.focus?.();
     };
   }, [isOpen, onClose]);
 
-  // Open the current act, and always land on Journal, each time the diary is opened.
+  // Every open lands on Journal with the current act unfolded, without animating there.
   useEffect(() => {
-    if (isOpen) {
-      setOpenAct(currentAct);
-      setActiveTab('journal');
-    }
+    if (!isOpen) return;
+    setOpenAct(currentAct);
+    nextInstant.current = true;
+    setActiveTab('journal');
+    setSheetH(null);
+    setAnimateHeight(false);
   }, [isOpen, currentAct]);
 
-  // Swipe-down-to-close on the mobile bottom sheet — drag from the handle or
-  // header follows the finger; releasing past the distance threshold OR with
-  // a quick flick (velocity) closes, otherwise it snaps back.
-  const [dragY, setDragY] = useState(0);
-  const dragStartY = useRef<number | null>(null);
-  const dragStartTime = useRef(0);
-  const handleDragStart = (e: React.TouchEvent) => {
-    if (window.innerWidth >= 640) return;
-    dragStartY.current = e.touches[0].clientY;
-    dragStartTime.current = Date.now();
-  };
-  const handleDragMove = (e: React.TouchEvent) => {
-    if (dragStartY.current == null) return;
-    const dy = e.touches[0].clientY - dragStartY.current;
-    if (dy > 0) setDragY(dy);
-  };
-  const handleDragEnd = () => {
-    if (dragStartY.current == null) return;
-    dragStartY.current = null;
-    const elapsed = Date.now() - dragStartTime.current;
-    const velocity = elapsed > 0 ? dragY / elapsed : 0;
-    if (dragY > 120 || (dragY > 20 && velocity > 0.11)) onClose();
-    setDragY(0);
-  };
+  const selectTab = useCallback((tab: DiaryTab, instant = false) => {
+    nextInstant.current = instant;
+    setActiveTab(tab);
+  }, []);
 
-  // Mobile: bottom sheet sliding from the screen edge, following the finger
-  // while dragging (duration 0 = instant follow, then an animated snap-back).
-  // Desktop (sm+): the standard modal card variants. Both are driven by the
-  // overlayPresence wrapper's 'visible'/'hidden' variant state.
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
-  const sheetVariants = isMobile
-    ? {
-        visible: {
-          ...(reducedMotion ? { opacity: 1 } : {}),
-          y: dragY,
-          transition: dragY > 0 ? { duration: 0 } : { duration: DUR_PANEL, ease: EASE_OUT_EXPO },
-        },
-        hidden: reducedMotion
-          ? { opacity: 0, transition: { duration: DUR_EXIT } }
-          : { y: '100%', transition: { duration: DUR_PANEL, ease: EASE_OUT_EXPO } },
-      }
-    : zoomFadeVariants(reducedMotion);
-
-  // Group by act, newest-first within each act, acts in descending order.
-  const byAct = new Map<number, DiaryEntry[]>();
-  for (const e of entries) {
-    const list = byAct.get(e.actNumber) ?? [];
-    list.push(e);
-    byAct.set(e.actNumber, list);
-  }
-  const actNumbers = Array.from(byAct.keys()).sort((a, b) => b - a);
-
-  const tabCount = (tab: DiaryTab): string => {
-    switch (tab) {
-      case 'journal':   return `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`;
-      case 'evidence': {
-        const n = entries.filter(e => e.kind === 'clue' && CLUE_DEFINITIONS[e.refId]).length;
-        return `${n} recorded`;
-      }
-      case 'persons': {
-        const visible = PERSONS_OF_INTEREST.filter(p => !p.requiresFlag || flags[p.requiresFlag]);
-        const cleared = visible.filter(p => p.clearedByFlag && flags[p.clearedByFlag]).length;
-        return visible.length === 0 ? 'none yet' : `${cleared} cleared, ${visible.length - cleared} open`;
-      }
-      case 'documents': {
-        const n = DOCUMENT_OBJECT_IDS.filter(id => flags[`filed_${id}`]).length;
-        return n === 0 ? 'none yet' : `${n} filed`;
-      }
+  // Panel states: the incoming panel slides in from the side of the tab it came from.
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const prev = shownTab.current;
+    const inn = panelRefs.current[activeTab];
+    const out = panelRefs.current[prev];
+    const instant = nextInstant.current || prev === activeTab;
+    nextInstant.current = false;
+    shownTab.current = activeTab;
+    const set = (el: HTMLDivElement | null | undefined, state: string, vars: Record<string, string> = {}) => {
+      if (!el) return;
+      Object.entries(vars).forEach(([k, v]) => el.style.setProperty(k, v));
+      el.dataset.state = state;
+    };
+    TABS.forEach(t => { if (t.id !== activeTab && t.id !== prev) set(panelRefs.current[t.id], 'idle'); });
+    if (instant || !inn || !out) {
+      [out, inn].forEach(el => el?.classList.add('lb-no-anim'));
+      if (prev !== activeTab) set(out, 'idle');
+      set(inn, 'active');
+      void inn?.offsetWidth;
+      [out, inn].forEach(el => el?.classList.remove('lb-no-anim'));
+      return;
     }
+    const dir = TABS.findIndex(t => t.id === activeTab) > TABS.findIndex(t => t.id === prev) ? 1 : -1;
+    const axis = isMobile ? 'X' : 'Y';
+    inn.classList.add('lb-no-anim');
+    set(inn, 'idle', { '--off': `translate${axis}(${12 * dir}px)` });
+    void inn.offsetWidth;
+    inn.classList.remove('lb-no-anim');
+    set(out, 'leaving', { '--out': `translate${axis}(${-8 * dir}px)` });
+    set(inn, 'active');
+    window.clearTimeout(leaveTimer.current);
+    leaveTimer.current = window.setTimeout(() => { if (out.dataset.state === 'leaving') set(out, 'idle'); }, 180);
+  }, [activeTab, isOpen, isMobile]);
+
+  // The sliding tab marker: a transform on one element, never a layout property.
+  const moveIndicator = useCallback((instant: boolean) => {
+    const ind = indRef.current, tab = tabRefs.current[activeTab];
+    if (!ind || !tab) return;
+    ind.classList.toggle('lb-instant', instant);
+    ind.style.transform = isMobile
+      ? `translateX(${tab.offsetLeft}px) scaleX(${tab.offsetWidth})`
+      : `translateY(${tab.offsetTop}px) scaleY(${tab.offsetHeight})`;
+    if (instant) { void ind.offsetWidth; ind.classList.remove('lb-instant'); }
+  }, [activeTab, isMobile]);
+  const indicatorPlaced = useRef(false);
+  useLayoutEffect(() => {
+    if (!isOpen) { indicatorPlaced.current = false; return; }
+    moveIndicator(!indicatorPlaced.current);
+    indicatorPlaced.current = true;
+    if (isMobile) tabRefs.current[activeTab]?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reducedMotion ? 'auto' : 'smooth' });
+  }, [isOpen, moveIndicator, isMobile, activeTab, reducedMotion]);
+
+  // Mobile sheet height follows the active panel's content (capped at 86vh).
+  // It is set before the sheet slides up, then eases between tabs.
+  useLayoutEffect(() => {
+    if (!isOpen || !isMobile) { setSheetH(null); return; }
+    const panel = panelRefs.current[activeTab];
+    const card = cardRef.current, spine = spineRef.current;
+    if (!panel || !card || !spine) return;
+    const fit = () => {
+      const border = card.offsetHeight - card.clientHeight;
+      const content = border + spine.offsetHeight + panel.scrollHeight;
+      setSheetH(Math.round(Math.min(window.innerHeight * 0.86, Math.max(260, content))));
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    if (panel.firstElementChild) ro.observe(panel.firstElementChild);
+    window.addEventListener('resize', fit);
+    const raf = requestAnimationFrame(() => setAnimateHeight(true));
+    return () => { ro.disconnect(); window.removeEventListener('resize', fit); cancelAnimationFrame(raf); };
+  }, [isOpen, isMobile, activeTab]);
+
+  // Keyboard: the ARIA tabs pattern. Keyboard switches are instant.
+  const onTabKey = (e: React.KeyboardEvent) => {
+    const i = TABS.findIndex(t => t.id === activeTab);
+    let j = -1;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') j = (i + 1) % TABS.length;
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') j = (i - 1 + TABS.length) % TABS.length;
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = TABS.length - 1;
+    if (j < 0) return;
+    e.preventDefault();
+    selectTab(TABS[j].id, true);
+    tabRefs.current[TABS[j].id]?.focus();
+  };
+
+  // Swipe between tabs (touch): the panel follows the finger, commits on distance or velocity.
+  const drag = useRef<{ id: number; x: number; y: number; t: number; axis: 'x' | 'y' | null; dx: number; el?: HTMLDivElement } | null>(null);
+  const onPanelsDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse' || !e.isPrimary || drag.current) return;
+    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), axis: null, dx: 0 };
+  };
+  const onPanelsMove = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    const dx = e.clientX - d.x, dy = e.clientY - d.y;
+    if (!d.axis) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      d.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      if (d.axis === 'y') { drag.current = null; return; } // let the panel scroll
+      try { panelsRef.current?.setPointerCapture(e.pointerId); } catch { /* synthetic events */ }
+      d.el = panelRefs.current[activeTab] ?? undefined;
+      d.el?.classList.add('lb-dragging');
+    }
+    const i = TABS.findIndex(t => t.id === activeTab);
+    const hasTarget = dx < 0 ? i < TABS.length - 1 : i > 0;
+    d.dx = hasTarget ? dx : dx * 0.25; // rubber band at the ends
+    if (d.el && !reducedMotion) {
+      d.el.style.transform = `translateX(${d.dx}px)`;
+      d.el.style.opacity = String(1 - Math.min(Math.abs(d.dx) / (panelsRef.current?.clientWidth || 1), 1) * 0.35);
+    }
+  };
+  const onPanelsUp = (e: React.PointerEvent, cancelled: boolean) => {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    drag.current = null;
+    if (!d.axis || !d.el) return;
+    const width = panelsRef.current?.clientWidth || 1;
+    const v = Math.abs(d.dx) / Math.max(1, performance.now() - d.t);
+    const i = TABS.findIndex(t => t.id === activeTab) + (d.dx < 0 ? 1 : -1);
+    const commit = !cancelled && i >= 0 && i < TABS.length && (Math.abs(d.dx) > width * 0.3 || v > VELOCITY);
+    d.el.classList.remove('lb-dragging');
+    d.el.style.transform = '';
+    d.el.style.opacity = ''; // transitions from the dragged position
+    if (commit) selectTab(TABS[i].id);
+  };
+
+  // Sheet handle (mobile): drag down to close, resistance when pulling up.
+  const [sheetDrag, setSheetDrag] = useState<number | null>(null);
+  const sheet = useRef<{ id: number; y: number; t: number; dy: number } | null>(null);
+  const onGrabDown = (e: React.PointerEvent) => {
+    if (!e.isPrimary || sheet.current) return;
+    sheet.current = { id: e.pointerId, y: e.clientY, t: performance.now(), dy: 0 };
+    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* synthetic events */ }
+    setSheetDrag(0);
+  };
+  const onGrabMove = (e: React.PointerEvent) => {
+    const s = sheet.current;
+    if (!s || e.pointerId !== s.id) return;
+    const dy = e.clientY - s.y;
+    s.dy = dy > 0 ? dy : dy * 0.2;
+    setSheetDrag(s.dy);
+  };
+  const onGrabUp = (e: React.PointerEvent) => {
+    const s = sheet.current;
+    if (!s || e.pointerId !== s.id) return;
+    sheet.current = null;
+    setSheetDrag(null);
+    const v = s.dy / Math.max(1, performance.now() - s.t);
+    if (s.dy > (cardRef.current?.offsetHeight ?? 0) * 0.25 || v > VELOCITY) onClose();
+  };
+
+  // Open / close. Exits are faster than entrances; reduced motion keeps the fade only.
+  const cardVariants = reducedMotion
+    ? {
+        visible: { opacity: 1, transition: { duration: 0.15 } },
+        hidden: { opacity: 0, transition: { duration: DUR_EXIT } },
+      }
+    : isMobile
+      ? {
+          visible: { y: 0, transition: { duration: 0.38, ease: EASE_DRAWER } },
+          hidden: { y: '100%', transition: { duration: 0.24, ease: EASE_OUT_QUINT } },
+        }
+      : {
+          visible: { opacity: 1, y: 0, transition: { duration: 0.32, ease: EASE_OUT_EXPO } },
+          hidden: { opacity: 0, y: 10, transition: { duration: 0.18, ease: EASE_OUT_QUINT } },
+        };
+
+  const totals = diaryTabTotals(entries, flags);
+  const persons = visiblePersons(flags);
+  const cleared = persons.filter(p => p.clearedByFlag && flags[p.clearedByFlag]).length;
+  const counts: Record<DiaryTab, string> = {
+    journal: plural(totals.journal, 'entry', 'entries'),
+    evidence: plural(totals.evidence, 'recorded', 'recorded'),
+    persons: persons.length === 0 ? 'none yet' : `${cleared} cleared, ${persons.length - cleared} open`,
+    documents: plural(totals.documents, 'filed', 'filed'),
   };
 
   return (
@@ -403,220 +571,130 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
           onClick={onClose}
         >
           <ModalBackdrop />
-          <motion.div
-            variants={sheetVariants}
-            className="relative w-full max-w-3xl max-h-[94dvh] sm:max-h-[88vh] flex flex-col bg-lb-paper border border-lb-border rounded-t-2xl sm:rounded-xl shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Drag handle (mobile bottom sheet) */}
+          <motion.div variants={cardVariants} className="relative w-full sm:max-w-[780px]" onClick={e => e.stopPropagation()}>
             <div
-              className="flex sm:hidden justify-center pt-2.5"
-              onTouchStart={handleDragStart}
-              onTouchMove={handleDragMove}
-              onTouchEnd={handleDragEnd}
+              ref={cardRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="diary-title"
+              tabIndex={-1}
+              className={`relative grid grid-rows-[auto_minmax(0,1fr)] sm:grid-rows-1 sm:grid-cols-[200px_minmax(0,1fr)] overflow-hidden h-[86vh] max-h-[86vh] sm:h-[min(640px,86vh)] bg-lb-paper text-lb-primary border border-lb-border rounded-t-2xl sm:rounded-xl shadow-2xl focus:outline-none ${
+                sheetDrag !== null ? '' : animateHeight && !reducedMotion ? 'transition-[height,transform] [transition-duration:320ms] ease-drawer' : 'transition-transform [transition-duration:320ms] ease-drawer'
+              }`}
+              style={{
+                ...(isMobile && sheetH !== null ? { height: sheetH } : {}),
+                ...(sheetDrag !== null ? { transform: `translateY(${sheetDrag}px)` } : {}),
+              }}
             >
-              <div className="w-10 h-1 rounded-full bg-lb-border" />
-            </div>
-            {/* Mobile header (drag target) */}
-            <div
-              className="flex sm:hidden items-center justify-between px-6 py-4 border-b border-lb-border"
-              onTouchStart={handleDragStart}
-              onTouchMove={handleDragMove}
-              onTouchEnd={handleDragEnd}
-            >
-              <span className="font-serif text-xl font-bold text-lb-primary">Watson's Diary</span>
-              <button onClick={onClose} className="pressable pressable-icon p-1.5 text-lb-muted hover:text-lb-primary hover:bg-lb-bg rounded-md transition-colors" aria-label="Close">
-                <X size={22} />
+              {/* Grab handle (mobile) */}
+              <div
+                className="sm:hidden absolute top-0 inset-x-0 h-[22px] z-10 touch-none cursor-grab"
+                aria-hidden="true"
+                onPointerDown={onGrabDown}
+                onPointerMove={onGrabMove}
+                onPointerUp={onGrabUp}
+                onPointerCancel={onGrabUp}
+              >
+                <span className="absolute top-2 left-1/2 -ml-[18px] w-9 h-1 rounded-full bg-lb-muted/50" />
+              </div>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="absolute top-3.5 right-3.5 z-20 w-10 h-10 grid place-items-center rounded-full border border-lb-primary/30 bg-lb-paper hover:border-lb-accent hover:text-lb-accent pressable pressable-icon"
+                aria-label="Close the diary"
+              >
+                <X size={18} />
               </button>
-            </div>
 
-            {/* Mobile tab ribbon */}
-            <div className="flex sm:hidden border-b border-lb-border overflow-x-auto" role="tablist">
-              {TABS.map(t => (
-                <button
-                  key={t.id}
-                  role="tab"
-                  aria-selected={activeTab === t.id}
-                  onClick={() => setActiveTab(t.id)}
-                  className={`shrink-0 px-4 py-3 uppercase tracking-widest text-[11px] font-bold border-b-2 -mb-px transition-colors ${
-                    activeTab === t.id ? 'text-lb-accent border-lb-accent' : 'text-lb-muted border-transparent hover:text-lb-primary'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex flex-1 min-h-0">
-              {/* Desktop spine */}
-              <div className="hidden sm:flex w-44 shrink-0 flex-col border-r border-lb-border bg-lb-primary/[0.04] pt-6 pb-4">
-                <div className="px-5 pb-5">
-                  <h2 className="font-serif text-2xl font-bold leading-tight text-lb-primary">Watson's<br />Diary</h2>
-                  <p className="mt-2 uppercase tracking-[0.2em] text-[10px] text-lb-muted">Whitechapel · 1888</p>
+              {/* Spine: title, guarded line, tabs */}
+              <div
+                ref={spineRef}
+                className="flex flex-col gap-2.5 sm:gap-6 pt-[18px] sm:pt-7 sm:pb-6 min-w-0 bg-lb-primary/[0.04] border-b sm:border-b-0 sm:border-r border-lb-border"
+              >
+                <div className="flex flex-row sm:flex-col flex-wrap items-baseline sm:items-start gap-x-3 gap-y-2 pl-5 pr-16 sm:px-6">
+                  <h2 id="diary-title" className="m-0 font-serif font-normal text-2xl sm:text-[28px] leading-[1.05]">Watson's Diary</h2>
+                  <p className="m-0 flex flex-row sm:flex-col items-baseline sm:items-start gap-2 sm:gap-0.5">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-lb-primary/60">Private</span>
+                    <em className="font-playfair text-sm text-lb-primary/70">J. H. Watson, M.D.</em>
+                  </p>
                 </div>
-                <div className="flex flex-col" role="tablist">
-                  {TABS.map(t => (
-                    <button
-                      key={t.id}
-                      role="tab"
-                      aria-selected={activeTab === t.id}
-                      onClick={() => setActiveTab(t.id)}
-                      className={`text-left px-5 py-3 border-l-[3px] uppercase tracking-widest text-[11px] font-bold transition-colors ${
-                        activeTab === t.id
-                          ? 'text-lb-primary border-lb-accent bg-lb-paper'
-                          : 'text-lb-muted border-transparent hover:text-lb-primary'
-                      }`}
-                    >
-                      {t.label}
-                      <span className="block normal-case tracking-normal font-normal text-[11px] opacity-70 mt-0.5">
-                        {tabCount(t.id)}
-                      </span>
-                    </button>
-                  ))}
+                <div
+                  role="tablist"
+                  aria-label="Diary sections"
+                  aria-orientation={isMobile ? 'horizontal' : 'vertical'}
+                  onKeyDown={onTabKey}
+                  className="relative flex flex-row sm:flex-col overflow-x-auto sm:overflow-visible px-2 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
+                  {TABS.map(t => {
+                    const selected = activeTab === t.id;
+                    const isNewTab = newTabs?.has(t.id) ?? false;
+                    return (
+                      <button
+                        key={t.id}
+                        ref={el => { tabRefs.current[t.id] = el; }}
+                        id={`diary-tab-${t.id}`}
+                        role="tab"
+                        type="button"
+                        aria-selected={selected}
+                        aria-controls={`diary-panel-${t.id}`}
+                        tabIndex={selected ? 0 : -1}
+                        onClick={() => selectTab(t.id)}
+                        className={`relative shrink-0 text-left block sm:grid gap-0.5 px-[9px] pt-2.5 pb-3 sm:px-6 sm:py-3 transition-colors duration-200 hover:bg-lb-primary/[0.04] active:bg-lb-primary/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-lb-accent ${
+                          selected ? 'sm:bg-lb-paper' : ''
+                        }`}
+                      >
+                        <span className={`text-[11px] font-bold uppercase tracking-[0.07em] sm:tracking-[0.16em] transition-colors duration-200 ${selected ? 'text-lb-primary' : 'text-lb-primary/55'}`}>
+                          {t.label}
+                          {isNewTab && <NewDot className="sm:hidden inline-block ml-1.5 align-[2px] w-[7px] h-[7px]" />}
+                        </span>
+                        <span className="hidden sm:block text-xs text-lb-primary/60 tabular-nums">{counts[t.id]}</span>
+                        {isNewTab && <NewDot className="hidden sm:block absolute right-[18px] top-1/2 -mt-[3.5px] w-[7px] h-[7px]" />}
+                      </button>
+                    );
+                  })}
+                  <span
+                    ref={indRef}
+                    aria-hidden="true"
+                    className="lb-tab-ind lb-instant absolute pointer-events-none bg-lb-accent origin-top-left left-0 bottom-0 h-0.5 w-px sm:bottom-auto sm:top-0 sm:h-px sm:w-[3px]"
+                  />
                 </div>
               </div>
 
-              {/* Panel */}
-              <div className="relative flex-1 min-h-0 flex flex-col">
-                <button
-                  onClick={onClose}
-                  className="pressable pressable-icon hidden sm:block absolute top-3 right-3 z-20 p-1.5 text-lb-muted hover:text-lb-primary hover:bg-lb-bg rounded-md transition-colors"
-                  aria-label="Close"
-                >
-                  <X size={22} />
-                </button>
-                <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 sm:px-8 pb-5 sm:pt-6">
-                <AnimatePresence mode="wait" initial={false}>
-                <motion.div
-                  key={activeTab}
-                  initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
-                  transition={{ duration: DUR_PANEL, ease: EASE_OUT }}
-                >
-                  {activeTab === 'journal' && (
-                    <>
-                {actNumbers.length === 0 ? (
-                  <p className="text-[15px] text-lb-muted font-sans italic py-8 text-center">
-                    Watson has yet to commit anything to his diary.
-                  </p>
-                ) : (
-                  actNumbers.map(act => {
-                    const expanded = openAct === act;
-                    // Newest-first by sequence, except the act-closing reflection
-                    // ("Watson's reflections") always reads last — it is the act's
-                    // capstone, regardless of when it happened to be captured.
-                    const actEntries = [...byAct.get(act)!].sort((a, b) => {
-                      if (a.kind === 'act' && b.kind !== 'act') return 1;
-                      if (b.kind === 'act' && a.kind !== 'act') return -1;
-                      return b.sequence - a.sequence;
-                    });
-                    const leads = actLeads(act, flags);
-                    const complete = act < currentAct || (leads != null && leads.found >= leads.total);
-                    return (
-                      <div key={act}>
-                        <button
-                          onClick={() => setOpenAct(prev => (prev === act ? null : act))}
-                          className="sticky top-0 z-10 w-full flex items-center justify-between gap-3 py-3.5 sm:pr-10 bg-lb-paper text-left"
-                        >
-                          <span className={`flex-1 min-w-0 uppercase tracking-widest text-[13px] font-bold ${act === currentAct ? 'text-lb-accent' : 'text-lb-muted'}`}>
-                            {actLabel(act)}
-                            {act === currentAct && <span className="ml-2 normal-case tracking-normal text-[11px] opacity-70">· current</span>}
-                          </span>
-                          <span className="flex items-center gap-3 shrink-0">
-                            {complete ? (
-                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-lb-accent/50 bg-lb-accent/10 text-lb-accent text-xs font-semibold">
-                                <Check size={13} /> Complete
-                              </span>
-                            ) : leads ? (
-                              <Tooltip label={`${leads.found} of ${leads.total} leads followed`}>
-                                <span
-                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-lb-accent/40 bg-lb-accent/10 text-lb-accent text-xs font-semibold"
-                                  aria-label={`${leads.found} of ${leads.total} leads followed`}
-                                >
-                                  <span className="flex items-center gap-1">
-                                    {Array.from({ length: leads.total }).map((_, i) => (
-                                      <span
-                                        key={i}
-                                        className={`w-2 h-2 rounded-full border border-current ${i < leads.found ? 'bg-current' : ''}`}
-                                      />
-                                    ))}
-                                  </span>
-                                  <span className="text-[11px] tracking-wide">leads</span>
-                                </span>
-                              </Tooltip>
-                            ) : null}
-                            <ChevronDown
-                              size={18}
-                              className={`text-lb-muted transition-transform ${expanded ? '' : '-rotate-90'}`}
-                            />
-                          </span>
-                        </button>
-
-                        <div
-                          className={`grid transition-[grid-template-rows] duration-300 ease-out ${
-                            expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-                          }`}
-                        >
-                          <div className="overflow-hidden">
-                          <div className="space-y-5 pt-1 pb-6">
-                            {actEntries.map(entry => {
-                              const resolved = resolveDiaryEntry(entry);
-                              if (!resolved) return null;
-                              const Icon = KIND_ICON[entry.kind];
-                              const isReflection = entry.kind === 'act';
-                              const isNew = newEntryIds?.has(entry.id) ?? false;
-                              return (
-                                <div key={entry.id} className="flex gap-3.5">
-                                  <Icon size={20} className="text-lb-accent mt-0.5 shrink-0" />
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-baseline justify-between gap-3">
-                                      <p className={`text-base text-lb-primary flex items-center flex-wrap gap-x-2 ${isReflection ? 'font-sans italic font-semibold' : 'font-semibold'}`}>
-                                        <span>{resolved.title}</span>
-                                        {entry.isLead && (
-                                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-lb-accent/50 bg-lb-accent/10 text-lb-accent text-[10px] font-bold tracking-wider uppercase">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-current" />Lead
-                                          </span>
-                                        )}
-                                        {isNew && (
-                                          <span className="text-lb-accent text-xs font-bold italic" title="New since you last opened your diary">New</span>
-                                        )}
-                                      </p>
-                                      {entry.timeLabel && (
-                                        <span className="shrink-0 text-xs text-lb-muted tabular-nums">{entry.timeLabel}</span>
-                                      )}
-                                    </div>
-                                    {resolved.body && (
-                                      isReflection ? (
-                                        <p className="mt-2 border-l-2 border-lb-accent/45 pl-4 font-sans italic text-[15px] text-lb-primary/90 leading-relaxed">
-                                          {resolved.body}
-                                        </p>
-                                      ) : (
-                                        <p className="mt-1.5 text-[15px] font-sans text-lb-primary/90 leading-relaxed">
-                                          {resolved.body}
-                                        </p>
-                                      )
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-                    </>
-                  )}
-                  {activeTab === 'evidence' && <EvidencePanel entries={entries} />}
-                  {activeTab === 'persons' && <PersonsPanel flags={flags} />}
-                  {activeTab === 'documents' && <DocumentsPanel flags={flags} inventory={inventory} />}
-                </motion.div>
-                </AnimatePresence>
-                </div>
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-7 bg-gradient-to-t from-lb-paper to-transparent sm:rounded-b-xl" />
+              {/* Panels: one grid cell, so switching never resizes the desktop card */}
+              <div
+                ref={panelsRef}
+                className="grid min-h-0 min-w-0 overflow-hidden touch-pan-y"
+                onPointerDown={onPanelsDown}
+                onPointerMove={onPanelsMove}
+                onPointerUp={e => onPanelsUp(e, false)}
+                onPointerCancel={e => onPanelsUp(e, true)}
+              >
+                {TABS.map(t => (
+                  <div
+                    key={t.id}
+                    ref={el => { panelRefs.current[t.id] = el; }}
+                    id={`diary-panel-${t.id}`}
+                    role="tabpanel"
+                    aria-labelledby={`diary-tab-${t.id}`}
+                    className="lb-dpanel touch-pan-y"
+                  >
+                    <div className="px-5 pt-5 pb-[calc(28px+env(safe-area-inset-bottom,0px))] sm:pl-8 sm:pr-16 sm:pt-7 sm:pb-9">
+                      {t.id === 'journal' && (
+                        <JournalPanel
+                          entries={entries}
+                          currentAct={currentAct}
+                          openAct={openAct}
+                          onToggleAct={act => setOpenAct(prev => (prev === act ? null : act))}
+                          newEntryIds={newEntryIds}
+                        />
+                      )}
+                      {t.id === 'evidence' && <EvidencePanel entries={entries} newEntryIds={newEntryIds} />}
+                      {t.id === 'persons' && <PersonsPanel flags={flags} />}
+                      {t.id === 'documents' && <DocumentsPanel flags={flags} inventory={inventory} />}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </motion.div>

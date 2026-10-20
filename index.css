@@ -163,3 +163,50 @@
     animation: none !important;
   }
 }
+
+/* ── Watson's diary: tab panels ────────────────────────────────────────────
+   All panels share one grid cell so a tab change never resizes the card.
+   Transitions (not keyframes), so quick tab hopping retargets mid-motion.
+   DiaryModal sets data-state (active / leaving / idle) and the --off / --out
+   offsets imperatively, direction-aware from the tab order. */
+.lb-dpanel {
+  grid-area: 1 / 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  visibility: hidden;
+  opacity: 0;
+  transform: var(--off, none);
+  transition: opacity .22s cubic-bezier(.23,1,.32,1), transform .22s cubic-bezier(.23,1,.32,1),
+    filter .14s cubic-bezier(.23,1,.32,1), visibility 0s linear .22s;
+}
+.lb-dpanel[data-state="active"] {
+  visibility: visible; opacity: 1; transform: none; filter: none;
+  transition: opacity .22s cubic-bezier(.23,1,.32,1) .04s, transform .22s cubic-bezier(.23,1,.32,1) .04s, visibility 0s;
+}
+.lb-dpanel[data-state="leaving"] {
+  visibility: visible; opacity: 0; transform: var(--out, none); filter: blur(2px); pointer-events: none;
+  transition: opacity .14s cubic-bezier(.23,1,.32,1), transform .14s cubic-bezier(.23,1,.32,1),
+    filter .14s cubic-bezier(.23,1,.32,1), visibility 0s linear .14s;
+}
+.lb-dpanel.lb-no-anim, .lb-dpanel.lb-dragging { transition: none !important; }
+/* Mobile sheet: a panel is only as tall as its content, so the sheet can size to it. */
+@media (max-width: 639px) {
+  .lb-dpanel { align-self: start; max-height: 100%; }
+}
+.lb-stagger { animation: lb-d-item .22s cubic-bezier(.23,1,.32,1) both; animation-delay: calc(var(--i, 0) * 40ms + 120ms); }
+@keyframes lb-d-item { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.lb-tab-ind { transition: transform .3s cubic-bezier(.23,1,.32,1); will-change: transform; }
+.lb-tab-ind.lb-instant { transition: none; }
+.lb-arrive { animation: lb-arrive .24s cubic-bezier(.23,1,.32,1); }
+@keyframes lb-arrive { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+
+/* Reduced motion: no movement or blur, but short fades stay so changes are still explained. */
+@media (prefers-reduced-motion: reduce) {
+  .lb-dpanel, .lb-dpanel[data-state] { transform: none !important; filter: none !important; }
+  .lb-dpanel[data-state="active"] { transition: opacity .15s ease, visibility 0s !important; }
+  .lb-dpanel, .lb-dpanel[data-state="leaving"] { transition: opacity .12s ease, visibility 0s linear .12s !important; }
+  .lb-stagger, .lb-arrive { animation: lb-fade-only .15s ease both !important; }
+  .lb-tab-ind { transition: none; }
+}
+@keyframes lb-fade-only { from { opacity: 0; } to { opacity: 1; } }

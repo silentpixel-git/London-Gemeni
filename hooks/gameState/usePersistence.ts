@@ -58,7 +58,6 @@ export interface PersistenceDeps {
   diaryEntries: DiaryEntry[];
   setDiaryEntries: React.Dispatch<React.SetStateAction<DiaryEntry[]>>;
   diarySeqRef: React.MutableRefObject<number>;
-  loggedLocationsRef: React.MutableRefObject<Set<string>>;
   // scenes (from useSceneStreams)
   hasGeneratedOpening: React.MutableRefObject<boolean>;
   generateOpeningScene: () => Promise<void>;
@@ -119,7 +118,6 @@ export function usePersistence(deps: PersistenceDeps) {
     diaryEntries,
     setDiaryEntries,
     diarySeqRef,
-    loggedLocationsRef,
     hasGeneratedOpening,
     generateOpeningScene,
     streamResumeScene,
@@ -174,7 +172,6 @@ export function usePersistence(deps: PersistenceDeps) {
     const loadedDiary = await GameRepository.getDiaryEntries(investigation.id);
     setDiaryEntries(loadedDiary);
     diarySeqRef.current = loadedDiary.reduce((m, e) => Math.max(m, e.sequence), -1) + 1;
-    loggedLocationsRef.current = new Set(loadedDiary.filter(e => e.kind === 'location').map(e => e.refId));
 
     const npcMap = await GameRepository.getAllNPCStates(investigation.id);
     const storedNpcStates: Record<string, NPCState> = Object.keys(npcMap).length > 0
@@ -369,7 +366,6 @@ export function usePersistence(deps: PersistenceDeps) {
       if (state.diaryEntries) {
         setDiaryEntries(state.diaryEntries);
         diarySeqRef.current = state.diaryEntries.reduce((m, e) => Math.max(m, e.sequence), -1) + 1;
-        loggedLocationsRef.current = new Set(state.diaryEntries.filter(e => e.kind === 'location').map(e => e.refId));
       }
       setPendingActTransition(null);
       setIsActBreakReady(false);
@@ -575,7 +571,6 @@ export function usePersistence(deps: PersistenceDeps) {
     setJournalNotes(INITIAL_JOURNAL);
     setDiaryEntries([]);
     diarySeqRef.current = 0;
-    loggedLocationsRef.current = new Set();
     setActiveInvestigation(null);
 
     // Create a fresh investigation for logged-in users

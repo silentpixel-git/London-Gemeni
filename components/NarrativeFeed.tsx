@@ -137,8 +137,9 @@ export function NarrativeFeed({
 
           // Act-closing journal entry — diary styling. The latest one types out.
           if (isJournal && msg.text !== '') {
+            // StoryRenderer sets its own prose ramp; the child selectors restyle it as an aside.
             const diaryInnerClass =
-              "font-serif text-lb-primary/60 italic text-sm md:text-[15px] leading-relaxed";
+              "italic [&>div]:font-serif [&>div]:text-[15px] [&>div]:leading-[1.7] [&>div]:text-lb-primary/70";
             return (
               <motion.div
                 key={index}
@@ -173,7 +174,7 @@ export function NarrativeFeed({
 
           // Watson's thoughts (the hint button) — a quiet aside that types in like the prose.
           if (isHint) {
-            const thoughtClass = "font-serif italic text-[15px] leading-relaxed text-lb-primary/70";
+            const thoughtClass = "italic [&>div]:font-serif [&>div]:text-[15px] [&>div]:leading-[1.7] [&>div]:text-lb-primary/70";
             return (
               <motion.div
                 key={index}

@@ -109,6 +109,15 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
 }) => {
   const reducedMotion = useReducedMotion();
+  // The diary badge pops (a small scale, never from zero) only when the count goes up.
+  const badgeRef = useRef<HTMLSpanElement>(null);
+  const lastBadge = useRef(diaryUnreadCount);
+  useEffect(() => {
+    if (diaryUnreadCount > lastBadge.current && !reducedMotion) {
+      badgeRef.current?.animate([{ transform: 'scale(.85)' }, { transform: 'scale(1)' }], { duration: 160, easing: 'cubic-bezier(.23,1,.32,1)' });
+    }
+    lastBadge.current = diaryUnreadCount;
+  }, [diaryUnreadCount, reducedMotion]);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isConfirmingNewGame, setIsConfirmingNewGame] = useState(false);
   const [settingsView, setSettingsView] = useState(false);
@@ -178,7 +187,7 @@ export const Header: React.FC<HeaderProps> = ({
       >
         <BookOpenText size={20} />
         {hasNewDiaryEntries && (
-          <span key={diaryUnreadCount} className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-lb-accent text-white text-[10px] font-bold leading-none animate-in zoom-in-50 fade-in duration-300 ease-out">
+          <span ref={badgeRef} className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-lb-accent text-white text-[10px] font-bold leading-none tabular-nums">
             {diaryUnreadCount > 9 ? '9+' : diaryUnreadCount}
           </span>
         )}
