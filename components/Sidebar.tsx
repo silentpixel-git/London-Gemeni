@@ -5,7 +5,7 @@
  * objects of interest, and available exits.
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { MapPin, Briefcase, DoorOpen, User, Search, X, CloudFog, CloudDrizzle, CloudRain, Cloudy, Moon, Haze, type LucideIcon } from 'lucide-react';
 import { LOCATIONS, NPCS, NPC_ALIASES, OBJECT_DISPLAY_NAMES, OBJECT_VISIBILITY, CONTAINER_CONTENTS } from '../engine/gameData';
 import type { ActWeather, WeatherCondition } from '../engine/gameData';
@@ -86,6 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const visibleObjects = visibleIds
     .filter(id => !containedIds.has(id))
     .map(id => ({
+      id,
       name: OBJECT_DISPLAY_NAMES[id] || id,
       // A container with no revealed contents is annotated as closed; one with
       // children needs no marker, since the indentation already says it is open.
@@ -95,9 +96,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
         .map(c => OBJECT_DISPLAY_NAMES[c] || c),
     }));
 
+  // Items that appear while Watson stays in one place (a bag item, a revealed
+  // object, an arrival) slide in; a new location shows its lists at once.
+  // `keys` is what was listed on arriving; anything else here is new (the class
+  // stays put, so later re-renders never cut the animation short).
+  const shown = useRef<{ location: string; keys: Set<string> }>({ location: '', keys: new Set() });
+  const arrive = (key: string) =>
+    shown.current.location === location && !shown.current.keys.has(key) ? 'lb-arrive' : '';
+  const keys = [
+    ...inventory.map(i => `i:${i}`),
+    ...presentNpcs.map(n => `n:${n.npcId}`),
+    ...visibleObjects.flatMap(o => [`o:${o.id}`, ...o.children.map(c => `c:${c}`)]),
+    ...visibleExits.map(e => `e:${e}`),
+  ];
+  useEffect(() => {
+    if (shown.current.location !== location) shown.current = { location, keys: new Set(keys) };
+  });
+
   return (
     <div className={`
-      fixed lg:relative z-50 h-full border-r border-lb-border transition-transform duration-[320ms] ease-drawer lg:transition-none flex flex-col bg-lb-bg flex-shrink-0 overflow-hidden w-80
+      fixed lg:relative z-50 h-full border-r border-lb-border transition-transform [transition-duration:320ms] ease-drawer lg:transition-none flex flex-col bg-lb-bg flex-shrink-0 overflow-hidden w-80
       ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 lg:-ml-80'}
     `} data-flip>
       {/* Mobile close button */}
@@ -136,8 +154,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className="uppercase tracking-widest text-xs font-bold">Medical Bag</span>
           </div>
           <ul className="space-y-3">
-            {inventory.map((item, idx) => (
-              <li key={idx} className="flex items-center gap-3 text-lb-primary opacity-90">
+            {inventory.map(item => (
+              <li key={item} className={`flex items-center gap-3 text-lb-primary opacity-90 ${arrive(`i:${item}`)}`}>
                 <div className="w-1.5 h-1.5 rounded-full bg-lb-accent" />
                 <span className="font-sans text-md">{item}</span>
               </li>
@@ -165,7 +183,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   ? (NPC_DISPLAY_NAMES[state.npcId as keyof typeof NPC_DISPLAY_NAMES] || npc?.displayName || state.npcId)
                   : (npc?.alias ?? NPC_ALIASES[state.npcId] ?? NPC_DISPLAY_NAMES[state.npcId as keyof typeof NPC_DISPLAY_NAMES] ?? state.npcId);
                 return (
-                  <li key={state.npcId} className="flex flex-col gap-1 text-lb-primary opacity-90">
+                  <li key={state.npcId} className={`flex flex-col gap-1 text-lb-primary opacity-90 ${arrive(`n:${state.npcId}`)}`}>
                     <div className="flex items-center gap-3">
                       <div className="w-1.5 h-1.5 rounded-full bg-lb-accent" />
                       <span className="font-sans text-md capitalize">{displayName}</span>
@@ -186,8 +204,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           {visibleObjects.length > 0 ? (
             <ul className="space-y-3">
-              {visibleObjects.map((obj, idx) => (
-                <li key={idx}>
+              {visibleObjects.map(obj => (
+                <li key={obj.id} className={arrive(`o:${obj.id}`)}>
                   <div className="flex items-center gap-3 text-lb-primary opacity-90">
                     <div className="w-1.5 h-1.5 rounded-full bg-lb-accent" />
                     <span className="font-sans text-md">{obj.name}</span>
@@ -197,8 +215,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                   {obj.children.length > 0 && (
                     <ul className="mt-3 ml-6 space-y-3">
-                      {obj.children.map((childName, cIdx) => (
-                        <li key={cIdx} className="flex items-center gap-3 text-lb-primary opacity-90">
+                      {obj.children.map(childName => (
+                        <li key={childName} className={`flex items-center gap-3 text-lb-primary opacity-90 ${arrive(`c:${childName}`)}`}>
                           <div className="w-1.5 h-1.5 rounded-full border border-lb-accent" />
                           <span className="font-sans text-md">{childName}</span>
                         </li>
@@ -221,10 +239,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           {visibleExits.length > 0 ? (
             <ul className="space-y-3">
-              {visibleExits.map((exitId, idx) => {
+              {visibleExits.map(exitId => {
                 const exitData = LOCATIONS[exitId];
                 return (
-                  <li key={idx} className="flex items-center gap-3 text-lb-primary opacity-90">
+                  <li key={exitId} className={`flex items-center gap-3 text-lb-primary opacity-90 ${arrive(`e:${exitId}`)}`}>
                     <div className="w-1.5 h-1.5 rounded-full bg-lb-accent" />
                     <span className="font-sans text-md">{exitData?.shortName || exitId}</span>
                   </li>

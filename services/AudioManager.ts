@@ -16,6 +16,8 @@ import { AMBIENT_BEDS, WEATHER_LAYERS, SFX_FILES, SfxId } from './audioManifest'
 
 const FADE_MS = 1200;
 const BED_VOLUME = 0.5;
+// One-shots sit under the ambience, at about half the bed (docs/audio-prompts.md).
+const SFX_VOLUME = BED_VOLUME * 0.5;
 
 class AudioManager {
   private sfxEnabled = false;
@@ -50,7 +52,7 @@ class AudioManager {
     if (!file) return;
     let howl = this.sfxCache.get(id);
     if (!howl) {
-      howl = new Howl({ src: [file], volume: 0.7, preload: true });
+      howl = new Howl({ src: [file], volume: SFX_VOLUME, preload: true });
       this.sfxCache.set(id, howl);
     }
     howl.play();
