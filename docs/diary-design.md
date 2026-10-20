@@ -1,6 +1,8 @@
 # Diary — the game's frame, lighter content
 
-Design note for porting the prototype diary (`docs/act0-prototype.html`) into the game. Nothing in `components/` or `engine/` has changed yet.
+Design note for porting the prototype diary (`docs/act0-prototype.html`) into the game.
+
+**Status:** the frame and motion are now in the game (`components/DiaryModal.tsx`): spine, tabs with counts and new-dots, sliding indicator, animated tab switches, swipe, keyboard tabs, the mobile sheet that fits its content, the toast and the badge pop. Location-arrival entries are no longer written. The game still shows today's content (Journal entries from clues, decisions and the act reflection; Evidence; Persons; Documents). **Still to do, as an act-authoring task:** the content model below — Quick notes replacing Evidence, Encounter/Clue/Decision entries with quill links, and a written Reflection for every act instead of AI-written text.
 
 It went through four attempts:
 1. Open questions read as a to-do list.

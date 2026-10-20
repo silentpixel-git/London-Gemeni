@@ -9,7 +9,7 @@
  * Everything else lives in hooks/useGameState.ts and the focused components.
  */
 
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { cssEase, EASE_IN_OUT } from './components/motionTokens';
 import { SupabaseProvider, useSupabase } from './components/SupabaseProvider';
@@ -95,6 +95,15 @@ const AppContent: React.FC = () => {
     setIsDiaryToastShown(false);
     setIsDiaryOpen(true);
   };
+  const closeDiary = useCallback(() => setIsDiaryOpen(false), []);
+
+  // A new game or a load replaces the entries wholesale: forget the old seen state.
+  useEffect(() => {
+    if (gs.diaryEntries.length < diarySeenCount) {
+      setDiarySeenCount(0);
+      diarySeenTabs.current = null;
+    }
+  }, [gs.diaryEntries.length, diarySeenCount]);
 
   // "Noted in the diary": a short toast when play records something while the diary is closed.
   useEffect(() => {
@@ -330,7 +339,7 @@ const AppContent: React.FC = () => {
       />
       <DiaryModal
         isOpen={isDiaryOpen}
-        onClose={() => setIsDiaryOpen(false)}
+        onClose={closeDiary}
         entries={gs.diaryEntries}
         currentAct={gs.currentAct}
         flags={gs.flags}

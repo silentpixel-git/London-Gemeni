@@ -6,7 +6,7 @@
  * AI narration), and the GameOverScreen when the case closes.
  */
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { Feather, Lightbulb, MapPin } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { EASE_OUT, DUR_DRAMATIC, DUR_PANEL } from './motionTokens';
@@ -75,18 +75,9 @@ export function NarrativeFeed({
 }: NarrativeFeedProps) {
   const reducedMotion = useReducedMotion();
   const contentRef = useRef<HTMLDivElement>(null);
+  // Every block — the act-closing journal included — types in below the last
+  // and is followed line by line, so the reader always starts at its first line.
   const follow = useFeedFollow(scrollRef, contentRef, dockRef, history.length);
-  // Anchor the act-closing diary to the TOP of the viewport when it appears, so
-  // the player reads it from line one (rather than the feed jumping to the bottom
-  // and clipping the top of a multi-paragraph entry). Fires once on append —
-  // keyed on history.length, so it does not re-fire during the typewriter.
-  const journalRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const last = history[history.length - 1];
-    if (last?.role === 'assistant' && last.type === 'journal' && journalRef.current) {
-      journalRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [history.length]);
 
   return (
   <div
@@ -143,7 +134,6 @@ export function NarrativeFeed({
             return (
               <motion.div
                 key={index}
-                ref={isLast ? journalRef : null}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: DUR_DRAMATIC, ease: EASE_OUT }}

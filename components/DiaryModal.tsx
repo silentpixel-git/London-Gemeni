@@ -89,7 +89,7 @@ const actLabel = (act: number): string => {
 };
 
 const NewDot: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <span className={`w-2 h-2 rounded-full bg-lb-accent shrink-0 ${className}`} aria-label="new" />
+  <span className={`w-2 h-2 rounded-full bg-lb-accent shrink-0 ${className}`}><span className="sr-only">new</span></span>
 );
 
 const Empty: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -352,21 +352,35 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
   const nextInstant = useRef(true);               // the next panel change skips its animation
   const leaveTimer = useRef<number | undefined>(undefined);
 
-  // Body scroll lock and Esc. Focus goes into the dialog on open and back to the opener on close.
+  // Body scroll lock, Esc, and a focus trap. Focus goes into the dialog on open
+  // and back to the opener on close. Keyed on isOpen only (onClose via a ref), so
+  // parent re-renders never bounce focus while the diary is open.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     if (!isOpen) return;
     openerRef.current = document.activeElement as HTMLElement | null;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     cardRef.current?.focus({ preventScroll: true });
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onCloseRef.current(); return; }
+      if (e.key !== 'Tab' || !cardRef.current) return;
+      const focusable = [...cardRef.current.querySelectorAll<HTMLElement>('button:not([tabindex="-1"]), [href], [tabindex="0"]')]
+        .filter(el => el.offsetParent !== null);
+      if (focusable.length === 0) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      const inside = cardRef.current.contains(document.activeElement);
+      if (e.shiftKey && (document.activeElement === first || !inside)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !inside)) { e.preventDefault(); first.focus(); }
+    };
     window.addEventListener('keydown', handleKey);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', handleKey);
       openerRef.current?.focus?.();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   // Every open lands on Journal with the current act unfolded, without animating there.
   useEffect(() => {
@@ -455,6 +469,7 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
     const raf = requestAnimationFrame(() => setAnimateHeight(true));
     return () => { ro.disconnect(); window.removeEventListener('resize', fit); cancelAnimationFrame(raf); };
   }, [isOpen, isMobile, activeTab]);
+  useEffect(() => () => window.clearTimeout(leaveTimer.current), []);
 
   // Keyboard: the ARIA tabs pattern. Keyboard switches are instant.
   const onTabKey = (e: React.KeyboardEvent) => {
