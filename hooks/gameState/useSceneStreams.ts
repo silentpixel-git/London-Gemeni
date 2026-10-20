@@ -31,7 +31,6 @@ export interface SceneStreamsDeps {
   // setters owned by the orchestrator
   setHistory: React.Dispatch<React.SetStateAction<GameHistoryItem[]>>;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsAutoScrollLocked: React.Dispatch<React.SetStateAction<boolean>>;
   setFlags: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   scrollRef: React.RefObject<HTMLDivElement>;
   captureLocationArrival: (locationId: string, actNumber: number, timeLabel: string) => void;
@@ -55,7 +54,6 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
     turnCount,
     setHistory,
     setIsLoading,
-    setIsAutoScrollLocked,
     setFlags,
     scrollRef,
     captureLocationArrival,
@@ -172,7 +170,6 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
   }) => {
     const actHeading = formatActHeading(resume.act);
     setHistory([{ role: 'assistant', text: '', actHeading }]);
-    setIsAutoScrollLocked(false);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
     try {
       const intent = parseIntent('look');
@@ -248,7 +245,6 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
     // the top so it reads as a clean start (masthead + the act's opening scene).
     const actHeading = formatActHeading(toAct);
     setHistory([{ role: 'assistant', text: '', actHeading }]);
-    setIsAutoScrollLocked(false);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
     try {
       const intent = parseIntent('look');

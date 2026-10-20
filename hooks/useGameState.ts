@@ -66,7 +66,6 @@ export interface GameStateReturn {
   // Narrative
   history: GameHistoryItem[];
   isLoading: boolean;
-  isAutoScrollLocked: boolean;
   isGameOver: boolean;
   endingType: 'cold_case' | 'true_ending' | null;
   isConsultingHolmes: boolean;
@@ -109,7 +108,6 @@ export interface GameStateReturn {
 
   // Refs
   scrollRef: React.RefObject<HTMLDivElement>;
-  lastUserMessageRef: React.RefObject<HTMLDivElement>;
 
   // Act-break curtain
   pendingActTransition: PendingActTransition | null;
@@ -127,7 +125,6 @@ export interface GameStateReturn {
   handleSaveGame: (silent?: boolean, overrides?: SaveGameOverrides) => Promise<boolean>;
   handleLoadGame: () => Promise<void>;
   handleConsultHolmes: () => Promise<void>;
-  handleScroll: () => void;
 
   // Save slots
   refreshSlots: () => Promise<void>;
@@ -144,7 +141,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // ── Narrative state ─────────────────────────────────────────────────────
   const [history, setHistory] = useState<GameHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isAutoScrollLocked, setIsAutoScrollLocked] = useState(true);
 
   // ── World state ─────────────────────────────────────────────────────────
   const [location, setLocation] = useState(INITIAL_LOCATION);
@@ -209,7 +205,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const scrollRef = useRef<HTMLDivElement>(null);
-  const lastUserMessageRef = useRef<HTMLDivElement>(null);
   // True while per-turn cloud persists are failing — dedupes the failure toast
   // to once per streak instead of once per turn during an outage.
   const cloudPersistFailedRef = useRef(false);
@@ -242,51 +237,11 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       turnCount,
       setHistory,
       setIsLoading,
-      setIsAutoScrollLocked,
       setFlags,
       scrollRef,
       captureLocationArrival,
       previousNpcIdsRef,
     });
-
-  // ── Effects ───────────────────────────────────────────────────────────────
-
-  // Scroll to active turn when new assistant placeholder appears
-  const scrollToActiveTurn = useCallback(() => {
-    if (lastUserMessageRef.current) {
-      lastUserMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, []);
-
-  useEffect(() => {
-    const lastMsg = history[history.length - 1];
-    if (
-      lastMsg?.role === 'assistant' &&
-      lastMsg.text === '' &&
-      history.length > 1 &&
-      history[history.length - 2].role === 'user'
-    ) {
-      requestAnimationFrame(() => scrollToActiveTurn());
-    }
-  }, [history.length, scrollToActiveTurn]);
-
-  // ── Scroll helpers ────────────────────────────────────────────────────────
-
-  const handleScroll = useCallback(() => {
-    if (scrollRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-      setIsAutoScrollLocked(scrollHeight - scrollTop - clientHeight < 100);
-    }
-  }, []);
-
-  const scrollToBottom = useCallback(
-    (force = false) => {
-      if (scrollRef.current && (isAutoScrollLocked || force)) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
-    },
-    [isAutoScrollLocked]
-  );
 
   // ── Persistence (save/load/slots/realtime sync) ─────────────────────────────
   const {
@@ -379,7 +334,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     clearTurnFailure();
     setIsLoading(true);
-    setIsAutoScrollLocked(false);
 
     // A 'turn' retry (the engine never resolved) replays STEP 1 onward without
     // re-adding the player's command — it's still the same turn, not a new one.
@@ -1056,7 +1010,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // the screen with attempts incremented instead of throwing unhandled.
       const retryNarration = async () => {
         setIsLoading(true);
-        setIsAutoScrollLocked(false);
         try {
           await runNarrationPipeline();
           clearTurnFailure();
@@ -1064,7 +1017,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           handleFailure(err);
         } finally {
           setIsLoading(false);
-          setIsAutoScrollLocked(true);
         }
       };
       retryNarrationRef = retryNarration;
@@ -1075,7 +1027,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       handleFailure(error);
     } finally {
       setIsLoading(false);
-      setIsAutoScrollLocked(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, lastApproachAtMinutes, handleSaveGame, captureDiaryEntries, captureLocationArrival, clearTurnFailure, raiseTurnFailure]);
@@ -1093,26 +1044,21 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
       setHistory(prev => [
         ...prev,
-        {
-          role: 'assistant',
-          text: `> *A thought surfaced, unbidden.*\n\n${hint}`,
-        },
+        { role: 'assistant', text: hint, type: 'hint' },
       ]);
-      setTimeout(() => scrollToBottom(true), 100);
     } catch (error) {
       console.error('Hint failed', error);
     } finally {
       setIsConsultingHolmes(false);
       setIsLoading(false);
     }
-  }, [isConsultingHolmes, isLoading, currentAct, location, flags, inventory, npcStates, locationVisitCounts, scrollToBottom]);
+  }, [isConsultingHolmes, isLoading, currentAct, location, flags, inventory, npcStates, locationVisitCounts]);
 
   // ── Return ────────────────────────────────────────────────────────────────
 
   return {
     history,
     isLoading,
-    isAutoScrollLocked,
     isGameOver,
     endingType,
     isConsultingHolmes,
@@ -1156,7 +1102,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     retryConnections: checkConnections,
 
     scrollRef,
-    lastUserMessageRef,
 
     pendingActTransition,
     isActBreakReady,
@@ -1171,7 +1116,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     handleSaveGame,
     handleLoadGame,
     handleConsultHolmes,
-    handleScroll,
 
     refreshSlots,
     handleSelectSlot,

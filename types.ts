@@ -14,7 +14,7 @@ export type ThemeMode = 'light' | 'dark' | 'auto';
 export interface GameHistoryItem {
   role: 'user' | 'assistant' | 'system';
   text: string;
-  type?: 'journal'; // marks act-closing diary entries in the narrative feed
+  type?: 'journal' | 'hint'; // act-closing diary entries / Watson's thoughts (the hint button) in the feed
   /** Scene-entry chrome (opening / act arrival / resume only) — rendered by the feed, never part of the AI text. */
   actHeading?: string;
   /** Engine-verified location name, set on full/opening-mode turns (move / look / scene entry) — rendered as the pin header. */

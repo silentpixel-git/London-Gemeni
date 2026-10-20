@@ -51,6 +51,8 @@ interface CommandInputProps {
   history: GameHistoryItem[];
   onAction: (userAction: string) => Promise<void>;
   onConsultHolmes: () => void;
+  /** Lets the feed keep typed text clear of the input. */
+  dockRef?: React.Ref<HTMLFormElement>;
 }
 
 export const CommandInput: React.FC<CommandInputProps> = ({
@@ -61,6 +63,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
   history,
   onAction,
   onConsultHolmes,
+  dockRef,
 }) => {
   const reducedMotion = useReducedMotion();
   const [input, setInput] = useState('');
@@ -97,6 +100,8 @@ export const CommandInput: React.FC<CommandInputProps> = ({
   return (
     <div className="absolute bottom-0 left-0 right-0 px-8 pb-[max(2rem,env(safe-area-inset-bottom))] pt-10 md:px-16 md:pb-[max(3rem,env(safe-area-inset-bottom))] md:pt-16 lg:pt-18 bg-gradient-to-t from-lb-bg to-transparent pointer-events-none">
       <form
+        ref={dockRef}
+        data-flip
         onSubmit={handleSubmit}
         className="relative pointer-events-auto max-w-3xl mx-auto"
       >

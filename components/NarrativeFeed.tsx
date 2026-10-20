@@ -7,22 +7,23 @@
  */
 
 import React, { useRef, useEffect } from 'react';
-import { Feather, MapPin } from 'lucide-react';
+import { Feather, Lightbulb, MapPin } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { EASE_OUT, DUR_DRAMATIC, DUR_PANEL } from './motionTokens';
 import { StoryRenderer } from './StoryRenderer';
 import { TypewriterBlock } from './TypewriterBlock';
 import { GameOverScreen } from './GameOverScreen';
 import { GameHistoryItem, PendingActTransition } from '../types';
+import { useFeedFollow } from '../hooks/gameState/useFeedFollow';
 import { ACT_ROMAN } from '../constants';
 
 interface NarrativeFeedProps {
   history: GameHistoryItem[];
   isGameOver: boolean;
   actualLastUserIdx: number;
-  lastUserMessageRef: React.RefObject<HTMLDivElement>;
   scrollRef: React.RefObject<HTMLDivElement>;
-  onScroll: () => void;
+  /** The command dock's form: the feed never types text underneath it. */
+  dockRef: React.RefObject<HTMLElement>;
   onJournalDone?: () => void;
   pendingActTransition: PendingActTransition | null;
   isActBreakReady: boolean;
@@ -65,15 +66,16 @@ export function NarrativeFeed({
   history,
   isGameOver,
   actualLastUserIdx,
-  lastUserMessageRef,
   scrollRef,
-  onScroll,
+  dockRef,
   onJournalDone,
   pendingActTransition,
   isActBreakReady,
   onBeginAct,
 }: NarrativeFeedProps) {
   const reducedMotion = useReducedMotion();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const follow = useFeedFollow(scrollRef, contentRef, dockRef, history.length);
   // Anchor the act-closing diary to the TOP of the viewport when it appears, so
   // the player reads it from line one (rather than the feed jumping to the bottom
   // and clipping the top of a multi-paragraph entry). Fires once on append —
@@ -89,11 +91,10 @@ export function NarrativeFeed({
   return (
   <div
     ref={scrollRef}
-    onScroll={onScroll}
-    className="flex-1 overflow-y-auto px-8 md:px-16 pb-[60vh] scrollbar-thin scrollbar-thumb-lb-accent/20 scrollbar-track-transparent scroll-smooth"
+    className="flex-1 overflow-y-auto px-8 md:px-16 scrollbar-thin scrollbar-thumb-lb-accent/20 scrollbar-track-transparent"
   >
     {/* Title lockup */}
-    <div className="max-w-3xl mx-auto pt-8 pb-6 z-10">
+    <div className="max-w-3xl mx-auto pt-8 pb-6 z-10" data-flip>
       <h1 className="font-serif text-5xl md:text-[76px] text-lb-primary leading-none mb-2 text-balance">
         London Bleeds
       </h1>
@@ -103,11 +104,12 @@ export function NarrativeFeed({
     </div>
 
     {/* History */}
-    <div className="max-w-3xl mx-auto">
+    <div ref={contentRef} className="max-w-3xl mx-auto" data-flip>
       <AnimatePresence initial={false}>
         {history.map((msg, index) => {
           const isAI = msg.role === 'assistant';
           const isJournal = isAI && msg.type === 'journal';
+          const isHint = isAI && msg.type === 'hint';
           const isLast = index === history.length - 1;
           const isLatestUser = index === actualLastUserIdx;
 
@@ -116,11 +118,10 @@ export function NarrativeFeed({
             return (
               <motion.div
                 key={index}
-                ref={isLatestUser ? lastUserMessageRef : null}
                 initial={isLatestUser ? { y: 12, opacity: 0 } : { opacity: 1 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={reducedMotion ? { duration: 0 } : { duration: 0.25, ease: EASE_OUT }}
-                className="my-8 scroll-mt-[120px]"
+                className="my-8"
               >
                 <div className="pl-6 border-l-[3px] border-lb-accent">
                   {/* Same type ramp as the narration in StoryRenderer — the
@@ -156,11 +157,45 @@ export function NarrativeFeed({
                     <TypewriterBlock
                       text={msg.text}
                       onComplete={onJournalDone}
+                      onProgress={follow}
                       className={diaryInnerClass}
                       cursorClassName="inline-block w-1 h-[1em] bg-lb-muted opacity-40 animate-pulse ml-0.5 align-text-bottom"
                     />
                   ) : (
                     <div className={diaryInnerClass}>
+                      <StoryRenderer text={msg.text} />
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          }
+
+          // Watson's thoughts (the hint button) — a quiet aside that types in like the prose.
+          if (isHint) {
+            const thoughtClass = "font-serif italic text-[15px] leading-relaxed text-lb-primary/70";
+            return (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: DUR_PANEL, ease: EASE_OUT }}
+                className="my-8"
+              >
+                <div className="border-l-2 border-lb-muted/40 pl-6 py-1">
+                  <div className="flex items-center gap-2 mb-2 text-lb-muted">
+                    <Lightbulb size={14} />
+                    <span className="text-[10px] font-sans font-bold uppercase tracking-[0.18em]">Watson's thoughts</span>
+                  </div>
+                  {isLast ? (
+                    <TypewriterBlock
+                      text={msg.text}
+                      onProgress={follow}
+                      className={thoughtClass}
+                      cursorClassName="inline-block w-1 h-[1em] bg-lb-muted opacity-50 animate-pulse ml-0.5 align-text-bottom"
+                    />
+                  ) : (
+                    <div className={thoughtClass}>
                       <StoryRenderer text={msg.text} />
                     </div>
                   )}
@@ -179,7 +214,7 @@ export function NarrativeFeed({
                 className="mb-8"
               >
                 <SceneHeader actHeading={msg.actHeading} location={msg.location} />
-                <TypewriterBlock text={msg.text} />
+                <TypewriterBlock text={msg.text} onProgress={follow} />
               </motion.div>
             );
           }

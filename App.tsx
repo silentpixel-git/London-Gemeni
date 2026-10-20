@@ -9,8 +9,9 @@
  * Everything else lives in hooks/useGameState.ts and the focused components.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { AnimatePresence } from 'motion/react';
+import { cssEase, EASE_IN_OUT } from './components/motionTokens';
 import { SupabaseProvider, useSupabase } from './components/SupabaseProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Notification } from './components/Notification';
@@ -91,6 +92,33 @@ const AppContent: React.FC = () => {
   // guards the effect below would reopen the slot menu every time the player
   // switched away and came back.
   const slotMenuShownFor = useRef<string | null>(null);
+  const dockRef = useRef<HTMLFormElement>(null);
+
+  // Desktop sidebar toggle: one layout change, then FLIP each piece that moves
+  // ([data-flip]: the sidebar, header controls, title, feed column, command
+  // dock). The text column has a fixed max width, so it only glides sideways;
+  // animating the width instead reflowed the column on every frame.
+  const flipFrom = useRef<Map<Element, number> | null>(null);
+  const toggleSidebar = () => {
+    if (window.matchMedia(LG_QUERY).matches && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const els = [...document.querySelectorAll('[data-flip]')];
+      flipFrom.current = new Map(els.map(el => [el, el.getBoundingClientRect().left]));
+      els.forEach(el => el.getAnimations().forEach(a => a.cancel()));
+    }
+    setIsSidebarOpen(s => !s);
+  };
+  useLayoutEffect(() => {
+    const from = flipFrom.current;
+    if (!from) return;
+    flipFrom.current = null;
+    from.forEach((left, el) => {
+      const dx = left - el.getBoundingClientRect().left;
+      if (dx) el.animate(
+        [{ transform: `translateX(${dx}px)` }, { transform: 'none' }],
+        { duration: 260, easing: cssEase(EASE_IN_OUT) },
+      );
+    });
+  }, [isSidebarOpen]);
   const firstRunShownFor = useRef<string | null>(null);
 
   // On login, show the slot-select menu instead of auto-loading the last game.
@@ -220,10 +248,10 @@ const AppContent: React.FC = () => {
         flags={gs.flags}
       />
 
-      <div className="flex-1 flex flex-col h-full relative w-full transition-[width] duration-300 ease-out-expo">
+      <div className="flex-1 flex flex-col h-full relative w-full min-w-0">
         <Header
           isSidebarOpen={isSidebarOpen}
-          onToggleSidebar={() => setIsSidebarOpen(s => !s)}
+          onToggleSidebar={toggleSidebar}
           connectionStatus={gs.connectionStatus}
           onRetryConnection={gs.retryConnections}
           isSaving={gs.isSaving}
@@ -249,9 +277,8 @@ const AppContent: React.FC = () => {
           history={gs.history}
           isGameOver={gs.isGameOver}
           actualLastUserIdx={gs.actualLastUserIdx}
-          lastUserMessageRef={gs.lastUserMessageRef}
           scrollRef={gs.scrollRef}
-          onScroll={gs.handleScroll}
+          dockRef={dockRef}
           onJournalDone={gs.handleJournalTypewriterDone}
           pendingActTransition={gs.pendingActTransition}
           isActBreakReady={gs.isActBreakReady}
@@ -266,6 +293,7 @@ const AppContent: React.FC = () => {
           history={gs.history}
           onAction={gs.handleAction}
           onConsultHolmes={gs.handleConsultHolmes}
+          dockRef={dockRef}
         />
       </div>
 

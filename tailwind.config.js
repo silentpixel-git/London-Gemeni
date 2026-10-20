@@ -36,6 +36,8 @@ export default {
       //   dramatic/scene moments only: duration-500..700
       transitionTimingFunction: {
         'out-expo': 'cubic-bezier(0.16, 1, 0.3, 1)',
+        'out-quint': 'cubic-bezier(0.23, 1, 0.32, 1)',
+        'drawer': 'cubic-bezier(0.32, 0.72, 0, 1)',
       },
     },
   },
