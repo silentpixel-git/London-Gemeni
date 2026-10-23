@@ -61,5 +61,3 @@ export { resolveDiaryEntry } from './stories/whitechapel-1888/diary.js';
 export type { ResolvedDiaryEntry, DiaryKind } from './stories/whitechapel-1888/diary.js';
 export { DECISION_DIARY, DECISION_BY_FLAG } from './stories/whitechapel-1888/diaryDecisions.js';
 export type { DecisionDiaryEntry } from './stories/whitechapel-1888/diaryDecisions.js';
-export { LOCATION_DIARY } from './stories/whitechapel-1888/diaryLocations.js';
-export type { LocationDiaryEntry } from './stories/whitechapel-1888/diaryLocations.js';

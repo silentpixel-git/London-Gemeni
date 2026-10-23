@@ -56,15 +56,13 @@ const TABS: { id: DiaryTab; label: string }[] = [
 const MOBILE_QUERY = '(max-width: 639px)';
 const VELOCITY = 0.11; // px per ms — a flick commits a swipe or closes the sheet
 
-// Location-arrival entries are no longer written; older saves may still hold some.
-const journalEntries = (entries: DiaryEntry[]) => entries.filter(e => e.kind !== 'location');
 const clueEntries = (entries: DiaryEntry[]) => entries.filter(e => e.kind === 'clue' && CLUE_DEFINITIONS[e.refId]);
 const visiblePersons = (flags: Record<string, boolean>) => PERSONS_OF_INTEREST.filter(p => !p.requiresFlag || flags[p.requiresFlag]);
 const filedDocuments = (flags: Record<string, boolean>) => DOCUMENT_OBJECT_IDS.filter(id => flags[`filed_${id}`]);
 
 /** How many items each tab holds — App compares these across visits for the tabs' new-dots. */
 export const diaryTabTotals = (entries: DiaryEntry[], flags: Record<string, boolean>): Record<DiaryTab, number> => ({
-  journal: journalEntries(entries).length,
+  journal: entries.length,
   evidence: clueEntries(entries).length,
   persons: visiblePersons(flags).length,
   documents: filedDocuments(flags).length,
@@ -79,7 +77,6 @@ const KIND_LABEL: Record<DiaryEntry['kind'], string> = {
   decision: 'Decision',
   revelation: 'Revelation',
   act: 'Reflection',
-  location: 'Arrival',
 };
 
 const actLabel = (act: number): string => {
@@ -105,11 +102,10 @@ const JournalPanel: React.FC<{
   onToggleAct: (act: number) => void;
   newEntryIds?: Set<string>;
 }> = ({ entries, currentAct, openAct, onToggleAct, newEntryIds }) => {
-  const list = journalEntries(entries);
-  if (list.length === 0) return <Empty>Watson has yet to commit anything to his diary.</Empty>;
+  if (entries.length === 0) return <Empty>Watson has yet to commit anything to his diary.</Empty>;
 
   const byAct = new Map<number, DiaryEntry[]>();
-  for (const e of list) byAct.set(e.actNumber, [...(byAct.get(e.actNumber) ?? []), e]);
+  for (const e of entries) byAct.set(e.actNumber, [...(byAct.get(e.actNumber) ?? []), e]);
   const acts = Array.from(byAct.keys()).sort((a, b) => b - a);
   let fresh = 0; // stagger index across the newly added entries
 

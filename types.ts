@@ -405,7 +405,7 @@ export interface ActJournalSummary {
  * and AI-generated 'decision' entries with no hand-authored match, carry their
  * prose verbatim in `text` so they stay re-readable in the diary.
  */
-export type DiaryEntryKind = 'clue' | 'act' | 'decision' | 'revelation' | 'location';
+export type DiaryEntryKind = 'clue' | 'act' | 'decision' | 'revelation';
 
 export interface DiaryEntry {
   id: string;            // uuid — also the dedupe key for persistence

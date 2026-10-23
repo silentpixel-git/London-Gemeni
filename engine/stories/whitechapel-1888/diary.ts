@@ -6,9 +6,8 @@
 
 import { CLUE_DEFINITIONS } from './clues.js';
 import { DECISION_DIARY } from './diaryDecisions.js';
-import { LOCATION_DIARY } from './diaryLocations.js';
 
-export type DiaryKind = 'clue' | 'act' | 'decision' | 'revelation' | 'location';
+export type DiaryKind = 'clue' | 'act' | 'decision' | 'revelation';
 
 export interface ResolvedDiaryEntry {
   title: string;
@@ -58,11 +57,6 @@ export function resolveDiaryEntry(entry: {
       const sep = entry.text.indexOf('\n');
       if (sep === -1) return { title: entry.text.trim(), body: '' };
       return { title: entry.text.slice(0, sep).trim(), body: entry.text.slice(sep + 1).trim() };
-    }
-    case 'location': {
-      const l = LOCATION_DIARY[entry.refId];
-      if (!l) return null;
-      return { title: l.name, body: l.diaryNote };
     }
     default:
       return null;
