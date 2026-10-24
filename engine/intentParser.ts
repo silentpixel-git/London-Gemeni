@@ -8,7 +8,7 @@
  * Supports: move, examine, talk, take, use, inventory, deduce, other
  */
 
-import { LOCATIONS, NPCS, OBJECT_DISPLAY_NAMES, DEDUCTION_KEYWORDS } from './gameData.js';
+import { LOCATIONS, NPCS, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, DEDUCTION_KEYWORDS } from './gameData.js';
 import type { IntentType } from '../types';
 export type { IntentType };
 
@@ -306,18 +306,24 @@ function splitAddresseeFromQuestion(subject: string): { id: string; topicRaw: st
 
 function matchNpcId(raw: string): string | undefined {
   const norm = normalise(raw);
+  // Every phrase that names an NPC — display name, id, the story's own alias
+  // (what the sidebar shows before an introduction, e.g. "the club steward"),
+  // and the hand-written aliases. Longest match wins, so "bond's assistant"
+  // reaches Edmund rather than stopping at "bond".
+  const hits: Array<{ id: string; len: number }> = [];
   for (const [id, npc] of Object.entries(NPCS)) {
-    if (
-      norm.includes(normalise(npc.displayName)) ||
-      normalise(npc.displayName).includes(norm) ||
-      norm.includes(id.replace(/_/g, ' '))
-    ) {
-      return id;
-    }
+    const displayName = normalise(npc.displayName);
+    if (norm.includes(displayName)) hits.push({ id, len: displayName.length });
+    else if (displayName.includes(norm)) hits.push({ id, len: norm.length });
+    const idPhrase = id.replace(/_/g, ' ');
+    if (norm.includes(idPhrase)) hits.push({ id, len: idPhrase.length });
+    const storyAlias = npc.alias ? normalise(npc.alias).replace(/^(?:a|an|the)\s+/, '') : '';
+    if (storyAlias && norm.includes(storyAlias)) hits.push({ id, len: storyAlias.length });
   }
   for (const [alias, id] of Object.entries(NPC_ALIASES)) {
-    if (norm.includes(alias)) return id;
+    if (norm.includes(alias)) hits.push({ id, len: alias.length });
   }
+  if (hits.length > 0) return hits.reduce((best, h) => (h.len > best.len ? h : best)).id;
 
   // Fuzzy last resort: typo tolerance against NPC name words, the id, and the
   // alias keys — giving NPC nouns the same forgiveness objects already get above.
@@ -667,9 +673,13 @@ export function parseIntent(rawInput: string): ParsedIntent {
     }
   }
 
-  // 3. Notebook / clue review check
+  // 3. Notebook / clue review check. A notebook word inside an object's own
+  // name ("examine the kidney examination notes") is that object, not a request
+  // to review the notebook.
+  const namesObject = [...Object.values(OBJECT_DISPLAY_NAMES), ...Object.values(TAKEABLE_OBJECTS)]
+    .some(n => norm.includes(normalise(n)));
   for (const verb of NOTEBOOK_VERBS) {
-    if (norm === verb || norm.startsWith(verb + ' ') || norm.includes(verb)) {
+    if (norm === verb || norm.startsWith(verb + ' ') || (norm.includes(verb) && !namesObject)) {
       return { type: 'notebook', raw: rawInput };
     }
   }
