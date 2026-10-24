@@ -79,6 +79,10 @@ const AppContent: React.FC = () => {
   useAudio({
     location: gs.location,
     weatherCondition: gs.weather?.condition,
+    currentAct: gs.currentAct,
+    playerTurns: gs.history.filter(m => m.role === 'user').length,
+    isActClosing: gs.pendingActTransition !== null,
+    isCurtainPlaying: gs.isCurtainPlaying,
     soundEffects: gs.soundEffects,
     ambientAudio: gs.ambientAudio,
   });

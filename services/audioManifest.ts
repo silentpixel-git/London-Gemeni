@@ -11,12 +11,24 @@
 const BASE = '/audio';
 
 // ── One-shot sound effects ──────────────────────────────────────────────────
-export type SfxId = 'clue-discovered' | 'item-pickup' | 'act-bell';
+export type SfxId =
+  | 'clue-discovered' | 'item-pickup' | 'act-bell'
+  // From the Act 0 prototype (owner-picked ElevenLabs takes):
+  | 'lamplighter' | 'glass-down' | 'pages-riffle';
 
 export const SFX_FILES: Record<SfxId, string> = {
   'clue-discovered': `${BASE}/sfx/clue-discovered.mp3`, // soft violin pluck (Holmes plays violin)
   'item-pickup':     `${BASE}/sfx/item-pickup.mp3`,     // paper / cloth rustle
   'act-bell':        `${BASE}/sfx/act-bell.mp3`,        // distant church bell
+  'lamplighter':     `${BASE}/sfx/lamplighter.wav`,     // lamplighter's pole and ladder in the street, heard through the window
+  // Wager beats — registered now, fired once The Wager is implemented:
+  'glass-down':      `${BASE}/sfx/glass-down.mp3`,      // Holmes sets the opera glass on the mantel
+  'pages-riffle':    `${BASE}/sfx/pages-riffle.mp3`,    // Watson opens the monograph (the losing branch)
+};
+
+/** Per-file trim for takes mastered louder than the rest (1 = as is). */
+export const SFX_TRIM: Partial<Record<SfxId, number>> = {
+  lamplighter: 0.8,
 };
 
 // ── Per-location ambient beds ────────────────────────────────────────────────
@@ -37,6 +49,13 @@ export const AMBIENT_BEDS: Record<string, string> = {
   working_mens_club:    `${BASE}/ambient/working-mens-club.mp3`,
   mitre_square:         `${BASE}/ambient/mitre-square.mp3`,
   goulston_street:      `${BASE}/ambient/goulston-street.mp3`,
+};
+
+// Act-scoped beds, keyed "act:location", checked before AMBIENT_BEDS. Baker
+// Street on the bank-holiday evening of the Prologue is the holiday crowd
+// through the open windows, not the later acts' November street.
+export const ACT_BEDS: Record<string, string> = {
+  '0:baker_street': `${BASE}/ambient/holiday-street.mp3`,
 };
 
 // ── Weather layers, keyed by WeatherCondition string ─────────────────────────

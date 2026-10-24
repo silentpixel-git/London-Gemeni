@@ -758,7 +758,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
         // STEP 6a: Holmes multi-clue synthesis — before Watson narrates
         if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
-          audioManager.playSfx('clue-discovered');
+          audioManager.playSfx('clue-discovered', 1800); // lands as the reveal is being read, as in the prototype
           const allDiscoveredIds = [...discoveredClueIds, ...result.discoveredClueIds];
           const allClueObjects = allDiscoveredIds
             .map(id => CLUE_DEFINITIONS[id])
@@ -781,7 +781,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         // Engine-verified pickup notice — items the player actually gained this
         // turn (examine can silently grant documents; the player must be told).
         const itemsPickedUp = (result.inventoryAdd ?? []).filter(i => !inventory.includes(i));
-        if (itemsPickedUp.length > 0) audioManager.playSfx('item-pickup');
+        if (itemsPickedUp.length > 0) audioManager.playSfx('item-pickup', 250);
         // Documents are "filed" (and stay filed after the bag empties); every
         // other takeable is plainly "picked up".
         const filedItems = itemsPickedUp.filter(i => DOCUMENT_ITEM_NAMES.has(i));
