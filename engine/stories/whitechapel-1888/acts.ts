@@ -109,9 +109,7 @@ export const ACT_NAMES: Record<number, string> = {
 // anything. The opening just puts him at the window and lets the player move
 // first.
 // Lives here rather than in the narration hook so that every piece of authored
-// prose has one home — a near-duplicate of these lines also sits in
-// diaryLocations.ts (baker_street), and when the two drifted apart an edit
-// landed in the wrong copy and appeared to do nothing.
+// prose has one home.
 export const OPENING_FIXED_LINE =
   "Looking back, I can fix the date precisely: the sixth of August, 1888, the evening of the Bank Holiday, with half of London out of doors and nothing whatever yet occurred. It was the last such evening either of us would have for some time.\n\n" +
   "I called to find Holmes with no case to occupy him. He stood at the left-hand window with his back to the room, reading the pavement below as another man might read a newspaper.\n\n";

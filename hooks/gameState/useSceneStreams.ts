@@ -5,7 +5,7 @@ import { aiService } from '../../services/AIService';
 import { injectAfterHeading, stripLeadingActHeading, formatActHeading } from '../../services/narrationFormat';
 import { gameEngine, SessionSnapshot } from '../../engine/GameEngine';
 import { parseIntent } from '../../engine/intentParser';
-import { ACT_BRIDGES, OPENING_FIXED_LINE, ITEM_SPENT_AFTER_ACT, formatGameClock } from '../../engine/gameData';
+import { ACT_BRIDGES, OPENING_FIXED_LINE, ITEM_SPENT_AFTER_ACT } from '../../engine/gameData';
 import {
   INITIAL_LOCATION,
   INITIAL_ACT,
@@ -31,10 +31,8 @@ export interface SceneStreamsDeps {
   // setters owned by the orchestrator
   setHistory: React.Dispatch<React.SetStateAction<GameHistoryItem[]>>;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsAutoScrollLocked: React.Dispatch<React.SetStateAction<boolean>>;
   setFlags: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   scrollRef: React.RefObject<HTMLDivElement>;
-  captureLocationArrival: (locationId: string, actNumber: number, timeLabel: string) => void;
   // Seeded by every scene entry point (opening / act arrival / resume) so the
   // first ordinary turn after one diffs against the room the player was just
   // shown, rather than against nothing.
@@ -55,10 +53,8 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
     turnCount,
     setHistory,
     setIsLoading,
-    setIsAutoScrollLocked,
     setFlags,
     scrollRef,
-    captureLocationArrival,
     previousNpcIdsRef,
   } = deps;
 
@@ -92,8 +88,6 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
   const generateOpeningScene = useCallback(async () => {
     if (hasGeneratedOpening.current) return;
     hasGeneratedOpening.current = true;
-    // Seed the diary with the opening locale so it is never empty on a fresh start.
-    captureLocationArrival(INITIAL_LOCATION, INITIAL_ACT, formatGameClock(INITIAL_ACT, 0));
     setIsLoading(true);
     const actHeading = formatActHeading(INITIAL_ACT);
     let locationLabel: string | undefined = INITIAL_LOCATION;
@@ -150,7 +144,7 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
     } finally {
       setIsLoading(false);
     }
-  }, [captureLocationArrival, commitVignetteFlags]);
+  }, [commitVignetteFlags]);
 
   // Stream a single fresh "look" when RESUMING a saved game. The loaded
   // authoritative snapshot is the source of truth — we do NOT replay the stored
@@ -172,7 +166,6 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
   }) => {
     const actHeading = formatActHeading(resume.act);
     setHistory([{ role: 'assistant', text: '', actHeading }]);
-    setIsAutoScrollLocked(false);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
     try {
       const intent = parseIntent('look');
@@ -248,7 +241,6 @@ export function useSceneStreams(deps: SceneStreamsDeps) {
     // the top so it reads as a clean start (masthead + the act's opening scene).
     const actHeading = formatActHeading(toAct);
     setHistory([{ role: 'assistant', text: '', actHeading }]);
-    setIsAutoScrollLocked(false);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
     try {
       const intent = parseIntent('look');

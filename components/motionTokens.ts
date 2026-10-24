@@ -7,6 +7,14 @@
  */
 export const EASE_OUT: [number, number, number, number] = [0, 0, 0.2, 1];
 export const EASE_OUT_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
+/** Strong ease-out for exits and quick responses. */
+export const EASE_OUT_QUINT: [number, number, number, number] = [0.23, 1, 0.32, 1];
+/** On-screen movement from one place to another (the sidebar glide). */
+export const EASE_IN_OUT: [number, number, number, number] = [0.77, 0, 0.175, 1];
+/** iOS-like sheet / drawer curve. */
+export const EASE_DRAWER: [number, number, number, number] = [0.32, 0.72, 0, 1];
+/** A bezier tuple as a CSS / WAAPI easing string. */
+export const cssEase = ([a, b, c, d]: [number, number, number, number]) => `cubic-bezier(${a}, ${b}, ${c}, ${d})`;
 export const DUR_SMALL = 0.2;
 export const DUR_PANEL = 0.3;
 export const DUR_DRAMATIC = 0.6;

@@ -39,6 +39,9 @@ export interface NarrationOutcome {
    *  authored ShowInteraction.extraWordBudget when its resultNote is long
    *  enough that the standard budget would force cutting essential content. */
   extraWordBudget?: number;
+  /** Word ceiling for an examine turn (object or person). Matches the length of
+   *  the authored examines in the Act 0 prototype; a repeat look gets half. */
+  examineWordCap?: number;
 }
 
 /** An NPC's introduction mode; absent = self-introduces on first TALK. */
@@ -455,6 +458,7 @@ export function buildNarrationContext(
     narrationMode,
     blockquoteHint,
     extraWordBudget: outcome.extraWordBudget,
+    examineWordCap: outcome.examineWordCap,
     npcScriptedLines: npcScriptedLines.length > 0 ? npcScriptedLines : undefined,
     // Pass introduction flags so useGameState can update introducedNpcs
     _introductionFlagsUpdate: Object.keys(introductionFlagsUpdate).length > 0

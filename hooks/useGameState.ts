@@ -66,7 +66,6 @@ export interface GameStateReturn {
   // Narrative
   history: GameHistoryItem[];
   isLoading: boolean;
-  isAutoScrollLocked: boolean;
   isGameOver: boolean;
   endingType: 'cold_case' | 'true_ending' | null;
   isConsultingHolmes: boolean;
@@ -91,6 +90,8 @@ export interface GameStateReturn {
 
   // UI / persistence
   diaryEntries: DiaryEntry[];
+  /** Increments whenever play records new diary entries (not on load). */
+  diaryCaptureCount: number;
   isSaving: boolean;
 
   // Appearance + atmosphere settings. themeMode is the single appearance choice
@@ -102,6 +103,10 @@ export interface GameStateReturn {
   setSoundEffects: React.Dispatch<React.SetStateAction<boolean>>;
   ambientAudio: boolean;
   setAmbientAudio: React.Dispatch<React.SetStateAction<boolean>>;
+  /** How often Watson has arrived at each location — the chips skip places already visited. */
+  locationVisitCounts: Record<string, number>;
+  showSuggestions: boolean;
+  setShowSuggestions: React.Dispatch<React.SetStateAction<boolean>>;
   notification: { message: string; type: 'success' | 'error' } | null;
   setNotification: React.Dispatch<React.SetStateAction<{ message: string; type: 'success' | 'error' } | null>>;
   connectionStatus: { gemini: boolean | null; supabase: boolean | null };
@@ -109,7 +114,6 @@ export interface GameStateReturn {
 
   // Refs
   scrollRef: React.RefObject<HTMLDivElement>;
-  lastUserMessageRef: React.RefObject<HTMLDivElement>;
 
   // Act-break curtain
   pendingActTransition: PendingActTransition | null;
@@ -127,7 +131,6 @@ export interface GameStateReturn {
   handleSaveGame: (silent?: boolean, overrides?: SaveGameOverrides) => Promise<boolean>;
   handleLoadGame: () => Promise<void>;
   handleConsultHolmes: () => Promise<void>;
-  handleScroll: () => void;
 
   // Save slots
   refreshSlots: () => Promise<void>;
@@ -144,7 +147,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   // ── Narrative state ─────────────────────────────────────────────────────
   const [history, setHistory] = useState<GameHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isAutoScrollLocked, setIsAutoScrollLocked] = useState(true);
 
   // ── World state ─────────────────────────────────────────────────────────
   const [location, setLocation] = useState(INITIAL_LOCATION);
@@ -159,7 +161,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     INITIAL_NPC_STATES as Record<string, NPCState>
   );
   const [activeInvestigation, setActiveInvestigation] = useState<Investigation | null>(null);
-  const { diaryEntries, setDiaryEntries, diarySeqRef, loggedLocationsRef, captureDiaryEntries, captureLocationArrival } =
+  const { diaryEntries, setDiaryEntries, diarySeqRef, captureDiaryEntries, diaryCaptureCount } =
     useDiary({ user, activeInvestigation });
   const [currentAct, setCurrentAct] = useState(INITIAL_ACT);
   const [stim, setStim] = useState<Record<string, STIMEntry>>({});
@@ -209,7 +211,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const scrollRef = useRef<HTMLDivElement>(null);
-  const lastUserMessageRef = useRef<HTMLDivElement>(null);
   // True while per-turn cloud persists are failing — dedupes the failure toast
   // to once per streak instead of once per turn during an outage.
   const cloudPersistFailedRef = useRef(false);
@@ -225,7 +226,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const actDay = resolveActDay(ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1], flags);
   const currentTimePeriod = computeTimePeriod(actDay.canonicalMinutes + elapsedMinutes);
 
-  const { themeMode, setThemeMode, soundEffects, setSoundEffects, ambientAudio, setAmbientAudio } =
+  const { themeMode, setThemeMode, soundEffects, setSoundEffects, ambientAudio, setAmbientAudio, showSuggestions, setShowSuggestions } =
     useAppearance({ user, userProfile, currentTimePeriod });
 
   const { hasGeneratedOpening, generateOpeningScene, streamResumeScene, streamArrivalScene } =
@@ -242,51 +243,10 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       turnCount,
       setHistory,
       setIsLoading,
-      setIsAutoScrollLocked,
       setFlags,
       scrollRef,
-      captureLocationArrival,
       previousNpcIdsRef,
     });
-
-  // ── Effects ───────────────────────────────────────────────────────────────
-
-  // Scroll to active turn when new assistant placeholder appears
-  const scrollToActiveTurn = useCallback(() => {
-    if (lastUserMessageRef.current) {
-      lastUserMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, []);
-
-  useEffect(() => {
-    const lastMsg = history[history.length - 1];
-    if (
-      lastMsg?.role === 'assistant' &&
-      lastMsg.text === '' &&
-      history.length > 1 &&
-      history[history.length - 2].role === 'user'
-    ) {
-      requestAnimationFrame(() => scrollToActiveTurn());
-    }
-  }, [history.length, scrollToActiveTurn]);
-
-  // ── Scroll helpers ────────────────────────────────────────────────────────
-
-  const handleScroll = useCallback(() => {
-    if (scrollRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-      setIsAutoScrollLocked(scrollHeight - scrollTop - clientHeight < 100);
-    }
-  }, []);
-
-  const scrollToBottom = useCallback(
-    (force = false) => {
-      if (scrollRef.current && (isAutoScrollLocked || force)) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
-    },
-    [isAutoScrollLocked]
-  );
 
   // ── Persistence (save/load/slots/realtime sync) ─────────────────────────────
   const {
@@ -340,7 +300,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     diaryEntries,
     setDiaryEntries,
     diarySeqRef,
-    loggedLocationsRef,
     hasGeneratedOpening,
     generateOpeningScene,
     streamResumeScene,
@@ -360,7 +319,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setNpcStates,
     setInventory,
     setIsLoading,
-    captureLocationArrival,
     streamArrivalScene,
     handleSaveGameRef,
   });
@@ -379,7 +337,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
     clearTurnFailure();
     setIsLoading(true);
-    setIsAutoScrollLocked(false);
 
     // A 'turn' retry (the engine never resolved) replays STEP 1 onward without
     // re-adding the player's command — it's still the same turn, not a new one.
@@ -773,10 +730,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           }
         }
         captureDiaryEntries(captured);
-        // First arrival at a new location within the act.
-        if (result.newLocation && !advancingAct) {
-          captureLocationArrival(result.newLocation, currentAct, captureTimeLabel);
-        }
         // Gate flags with no existing diary coverage — filled in async, STEP 8b.
         if (result.flagsUpdate) {
           pendingLeadFlags = detectSilentLeadFlags({
@@ -805,7 +758,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
         // STEP 6a: Holmes multi-clue synthesis — before Watson narrates
         if (result.discoveredClueIds && result.discoveredClueIds.length > 0) {
-          audioManager.playSfx('clue-discovered');
+          audioManager.playSfx('clue-discovered', 1800); // lands as the reveal is being read, as in the prototype
           const allDiscoveredIds = [...discoveredClueIds, ...result.discoveredClueIds];
           const allClueObjects = allDiscoveredIds
             .map(id => CLUE_DEFINITIONS[id])
@@ -828,7 +781,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
         // Engine-verified pickup notice — items the player actually gained this
         // turn (examine can silently grant documents; the player must be told).
         const itemsPickedUp = (result.inventoryAdd ?? []).filter(i => !inventory.includes(i));
-        if (itemsPickedUp.length > 0) audioManager.playSfx('item-pickup');
+        if (itemsPickedUp.length > 0) audioManager.playSfx('item-pickup', 250);
         // Documents are "filed" (and stay filed after the bag empties); every
         // other takeable is plainly "picked up".
         const filedItems = itemsPickedUp.filter(i => DOCUMENT_ITEM_NAMES.has(i));
@@ -1056,7 +1009,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       // the screen with attempts incremented instead of throwing unhandled.
       const retryNarration = async () => {
         setIsLoading(true);
-        setIsAutoScrollLocked(false);
         try {
           await runNarrationPipeline();
           clearTurnFailure();
@@ -1064,7 +1016,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
           handleFailure(err);
         } finally {
           setIsLoading(false);
-          setIsAutoScrollLocked(true);
         }
       };
       retryNarrationRef = retryNarration;
@@ -1075,10 +1026,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
       handleFailure(error);
     } finally {
       setIsLoading(false);
-      setIsAutoScrollLocked(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, lastApproachAtMinutes, handleSaveGame, captureDiaryEntries, captureLocationArrival, clearTurnFailure, raiseTurnFailure]);
+  }, [isLoading, user, activeInvestigation, location, inventory, flags, npcStates, currentAct, medicalPoints, moralPoints, introducedNpcs, elapsedMinutes, lastApproachAtMinutes, handleSaveGame, captureDiaryEntries, clearTurnFailure, raiseTurnFailure]);
 
   // ── Holmes hint ───────────────────────────────────────────────────────────
 
@@ -1093,26 +1043,21 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
 
       setHistory(prev => [
         ...prev,
-        {
-          role: 'assistant',
-          text: `> *A thought surfaced, unbidden.*\n\n${hint}`,
-        },
+        { role: 'assistant', text: hint, type: 'hint' },
       ]);
-      setTimeout(() => scrollToBottom(true), 100);
     } catch (error) {
       console.error('Hint failed', error);
     } finally {
       setIsConsultingHolmes(false);
       setIsLoading(false);
     }
-  }, [isConsultingHolmes, isLoading, currentAct, location, flags, inventory, npcStates, locationVisitCounts, scrollToBottom]);
+  }, [isConsultingHolmes, isLoading, currentAct, location, flags, inventory, npcStates, locationVisitCounts]);
 
   // ── Return ────────────────────────────────────────────────────────────────
 
   return {
     history,
     isLoading,
-    isAutoScrollLocked,
     isGameOver,
     endingType,
     isConsultingHolmes,
@@ -1142,6 +1087,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     weather: ACT_WEATHER[currentAct] ?? ACT_WEATHER[1],
 
     diaryEntries,
+    diaryCaptureCount,
     isSaving,
     themeMode,
     setThemeMode,
@@ -1150,13 +1096,15 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setSoundEffects,
     ambientAudio,
     setAmbientAudio,
+    locationVisitCounts,
+    showSuggestions,
+    setShowSuggestions,
     notification,
     setNotification,
     connectionStatus,
     retryConnections: checkConnections,
 
     scrollRef,
-    lastUserMessageRef,
 
     pendingActTransition,
     isActBreakReady,
@@ -1171,7 +1119,6 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     handleSaveGame,
     handleLoadGame,
     handleConsultHolmes,
-    handleScroll,
 
     refreshSlots,
     handleSelectSlot,

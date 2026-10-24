@@ -111,7 +111,7 @@ export const NARRATION_SCHEMA = {
   properties: {
     markdownOutput: {
       type: Type.STRING,
-      description: "Watson's first-person narrative prose. Markdown formatting. Full mode: max 160 words (110 on a revisit). Compact mode: max 130 words (some interactions raise this — the prompt's own stated limit is the authority, not this description).",
+      description: "Watson's first-person narrative prose. Markdown formatting. Full mode: max 160 words (110 on a revisit). Compact mode: max 130 words, examines 110 (55 on a repeat look) (some interactions raise this — the prompt's own stated limit is the authority, not this description).",
     },
     npcMemoryUpdate: {
       type: Type.OBJECT,
@@ -425,9 +425,11 @@ ${structure}`;
   // A topic-scoped answer IS the turn — it has a specific fact to convey in
   // character, which does not fit the budget sized for a general exchange.
   //
+  // An examine carries its own ceiling (the quoted aside counts inside it).
   const compactWordLimit = ctx.storyEvent?.maxWords ??
-    (ctx.blockquoteHint !== 'none' ? 130 : 100) +
-    (ctx.targetNpcInterview?.topic ? 50 : 0) +
+    (ctx.examineWordCap ??
+      (ctx.blockquoteHint !== 'none' ? 130 : 100) +
+      (ctx.targetNpcInterview?.topic ? 50 : 0)) +
     (ctx.extraWordBudget ?? 0);
   // Most of Act 0 is compact turns, so the register note has to live here too —
   // it was full-mode only, and the model spent every examine writing Holmes

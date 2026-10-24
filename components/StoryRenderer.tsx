@@ -55,12 +55,13 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
   }
 
   return (
+    // The prototype's prose: 18px / 1.8 (16px on narrow screens), 24px between
+    // paragraphs, a 68ch measure.
     <div className="
       space-y-6 font-sans
-      text-[16px] md:text-[18px] lg:text-[20px]
-      leading-relaxed md:leading-relaxed lg:leading-[1.8]
+      text-[16px] desk:text-[18px] leading-[1.8]
       text-lb-primary
-      max-w-3xl
+      max-w-[68ch]
     ">
       {caretLine === -1 && caret}
       {lines.map((line, i) => {
@@ -81,8 +82,8 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
 
         if (line.startsWith('>')) {
           return (
-            <div key={i} className="pl-6 border-l-[3px] border-lb-accent my-6 py-1">
-              <p className="italic text-lb-primary font-playfair text-[20px] md:text-[24px] leading-relaxed opacity-90">
+            <div key={i} className="pl-6 border-l-[3px] border-lb-accent">
+              <p className="m-0 italic text-lb-primary font-playfair text-[19px] desk:text-[22px] leading-normal">
                 {parseInlineMarkdown(line.replace(/>\s*/, ''), animate)}
                 {tail}
               </p>

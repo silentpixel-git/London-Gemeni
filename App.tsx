@@ -9,8 +9,9 @@
  * Everything else lives in hooks/useGameState.ts and the focused components.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { AnimatePresence } from 'motion/react';
+import { cssEase, EASE_IN_OUT } from './components/motionTokens';
 import { SupabaseProvider, useSupabase } from './components/SupabaseProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Notification } from './components/Notification';
@@ -21,18 +22,20 @@ import { CommandInput } from './components/CommandInput';
 import { AuthModal } from './components/AuthModal';
 import { EditProfileModal } from './components/EditProfileModal';
 import { SaveSlotsModal } from './components/SaveSlotsModal';
-import { DiaryModal } from './components/DiaryModal';
+import { DiaryModal, diaryTabTotals, type DiaryTab } from './components/DiaryModal';
+import { DiaryToast } from './components/DiaryToast';
 import { ResetPasswordModal } from './components/ResetPasswordModal';
 import { ActBreakCurtain } from './components/ActBreakCurtain';
 import { TurnFailureScreen } from './components/TurnFailureScreen';
 import { useGameState } from './hooks/useGameState';
+import { sceneView, suggestionsFor } from './hooks/gameState/sceneView';
 import { useAudio } from './hooks/useAudio';
 
-// Tailwind's `lg` breakpoint — the width at or above which the Sidebar docks
-// beside the game instead of sliding over it as an overlay drawer. Matching the
-// CSS query rather than reading innerWidth keeps this in step with the `lg:`
-// classes on the Sidebar itself.
-const LG_QUERY = '(min-width: 1024px)';
+// The `desk` breakpoint (tailwind.config.js) — the width at or above which the
+// Sidebar docks beside the game instead of sliding over it as a drawer, as in
+// the prototype. Matching the CSS query rather than reading innerWidth keeps
+// this in step with the `desk:` classes on the Sidebar itself.
+const DESK_QUERY = '(min-width: 901px)';
 
 // ── Inner app (has access to Supabase context) ──────────────────────────────
 
@@ -41,7 +44,7 @@ const AppContent: React.FC = () => {
   // Open by default on desktop (lg+); closed on smaller devices where the
   // sidebar is an overlay drawer that would otherwise cover the game.
   const [isSidebarOpen, setIsSidebarOpen] = useState(
-    () => typeof window === 'undefined' || window.matchMedia(LG_QUERY).matches,
+    () => typeof window === 'undefined' || window.matchMedia(DESK_QUERY).matches,
   );
 
   // Below lg the sidebar covers most of the screen, so it must never be left
@@ -50,7 +53,7 @@ const AppContent: React.FC = () => {
   // viewport than the one the player ends up with. Widening again deliberately
   // does NOT re-open it: a closed sidebar on desktop is the player's choice.
   useEffect(() => {
-    const mq = window.matchMedia(LG_QUERY);
+    const mq = window.matchMedia(DESK_QUERY);
     const closeIfNarrow = () => { if (!mq.matches) setIsSidebarOpen(false); };
     closeIfNarrow();
     mq.addEventListener('change', closeIfNarrow);
@@ -65,6 +68,10 @@ const AppContent: React.FC = () => {
   const [diarySeenCount, setDiarySeenCount] = useState(0);
   // Ids of entries logged since the last open — flagged as "new" in the diary.
   const [diaryNewIds, setDiaryNewIds] = useState<Set<string>>(new Set());
+  // Per-tab item counts at the last open, and the tabs that have grown since.
+  const diarySeenTabs = useRef<Record<DiaryTab, number> | null>(null);
+  const [diaryNewTabs, setDiaryNewTabs] = useState<Set<DiaryTab>>(new Set());
+  const [isDiaryToastShown, setIsDiaryToastShown] = useState(false);
 
   const gs = useGameState({ user, isAuthReady, userProfile });
 
@@ -72,6 +79,10 @@ const AppContent: React.FC = () => {
   useAudio({
     location: gs.location,
     weatherCondition: gs.weather?.condition,
+    currentAct: gs.currentAct,
+    playerTurns: gs.history.filter(m => m.role === 'user').length,
+    isActClosing: gs.pendingActTransition !== null,
+    isCurtainPlaying: gs.isCurtainPlaying,
     soundEffects: gs.soundEffects,
     ambientAudio: gs.ambientAudio,
   });
@@ -82,8 +93,31 @@ const AppContent: React.FC = () => {
     // the seen boundary; entries are appended in sequence order.
     setDiaryNewIds(new Set(gs.diaryEntries.slice(diarySeenCount).map(e => e.id)));
     setDiarySeenCount(gs.diaryEntries.length);
+    const totals = diaryTabTotals(gs.diaryEntries, gs.flags);
+    const seen = diarySeenTabs.current;
+    setDiaryNewTabs(new Set((Object.keys(totals) as DiaryTab[]).filter(t => totals[t] > (seen?.[t] ?? 0))));
+    diarySeenTabs.current = totals;
+    setIsDiaryToastShown(false);
     setIsDiaryOpen(true);
   };
+  const closeDiary = useCallback(() => setIsDiaryOpen(false), []);
+
+  // A new game or a load replaces the entries wholesale: forget the old seen state.
+  useEffect(() => {
+    if (gs.diaryEntries.length < diarySeenCount) {
+      setDiarySeenCount(0);
+      diarySeenTabs.current = null;
+    }
+  }, [gs.diaryEntries.length, diarySeenCount]);
+
+  // "Noted in the diary": a short toast when play records something while the diary is closed.
+  useEffect(() => {
+    if (gs.diaryCaptureCount === 0 || isDiaryOpen) return;
+    setIsDiaryToastShown(true);
+    const t = window.setTimeout(() => setIsDiaryToastShown(false), 2400);
+    return () => window.clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gs.diaryCaptureCount]);
 
   // Tracks the user id we've already run login setup for. Supabase fires
   // onAuthStateChange (SIGNED_IN / TOKEN_REFRESHED) whenever the tab regains
@@ -91,6 +125,46 @@ const AppContent: React.FC = () => {
   // guards the effect below would reopen the slot menu every time the player
   // switched away and came back.
   const slotMenuShownFor = useRef<string | null>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+  // A sidebar click puts its command in the input; the nonce re-applies the
+  // same command if it is clicked twice.
+  const [prefill, setPrefill] = useState<{ text: string; nonce: number } | null>(null);
+  // "Try" chips: things in view not yet tried (sceneView.ts), when the setting is on.
+  const suggestions = useMemo(() => {
+    if (!gs.showSuggestions) return [];
+    const view = sceneView({
+      location: gs.location, currentAct: gs.currentAct, inventory: gs.inventory,
+      npcStates: gs.npcStates, introducedNpcs: gs.introducedNpcs, flags: gs.flags,
+    });
+    return suggestionsFor(view, gs.location, gs.flags, gs.locationVisitCounts);
+  }, [gs.showSuggestions, gs.location, gs.currentAct, gs.inventory, gs.npcStates, gs.introducedNpcs, gs.flags, gs.locationVisitCounts]);
+  const prefillCommand = useCallback((text: string) => setPrefill(p => ({ text, nonce: (p?.nonce ?? 0) + 1 })), []);
+
+  // Desktop sidebar toggle: one layout change, then FLIP each piece that moves
+  // ([data-flip]: the sidebar, header controls, title, feed column, command
+  // dock). The text column has a fixed max width, so it only glides sideways;
+  // animating the width instead reflowed the column on every frame.
+  const flipFrom = useRef<Map<Element, number> | null>(null);
+  const toggleSidebar = () => {
+    if (window.matchMedia(DESK_QUERY).matches && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const els = [...document.querySelectorAll('[data-flip]')];
+      flipFrom.current = new Map(els.map(el => [el, el.getBoundingClientRect().left]));
+      els.forEach(el => el.getAnimations().forEach(a => a.cancel()));
+    }
+    setIsSidebarOpen(s => !s);
+  };
+  useLayoutEffect(() => {
+    const from = flipFrom.current;
+    if (!from) return;
+    flipFrom.current = null;
+    from.forEach((left, el) => {
+      const dx = left - el.getBoundingClientRect().left;
+      if (dx) el.animate(
+        [{ transform: `translateX(${dx}px)` }, { transform: 'none' }],
+        { duration: 260, easing: cssEase(EASE_IN_OUT) },
+      );
+    });
+  }, [isSidebarOpen]);
   const firstRunShownFor = useRef<string | null>(null);
 
   // On login, show the slot-select menu instead of auto-loading the last game.
@@ -140,7 +214,7 @@ const AppContent: React.FC = () => {
   };
 
   // Swipe to open/close the sidebar drawer on mobile (matches the Sidebar's
-  // lg:hidden overlay behavior — desktop keeps the sidebar docked, no swipe).
+  // desk:hidden overlay behavior — desktop keeps the sidebar docked, no swipe).
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const handleTouchStart = (e: React.TouchEvent) => {
     const t = e.touches[0];
@@ -149,7 +223,7 @@ const AppContent: React.FC = () => {
   const handleTouchEnd = (e: React.TouchEvent) => {
     const start = touchStartRef.current;
     touchStartRef.current = null;
-    if (!start || window.innerWidth >= 1024) return;
+    if (!start || window.matchMedia(DESK_QUERY).matches) return;
     const t = e.changedTouches[0];
     const dx = t.clientX - start.x;
     const dy = t.clientY - start.y;
@@ -170,7 +244,7 @@ const AppContent: React.FC = () => {
 
       {/* Mobile overlay — closes sidebar on outside tap */}
       <div
-        className={`fixed inset-0 bg-black/50 z-40 lg:hidden transition-opacity duration-300 ${
+        className={`fixed inset-0 bg-black/50 z-40 desk:hidden transition-opacity duration-300 ${
           isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         onClick={() => setIsSidebarOpen(false)}
@@ -183,6 +257,8 @@ const AppContent: React.FC = () => {
           onClose={() => gs.setNotification(null)}
         />
       )}
+
+      <DiaryToast show={isDiaryToastShown} />
 
       <AnimatePresence>
         {gs.isCurtainPlaying && gs.pendingActTransition && (
@@ -208,7 +284,8 @@ const AppContent: React.FC = () => {
 
       <Sidebar
         isSidebarOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
+        onClose={() => { if (!window.matchMedia(DESK_QUERY).matches) setIsSidebarOpen(false); }}
+        onPrefill={prefillCommand}
         location={gs.location}
         inventory={gs.inventory}
         currentAct={gs.currentAct}
@@ -220,10 +297,10 @@ const AppContent: React.FC = () => {
         flags={gs.flags}
       />
 
-      <div className="flex-1 flex flex-col h-full relative w-full transition-[width] duration-300 ease-out-expo">
+      <div className="flex-1 flex flex-col h-full relative w-full min-w-0">
         <Header
           isSidebarOpen={isSidebarOpen}
-          onToggleSidebar={() => setIsSidebarOpen(s => !s)}
+          onToggleSidebar={toggleSidebar}
           connectionStatus={gs.connectionStatus}
           onRetryConnection={gs.retryConnections}
           isSaving={gs.isSaving}
@@ -233,6 +310,8 @@ const AppContent: React.FC = () => {
           onToggleSound={() => gs.setSoundEffects(v => !v)}
           ambientAudio={gs.ambientAudio}
           onToggleAmbient={() => gs.setAmbientAudio(v => !v)}
+          showSuggestions={gs.showSuggestions}
+          onToggleSuggestions={() => gs.setShowSuggestions(v => !v)}
           user={user}
           userProfile={userProfile}
           onSave={() => gs.handleSaveGame()}
@@ -249,9 +328,8 @@ const AppContent: React.FC = () => {
           history={gs.history}
           isGameOver={gs.isGameOver}
           actualLastUserIdx={gs.actualLastUserIdx}
-          lastUserMessageRef={gs.lastUserMessageRef}
           scrollRef={gs.scrollRef}
-          onScroll={gs.handleScroll}
+          dockRef={dockRef}
           onJournalDone={gs.handleJournalTypewriterDone}
           pendingActTransition={gs.pendingActTransition}
           isActBreakReady={gs.isActBreakReady}
@@ -266,6 +344,9 @@ const AppContent: React.FC = () => {
           history={gs.history}
           onAction={gs.handleAction}
           onConsultHolmes={gs.handleConsultHolmes}
+          dockRef={dockRef}
+          prefill={prefill}
+          suggestions={suggestions}
         />
       </div>
 
@@ -281,12 +362,13 @@ const AppContent: React.FC = () => {
       />
       <DiaryModal
         isOpen={isDiaryOpen}
-        onClose={() => setIsDiaryOpen(false)}
+        onClose={closeDiary}
         entries={gs.diaryEntries}
         currentAct={gs.currentAct}
         flags={gs.flags}
         inventory={gs.inventory}
         newEntryIds={diaryNewIds}
+        newTabs={diaryNewTabs}
       />
       <ResetPasswordModal isOpen={isPasswordRecovery} />
       <AuthModal

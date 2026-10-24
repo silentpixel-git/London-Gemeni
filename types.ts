@@ -14,7 +14,7 @@ export type ThemeMode = 'light' | 'dark' | 'auto';
 export interface GameHistoryItem {
   role: 'user' | 'assistant' | 'system';
   text: string;
-  type?: 'journal'; // marks act-closing diary entries in the narrative feed
+  type?: 'journal' | 'hint'; // act-closing diary entries / Watson's thoughts (the hint button) in the feed
   /** Scene-entry chrome (opening / act arrival / resume only) — rendered by the feed, never part of the AI text. */
   actHeading?: string;
   /** Engine-verified location name, set on full/opening-mode turns (move / look / scene entry) — rendered as the pin header. */
@@ -381,6 +381,9 @@ export interface NarrationContext {
   // enough that the standard budget would force cutting its essential content
   // (e.g. a full reconstruction). Additive, opt-in — most turns leave this unset.
   extraWordBudget?: number;
+  // Ceiling for an examine turn (object or person) — 110 words, 55 on a repeat
+  // look — set by the examine resolver. Authored story events keep their own.
+  examineWordCap?: number;
 }
 
 export interface StoryEventPayload {
@@ -405,7 +408,7 @@ export interface ActJournalSummary {
  * and AI-generated 'decision' entries with no hand-authored match, carry their
  * prose verbatim in `text` so they stay re-readable in the diary.
  */
-export type DiaryEntryKind = 'clue' | 'act' | 'decision' | 'revelation' | 'location';
+export type DiaryEntryKind = 'clue' | 'act' | 'decision' | 'revelation';
 
 export interface DiaryEntry {
   id: string;            // uuid — also the dedupe key for persistence

@@ -96,7 +96,7 @@ Replace `canonicalLocationByAct` with time-of-day schedules (`abberline: 09:00 h
 7. **Delete legacy `services/geminiService.ts`** (old schemas, duplicated JSON-escape state machine; only the connectivity ping is still used — move it into `AIService`). Pure debt removal.
 8. **Split the god files.** Extract `GameEngine.ts` resolvers into per-action modules and pull persistence + act-break choreography out of `useGameState.ts`. No behavior change; makes everything after it (including the reweave) safer.
 9. **Author the Act VI closing scene at 221B.** Already flagged as missing in `docs/game-design.md` — the true ending currently lacks its final Watson/Holmes exchange. Content-only, high narrative payoff.
-10. **Consolidate diary sources.** Diary content lives in four files (`diary.ts`, `diaryLocations.ts`, `diaryDecisions.ts`, `diaryLeads.ts`) plus `clues.ts` — merge behind one lookup module so editing an entry doesn't require knowing which file owns it.
+10. **Consolidate diary sources.** Diary content lives in three files (`diary.ts`, `diaryDecisions.ts`, `diaryLeads.ts`) plus `clues.ts` — merge behind one lookup module so editing an entry doesn't require knowing which file owns it.
 
 ### LOW (polish)
 
