@@ -7,7 +7,7 @@
 <title>Your sign-in link</title>
 </head>
 <body style="margin:0;padding:0;background-color:#F5F1EB;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your one-time link to the Whitechapel Diaries.</div>
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your one-time key to the Whitechapel Diaries.</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F5F1EB;">
 <tr><td align="center" style="padding:32px 16px;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#FDF9F5;border:1px solid #C5CBDD;border-top:4px solid #CD7B00;border-radius:16px;">
@@ -17,15 +17,18 @@
       <div style="font-family:'Lato',Helvetica,Arial,sans-serif;font-size:15px;line-height:22px;color:#929DBF;margin-top:8px;">Resume your investigation</div>
       <div style="width:140px;height:1px;background-color:#C5CBDD;margin:24px auto 0 auto;font-size:0;line-height:0;">&nbsp;</div>
     </td></tr>
-    <tr><td align="center" style="padding:28px 40px 8px 40px;font-family:'Lato',Helvetica,Arial,sans-serif;font-size:16px;line-height:26px;color:#293351;">
-      Use this one-time link to sign in. No password needed. It expires shortly.
+    <tr><td style="padding:28px 40px 4px 40px;font-family:'Lato',Helvetica,Arial,sans-serif;font-size:16px;line-height:26px;color:#293351;">
+      <p style="margin:0 0 16px 0;font-family:Georgia,'Times New Roman',serif;font-size:19px;line-height:27px;font-style:italic;">Your key, as requested.</p>
+      <p style="margin:0 0 16px 0;">The diaries are waiting where you left them. Use the button below to step back into the case; no password is required.</p>
+      <p style="margin:0;">The link is meant for a single use and will lapse shortly, so I would not leave it lying about.</p>
     </td></tr>
     <tr><td align="center" style="padding:20px 32px 28px 32px;">
-      <a href="{{ .ConfirmationURL }}" style="display:block;background-color:#293351;color:#FDF9F5;font-family:'Lato',Helvetica,Arial,sans-serif;font-size:16px;font-weight:bold;text-decoration:none;padding:15px 24px;border-radius:10px;">Sign in</a>
+      <a href="{{ .ConfirmationURL }}" style="display:block;background-color:#293351;color:#FDF9F5;font-family:'Lato',Helvetica,Arial,sans-serif;font-size:16px;font-weight:bold;text-decoration:none;padding:15px 24px;border-radius:10px;">Return to the case</a>
     </td></tr>
     <tr><td align="center" style="padding:0 40px 36px 40px;font-family:'Lato',Helvetica,Arial,sans-serif;font-size:12px;line-height:19px;color:#929DBF;">
-      <p style="margin:0 0 10px 0;">Did not ask for this? Ignore it. No one can sign in without the link.</p>
-      <p style="margin:0;word-break:break-all;">Button not working? <a href="{{ .ConfirmationURL }}" style="color:#CD7B00;">Open the link directly</a>.</p>
+      <p style="margin:0 0 10px 0;">If you did not ask for this, ignore it. Without the link, no one can enter your account.</p>
+      <p style="margin:0 0 14px 0;word-break:break-all;">Button not working? <a href="{{ .ConfirmationURL }}" style="color:#CD7B00;">Open the link directly</a>.</p>
+      <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:14px;font-style:italic;color:#293351;">With regards, J. H. Watson, M.D.</p>
     </td></tr>
   </table>
 </td></tr>
