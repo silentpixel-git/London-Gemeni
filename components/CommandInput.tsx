@@ -7,7 +7,7 @@
  * know about the raw text field state.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Feather, Lightbulb, Send, Eye, Search, Glasses, Compass, Brain, Microscope, BookOpen, type LucideIcon } from 'lucide-react';
 import { GameHistoryItem } from '../types';
@@ -51,8 +51,12 @@ interface CommandInputProps {
   history: GameHistoryItem[];
   onAction: (userAction: string) => Promise<void>;
   onConsultHolmes: () => void;
-  /** Lets the feed keep typed text clear of the input. */
-  dockRef?: React.Ref<HTMLFormElement>;
+  /** Lets the feed keep typed text clear of the dock (chips + input). */
+  dockRef?: React.Ref<HTMLDivElement>;
+  /** A command placed in the input from the sidebar; the nonce re-applies a repeat. */
+  prefill?: { text: string; nonce: number } | null;
+  /** "Try" chips — each sends its command when clicked. Empty hides the row. */
+  suggestions?: string[];
 }
 
 export const CommandInput: React.FC<CommandInputProps> = ({
@@ -64,9 +68,23 @@ export const CommandInput: React.FC<CommandInputProps> = ({
   onAction,
   onConsultHolmes,
   dockRef,
+  prefill,
+  suggestions = [],
 }) => {
   const reducedMotion = useReducedMotion();
   const [input, setInput] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // A sidebar click fills the line (it never sends) and hands focus back to it.
+  useEffect(() => {
+    if (!prefill) return;
+    setInput(prefill.text);
+    const el = inputRef.current;
+    if (el) {
+      el.focus({ preventScroll: true });
+      requestAnimationFrame(() => el.setSelectionRange(prefill.text.length, prefill.text.length));
+    }
+  }, [prefill]);
 
   // Pick a random starting message once per wait; the CSS rotation loop
   // (see index.css lb-rot-*) cycles onward from there.
@@ -98,12 +116,30 @@ export const CommandInput: React.FC<CommandInputProps> = ({
         history[history.length - 1].text === ''));
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 px-8 pb-[max(2rem,env(safe-area-inset-bottom))] pt-10 md:px-16 md:pb-[max(3rem,env(safe-area-inset-bottom))] md:pt-16 lg:pt-18 bg-gradient-to-t from-lb-bg to-transparent pointer-events-none">
+    <div
+      className="absolute bottom-0 inset-x-0 z-[4] pointer-events-none px-4 pt-10 pb-[calc(16px+env(safe-area-inset-bottom,0px))] desk:px-16 desk:pt-12 desk:pb-[calc(24px+env(safe-area-inset-bottom,0px))]"
+      style={{ background: 'linear-gradient(to top, rgb(var(--lb-bg)) 72%, rgb(var(--lb-bg) / 0))' }}
+    >
+      <div ref={dockRef} data-flip className="max-w-3xl mx-auto flex flex-col gap-2.5 pointer-events-auto">
+      {/* "Try" — things here not yet tried; a click sends the command. */}
+      {suggestions.length > 0 && !isLoading && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-[10px] font-bold uppercase tracking-[0.16em] text-lb-muted">Try</span>
+          {suggestions.map(cmd => (
+            <button
+              key={cmd}
+              type="button"
+              onClick={() => onAction(cmd)}
+              className="pressable rounded-full border border-dashed border-lb-muted/70 bg-lb-paper/70 px-3 py-1.5 text-[13px] text-lb-primary/85 hover:border-lb-accent hover:text-lb-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lb-accent"
+            >
+              {cmd}
+            </button>
+          ))}
+        </div>
+      )}
       <form
-        ref={dockRef}
-        data-flip
         onSubmit={handleSubmit}
-        className="relative pointer-events-auto max-w-3xl mx-auto"
+        className="relative"
       >
         <AnimatePresence>
         {isStreaming && (
@@ -146,20 +182,21 @@ export const CommandInput: React.FC<CommandInputProps> = ({
 
         <div className="relative flex items-center">
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder={placeholder}
-            className="w-full bg-lb-paper border border-lb-border rounded-full py-4 pl-6 pr-24 text-lb-primary placeholder-lb-muted text-lg focus:outline-none focus:border-lb-accent transition-colors duration-150 shadow-sm relative z-10"
+            className="w-full bg-lb-paper border border-lb-border rounded-full py-4 pl-6 pr-[104px] text-[18px] leading-normal font-sans text-lb-primary placeholder:text-lb-muted placeholder:italic focus:outline-none focus:border-lb-accent transition-colors duration-150 shadow-[0_1px_2px_rgb(var(--lb-primary)/0.06)] relative z-10"
             autoFocus
           />
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 z-20">
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 z-20">
             <Tooltip label="Gather your thoughts" side="top">
               <button
                 type="button"
                 onClick={onConsultHolmes}
                 disabled={isLoading}
-                className="p-2 text-lb-muted hover:text-lb-accent pressable pressable-icon disabled:opacity-50"
+                className="w-10 h-10 grid place-items-center rounded-full text-lb-muted hover:text-lb-accent hover:bg-lb-accent/[0.08] pressable pressable-icon disabled:opacity-50"
                 aria-label="Gather your thoughts"
               >
                 <Lightbulb size={20} />
@@ -169,7 +206,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
               <button
                 type="submit"
                 disabled={isLoading || !input.trim()}
-                className="p-2 text-lb-muted hover:text-lb-accent pressable pressable-icon disabled:opacity-50"
+                className="w-10 h-10 grid place-items-center rounded-full text-lb-muted hover:text-lb-accent hover:bg-lb-accent/[0.08] pressable pressable-icon disabled:opacity-50"
                 aria-label="Send"
               >
                 <Send size={20} />
@@ -178,6 +215,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
           </div>
         </div>
       </form>
+      </div>
     </div>
   );
 };

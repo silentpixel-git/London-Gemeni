@@ -44,16 +44,16 @@ function SceneHeader({ actHeading, location }: { actHeading?: string; location?:
       initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: DUR_PANEL, ease: EASE_OUT }}
-      className="mb-4 space-y-8">
+      className="mb-6 flex flex-col gap-6">
       {actHeading && (
-        <h4 className="pt-8 text-sm font-bold tracking-[0.2em] uppercase text-lb-primary opacity-80 font-sans">
+        <h4 className="m-0 pt-2 text-sm leading-normal font-bold tracking-[0.2em] uppercase text-lb-primary opacity-80 font-sans">
           {actHeading}
         </h4>
       )}
       {location && (
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <MapPin size={18} className="text-lb-accent shrink-0" />
-          <span className="font-sans font-bold text-lb-primary text-[16px] md:text-[18px] lg:text-[20px]">
+          <span className="font-sans font-bold text-lb-primary text-[18px]">
             {location}
           </span>
         </div>
@@ -82,14 +82,14 @@ export function NarrativeFeed({
   return (
   <div
     ref={scrollRef}
-    className="flex-1 overflow-y-auto px-8 md:px-16 scrollbar-thin scrollbar-thumb-lb-accent/20 scrollbar-track-transparent"
+    className="flex-1 overflow-y-auto px-4 desk:px-16 scrollbar-thin scrollbar-thumb-lb-accent/20 scrollbar-track-transparent"
   >
     {/* Title lockup */}
-    <div className="max-w-3xl mx-auto pt-8 pb-6 z-10" data-flip>
-      <h1 className="font-serif text-5xl md:text-[76px] text-lb-primary leading-none mb-2 text-balance">
+    <div className="max-w-3xl mx-auto pt-8 desk:pt-14 mb-12 flex flex-col gap-1.5" data-flip>
+      <h1 className="m-0 font-serif font-normal text-[clamp(44px,7vw,76px)] leading-[1.05] tracking-[-0.01em] text-lb-primary text-balance">
         London Bleeds
       </h1>
-      <p className="font-serif text-2xl md:text-[40px] text-lb-primary opacity-90">
+      <p className="m-0 font-serif text-[clamp(22px,3.4vw,40px)] text-lb-primary opacity-90">
         The Whitechapel Diaries
       </p>
     </div>
@@ -112,13 +112,13 @@ export function NarrativeFeed({
                 initial={isLatestUser ? { y: 12, opacity: 0 } : { opacity: 1 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={reducedMotion ? { duration: 0 } : { duration: 0.25, ease: EASE_OUT }}
-                className="my-8"
+                className="my-6"
               >
                 <div className="pl-6 border-l-[3px] border-lb-accent">
                   {/* Same type ramp as the narration in StoryRenderer — the
                       player's command should read at the weight of the prose it
                       answers, not shrink away from it. */}
-                  <span className="text-lb-accent font-sans font-medium text-[16px] md:text-[18px] lg:text-[20px] leading-relaxed">
+                  <span className="text-lb-accent font-sans font-bold text-[16px] desk:text-[18px] leading-[1.6] [overflow-wrap:anywhere]">
                     {msg.text}
                   </span>
                 </div>
@@ -137,12 +137,12 @@ export function NarrativeFeed({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: DUR_DRAMATIC, ease: EASE_OUT }}
-                className="my-10 scroll-mt-8"
+                className="my-6"
               >
-                <div className="border-l-2 border-lb-muted/40 pl-6 py-1">
-                  <div className="flex items-center gap-2 mb-3 text-lb-muted opacity-50">
-                    <Feather size={11} />
-                    <span className="text-[10px] font-sans uppercase tracking-widest">Watson's Journal</span>
+                <div className="border-l-2 border-lb-muted/40 pl-5">
+                  <div className="flex items-center gap-2 mb-2 text-lb-muted">
+                    <Feather size={14} />
+                    <span className="text-[10px] font-sans font-bold uppercase tracking-[0.18em]">Watson's Journal</span>
                   </div>
                   {isLast ? (
                     <TypewriterBlock
@@ -171,9 +171,9 @@ export function NarrativeFeed({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: DUR_PANEL, ease: EASE_OUT }}
-                className="my-8"
+                className="my-6"
               >
-                <div className="border-l-2 border-lb-muted/40 pl-6 py-1">
+                <div className="border-l-2 border-lb-muted/40 pl-5">
                   <div className="flex items-center gap-2 mb-2 text-lb-muted">
                     <Lightbulb size={14} />
                     <span className="text-[10px] font-sans font-bold uppercase tracking-[0.18em]">Watson's thoughts</span>
@@ -202,7 +202,7 @@ export function NarrativeFeed({
                 key={index}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="mb-8"
+                className="mb-6"
               >
                 <SceneHeader actHeading={msg.actHeading} location={msg.location} />
                 <TypewriterBlock text={msg.text} onProgress={follow} />
@@ -217,7 +217,7 @@ export function NarrativeFeed({
                 key={index}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="mb-8"
+                className="mb-6"
               >
                 <SceneHeader actHeading={msg.actHeading} location={msg.location} />
                 <StoryRenderer text={msg.text} />
@@ -234,11 +234,11 @@ export function NarrativeFeed({
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: DUR_PANEL, ease: EASE_OUT }}
-          className="my-10 flex justify-center"
+          className="my-6 flex"
         >
           <button
             onClick={onBeginAct}
-            className="font-sans text-xs tracking-[0.08em] uppercase text-lb-accent border border-lb-accent/50 rounded px-5 py-2.5 hover:bg-lb-accent/10 pressable"
+            className="font-sans text-xs font-bold tracking-[0.14em] uppercase text-lb-accent border border-lb-accent/50 rounded px-5 py-2.5 hover:bg-lb-accent/[0.08] pressable"
           >
             Begin Act {ACT_ROMAN[pendingActTransition.toAct] ?? pendingActTransition.toAct} →
           </button>

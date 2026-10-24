@@ -34,14 +34,14 @@ export const ActBreakCurtain: React.FC<ActBreakCurtainProps> = ({ fromAct, toAct
         initial="hidden"
         animate="visible"
         variants={{ visible: { transition: { delayChildren: 0.25, staggerChildren: 0.08 } } }}
-        className="flex flex-col items-center gap-2"
+        className="flex flex-col items-center gap-[18px]"
       >
-        <motion.span variants={line} className="font-sans text-xs md:text-sm tracking-[0.3em] uppercase text-lb-muted">{endLabel}</motion.span>
-        <motion.span variants={line} className="text-lb-accent/60 tracking-[0.4em] my-2 text-lg md:text-xl">❧ ⸻ ❧</motion.span>
-        <motion.span variants={line} className="font-sans text-sm md:text-base tracking-[0.3em] uppercase text-lb-accent">
+        <motion.span variants={line} className="font-sans text-xs tracking-[0.3em] uppercase text-lb-muted">{endLabel}</motion.span>
+        <motion.span variants={line} className="text-lb-accent/60 tracking-[0.3em] text-xl">❧ ⸻ ❧</motion.span>
+        <motion.span variants={line} className="font-sans text-[13px] font-bold tracking-[0.3em] uppercase text-lb-accent">
           Act {ACT_ROMAN[toAct] ?? toAct}
         </motion.span>
-        <motion.span variants={line} className="font-serif text-3xl md:text-4xl text-lb-primary mt-1">{actName}</motion.span>
+        <motion.span variants={line} className="font-serif font-normal text-[clamp(30px,5vw,40px)] text-lb-primary">{actName}</motion.span>
       </motion.div>
     </motion.div>
   );

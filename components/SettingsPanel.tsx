@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { Sun, Moon, Clock, Volume2, Waves, type LucideIcon } from 'lucide-react';
+import { Sun, Moon, Clock, Volume2, Waves, MousePointerClick, type LucideIcon } from 'lucide-react';
 import type { ThemeMode } from '../types';
 
 interface SettingsPanelProps {
@@ -18,6 +18,8 @@ interface SettingsPanelProps {
   onToggleSound: () => void;
   ambientAudio: boolean;
   onToggleAmbient: () => void;
+  showSuggestions: boolean;
+  onToggleSuggestions: () => void;
 }
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; caption: string; icon: LucideIcon }[] = [
@@ -48,6 +50,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onToggleSound,
   ambientAudio,
   onToggleAmbient,
+  showSuggestions,
+  onToggleSuggestions,
 }) => (
   <div className="p-3">
     {/* Appearance */}
@@ -90,6 +94,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         <span className="font-medium">Ambient sound</span>
       </span>
       <Toggle on={ambientAudio} onClick={onToggleAmbient} label="Toggle ambient sound" />
+    </div>
+
+    {/* Play */}
+    <p className="px-1 pt-4 pb-2 text-[10px] uppercase tracking-widest text-lb-muted font-bold">Play</p>
+    <div className="flex items-center justify-between gap-3 px-1 py-2">
+      <span className="flex items-center gap-2 text-sm text-lb-primary">
+        <MousePointerClick size={15} className="text-lb-muted" />
+        <span className="font-medium">Show suggestions</span>
+      </span>
+      <Toggle on={showSuggestions} onClick={onToggleSuggestions} label="Toggle suggestions" />
     </div>
   </div>
 );

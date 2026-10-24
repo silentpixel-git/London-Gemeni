@@ -16,6 +16,9 @@ export default {
   darkMode: ['variant', ['[data-theme="dark"] &', '[data-theme="night"] &']],
   theme: {
     extend: {
+      // The prototype's desktop/narrow split (docs/act0-prototype.html): the
+      // sidebar docks beside the game from 901px, below that it is a drawer.
+      screens: { desk: '901px' },
       colors: {
         'lb-bg':      'rgb(var(--lb-bg)      / <alpha-value>)',
         'lb-paper':   'rgb(var(--lb-paper)   / <alpha-value>)',

@@ -103,6 +103,10 @@ export interface GameStateReturn {
   setSoundEffects: React.Dispatch<React.SetStateAction<boolean>>;
   ambientAudio: boolean;
   setAmbientAudio: React.Dispatch<React.SetStateAction<boolean>>;
+  /** How often Watson has arrived at each location — the chips skip places already visited. */
+  locationVisitCounts: Record<string, number>;
+  showSuggestions: boolean;
+  setShowSuggestions: React.Dispatch<React.SetStateAction<boolean>>;
   notification: { message: string; type: 'success' | 'error' } | null;
   setNotification: React.Dispatch<React.SetStateAction<{ message: string; type: 'success' | 'error' } | null>>;
   connectionStatus: { gemini: boolean | null; supabase: boolean | null };
@@ -222,7 +226,7 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
   const actDay = resolveActDay(ACT_TIME_CONFIG[currentAct] ?? ACT_TIME_CONFIG[1], flags);
   const currentTimePeriod = computeTimePeriod(actDay.canonicalMinutes + elapsedMinutes);
 
-  const { themeMode, setThemeMode, soundEffects, setSoundEffects, ambientAudio, setAmbientAudio } =
+  const { themeMode, setThemeMode, soundEffects, setSoundEffects, ambientAudio, setAmbientAudio, showSuggestions, setShowSuggestions } =
     useAppearance({ user, userProfile, currentTimePeriod });
 
   const { hasGeneratedOpening, generateOpeningScene, streamResumeScene, streamArrivalScene } =
@@ -1092,6 +1096,9 @@ export function useGameState({ user, isAuthReady, userProfile }: { user: User | 
     setSoundEffects,
     ambientAudio,
     setAmbientAudio,
+    locationVisitCounts,
+    showSuggestions,
+    setShowSuggestions,
     notification,
     setNotification,
     connectionStatus,
