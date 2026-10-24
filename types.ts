@@ -381,6 +381,9 @@ export interface NarrationContext {
   // enough that the standard budget would force cutting its essential content
   // (e.g. a full reconstruction). Additive, opt-in — most turns leave this unset.
   extraWordBudget?: number;
+  // Ceiling for an examine turn (object or person) — 110 words, 55 on a repeat
+  // look — set by the examine resolver. Authored story events keep their own.
+  examineWordCap?: number;
 }
 
 export interface StoryEventPayload {
