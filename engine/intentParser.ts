@@ -308,22 +308,26 @@ function matchNpcId(raw: string): string | undefined {
   const norm = normalise(raw);
   // Every phrase that names an NPC — display name, id, the story's own alias
   // (what the sidebar shows before an introduction, e.g. "the club steward"),
-  // and the hand-written aliases. Longest match wins, so "bond's assistant"
-  // reaches Edmund rather than stopping at "bond".
-  const hits: Array<{ id: string; len: number }> = [];
+  // and the hand-written aliases. The person named FIRST wins, so in "holmes
+  // what the doctor thinks" the addressee is Holmes; among phrases starting at
+  // the same place the longest wins, so "bond's assistant" reaches Edmund
+  // rather than stopping at "bond".
+  const hits: Array<{ id: string; at: number; len: number }> = [];
+  const hit = (id: string, phrase: string) => {
+    const at = norm.indexOf(phrase);
+    if (phrase && at !== -1) hits.push({ id, at, len: phrase.length });
+  };
   for (const [id, npc] of Object.entries(NPCS)) {
     const displayName = normalise(npc.displayName);
-    if (norm.includes(displayName)) hits.push({ id, len: displayName.length });
-    else if (displayName.includes(norm)) hits.push({ id, len: norm.length });
-    const idPhrase = id.replace(/_/g, ' ');
-    if (norm.includes(idPhrase)) hits.push({ id, len: idPhrase.length });
-    const storyAlias = npc.alias ? normalise(npc.alias).replace(/^(?:a|an|the)\s+/, '') : '';
-    if (storyAlias && norm.includes(storyAlias)) hits.push({ id, len: storyAlias.length });
+    if (norm.includes(displayName)) hit(id, displayName);
+    else if (displayName.includes(norm)) hits.push({ id, at: 0, len: norm.length });
+    hit(id, id.replace(/_/g, ' '));
+    if (npc.alias) hit(id, normalise(npc.alias).replace(/^(?:a|an|the)\s+/, ''));
   }
-  for (const [alias, id] of Object.entries(NPC_ALIASES)) {
-    if (norm.includes(alias)) hits.push({ id, len: alias.length });
+  for (const [alias, id] of Object.entries(NPC_ALIASES)) hit(id, alias);
+  if (hits.length > 0) {
+    return hits.reduce((best, h) => (h.at < best.at || (h.at === best.at && h.len > best.len) ? h : best)).id;
   }
-  if (hits.length > 0) return hits.reduce((best, h) => (h.len > best.len ? h : best)).id;
 
   // Fuzzy last resort: typo tolerance against NPC name words, the id, and the
   // alias keys — giving NPC nouns the same forgiveness objects already get above.
@@ -677,7 +681,8 @@ export function parseIntent(rawInput: string): ParsedIntent {
   // name ("examine the kidney examination notes") is that object, not a request
   // to review the notebook.
   const namesObject = [...Object.values(OBJECT_DISPLAY_NAMES), ...Object.values(TAKEABLE_OBJECTS)]
-    .some(n => norm.includes(normalise(n)));
+    .map(normalise)
+    .some(n => norm.includes(n) && NOTEBOOK_VERBS.some(v => n.includes(v)));
   for (const verb of NOTEBOOK_VERBS) {
     if (norm === verb || norm.startsWith(verb + ' ') || (norm.includes(verb) && !namesObject)) {
       return { type: 'notebook', raw: rawInput };

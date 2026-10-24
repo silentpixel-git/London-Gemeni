@@ -251,6 +251,34 @@ function runFastPathGuard(): void {
     }
   }
 
+  // 1b. The person spoken to is the one named first — a later name inside the
+  //     question ("what the doctor thinks") must not take the turn — and an
+  //     NPC's on-screen alias (the sidebar's label) reaches that NPC.
+  const ADDRESSEE_GUARDS: Array<[string, string]> = [
+    ['ask holmes what the doctor thinks', 'holmes'],
+    ['ask holmes why the inspector is here', 'holmes'],
+    ['ask abberline where the superintendent went', 'abberline'],
+    ['ask holmes if the steward lied', 'holmes'],
+    ['talk to the club steward', 'diemschutz'],
+    ['talk to a police surgeon', 'bond'],
+    ["talk to bond's assistant", 'edmund'],
+  ];
+  for (const [text, want] of ADDRESSEE_GUARDS) {
+    const got = parseIntent(text).targetId;
+    if (got !== want) { console.error(`  [FAIL] "${text}" → ${got ?? 'none'} (want ${want})`); failures++; }
+  }
+  // A notebook word inside an object's own name is that object; a plain
+  // notebook request that merely mentions an object still opens the notebook.
+  const NOTEBOOK_GUARDS: Array<[string, string]> = [
+    ['examine the kidney examination notes', 'examine'],
+    ['show me my evidence about the newspapers', 'notebook'],
+    ['notes', 'notebook'],
+  ];
+  for (const [text, want] of NOTEBOOK_GUARDS) {
+    const got = parseIntent(text).type;
+    if (got !== want) { console.error(`  [FAIL] "${text}" → ${got} (want ${want})`); failures++; }
+  }
+
   // 2. Misses MUST route: an unrecognised action phrase triggers the AI parse.
   const miss = parseIntent('crouch down and look under the sleeping pallet');
   if (!needsAiParse(miss, 'millers_court', [], {})) {

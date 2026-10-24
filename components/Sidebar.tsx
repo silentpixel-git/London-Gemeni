@@ -109,6 +109,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside
       aria-label="Case sidebar"
+      // Off-screen when closed: keep its buttons out of the tab order and the
+      // accessibility tree too.
+      inert={!isSidebarOpen}
       className={`
       fixed desk:relative inset-y-0 left-0 z-50 h-full w-[min(320px,86vw)] desk:w-80 flex-shrink-0 overflow-y-auto
       border-r border-lb-border bg-lb-bg shadow-[0_0_40px_rgb(0_0_0/0.2)] desk:shadow-none
