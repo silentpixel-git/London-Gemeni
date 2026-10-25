@@ -164,7 +164,7 @@ export function NarrativeFeed({
 
           // Watson's thoughts (the hint button) — a quiet aside that types in like the prose.
           if (isHint) {
-            const thoughtClass = "italic [&>div]:font-serif [&>div]:text-[15px] [&>div]:leading-[1.7] [&>div]:text-lb-primary/70";
+            const thoughtClass = "italic [&>div]:font-playfair [&>div]:text-[19px] [&>div]:desk:text-[22px] [&>div]:leading-[1.7] [&>div]:text-lb-primary/70";
             return (
               <motion.div
                 key={index}
