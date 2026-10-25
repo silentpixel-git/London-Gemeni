@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Your sign-in link</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F5F1EB;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your one-time key to the Whitechapel Diaries.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F5F1EB;">
+<tr><td align="center" style="padding:32px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#FDF9F5;border:1px solid #C5CBDD;border-top:4px solid #CD7B00;border-radius:16px;">
+    <tr><td align="center" style="padding:40px 32px 0 32px;">
+      <div style="font-family:Georgia,'Times New Roman',serif;font-size:12px;letter-spacing:4px;text-transform:uppercase;color:#CD7B00;">London Bleeds</div>
+      <div style="font-family:Georgia,'Times New Roman',serif;font-size:28px;line-height:34px;font-style:italic;color:#293351;margin-top:10px;">The Whitechapel Diaries</div>
+      <div style="font-family:'Lato',Helvetica,Arial,sans-serif;font-size:15px;line-height:22px;color:#929DBF;margin-top:8px;">Resume your investigation</div>
+      <div style="width:140px;height:1px;background-color:#C5CBDD;margin:24px auto 0 auto;font-size:0;line-height:0;">&nbsp;</div>
+    </td></tr>
+    <tr><td style="padding:28px 40px 4px 40px;font-family:'Lato',Helvetica,Arial,sans-serif;font-size:16px;line-height:26px;color:#293351;">
+      <p style="margin:0 0 16px 0;font-family:Georgia,'Times New Roman',serif;font-size:19px;line-height:27px;font-style:italic;">Your key, as requested.</p>
+      <p style="margin:0 0 16px 0;">The diaries are waiting where you left them. Use the button below to step back into the case; no password is required.</p>
+      <p style="margin:0;">The link is meant for a single use and will lapse shortly, so I would not leave it lying about.</p>
+    </td></tr>
+    <tr><td align="center" style="padding:20px 32px 28px 32px;">
+      <a href="{{ .ConfirmationURL }}" style="display:block;background-color:#293351;color:#FDF9F5;font-family:'Lato',Helvetica,Arial,sans-serif;font-size:16px;font-weight:bold;text-decoration:none;padding:15px 24px;border-radius:10px;">Return to the case</a>
+    </td></tr>
+    <tr><td align="center" style="padding:0 40px 24px 40px;font-family:'Lato',Helvetica,Arial,sans-serif;font-size:12px;line-height:19px;color:#929DBF;">
+      <p style="margin:0;word-break:break-all;">Button not working? <a href="{{ .ConfirmationURL }}" style="color:#CD7B00;">Open the link directly</a>.</p>
+    </td></tr>
+    <tr><td style="border-top:1px solid #C5CBDD;padding:20px 40px 28px 40px;font-family:Georgia,'Times New Roman',serif;font-size:12px;line-height:18px;color:#6B7494;">
+      <p style="margin:0 0 6px 0;">If you did not ask for this, ignore it. Without the link, no one can enter your account.</p>
+      <p style="margin:0;"><em>With regards, J. H. Watson, M.D.</em></p>
+    </td></tr>
+  </table>
+</td></tr>
+</table>
+</body>
+</html>

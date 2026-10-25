@@ -13,7 +13,7 @@ interface SupabaseContextType {
   isPasswordRecovery: boolean;
   userProfile: UserProfile | null;
   loginWithGoogle: () => Promise<void>;
-  loginWithEmail: (email: string) => Promise<void>;
+  loginWithEmail: (email: string) => Promise<boolean>;
   loginWithPassword: (email: string, password: string) => Promise<boolean>;
   signUpWithPassword: (email: string, password: string) => Promise<'session' | 'confirm' | 'error'>;
   resetPassword: (email: string) => Promise<boolean>;
@@ -99,13 +99,17 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const loginWithEmail = async (email: string) => {
+  const loginWithEmail = async (email: string): Promise<boolean> => {
     setAuthError(null);
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: window.location.origin },
     });
-    if (error) setAuthError(error.message);
+    if (error) {
+      setAuthError(error.message);
+      return false;
+    }
+    return true;
   };
 
   // Map Supabase's terse auth errors to player-facing copy.
