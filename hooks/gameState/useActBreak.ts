@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { audioManager } from '../../services/AudioManager';
-import { ITEM_SPENT_AFTER_ACT, formatGameClock } from '../../engine/gameData';
+import { ITEM_SPENT_AFTER_ACT } from '../../engine/gameData';
 import { NPCState, PendingActTransition } from '../../types';
 
 export interface ActBreakDeps {
@@ -17,7 +17,6 @@ export interface ActBreakDeps {
   setNpcStates: React.Dispatch<React.SetStateAction<Record<string, NPCState>>>;
   setInventory: React.Dispatch<React.SetStateAction<string[]>>;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
-  captureLocationArrival: (locationId: string, actNumber: number, timeLabel: string) => void;
   streamArrivalScene: (toAct: number, anchor: string, npcUpdates: Record<string, Partial<NPCState>>) => Promise<void>;
   handleSaveGameRef: React.MutableRefObject<(silent?: boolean) => Promise<boolean>>;
 }
@@ -39,7 +38,6 @@ export function useActBreak(deps: ActBreakDeps) {
     setNpcStates,
     setInventory,
     setIsLoading,
-    captureLocationArrival,
     streamArrivalScene,
     handleSaveGameRef,
   } = deps;
@@ -68,7 +66,6 @@ export function useActBreak(deps: ActBreakDeps) {
     audioManager.playSfx('act-bell');
     setLocation(newLocation);
     setLocationVisitCounts(prev => ({ ...prev, [newLocation]: (prev[newLocation] ?? 0) + 1 }));
-    captureLocationArrival(newLocation, toAct, formatGameClock(toAct, 0)); // diary: arriving in the new act's locale at its canonical start
     setElapsedMinutes(0);
     // canonicalMinutes/elapsedMinutes reset to a new act's own clock space —
     // a stale cooldown stamp from the previous act would otherwise read as
@@ -109,7 +106,7 @@ export function useActBreak(deps: ActBreakDeps) {
 
     // Persist the committed Act-N state via the fresh ref (flags now marker-free).
     handleSaveGameRef.current(true);
-  }, [pendingActTransition, isCurtainPlaying, streamArrivalScene, captureLocationArrival]);
+  }, [pendingActTransition, isCurtainPlaying, streamArrivalScene]);
 
   // Fired by NarrativeFeed when the act-closing diary finishes typing.
   // NOTE: do NOT scroll here — NarrativeFeed anchors the diary to the top of the

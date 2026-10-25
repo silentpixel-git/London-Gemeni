@@ -37,6 +37,8 @@ interface HeaderProps {
   onToggleSound: () => void;
   ambientAudio: boolean;
   onToggleAmbient: () => void;
+  showSuggestions: boolean;
+  onToggleSuggestions: () => void;
   user: User | null;
   userProfile: UserProfile | null;
   onSave: () => void;
@@ -99,6 +101,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSound,
   ambientAudio,
   onToggleAmbient,
+  showSuggestions,
+  onToggleSuggestions,
   user,
   userProfile,
   onSave,
@@ -109,6 +113,15 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
 }) => {
   const reducedMotion = useReducedMotion();
+  // The diary badge pops (a small scale, never from zero) only when the count goes up.
+  const badgeRef = useRef<HTMLSpanElement>(null);
+  const lastBadge = useRef(diaryUnreadCount);
+  useEffect(() => {
+    if (diaryUnreadCount > lastBadge.current && !reducedMotion) {
+      badgeRef.current?.animate([{ transform: 'scale(.85)' }, { transform: 'scale(1)' }], { duration: 160, easing: 'cubic-bezier(.23,1,.32,1)' });
+    }
+    lastBadge.current = diaryUnreadCount;
+  }, [diaryUnreadCount, reducedMotion]);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isConfirmingNewGame, setIsConfirmingNewGame] = useState(false);
   const [settingsView, setSettingsView] = useState(false);
@@ -176,9 +189,9 @@ export const Header: React.FC<HeaderProps> = ({
         className="relative w-10 h-10 rounded-full border border-lb-primary/30 text-lb-primary flex items-center justify-center shrink-0 hover:border-lb-accent hover:text-lb-accent pressable pressable-icon"
         aria-label={hasNewDiaryEntries ? `Read Watson's Diary — ${diaryUnreadCount} new ${diaryUnreadCount === 1 ? 'entry' : 'entries'}` : "Read Watson's Diary"}
       >
-        <BookOpenText size={20} />
+        <BookOpenText size={18} />
         {hasNewDiaryEntries && (
-          <span key={diaryUnreadCount} className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-lb-accent text-white text-[10px] font-bold leading-none animate-in zoom-in-50 fade-in duration-300 ease-out">
+          <span ref={badgeRef} className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-lb-accent text-lb-bg text-[10px] font-bold leading-none tabular-nums">
             {diaryUnreadCount > 9 ? '9+' : diaryUnreadCount}
           </span>
         )}
@@ -186,22 +199,26 @@ export const Header: React.FC<HeaderProps> = ({
     </Tooltip>
   );
 
+  const connectionDown = connectionStatus.gemini === false || connectionStatus.supabase === false;
+
   return (
-    <header className="sticky top-0 z-30 px-8 md:px-16 py-4 flex items-center justify-between bg-lb-bg/90 backdrop-blur-sm border-b border-lb-border">
+    <header className="sticky top-[env(safe-area-inset-top,0px)] z-30 px-4 py-3 desk:px-16 desk:py-4 flex items-center justify-between gap-3 bg-lb-bg/90 backdrop-blur-sm border-b border-lb-border">
 
       {/* Left — sidebar toggle + connection dots */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 min-w-0" data-flip>
         <Tooltip label={isSidebarOpen ? 'Hide the panel' : 'Show the panel'}>
           <button
             onClick={onToggleSidebar}
-            className="w-10 h-10 flex items-center justify-center text-lb-primary hover:bg-lb-primary/5 rounded-full shrink-0 pressable pressable-icon"
+            className="w-10 h-10 flex items-center justify-center rounded-full border border-lb-primary/30 text-lb-primary hover:border-lb-accent hover:text-lb-accent shrink-0 pressable pressable-icon"
             aria-label={isSidebarOpen ? 'Hide the panel' : 'Show the panel'}
           >
-            {isSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
+            {isSidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
           </button>
         </Tooltip>
 
-        <div className="hidden md:flex items-center gap-3 px-3 py-1.5 bg-lb-paper/50 rounded-full border border-lb-border/50">
+        {/* Connection status — shown only when a connection is down. */}
+        {connectionDown && (
+        <div className="flex items-center gap-3 min-w-0 px-3 py-1.5 bg-lb-paper/50 rounded-full border border-lb-border">
           {/* Engine dot */}
           <div
             className="flex items-center gap-1.5"
@@ -257,6 +274,7 @@ export const Header: React.FC<HeaderProps> = ({
             </>
           )}
         </div>
+        )}
       </div>
 
       {/* Right — settings + profile */}
@@ -336,6 +354,8 @@ export const Header: React.FC<HeaderProps> = ({
                             onToggleSound={onToggleSound}
                             ambientAudio={ambientAudio}
                             onToggleAmbient={onToggleAmbient}
+                            showSuggestions={showSuggestions}
+                            onToggleSuggestions={onToggleSuggestions}
                           />
                         </div>
                       }
@@ -486,6 +506,8 @@ export const Header: React.FC<HeaderProps> = ({
                             onToggleSound={onToggleSound}
                             ambientAudio={ambientAudio}
                             onToggleAmbient={onToggleAmbient}
+                            showSuggestions={showSuggestions}
+                            onToggleSuggestions={onToggleSuggestions}
                           />
                         </div>
                       }

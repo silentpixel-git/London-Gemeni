@@ -7,6 +7,10 @@ import { buildNarrationContext, blocked, absentNpcBlocked } from '../narrationCo
 import { npcLocationAt } from '../presence';
 import { visibleInteractables } from '../visibility';
 
+// Examine turns — objects and people alike — read at the length of the Act 0
+// prototype's authored examines: one or two short paragraphs.
+const EXAMINE_WORDS = 110;
+
 // --------------------------------------------------------
 // EXAMINE
 // --------------------------------------------------------
@@ -65,6 +69,7 @@ export function resolveExamine(story: StoryManifest, intent: ParsedIntent, sessi
             `If not in STIM, invent one vivid 10-15 word medical/forensic observation Watson would notice, ` +
             `then add it to stimUpdate as { key: stable snake_case id (e.g. "holmes_coat", "abberline_hands"), summary, scope: "npc" }.`,
           newClueDefs: [],
+          examineWordCap: EXAMINE_WORDS,
         }),
       };
     }
@@ -176,6 +181,7 @@ export function resolveExamine(story: StoryManifest, intent: ParsedIntent, sessi
         : `SUCCESS — Watson examined the ${objectName}.`) + closedContainerNote,
       newClueDefs,
       itemsGained: inventoryAdd,
+      examineWordCap: alreadyExamined && newClueIds.length === 0 ? Math.round(EXAMINE_WORDS / 2) : EXAMINE_WORDS,
     }),
   };
 }

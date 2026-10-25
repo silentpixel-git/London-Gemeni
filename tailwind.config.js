@@ -16,6 +16,9 @@ export default {
   darkMode: ['variant', ['[data-theme="dark"] &', '[data-theme="night"] &']],
   theme: {
     extend: {
+      // The prototype's desktop/narrow split (docs/act0-prototype.html): the
+      // sidebar docks beside the game from 901px, below that it is a drawer.
+      screens: { desk: '901px' },
       colors: {
         'lb-bg':      'rgb(var(--lb-bg)      / <alpha-value>)',
         'lb-paper':   'rgb(var(--lb-paper)   / <alpha-value>)',
@@ -36,6 +39,8 @@ export default {
       //   dramatic/scene moments only: duration-500..700
       transitionTimingFunction: {
         'out-expo': 'cubic-bezier(0.16, 1, 0.3, 1)',
+        'out-quint': 'cubic-bezier(0.23, 1, 0.32, 1)',
+        'drawer': 'cubic-bezier(0.32, 0.72, 0, 1)',
       },
     },
   },

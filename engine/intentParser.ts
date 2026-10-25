@@ -8,7 +8,7 @@
  * Supports: move, examine, talk, take, use, inventory, deduce, other
  */
 
-import { LOCATIONS, NPCS, OBJECT_DISPLAY_NAMES, DEDUCTION_KEYWORDS } from './gameData.js';
+import { LOCATIONS, NPCS, OBJECT_DISPLAY_NAMES, TAKEABLE_OBJECTS, DEDUCTION_KEYWORDS } from './gameData.js';
 import type { IntentType } from '../types';
 export type { IntentType };
 
@@ -306,17 +306,27 @@ function splitAddresseeFromQuestion(subject: string): { id: string; topicRaw: st
 
 function matchNpcId(raw: string): string | undefined {
   const norm = normalise(raw);
+  // Every phrase that names an NPC — display name, id, the story's own alias
+  // (what the sidebar shows before an introduction, e.g. "the club steward"),
+  // and the hand-written aliases. The person named FIRST wins, so in "holmes
+  // what the doctor thinks" the addressee is Holmes; among phrases starting at
+  // the same place the longest wins, so "bond's assistant" reaches Edmund
+  // rather than stopping at "bond".
+  const hits: Array<{ id: string; at: number; len: number }> = [];
+  const hit = (id: string, phrase: string) => {
+    const at = norm.indexOf(phrase);
+    if (phrase && at !== -1) hits.push({ id, at, len: phrase.length });
+  };
   for (const [id, npc] of Object.entries(NPCS)) {
-    if (
-      norm.includes(normalise(npc.displayName)) ||
-      normalise(npc.displayName).includes(norm) ||
-      norm.includes(id.replace(/_/g, ' '))
-    ) {
-      return id;
-    }
+    const displayName = normalise(npc.displayName);
+    if (norm.includes(displayName)) hit(id, displayName);
+    else if (displayName.includes(norm)) hits.push({ id, at: 0, len: norm.length });
+    hit(id, id.replace(/_/g, ' '));
+    if (npc.alias) hit(id, normalise(npc.alias).replace(/^(?:a|an|the)\s+/, ''));
   }
-  for (const [alias, id] of Object.entries(NPC_ALIASES)) {
-    if (norm.includes(alias)) return id;
+  for (const [alias, id] of Object.entries(NPC_ALIASES)) hit(id, alias);
+  if (hits.length > 0) {
+    return hits.reduce((best, h) => (h.at < best.at || (h.at === best.at && h.len > best.len) ? h : best)).id;
   }
 
   // Fuzzy last resort: typo tolerance against NPC name words, the id, and the
@@ -667,9 +677,14 @@ export function parseIntent(rawInput: string): ParsedIntent {
     }
   }
 
-  // 3. Notebook / clue review check
+  // 3. Notebook / clue review check. A notebook word inside an object's own
+  // name ("examine the kidney examination notes") is that object, not a request
+  // to review the notebook.
+  const namesObject = [...Object.values(OBJECT_DISPLAY_NAMES), ...Object.values(TAKEABLE_OBJECTS)]
+    .map(normalise)
+    .some(n => norm.includes(n) && NOTEBOOK_VERBS.some(v => n.includes(v)));
   for (const verb of NOTEBOOK_VERBS) {
-    if (norm === verb || norm.startsWith(verb + ' ') || norm.includes(verb)) {
+    if (norm === verb || norm.startsWith(verb + ' ') || (norm.includes(verb) && !namesObject)) {
       return { type: 'notebook', raw: rawInput };
     }
   }

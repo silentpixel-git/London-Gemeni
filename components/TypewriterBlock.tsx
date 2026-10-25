@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { StoryRenderer } from './StoryRenderer';
 
 interface TypewriterBlockProps {
@@ -12,6 +12,8 @@ interface TypewriterBlockProps {
   /** When false, suppresses onComplete so a still-streaming text does not
       fire completion side-effects early. Defaults to true. */
   isComplete?: boolean;
+  /** Called after each reveal step, once the new text is laid out (the feed follows the caret with it). */
+  onProgress?: () => void;
 }
 
 const prefersReducedMotion = () =>
@@ -24,6 +26,7 @@ export const TypewriterBlock: React.FC<TypewriterBlockProps> = ({
   className = "relative min-h-[1.8em]",
   cursorClassName = "inline-block w-1.5 h-[1.1em] bg-lb-accent opacity-70 animate-pulse ml-0.5 align-text-bottom translate-y-[-0.1em]",
   isComplete = true,
+  onProgress,
 }) => {
   const [displayedText, setDisplayedText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -55,6 +58,11 @@ export const TypewriterBlock: React.FC<TypewriterBlockProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, displayedText, isComplete]);
 
+  useLayoutEffect(() => {
+    onProgress?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayedText]);
+
   useEffect(() => {
     if (text.length < displayedText.length) {
       setDisplayedText('');
@@ -71,7 +79,7 @@ export const TypewriterBlock: React.FC<TypewriterBlockProps> = ({
       <StoryRenderer
         text={displayedText}
         animate={true}
-        caret={isTyping ? <span className={cursorClassName} /> : undefined}
+        caret={isTyping ? <span data-caret className={cursorClassName} /> : undefined}
       />
     </div>
   );
