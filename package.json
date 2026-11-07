@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run qa:story && vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "qa:validate": "npx tsx scripts/qa-validate.ts",
+    "qa:story": "npx tsx scripts/qa-story.ts",
     "qa:engine": "npx tsx scripts/qa-engine.ts",
     "qa:golden": "npx tsx scripts/qa-golden.ts",
     "qa:parser": "npx tsx scripts/qa-parser.ts",
@@ -18,7 +19,7 @@
     "qa:lambda-imports": "npx tsx scripts/qa-lambda-imports.ts",
     "qa:narration-inject": "npx tsx scripts/qa-narration-inject.ts",
     "story:map": "npx tsx scripts/build-story-map.ts",
-    "qa:all": "npm run lint && npm run qa:lambda-imports && npm run qa:engine && npm run qa:golden && npm run qa:parser && npm run qa:topics && npm run qa:hints && npm run qa:diary-leads && npm run qa:validate"
+    "qa:all": "npm run lint && npm run qa:lambda-imports && npm run qa:engine && npm run qa:golden && npm run qa:parser && npm run qa:topics && npm run qa:hints && npm run qa:diary-leads && npm run qa:validate && npm run qa:story"
   },
   "dependencies": {
     "@google/genai": "^1.33.0",
@@ -28,7 +29,8 @@
     "lucide-react": "^0.561.0",
     "motion": "^12.38.0",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

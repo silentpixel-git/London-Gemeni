@@ -1,0 +1,4 @@
+[
+  { "id": "clue_key", "name": "The Key in the Clock", "fact": "key_in_clock", "summary": "The housekeeper knew where the study key was all along." },
+  { "id": "clue_letter", "name": "The Demand", "fact": "letter_confession", "summary": "A blackmail letter in the desk, naming the gardener.", "connections": ["clue_key"] }
+]
