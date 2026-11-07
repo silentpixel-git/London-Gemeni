@@ -45,6 +45,8 @@ export const StoryObject = z.object({
   hidden: z.boolean().optional(),
   /** READ shows this text verbatim. */
   document: z.string().optional(),
+  /** Reading this Object teaches the player this Fact; showing it tells the Fact to the person shown. */
+  fact: Id.optional(),
   container: Container.optional(),
 }).strict();
 export type StoryObject = z.infer<typeof StoryObject>;

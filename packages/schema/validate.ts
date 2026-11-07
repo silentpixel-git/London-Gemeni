@@ -117,6 +117,7 @@ export function validateStory(raw: unknown): ValidationResult {
     needPlacement(o.placement, at);
     if (o.placement.kind === 'inventory' && !o.item) fail(at, 'placed in inventory but not an item');
     if (o.placement.kind === 'container' && o.placement.container === o.id) fail(at, 'object contains itself');
+    if (o.fact) needFact(o.fact, `${at}/fact`);
     if (o.container?.lock) needLock(o.container.lock, `${at}/container`);
     if (o.container && o.container.state === 'locked' && !o.container.lock) fail(`${at}/container`, 'locked container has no lock');
     if (o.container && o.container.state !== 'locked' && o.container.lock) warn(`${at}/container`, 'container has a lock but is not locked');
@@ -208,7 +209,7 @@ export function validateStory(raw: unknown): ValidationResult {
       case 'enter': case 'leave': needLocation(t.location, `${at}/location`); break;
       case 'clock': for (const a of t.act ?? []) needAct(a, `${at}/act`); break;
       case 'tick': break;
-      case 'combine': { const [a, b] = t.items; needItem(a, `${at}/items`); needItem(b, `${at}/items`); break; }
+      case 'combine': for (const o of t.items) needItem(o, `${at}/items`); break;
       case 'disclosed':
         if (t.fact) needFact(t.fact, `${at}/fact`);
         if (t.from) needPerson(t.from, `${at}/from`);

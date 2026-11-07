@@ -12,8 +12,10 @@ export const CandidateSet = z.object({
   })),
   persons: z.array(z.object({ id: Id, name: z.string() })),
   exits: z.array(z.object({ id: Id, names: z.array(z.string()).min(1) })),
-  /** Facts the addressed person can speak to, by phrase. */
-  topics: z.array(z.object({ person: Id, fact: Id, phrase: z.string() })),
+  /** Facts a present person can speak to, or the player can tell them, by phrase. */
+  topics: z.array(z.object({ person: Id, fact: Id, phrase: z.string(), direction: z.enum(['ask', 'tell']) })),
+  /** Facts the player knows and may name in a deduction. */
+  knownFacts: z.array(z.object({ id: Id, statement: z.string() })),
 }).strict();
 export type CandidateSet = z.infer<typeof CandidateSet>;
 
@@ -26,6 +28,8 @@ export const Selection = z.discriminatedUnion('kind', [
     person: Id.optional(),
     topic: Id.optional(),
     exit: Id.optional(),
+    /** deduce only: the Facts named. The suspect, if any, is `person`. */
+    facts: z.array(Id).optional(),
   }).strict(),
   /** The player described something plausible that is not in the set: narrate Flavour only. */
   z.object({ kind: z.literal('flavour'), subject: z.string().min(1) }).strict(),

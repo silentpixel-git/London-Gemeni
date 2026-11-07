@@ -20,7 +20,7 @@ export const Trigger = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('clock'), atMinutes: ClockMinutes, act: z.array(z.number().int().min(0)).min(1).optional() }).strict(),
   /** An idle or WAIT turn. Selected by weight among eligible tick Rules. */
   z.object({ kind: z.literal('tick') }).strict(),
-  z.object({ kind: z.literal('combine'), items: z.tuple([Id, Id]) }).strict(),
+  z.object({ kind: z.literal('combine'), items: z.array(Id).length(2) }).strict(),
   /** A Fact was told. Omitted fields match anything. */
   z.object({ kind: z.literal('disclosed'), fact: Id.optional(), from: PersonOrPlayer.optional(), to: PersonOrPlayer.optional() }).strict(),
   /** The player and the person share a location at the start of a turn. */

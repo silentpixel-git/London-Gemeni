@@ -6,6 +6,7 @@ import { Disposition, Id, TimePeriod, Weather } from './common';
 import { EventPayload, Observation } from './event';
 
 export const NarrationMode = z.enum(['opening', 'full', 'compact', 'flavour']);
+export type NarrationMode = z.infer<typeof NarrationMode>;
 
 export const NarrationContext = z.object({
   mode: NarrationMode,
