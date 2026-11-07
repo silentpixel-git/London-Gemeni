@@ -30,7 +30,7 @@
 //
 // Inventory is the set of Objects whose placement.kind === 'inventory'. There is no other list.
 import type { EventPayload, Id, Story, Verb } from '../schema';
-import type { State } from './state';
+import { canTell, currentPeriod, exitLock, inventory, lockOpen, personsPresent, visibleObjects, type State } from './state';
 
 export interface Intent {
   verb: Verb;
@@ -42,6 +42,85 @@ export interface Intent {
   facts?: Id[];
 }
 
-export function resolveVerb(_story: Story, _s: State, intent: Intent): EventPayload[] {
-  throw new Error(`resolveVerb not implemented (verb ${intent.verb})`);
+export function resolveVerb(story: Story, s: State, intent: Intent): EventPayload[] {
+  const reject = (reason: string): EventPayload[] => [{ kind: 'IntentRejected', reason }];
+  const NO_THING = 'there is no such thing here';
+  const NO_ONE = 'there is no one like that here';
+  const here = visibleObjects(s, s.location);
+  const carried = inventory(s);
+  const reach = (id?: Id): id is Id => !!id && (here.includes(id) || carried.includes(id));
+  const obj = (id: Id) => story.objects.find(o => o.id === id);
+  const presentPersons = personsPresent(story, s);
+  const isHere = (p?: Id): p is Id => !!p && presentPersons.includes(p);
+  const { target: t, secondary: sec, person: p } = intent;
+
+  switch (intent.verb) {
+    case 'look': return [{ kind: 'Looked' }];
+    case 'inventory': return [{ kind: 'InventoryChecked' }];
+    case 'wait': return [];
+    case 'examine':
+      if (reach(t) || isHere(t)) return [{ kind: 'Examined', object: t }];
+      return reject(NO_THING);
+    case 'read': {
+      if (!reach(t)) return reject(NO_THING);
+      const fact = obj(t)?.fact;
+      return [{ kind: 'Read', object: t }, ...(fact && !s.knows.player[fact] ? [{ kind: 'FactLearned', person: 'player', fact } as EventPayload] : [])];
+    }
+    case 'take':
+      if (!t || !here.includes(t) || carried.includes(t)) return reject(NO_THING);
+      return obj(t)?.item ? [{ kind: 'Taken', object: t }] : reject('it cannot be carried');
+    case 'drop':
+      return t && carried.includes(t) ? [{ kind: 'Dropped', object: t }] : reject('you are not carrying that');
+    case 'open': case 'close': {
+      if (!reach(t)) return reject(NO_THING);
+      const c = s.objects[t].container;
+      if (!c) return reject('it does not open');
+      if (intent.verb === 'close') return c.state === 'open' ? [{ kind: 'Closed', object: t }] : reject('it is not open');
+      if (c.state === 'open') return reject('it is already open');
+      if (c.state === 'locked' && !lockOpen(s, c.lock ?? null)) return [{ kind: 'OpenBlocked', object: t, lock: c.lock! }];
+      return [{ kind: 'Opened', object: t }];
+    }
+    case 'use':
+      if (!reach(t)) return reject(NO_THING);
+      if (sec && !reach(sec) && !isHere(sec)) return reject(NO_THING);
+      return [{ kind: 'Used', object: t, ...(sec ? { on: sec } : {}) }];
+    case 'combine':
+      if (!reach(t) || !reach(sec)) return reject(NO_THING);
+      return t === sec ? reject('it cannot be combined with itself') : [{ kind: 'Combined', items: [t, sec] }];
+    case 'show': case 'give': {
+      if (!t || !carried.includes(t)) return reject('you are not carrying that');
+      if (!isHere(p)) return reject(NO_ONE);
+      const fact = obj(t)?.fact;
+      const disclose: EventPayload[] = fact && s.knows.player[fact] && !s.knows[p]?.[fact]
+        ? [{ kind: 'FactDisclosed', from: 'player', to: p, fact }] : [];
+      return [intent.verb === 'show' ? { kind: 'Shown', object: t, person: p } : { kind: 'Given', object: t, person: p }, ...disclose];
+    }
+    case 'talk':
+      return isHere(p) ? [{ kind: 'Spoke', person: p }] : reject(NO_ONE);
+    case 'ask': {
+      if (!isHere(p)) return reject(NO_ONE);
+      const fact = intent.topic;
+      if (fact && story.facts.some(f => f.id === fact)) {
+        if (canTell(story, s, p, fact)) return [{ kind: 'Spoke', person: p, fact }, { kind: 'FactDisclosed', from: p, to: 'player', fact }];
+        if (s.knows.player[fact] && !s.knows[p]?.[fact]) return [{ kind: 'Spoke', person: p, fact }, { kind: 'FactDisclosed', from: 'player', to: p, fact }];
+      }
+      return [{ kind: 'Spoke', person: p }];
+    }
+    case 'deduce': {
+      const facts = intent.facts ?? [];
+      if (!facts.every(f => s.knows.player[f])) return reject('you do not yet know enough to say that');
+      if (p && !story.persons.some(x => x.id === p)) return reject(NO_ONE);
+      return [{ kind: 'Deduced', facts, ...(p ? { suspect: p } : {}) }];
+    }
+    case 'move': {
+      const loc = story.locations.find(l => l.id === s.location)!;
+      const exit = loc.exits.find(x => x.id === intent.exit);
+      if (!exit) return reject('there is no way that direction');
+      const dest = story.locations.find(l => l.id === exit.to);
+      if (dest?.openPeriods && !dest.openPeriods.includes(currentPeriod(s))) return [{ kind: 'MoveBlocked', exit: exit.id, reason: 'closed', lock: null }];
+      const lock = exitLock(story, s, loc.id, exit.id);
+      if (!lockOpen(s, lock)) return [{ kind: 'MoveBlocked', exit: exit.id, reason: 'locked', lock }];
+      return [{ kind: 'Moved', from: loc.id, to: exit.to, exit: exit.id }];
+    }
+  }
 }

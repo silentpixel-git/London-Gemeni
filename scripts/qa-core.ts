@@ -154,13 +154,15 @@ section('tick');
   check(present().includes('housekeeper'), 'summonPerson brought her to the study');
   const cat = idle(15, 0.1);
   check(cat.find(e => e.kind === 'TickResolved')?.kind === 'TickResolved' && (cat.find(e => e.kind === 'TickResolved') as { rule: string | null }).rule === 'tick_cat', 'draw 0.1 selects the cat');
-  const quiet = (() => { const saved = s; s = { ...s, location: 'garden' }; const es = idle(15, 0.5); s = saved; return es; })();
+  // A probe on a copy of the state: not logged, so replay stays exact.
+  const quiet = tick(story, { ...s, location: 'garden' }, 15, fixedRng([0.5])).events;
   check((quiet.find(e => e.kind === 'TickResolved') as { rule: string | null } | undefined)?.rule === 'tick_fog', 'in the garden only the fog rule is eligible');
 }
 
 // ── 9. read → learn → clue → act advance ─────────────────────────────────────
 section('read / act entry');
 {
+  check(has(go('take the letter', { verb: 'take', target: 'letter' }), e => e.kind === 'Taken'), 'the revealed letter can be taken');
   const es = go('read the letter', { verb: 'read', target: 'letter' });
   check(has(es, e => e.kind === 'Read') && has(es, e => e.kind === 'FactLearned' && e.person === 'player' && e.fact === 'letter_confession'), 'read → FactLearned from Object.fact');
   check(has(es, e => e.kind === 'ClueDiscovered' && e.clue === 'clue_letter'), 'Clue discovered');
@@ -168,7 +170,7 @@ section('read / act entry');
   check(has(es, e => e.kind === 'ActEntered' && e.act === 1), 'ActEntered 1');
   check(s.act === 1 && s.location === 'garden' && s.clock === 1290, 'act entry: anchor location, act clock');
   check(s.flags.garden_unlocked === true, 'garden unlocked');
-  check(present().includes('housekeeper'), 'housekeeper is in the garden by schedule after the override reset');
+  check(present().includes('housekeeper') && s.persons.housekeeper.override === undefined, 'housekeeper is in the garden by schedule, not by a pin');
   check(candidates(story, s).topics.some(t => t.fact === 'gardener_fled' && t.direction === 'ask'), 'act-1 fact is now askable');
   check(candidates(story, s).topics.some(t => t.fact === 'letter_confession' && t.direction === 'tell'), 'player may tell her about the letter');
 }

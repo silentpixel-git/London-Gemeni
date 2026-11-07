@@ -11,9 +11,33 @@
 //                canTell(P,F) → one entry per topic phrase, direction 'ask'
 //                else player knows F and P does not → one entry per phrase, direction 'tell'
 //   knownFacts facts the player knows (for deduce), with statements
-import type { CandidateSet, Story } from '../schema';
-import type { State } from './state';
+import { Verb, type CandidateSet, type Id, type Story } from '../schema';
+import { canTell, inventory, personsPresent, visibleObjects, type State } from './state';
 
-export function candidates(_story: Story, _s: State): CandidateSet {
-  throw new Error('candidates not implemented');
+export function candidates(story: Story, s: State): CandidateSet {
+  const objName = (id: Id) => story.objects.find(o => o.id === id)!.name;
+  const carried = inventory(s);
+  const persons = personsPresent(story, s);
+  const loc = story.locations.find(l => l.id === s.location)!;
+  const topics: CandidateSet['topics'] = [];
+  for (const person of persons) {
+    for (const f of story.facts) {
+      const direction = canTell(story, s, person, f.id) ? 'ask' : s.knows.player[f.id] && !s.knows[person]?.[f.id] ? 'tell' : null;
+      if (direction) for (const phrase of f.topics) topics.push({ person, fact: f.id, phrase, direction });
+    }
+  }
+  return {
+    verbs: [...Verb.options],
+    objects: [
+      ...visibleObjects(s, s.location).map(id => ({ id, name: objName(id), where: 'here' as const })),
+      ...carried.map(id => ({ id, name: objName(id), where: 'carried' as const })),
+    ],
+    persons: persons.map(id => {
+      const p = story.persons.find(x => x.id === id)!;
+      return { id, name: s.persons[id].introduced ? p.name : p.alias ?? p.name };
+    }),
+    exits: loc.exits.map(x => ({ id: x.id, names: x.names })),
+    topics,
+    knownFacts: story.facts.filter(f => s.knows.player[f.id]).map(f => ({ id: f.id, statement: f.statement })),
+  };
 }

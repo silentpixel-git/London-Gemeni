@@ -53,7 +53,8 @@ export function resolveTurn(story: Story, state: State, input: TurnInput, rng: R
         ...firingsFrom(story, verbEvents),
       ];
       t.absorb(cascade(story, t.state, firings));
-      if (!rejected) advanceClock(t, MINUTES[intent.verb]);
+      // Entering an act sets the clock to that act's start; the verb's own minutes would skew it.
+      if (!rejected && !t.events.some(e => e.kind === 'ActEntered')) advanceClock(t, MINUTES[intent.verb]);
       return t.result();
     }
   }

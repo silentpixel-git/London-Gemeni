@@ -184,11 +184,6 @@
       {
         "kind": "setFlag",
         "flag": "garden_unlocked"
-      },
-      {
-        "kind": "movePerson",
-        "person": "housekeeper",
-        "location": "garden"
       }
     ]
   },
