@@ -6,6 +6,10 @@
  * GEMINI_API_KEY and the network, and prints SKIP without the key.
  *
  *   npx tsx scripts/smoke-gemini.ts
+ *
+ * In a cloud session whose proxy injects the key, Node's fetch ignores
+ * HTTPS_PROXY unless told otherwise, and Gemini answers "API key not valid":
+ *   NODE_USE_ENV_PROXY=1 GEMINI_API_KEY=placeholder npx tsx scripts/smoke-gemini.ts
  */
 
 import { join } from 'node:path';

@@ -5,5 +5,6 @@ export * from './rng.js';
 export * from './time.js';
 export * from './verbs.js';
 export * from './candidates.js';
+export * from './exact.js';
 export * from './projections.js';
 export * from './prover.js';

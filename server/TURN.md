@@ -16,14 +16,18 @@ NDJSON stream, one object per line, in this order:
 2. `{ "kind": "text", "delta": "..." }` repeated while prose streams.
 3. `{ "kind": "done", "narrated": { ...Narrated event }, "observations": [...], "state": { "act", "location", "clock", "period", "weather", "inventory": [ids], "personsPresent": [ids], "ended" } }` — a small view for the sidebar; the client never needs the full State.
 Errors: a single `{ "kind": "error", "message": "..." }` line and HTTP 4xx/5xx before any stream starts; after the stream has started, an `error` line and a closed stream.
+- **409** means another turn on this Investigation is still being narrated. A client sends one turn at a time; an idle Tick that gets 409 is simply dropped.
 
 ## Server steps
 1. Load the Investigation's Events (ordered by `seq`), `replay` them with the Story loaded from `stories/<storyId>` (fall back to `packages/schema/fixtures/<storyId>` so the toy is playable before real content exists).
-2. Player turn: `candidates(story, state)` → `ai.select({ text, candidates, recentTexts })` → validate the Selection against the set → `resolveTurn`. Tick: `tick(story, state)`.
-3. Append the new Events in one insert with consecutive `seq`; update `investigations.last_event_seq`. Emit the `events` line.
+   If the log's last row is not `Narrated`/`ObservationRecorded`, a turn is open: answer 409, unless the newest row is older than `STALE_TURN_MS` (the request that owned it died), in which case close it first with a beats-only `Narrated` and carry on.
+2. Player turn: `candidates(story, state)` → `exactSelection(text, set)` (look, inventory, wait, an exit by an authored name or compass abbreviation, ADR-0003) or else `ai.select({ text, candidates, recentTexts })` → validate the Selection against the set → `resolveTurn`. Tick: `tick(story, state)`.
+3. Append the new Events in one insert with consecutive `seq`; update `investigations.last_event_seq`. Emit the `events` line. If another request took that `seq` first (`SeqConflict`, the primary key's 23505), start again from step 1, up to three times, then 409.
 4. `buildNarrationContext(story, newState, turnEvents, mode)` with mode `opening` on the first turn, `flavour` for FlavourRequested, `compact` when the turn produced no Fact, Beat, Clue or move, else `full`. `ai.narrate(ctx)`, streaming `text` lines.
 5. `gateNarration(ctx, result)`. On rejection, narrate once more with `ctx.beats` prefixed by a line naming the rejected inventions; on a second rejection use `ctx.beats.join(' ')` as prose.
-6. Append `Narrated{text, beats}` and one `ObservationRecorded` per Observation (same seq series), emit `done`.
+6. Append `Narrated{text, beats}` and one `ObservationRecorded` per Observation (same seq series), emit `done`. If narration or this append fails, append a beats-only `Narrated` so the turn closes, then emit `error`.
+
+**Why one turn at a time.** A `Narrated` row belongs to the turn it follows: its row's turn number, and the Transcript of whoever is present at that point in the log, both come from its position. A second turn appended between a turn's engine rows and its `Narrated` would take that narration as its own, so turns are serialised by the log itself rather than retried around each other.
 
 ## Persistence
 Migration `supabase/migrations/009_event_log.sql` (idempotent, in the house style):

@@ -4,8 +4,9 @@
  * Drives POST /api/turn (server/turn.ts, contract server/TURN.md) in-process
  * against the toy Story with the memory store and the `recorded` AI provider:
  * NDJSON line order, the Event log's seq series, replay across requests, the
- * sidebar view, Ticks, errors, an out-of-set Selection, and both gate
- * rejection branches. No key, no network.
+ * sidebar view, Ticks, errors, an out-of-set Selection, both gate rejection
+ * branches, the exact-command fast path, and one-turn-at-a-time (409 on an
+ * open turn, a lost seq race, a failed or stale turn closed). No key, no network.
  *
  * The recordings in packages/ai/recordings/toy are authored here: the
  * Selections and prose below are the hand-written answers, and
@@ -16,12 +17,12 @@
 
 import { join } from 'node:path';
 import { rmSync } from 'node:fs';
-import type { EventPayload, NarrationContext, NarrationResult, Selection } from '../packages/schema/index.js';
-import { replay } from '../packages/engine/index.js';
+import type { CandidateSet, EventPayload, NarrationContext, NarrationResult, Selection } from '../packages/schema/index.js';
+import { candidates, exactSelection, initialState, replay } from '../packages/engine/index.js';
 import { recorded, recording } from '../packages/ai/recorded.js';
 import type { Ai } from '../packages/ai/types.js';
 import { memoryStore, type InvestigationStore } from '../server/investigationStore.js';
-import { fileStoryLoader, handleTurn, type TurnDeps } from '../server/turn.js';
+import { fileStoryLoader, handleTurn, STALE_TURN_MS, type TurnDeps } from '../server/turn.js';
 
 const RECORDINGS = join('packages', 'ai', 'recordings', 'toy');
 const AUTHOR = process.argv.includes('--author');
@@ -78,7 +79,9 @@ const author: Ai = {
 };
 
 if (AUTHOR) rmSync(RECORDINGS, { recursive: true, force: true });
-const ai: Ai = AUTHOR ? recording(author, RECORDINGS) : recorded(RECORDINGS);
+const inner: Ai = AUTHOR ? recording(author, RECORDINGS) : recorded(RECORDINGS);
+let selectCalls = 0;
+const ai: Ai = { select: input => { selectCalls++; return inner.select(input); }, narrate: ctx => inner.narrate(ctx) };
 
 // ── Harness ─────────────────────────────────────────────────────────────────
 
@@ -141,7 +144,9 @@ check('start: the Observation is returned and logged',
   start.done?.observations.length === 1
   && (await logOf(store, id)).some(e => e.payload.kind === 'ObservationRecorded' && e.payload.observation.key === 'hall_tiles_cold'));
 
+const callsBeforeLook = selectCalls;
 const look = await post({ investigationId: id, text: 'look around' }, { store });
+check('look: an exact command never reaches the selection model', selectCalls === callsBeforeLook);
 check('look: NDJSON in order, events before any text', look.status === 200 && wellOrdered(look.kinds), look.kinds.join(','));
 check('look: seqFrom continues the log after start (3 rows)', look.events?.seqFrom === 3, String(look.events?.seqFrom));
 check('look: resolved as Looked, with the greeting Beat',
@@ -216,6 +221,139 @@ const fallbackBeats = always.done?.narrated.beats as string[];
 check('gate rejects twice: falls back to the Beats alone, no Observations',
   always.done?.narrated.text === fallbackBeats.join(' ') && fallbackBeats.length > 0 && always.done?.observations.length === 0,
   always.done?.narrated.text);
+
+// ── The exact-command fast path (ADR-0003) ──────────────────────────────────
+
+const opening: CandidateSet = candidates(story, initialState(story, 42));
+const exact = (text: string, set = opening) => JSON.stringify(exactSelection(text, set));
+const MOVE_STUDY = JSON.stringify({ kind: 'intent', verb: 'move', exit: 'study_door' });
+check('fast path: look, l, "Look around." and inventory, i, z',
+  ['look', 'L', 'Look around.'].every(t => exact(t) === '{"kind":"intent","verb":"look"}')
+  && ['inventory', 'i'].every(t => exact(t) === '{"kind":"intent","verb":"inventory"}') && exact('z') === '{"kind":"intent","verb":"wait"}');
+check('fast path: an exit by any authored name, an abbreviation, or after "go"/"go to"',
+  ['north', 'N', 'go north', 'Go to the study door', 'study'].every(t => exact(t) === MOVE_STUDY)
+  && exact('e') === JSON.stringify({ kind: 'intent', verb: 'move', exit: 'garden_door' }));
+check('fast path: declines an undeclared direction and anything that is not an exact command',
+  ['south', 'open the clock', 'look at the clock', 'go'].every(t => exact(t) === 'null'));
+check('fast path: declines a word that is also an Object\'s name, or that two exits share',
+  exact('study', { ...opening, objects: [...opening.objects, { id: 'study_sign', name: 'Study', where: 'here' }] }) === 'null'
+  && exact('north', { ...opening, exits: [...opening.exits, { id: 'trapdoor', names: ['north'] }] }) === 'null');
+
+// ── One turn at a time ──────────────────────────────────────────────────────
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>(r => (resolve = r));
+  return { promise, resolve };
+}
+const passGate: TurnDeps['gate'] = () => ({ ok: true, inventions: [] });
+const QUIET: NarrationResult = { prose: 'Quiet.', observations: [] };
+
+/** The authored Selections, with hooks to hold a request inside select or narrate. */
+function stubAi(hooks: { beforeSelect?: () => Promise<void>; narrate?: () => Promise<NarrationResult>; noSelect?: boolean } = {}): Ai {
+  return {
+    async select(input) {
+      if (hooks.noSelect) throw new Error(`select called for ${JSON.stringify(input.text)}`);
+      await hooks.beforeSelect?.();
+      return SELECTIONS[input.text] ?? { kind: 'none' };
+    },
+    async *narrate() {
+      yield { kind: 'done', result: hooks.narrate ? await hooks.narrate() : QUIET };
+    },
+  };
+}
+
+async function startWith(s: InvestigationStore, extra: Partial<TurnDeps> = {}) {
+  const st = await post({ start: { storyId: 'toy', name: 'QA turns' } }, { store: s, ai: stubAi(), gate: passGate, ...extra });
+  return st.events?.investigationId as string;
+}
+const kindsIn = async (s: InvestigationStore, invId: string) => (await logOf(s, invId)).map(e => e.payload.kind);
+const isError = (r: { status: number; kinds: string[] }, status: number) => r.status === status && r.kinds.join() === 'error';
+
+{
+  const s = memoryStore();
+  const invId = await startWith(s);
+  const north = await post({ investigationId: invId, text: 'N' }, { store: s, ai: stubAi({ noSelect: true }), gate: passGate });
+  check('fast path through the endpoint: "N" tries the locked study door with no select call',
+    north.status === 200 && wellOrdered(north.kinds) && eventKinds(north).includes('MoveBlocked')
+    && north.events?.events.some((e: EventPayload) => e.kind === 'IntentSelected' && e.exit === 'study_door'),
+    `${north.status} ${eventKinds(north).join(',')}`);
+}
+
+{
+  const s = memoryStore();
+  const invId = await startWith(s);
+  const started = deferred();
+  const release = deferred();
+  const slow = stubAi({ narrate: async () => { started.resolve(); await release.promise; return QUIET; } });
+  const first = post({ investigationId: invId, text: 'look around' }, { store: s, ai: slow, gate: passGate });
+  await started.promise;
+  const second = await post({ investigationId: invId, text: 'open the clock' }, { store: s, ai: stubAi(), gate: passGate });
+  check('a turn while another is narrating: 409 and a single error line', isError(second, 409), `${second.status} ${second.kinds.join(',')}`);
+  release.resolve();
+  const done = await first;
+  const log = await logOf(s, invId);
+  check('…the narrating turn completes, and the log holds only its rows after the opening',
+    done.status === 200 && wellOrdered(done.kinds) && consecutive(log.map(e => e.seq))
+    && log.filter(e => e.payload.kind === 'TurnReceived').length === 1 && log.at(-1)?.payload.kind === 'Narrated');
+}
+
+{
+  const s = memoryStore();
+  const invId = await startWith(s);
+  // Both requests load the same closed log, then both try to append at the same seq.
+  const bothLoaded = deferred();
+  let arrived = 0;
+  const release = deferred();
+  const racing = stubAi({
+    beforeSelect: async () => { if (++arrived === 2) bothLoaded.resolve(); await bothLoaded.promise; },
+    narrate: async () => { await release.promise; return QUIET; },
+  });
+  const a = post({ investigationId: invId, text: 'open the clock' }, { store: s, ai: racing, gate: passGate });
+  const b = post({ investigationId: invId, text: 'open the clock' }, { store: s, ai: racing, gate: passGate });
+  // The loser retries, finds the winner's turn open, and is refused before the winner narrates.
+  const settled = await Promise.race([a, b]);
+  release.resolve();
+  const results = [await a, await b];
+  const log = await logOf(s, invId);
+  check('two turns racing for one seq: one 200, one 409 (not a 500)',
+    isError(settled, 409) && results.filter(r => r.status === 200).length === 1, results.map(r => r.status).join(','));
+  check('…and the clock was opened once, with seq unbroken',
+    consecutive(log.map(e => e.seq)) && log.filter(e => e.payload.kind === 'Opened').length === 1);
+}
+
+{
+  const s = memoryStore();
+  const invId = await startWith(s);
+  const failing = stubAi({ narrate: async () => { throw new Error('provider down'); } });
+  const broken = await post({ investigationId: invId, text: 'look around' }, { store: s, ai: failing, gate: passGate });
+  const kinds = await kindsIn(s, invId);
+  check('narration fails: an error line after events, and the turn is closed with its Beats',
+    broken.kinds.join() === 'events,error' && kinds.at(-1) === 'Narrated'
+    && ((await logOf(s, invId)).at(-1)?.payload as { text: string }).text.includes('A cold tiled hall'), `${broken.kinds.join(',')} / ${kinds.join(',')}`);
+  const next = await post({ investigationId: invId, text: 'open the clock' }, { store: s, ai: stubAi(), gate: passGate });
+  check('…so the next turn is not refused', next.status === 200 && eventKinds(next).includes('Opened'), `${next.status}`);
+}
+
+{
+  let now = 1_000_000;
+  const s = memoryStore(() => now);
+  const invId = await startWith(s, { now: () => now });
+  const started = deferred();
+  const hung = stubAi({ narrate: () => { started.resolve(); return new Promise<NarrationResult>(() => {}); } });
+  void post({ investigationId: invId, text: 'look around' }, { store: s, ai: hung, gate: passGate, now: () => now });
+  await started.promise;
+  const early = await post({ investigationId: invId, text: 'open the clock' }, { store: s, ai: stubAi(), gate: passGate, now: () => now });
+  now += STALE_TURN_MS + 1;
+  const late = await post({ investigationId: invId, text: 'open the clock' }, { store: s, ai: stubAi(), gate: passGate, now: () => now });
+  const log = await logOf(s, invId);
+  const lookAt = log.findIndex(e => e.payload.kind === 'Looked');
+  const nextTurn = log.findIndex((e, i) => i > lookAt && e.payload.kind === 'TurnReceived');
+  check('a turn whose request died: 409 while fresh, then closed with its Beats by the next request after the stale limit',
+    isError(early, 409) && late.status === 200 && eventKinds(late).includes('Opened') && consecutive(log.map(e => e.seq))
+    && log[nextTurn - 1]?.payload.kind === 'Narrated' && late.events?.seqFrom === nextTurn,
+    `${early.status} ${late.status} ${log.map(e => e.payload.kind).join(',')}`);
+}
 
 console.log(`\n${pass} passed, ${fail} failed${AUTHOR ? ` (recordings rewritten in ${RECORDINGS})` : ''}`);
 process.exit(fail === 0 ? 0 : 1);
