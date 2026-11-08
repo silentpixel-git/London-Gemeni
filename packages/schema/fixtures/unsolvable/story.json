@@ -1,0 +1,95 @@
+{
+  "id": "locked_study",
+  "title": "The Locked Study",
+  "periods": [
+    {
+      "id": "dawn",
+      "name": "dawn",
+      "startMinutes": 300
+    },
+    {
+      "id": "morning",
+      "name": "morning",
+      "startMinutes": 420
+    },
+    {
+      "id": "afternoon",
+      "name": "afternoon",
+      "startMinutes": 720
+    },
+    {
+      "id": "evening",
+      "name": "evening",
+      "startMinutes": 1020
+    },
+    {
+      "id": "night",
+      "name": "night",
+      "startMinutes": 1200
+    },
+    {
+      "id": "late_night",
+      "name": "the small hours",
+      "startMinutes": 1380
+    }
+  ],
+  "weathers": [
+    {
+      "id": "foggy",
+      "name": "Fog"
+    },
+    {
+      "id": "clear_night",
+      "name": "Clear night"
+    }
+  ],
+  "acts": [
+    {
+      "id": 0,
+      "name": "The Hall",
+      "anchorLocation": "hall",
+      "startClockMinutes": 1230,
+      "dateLabel": "A November evening",
+      "weather": "foggy"
+    },
+    {
+      "id": 1,
+      "name": "The Garden",
+      "anchorLocation": "garden",
+      "startClockMinutes": 1290,
+      "dateLabel": "Later that night",
+      "weather": "clear_night"
+    }
+  ],
+  "opening": {
+    "act": 0,
+    "location": "hall",
+    "beats": [
+      "You arrive at the house after dark. The master died a week ago and the study has been locked since.",
+      "A long-case clock ticks in the hall. The housekeeper watches you from the foot of the stairs."
+    ]
+  },
+  "endings": [
+    {
+      "id": "solved",
+      "name": "The Gardener",
+      "beats": [
+        "You name the gardener, and the housekeeper's shoulders drop as if a weight had been lifted from them."
+      ]
+    },
+    {
+      "id": "accused_wrongly",
+      "name": "A Wrong Word",
+      "beats": [
+        "You accuse the housekeeper. She says nothing, and shows you to the door."
+      ]
+    },
+    {
+      "id": "unsolved",
+      "name": "The Small Hours",
+      "beats": [
+        "One o'clock strikes. Whatever the house knew, it keeps."
+      ]
+    }
+  ]
+}

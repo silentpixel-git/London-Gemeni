@@ -1,0 +1,8 @@
+{
+  "kind": "narrate",
+  "summary": "narrate full at hall: TickResolved,RuleFired,BeatQueued,ClockAdvanced",
+  "result": {
+    "prose": "The clock ticks on. A cat crosses the hall without looking at you.",
+    "observations": []
+  }
+}

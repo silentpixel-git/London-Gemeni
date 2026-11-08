@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file provides guidance to coding agents (Codex and others) working in this repository. It mirrors CLAUDE.md; keep the two in step.
 
 ## Behavioral guidelines
 
@@ -10,107 +10,69 @@ Bias toward caution over speed; use judgment on trivial tasks.
 - **Simplicity first.** Minimum code that solves the problem — no speculative abstractions, no unrequested configurability, no error handling for impossible scenarios.
 - **Surgical changes.** Touch only what the task requires. Don't refactor or reformat adjacent code. Match existing style. Remove imports/vars *your* change orphaned; leave pre-existing dead code alone (mention it, don't delete it).
 - **Goal-driven execution.** Turn tasks into verifiable checks ("fix the bug" → reproduce with a test, then make it pass) so multi-step work can be looped on independently.
+- **Never monitor open PRs.** The repo owner is the only developer — there are no reviewers to wait on and no CI feedback loop to babysit. Don't subscribe to PR activity, don't schedule PR check-in reminders, and don't poll PR/CI status. Push the branch, open the draft PR, report it, and stop. Only revisit a PR when explicitly asked.
+- **Solo project — deployed, but not "in production" in any way that constrains design.** The owner is the only player as well as the only developer. Don't hedge for other users, don't write save-migration shims or backward-compatibility layers, don't preserve old flag names for existing saves, and don't stage a breaking change behind a flag to protect a live audience. Breaking saves and rewriting story data wholesale are both fine. Still call out when a change breaks saves — the owner may want to start a fresh investigation — just don't design around avoiding it. This changes only when the owner says other people are playing.
 
 ## Project overview
 
-**London Bleeds: The Whitechapel Diaries** — a text-adventure set in 1888 London during the Jack the Ripper murders. The player is Dr. Watson, assisting Holmes through six acts of investigation. React + TypeScript SPA (Vite), Gemini for narration, Supabase for auth/cloud saves.
+**London Bleeds: The Whitechapel Diaries** — a text adventure set in 1888 London during the Jack the Ripper murders. React + TypeScript SPA (Vite), Gemini for narration, Supabase for auth and storage, Vercel for hosting.
 
-The core architectural bet: **a deterministic TypeScript engine resolves every player action; the AI only narrates outcomes that are already decided.** It cannot invent a clue, exit, or NPC movement — it receives a fully-resolved result object and writes prose around it. Grasping this contract is the prerequisite for touching `engine/`, `services/AIService.ts`, or `server/`.
+The engine is mid-rebuild (`docs/engine-rebuild-plan.md`). Phases 0–4 are done: a story-agnostic engine runs on the server and the UI renders what it says. The Whitechapel story is not yet authored for it (Phase 6), so new games start on the stress fixture, "The Saltmarsh Light". The last commit with the old engine and the Whitechapel story as TypeScript is on the `archive/pre-phase4-engine` branch; Phase 6 reads its source material from there.
+
+Read before touching `packages/`, `server/` or `api/`, in this order: `GLOSSARY.md` (the vocabulary: Story, Fact, Flavour, Rule, Event, Investigation, Candidate Set), the plan, `docs/adr/0001`–`0004`, `server/TURN.md` (the turn endpoint's contract), `packages/schema/README.md`.
+
+**The invariant:** the engine decides, the AI narrates. Every Fact (a clue, an exit, where a thing or person is, who knows what) is created only by the engine. The narrator may improvise Flavour, which is recorded as an Observation, and the server-side invention gate rejects names and numbers the turn's context does not hold. The engine stays general: content that does not fit asks "what general mechanism is missing?", never for a story-shaped special case.
 
 ## Commands
 
 ```bash
-npm run dev              # Vite dev server on :3000 (mounts /api/ai via a dev middleware, see below)
-npm run build             # Production build
-npm run lint               # tsc --noEmit — this repo's only lint step
-npm run qa:all             # lint + all deterministic qa:* suites — run before considering engine/story work done
+npm run dev       # Vite on :3000; apiDevGateway in vite.config.ts serves POST /api/turn
+npm run build     # qa:story, then vite build
+npm run lint      # tsc --noEmit, the only lint step
+npm run qa:all    # lint + every deterministic suite; run before calling engine or story work done
 ```
 
-Individual QA harnesses (all `npx tsx scripts/qa-*.ts`, exit 1 on FAIL, no browser needed):
+There is no unit-test framework; correctness is `tsc` plus scripted `qa:*` harnesses (`npx tsx scripts/qa-*.ts`, exit 1 on any FAIL). Run the relevant ones yourself after a change.
 
-| Command | Checks | Needs `GEMINI_API_KEY` |
-|---|---|---|
-| `npm run qa:engine` | Drives `gameEngine.resolve()` with scripted intents; validates state transitions, act-gate logic, exit graph | No |
-| `npm run qa:parser` | Free-text → intent accuracy (exact/alias/typo/paraphrase) against every clue-bearing object; regression-gated against a recorded baseline | No (hybrid AI-fallback pass only if key present) |
-| `npm run qa:hints` | The Watson hint selector (`hints.ts` / `selectHint`) | No |
-| `npm run qa:diary-leads` | The silent-diary-lead detection system | No |
-| `npm run qa:validate` | Story-data referential integrity: dangling clue connections, trigger objects missing from their location, progression flags nothing can set, NPC placement gaps, spoiler leaks into public knowledge | No |
-| `npm run qa:narration-inject` | The mechanical seam that splices authored opening/act-bridge lines into streamed narration (`narrationFormat.ts` / `injectAfterHeading`) — **not** part of `qa:all`, run it directly after touching that seam | No |
-| `npx tsx scripts/qa-narration.ts` | Generates `qa-narration-report.md` from crafted `NarrationContext` fixtures for manual/agent review of prose quality, historical accuracy, spoiler containment | **Yes** |
-
-There is no unit-test framework (no jest/vitest) — correctness is enforced by `tsc --noEmit` plus these scripted QA harnesses. When changing `engine/`, `intentParser.ts`, or any `engine/stories/whitechapel-1888/*` data file, run the relevant `qa:*` script(s) directly rather than asking the user to.
-
-Specialized review subagents exist in `.Codex/agents/` and trigger on specific edits — e.g. `engine-logic-reviewer` and `narrative-consistency-reviewer` after touching engine/story files, `engineering-reviewer` after `services/`/`hooks/` changes. Use them instead of re-deriving their checklists by hand.
+| Suite | What it guards |
+|---|---|
+| `qa:story` | Story schema and referential integrity (`packages/schema/validate.ts`) over the fixtures and every `stories/*`. Build-blocking |
+| `qa:core` | The engine's behavioural spec: every verb and Trigger kind on the toy Story, exact replay. Change it only when the behaviour is meant to change |
+| `qa:prove` | The reachability prover: every act, Clue and ending of the toy REACHABLE; the `unsolvable` fixture UNREACHABLE on exactly the goals its missing key gates |
+| `qa:stress` | The story-neutral stress fixture: behaviour the toy cannot reach (companion, closed periods, delayed rumor, rule-unlocked paths, timing) |
+| `qa:gate` | The invention gate (`packages/ai/gate.ts`) |
+| `qa:turn` | `server/turn.ts` in-process with the memory store and recorded AI: NDJSON order, seq, view and feed, resume, quiet Ticks, the fast path, one-turn-at-a-time. Recordings are keyed by a hash of the AI's input, so any engine, projection or schema change needs `npx tsx scripts/qa-turn.ts --author` and the rewritten recordings committed |
+| `qa:lambda-imports` | `api/turn.ts` runs as native Node ESM, file by file: every relative import reachable from it must be `.js`-suffixed or type-only, or the function dies at load. Nothing else catches this |
+| `qa:browser` | Phase 4 acceptance: the real app in Chromium plays Acts 0–I of the stress fixture through the real `handleTurn`; a second browser and a reload must render an identical feed and sidebar. Supabase and the AI are stood in for in-process. Needs Playwright + Chromium; not in `qa:all` |
+| `scripts/smoke-gemini.ts` | One live select and narrate against Gemini. Needs `GEMINI_API_KEY`; in a cloud session run it with `NODE_USE_ENV_PROXY=1` |
 
 ## Architecture
 
-### Turn pipeline
-
 ```
-Player input
-    │
-    ▼
-intentParser.ts        — classifies free text into a typed intent (pure function, no side effects)
-    │
-    ▼
-GameEngine.ts           — resolves intent against the story manifest (no AI, no Supabase)
-    │                      returns EngineResult: state changes + NarrationContext
-    ▼
-useGameState.ts          — applies state changes, injects STIM + Holmes synthesis
-    │
-    ▼
-services/AIService.ts    — client: POSTs to /api/ai, streams narrative prose back
-    │
-    ▼
-NarrativeFeed.tsx         — renders streamed markdown with typewriter animation
+browser                     api/turn.ts → server/turn.ts                  packages/
+  text / tick / resume ──▶  load log → replay → candidates → exactSelection   engine: reducer, verbs, Rules, Ticks,
+  ◀── NDJSON: events,       or ai.select → resolveTurn → append Events          prover, projections (no I/O, no AI)
+      text*, done{view,feed} → narrate → gate → append Narrated/Observations  ai: select/narrate seam, Gemini adapter
+                                                                            schema: Zod contracts, validator
 ```
 
-### The engine/AI contract (the one invariant to never break)
+- **`packages/`** is the engine. `engine` imports only `schema`; nothing in `engine` imports `ai`. A Story is data (`packages/schema/fixtures/*`, later `stories/*`), validated by `schema`.
+- **`server/turn.ts`** is the one writer of an Investigation's Event log (`server/investigationStore.ts`: memory for QA, Supabase under the caller's RLS for the app). One turn at a time per Investigation; the contract, including 409 and stale-turn recovery, is in `server/TURN.md`.
+- **The client never holds a Story or the State** (either would show it the solution). It receives a `PlayerView` and `FeedItem`s (`packages/schema/view.ts`), built server side by `playerView` / `feedOf` from the log. `hooks/useInvestigation.ts` is the client's game state; `services/turnClient.ts` speaks NDJSON; `services/InvestigationRepository.ts` lists and deletes Investigations. New cross-cutting client state gets its own hook, as `hooks/gameState/` does.
+- **Auth:** guests are Supabase anonymous users; magic-link sign-in from a guest claims the account in place (`updateUser`, same user id). `services/GameRepository.ts` is now profiles only.
 
-- `engine/GameEngine.ts` resolves *all* game logic and must never call AI or touch Supabase. It is a thin facade (`resolve()`) dispatching to per-verb resolvers in `engine/resolvers/` (`move.ts`, `examine.ts`, `npc.ts`, `items.ts`, `deduce.ts`, `meta.ts`, `support.ts`).
-- The AI's `NarrationContext` carries only verified, already-resolved facts (locations, NPCs present, objects, exits, clues found). AI responses may only contain `markdownOutput` prose plus optional `npcMemoryUpdate` / `stimUpdate` — **never** a state mutation like `newLocationId` or `inventoryUpdate`. The one narrow exception is `parseAction()` (see below), which selects from candidate lists rather than mutating anything.
-- `hooks/useGameState.ts` is the only place that calls both the engine and the AI service and merges their results into React state.
+## Agents and skills
 
-### Client/server split for the AI key
+The reviewers in `.claude/agents/` and the skills in `.claude/skills/` (written for Claude Code; their checklists apply to any agent) describe this engine; follow them instead of re-deriving their checklists:
 
-`GEMINI_API_KEY` must never reach the browser bundle. The actual Gemini prompts, schemas, and calls live in **`server/aiCore.ts`** (imports `@google/genai` directly) and **`server/parseAction.ts`** (pure, offline-testable candidate-validation logic for the tool-calling parse fallback). This runs only where the key is a real server env var: the Vercel function `api/ai.ts`, the Vite dev-server middleware defined in `vite.config.ts` (`aiDevGateway`, mounted at `/api/ai` so `npm run dev` works without `vercel dev`), and the Node `qa:*` scripts.
-
-`services/AIService.ts` (client-side) is a thin `fetch` wrapper around `/api/ai` with the same public method signatures as the server core — never import `server/aiCore.ts` from client code.
-
-### Story data is a swappable manifest
-
-`engine/stories/whitechapel-1888/` holds every fact about this specific story (locations, NPCs, clues, suspects, acts, facts, world events, rumors). Individual files (`locations.ts`, `npcs.ts`, `clues.ts`, `suspects.ts`, `acts.ts`, `facts.ts`, `events.ts`, `rumors.ts`, `hints.ts`, `diaryLeads.ts`, `endings.ts`, `atmosphere.ts`, `diary*.ts`) are composed into one `StoryManifest` object in `manifest.ts`. **No engine file imports whitechapel-1888 data directly** — `GameEngine`'s constructor takes a `StoryManifest`, so the whole story is theoretically pluggable. Shared type contracts for any story live in `engine/stories/types.ts`.
-
-Key systems encoded in that manifest worth knowing before editing story data:
-- **Fact graph** (`facts.ts`): world knowledge as atomic `StoryFact`s (`knownBy`, `visibleFromAct`). NPC knowledge envelopes are *derived* from this graph (`engine/stories/knowledge.ts`), so one edit updates every NPC's dialogue consistently and spoiler gating is mechanical, not hand-maintained per NPC.
-- **NPC placement**: `scheduleByAct` (act → `{ default, byPeriod? }`) drives where an NPC is each turn; an act with no entry means offstage. `followingRule` (`follows_watson` / `follows_bond` / `location_based` / `fixed`) plus `followsUntilAct` covers companions.
-- **NPC introduction/alias system**: NPCs with `requiresIntroduction` show only `alias` until an `introduction` condition (self-introduces on first talk, or a `document` examine) flips it — the narration system prompt hard-enforces never leaking the real name early.
-- **Rumor propagation** (`rumors.ts`): fully-authored hop lists — `triggerFlag` fires, then each `spread` entry lands in a recipient NPC's knowledge after `delayPeriods` time-period boundaries. Nothing is generated; every hop is hand-written.
-- **World events** (`events.ts`): authored broadcasts that surface as blockquotes once the in-game clock passes `atClockMinutes`, delivered once via a flag.
-- **Act progression**: gated by `ACT_PROGRESSION` flag requirements; entering a new act auto-teleports Watson to that act's anchor location (`computeActEntry` in `engine/resolvers/support.ts`) and carries following NPCs along.
-- **Time/weather**: `engine/time.ts` computes `TimePeriod` from elapsed minutes; `engine/presence.ts` resolves NPC location and rumor maturation for a given moment. Locations can have `openPeriods` (closed otherwise, with an authored `lockedNote`).
-
-`npm run qa:validate` is the referential-integrity net over all of this — run it after any story-data edit, since these cross-references (clue triggers, flag gates, fact visibility, NPC schedules) are otherwise easy to break silently.
-
-### Narration modes
-
-`server/aiCore.ts` builds one of three prompt shapes per turn (`opening` / `full` / `compact`) depending on `NarrationContext.narrationMode`, each with its own word budget and structure (see `buildNarrationPrompt`). After clue discoveries, `consultHolmesMultiClue` makes a separate non-streaming call synthesizing all evidence, injected into the next narration prompt as `holmesSynthesis`. Note: the sanity mechanic was **removed** from the live engine (see `engine/session.ts` and `docs/game-design.md`) — Watson's register is fixed at the professional-composure baseline; ignore residual sanity references in README.md and the `.Codex/skills/` docs.
-
-### Hooks decomposition
-
-`hooks/useGameState.ts` is the orchestrator; it was deliberately split ("god-file split", see recent commit history) into focused hooks under `hooks/gameState/`: `useConnections` (Gemini/Supabase connectivity), `useAppearance` (theme/audio prefs), `useDiary`, `useSceneStreams` (narration streaming), `usePersistence` (save/load), `useActBreak` (act-transition curtain), plus `aiParse.ts` / `narration.ts` helpers. Follow this pattern — new cross-cutting state concerns should be their own hook module, not new bulk added back into `useGameState.ts`.
-
-### Data layer
-
-`services/GameRepository.ts` is the sole Supabase access point (investigations, profiles, save slots, diary entries) — RLS-scoped per user. `supabase.ts` sets up the client; connectivity checks use a direct `fetch` to GoTrue's `/auth/v1/health` rather than the SDK, to avoid false "disconnected" reads during token refresh (see `useConnections.ts`).
+- `engine-logic-reviewer` after editing `packages/engine/` or the schema unions; `engineering-reviewer` after `server/`, `api/`, `packages/ai/` or client changes.
+- `narrative-consistency-reviewer` after editing a Story's JSON; `story-integrity-reviewer` for arc-level changes; `qa-playthrough` before calling engine or story work done; `game-reviewer` for a blind player's review.
+- Story content goes through the `act-authoring` skill (two owner sign-offs before any data is written), with `add-npc` per new person. Phase 6 adds the skill that turns prose into Story data; `act-authoring` is the gate around it. Voice and period: `narration-voice-check`, `historian`, `game-direction`.
 
 ## Environment
 
-```env
-GEMINI_API_KEY=            # server-only — never exposed to the client
-VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
-VITE_AI_PARSER=             # unset/anything but 'off' = AI parse fallback ON; 'off' = pure regex parsing (emergency rollback)
-```
+`.env.example` lists every variable. Two rules it cannot state:
+- `GEMINI_API_KEY` is server-only and never reaches the browser bundle. In cloud sessions the key may be a network secret the proxy injects: give it any placeholder value.
+- Supabase schema lives in `supabase/migrations/*.sql`, applied in order by the owner in the SQL editor; write migrations, do not apply them.
 
-Path alias `@/*` → repo root (`tsconfig.json`, mirrored in `vite.config.ts`). Supabase schema lives in `supabase/migrations/*.sql`, applied in order via the Supabase SQL editor.
+Path alias `@/*` → repo root (`tsconfig.json`, mirrored in `vite.config.ts`).

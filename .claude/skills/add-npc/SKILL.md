@@ -1,76 +1,81 @@
 ---
 name: add-npc
-description: Scaffolds a complete new NPC for London Bleeds, touching npcs.ts, facts.ts, and constants.ts. Prompts for all required fields and writes a valid NPCDefinition including a scheduleByAct placement and fact-graph knowledge entries.
+description: Adds one person to a London Bleeds Story in the JSON Story schema — a Person entry in persons.json plus the Facts they know in facts.json, with schedule, alias and introduction, disposition, voice beats, topics and spoiler gates — then validates and proves the Story. Use when a signed-off score (see act-authoring) calls for a new person.
 disable-model-invocation: false
 ---
 
-You are adding a new NPC to London Bleeds: The Whitechapel Diaries.
+You are adding a person to a Story. A Story is a directory of JSON files (`stories/<id>/`, or a fixture under `packages/schema/fixtures/` when doing engine work); the shapes are `Person` and `Fact` in `packages/schema/story.ts`, `Placement` / `Disposition` in `common.ts`. Read those, `GLOSSARY.md`, and the Story's existing `persons.json` and `facts.json` before writing.
 
-## Step 1 — Gather requirements
+For story content this skill runs inside `act-authoring`: only after the owner's sign-off #2, with the score's person and Fact rows as input. When the Phase 6 story skill exists it calls this skill per person rather than restating it.
 
-Ask the user for the following if not already provided in their message:
+## Step 1 — Gather
 
-1. **NPC ID** (snake_case, e.g. `lusk`, `stride_witness`)
-2. **Display name** (e.g. "George Lusk")
-3. **Role** (e.g. "Chairman, Whitechapel Vigilance Committee")
-4. **Brief description** — one or two sentences on who they are and what they know about the case
-5. **Speaking style** — one sentence (e.g. "Blunt and civic-minded. Speaks with East End directness.")
-6. **Personality traits** — 3–5 words (e.g. `['Civic', 'Suspicious', 'Weary']`)
-7. **Knowledge** — 3–6 statements of what this NPC can tell Watson. These become `StoryFact` entries in `facts.ts` (`knownBy: ['<npc_id>']`), NOT a field on the NPC itself — NPC knowledge envelopes are derived from the fact graph (`engine/stories/knowledge.ts`). Ask which act each fact becomes visible from (`visibleFromAct`, 0 = always); spoilers must be act-gated.
-8. **Following rule** — `'location_based'` (moves by schedule), `'fixed'` (never moves), or `'follows_watson'` / `'follows_bond'` (companion; needs `followsNpcId`, optionally `followsUntilAct`). Default: `'location_based'`
-9. **Schedule** — `scheduleByAct`: for each act 0–6 where the NPC is onstage, a `{ default: '<location_id>' }` entry, optionally with `byPeriod` overrides for time-of-day movement (e.g. evenings at the pub). **An act with no entry means the NPC is offstage that act** — do not pad all seven acts. Valid location IDs are in `engine/stories/whitechapel-1888/locations.ts`.
-10. **Introduction** (optional) — does Watson know their name from the start? If not: an `alias` (e.g. "a police inspector"), `aliasDescription`, `requiresIntroduction: true`, and how the name is learned (`introduction` absent = self-introduces on first talk; `{ type: 'document', objectId }` = learned by examining a document).
+Take these from the score; ask for anything it leaves open:
 
-## Step 2 — Read existing files
+1. **id** — snake_case, unique among persons (`[a-z][a-z0-9_]*`).
+2. **name** — the real name the player learns.
+3. **alias and introduction** (optional) — what the player calls them until they know the name ("the inspector"), and how they learn it: `{ "kind": "self" }` (introduces themself on first talk) or `{ "kind": "document", "object": "<object id>" }` (named once that Object is read). An alias without an introduction can never be lifted; the validator warns on it.
+4. **schedule** — for each act they appear in, keyed by the act id as a string: a `default` Place and optional `byPeriod` overrides keyed by the Story's period ids. A Place is `{ "kind": "at", "location": "<id>" }`, `{ "kind": "follows", "person": "player" }` (a companion; or another person's id to trail them), or `{ "kind": "offstage" }`. **An act with no entry means offstage that act**; do not pad every act. Arrivals and exits mid-act are Rules (`summonPerson`, `movePerson`, `dismissPerson`), not schedule entries.
+5. **disposition** — `hostile`, `wary`, `neutral`, `warm` or `trusting`. Changes later are `setDisposition` Effects in Rules.
+6. **beats** — demeanor and voice notes the narrator receives every turn they are present. These are the person's identity anchors: sex, age, standing, manner of speech, one or two physical particulars. The narrator sees only the current turn's context, so whatever must stay consistent across turns goes here. Never the real name in an alias-gated person's beats.
+7. **Facts** — what they can tell the player. Each is a `Fact` in `facts.json`, not a field on the person: knowledge is the Fact graph (`knownBy`), so one Fact can be known by several people and stays consistent.
 
-Before writing, read:
-- `engine/stories/whitechapel-1888/npcs.ts` — the existing pattern; avoid ID collisions. Note the `satisfies Record<string, NPCDefinition>` table and the `NPC_DISPLAY_NAMES` / `NPC_ALIASES` exports at the bottom.
-- `engine/stories/types.ts` — the authoritative `NPCDefinition` shape.
-- `engine/stories/whitechapel-1888/locations.ts` — to validate the location IDs the user provided.
-- `engine/stories/whitechapel-1888/facts.ts` — the fact-graph pattern (order matters: per-NPC envelope order = file order).
-- `constants.ts` — `INITIAL_NPC_STATES` and the sidebar's `NPC_DISPLAY_NAMES` copy.
+## Step 2 — Write the person
 
-## Step 3 — Write the NPC
+Append to `persons.json`, matching the file's existing style:
 
-Add the new entry to `NPCS_DATA` in `engine/stories/whitechapel-1888/npcs.ts` following the exact structure of existing NPCs:
-
-```typescript
-new_npc_id: {
-  id: 'new_npc_id',
-  displayName: 'Display Name',
-  alias: 'Display Name',          // or an alias like 'a police inspector' if requiresIntroduction
-  requiresIntroduction: false,
-  role: 'Role',
-  description: 'Description.',
-  speakingStyle: 'Speaking style.',
-  personality: ['Trait1', 'Trait2', 'Trait3'],
-  followingRule: 'location_based',
-  scheduleByAct: {
-    2: { default: 'location_id' },
-    3: { default: 'location_id', byPeriod: { evening: 'other_location_id' } },
-    // acts with no entry = offstage
+```json
+{
+  "id": "ferryman",
+  "name": "Abel Crane",
+  "alias": "the ferryman",
+  "introduction": { "kind": "self" },
+  "schedule": {
+    "0": { "default": { "kind": "at", "location": "jetty" }, "byPeriod": { "night": { "kind": "offstage" } } },
+    "2": { "default": { "kind": "at", "location": "boathouse" } }
   },
-},
+  "disposition": "wary",
+  "beats": ["A broad man in his sixties in an oilskin; answers in as few words as will do."]
+}
 ```
 
-Then add their knowledge as `StoryFact` entries in `facts.ts` under a new `── new_npc_id ──` section:
+## Step 3 — Write their Facts
 
-```typescript
-{ id: 'new_npc_id_fact_name', statement: 'What they can tell Watson', knownBy: ['new_npc_id'], visibleFromAct: 0 },
+One entry per thing they can say, in `facts.json`:
+
+```json
+{
+  "id": "light_failed_at_two",
+  "statement": "The lighthouse lamp went dark a little after two in the morning.",
+  "knownBy": ["ferryman"],
+  "visibleFromAct": 0,
+  "topics": ["the light", "the lamp going out", "last night"],
+  "voices": { "ferryman": "Went dark gone two. I was on the water and saw it." },
+  "spoilerTerms": []
+}
 ```
 
-## Step 4 — Register everywhere the ID is needed
+- **visibleFromAct** is the spoiler gate: no one surfaces the Fact before that act, and a `grantFact` that can fire earlier fails validation. Anything that gives away the case is gated.
+- **topics** are the phrases a player might use. Cover every proper noun or specific the person's own beats and voices say aloud, or the person will deflect on a thing they just mentioned. No phrase may belong to two Facts (`qa:story` fails it); avoid near-synonyms and containment across Facts the same person knows ("the boat" / "the boat's lamp").
+- **voices** give how this person phrases it when the plain statement would not do.
+- **spoilerTerms** list the words that would leak the Fact in a beat seen earlier; the validator scans beats for them.
+- **Numbers**: if a person will be asked for a figure, put it in the statement or voice. The invention gate rejects any number the turn's context does not hold.
 
-- `npcs.ts`: add to `NPC_DISPLAY_NAMES`; add to `NPC_ALIASES` only if the NPC has a pre-introduction alias.
-- `constants.ts`: add an `INITIAL_NPC_STATES` entry (initial location = their first onstage act's default) and a `NPC_DISPLAY_NAMES` entry (the sidebar keeps its own copy).
-- If the AI should record memory of interactions with this NPC: add the id to the `npcMemoryUpdate` properties in `NARRATION_SCHEMA` and to the `NpcIds:` line of the narration system prompt, both in `server/aiCore.ts`.
+If the person should learn something during play (a rumor reaching them), that is a Rule with a `grantFact` Effect and optional `delayPeriods`, not a `knownBy` entry.
 
-## Step 5 — Confirm
+## Step 4 — Validate and prove
 
-Run `npm run lint` **and** `npm run qa:validate` — the validator checks NPC placement gaps, dangling location IDs, and spoiler leaks in fact statements. Report the results to the user.
+```bash
+npm run qa:story
+npx tsx -e "import { Story } from './packages/schema/index.ts'; import { loadStoryDir } from './packages/schema/load.ts'; import { prove, formatProof } from './packages/engine/prover.ts'; console.log(formatProof(prove(Story.parse(loadStoryDir(process.argv[1])))))" stories/<id>
+```
 
-Then summarise what was added:
-- NPC ID and display name
-- Which acts/locations they appear in (and when offstage)
-- Fact-graph entries and their `visibleFromAct` gates
-- Whether any additional wiring is needed (e.g. scriptedLines, idleBeats, rumor hops in `rumors.ts`, atmosphere entries)
+`qa:story` checks unknown locations and persons in the schedule, follow cycles, unknown acts and periods, topic collisions and spoiler leaks. The prover confirms nothing the person gates has become unreachable. If you edited a fixture, run `npm run qa:all`, and `npx tsx scripts/qa-turn.ts --author` if `qa:turn`'s recordings no longer match.
+
+## Step 5 — Report
+
+- id, name, alias and how the name is learned
+- where they are, act by act and period by period, and when offstage
+- each Fact: id, `visibleFromAct`, topics
+- validator and prover results
+- anything the score implies that still needs a Rule (an arrival, a disposition change, a rumor hop, a proximity scene)

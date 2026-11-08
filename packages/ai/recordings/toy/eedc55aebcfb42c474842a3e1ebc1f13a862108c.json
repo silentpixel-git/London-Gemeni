@@ -1,0 +1,9 @@
+{
+  "kind": "select",
+  "summary": "select \"open the clock\"",
+  "selection": {
+    "kind": "intent",
+    "verb": "open",
+    "target": "hall_clock"
+  }
+}

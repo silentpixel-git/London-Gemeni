@@ -1,0 +1,232 @@
+[
+  {
+    "id": "tackle_chest",
+    "name": "tackle chest",
+    "aliases": [
+      "chest"
+    ],
+    "beats": [
+      "A salt-stiffened sea chest with a rope handle and a stubborn latch."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "jetty"
+    },
+    "item": false,
+    "container": {
+      "state": "locked",
+      "lock": {
+        "kind": "flag",
+        "flag": "chest_ok"
+      }
+    }
+  },
+  {
+    "id": "store_key",
+    "name": "store key",
+    "aliases": [
+      "key",
+      "padlock key"
+    ],
+    "beats": [
+      "A short iron key on a loop of twine."
+    ],
+    "placement": {
+      "kind": "container",
+      "container": "tackle_chest"
+    },
+    "item": true
+  },
+  {
+    "id": "net_rack",
+    "name": "net rack",
+    "aliases": [
+      "rack"
+    ],
+    "beats": [
+      "A rack of mending needles and twine."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "net_loft"
+    },
+    "item": false
+  },
+  {
+    "id": "keeper_log",
+    "name": "keeper's log",
+    "aliases": [
+      "log",
+      "logbook",
+      "book"
+    ],
+    "beats": [
+      "A salt-warped ledger lying open on the table."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "kitchen"
+    },
+    "item": false,
+    "fact": "crane_found_at_lamp",
+    "document": "Log of the Saltmarsh Light. Entries kept by Ines Tarrow, assistant keeper, since Keeper Crane was found dead beside the lamp."
+  },
+  {
+    "id": "tower_keys",
+    "name": "ring of keys",
+    "aliases": [
+      "keys"
+    ],
+    "beats": [
+      "A heavy ring of tower keys."
+    ],
+    "placement": {
+      "kind": "person",
+      "person": "maud"
+    },
+    "item": false
+  },
+  {
+    "id": "oil_cask",
+    "name": "oil cask",
+    "aliases": [
+      "cask",
+      "barrel"
+    ],
+    "beats": [
+      "A squat cask with a dipstick standing in the bung."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "oil_store"
+    },
+    "item": false,
+    "fact": "oil_watered",
+    "document": "The dipstick comes up with a skin of clear water riding under the paraffin."
+  },
+  {
+    "id": "hatch_hinge",
+    "name": "hatch hinge",
+    "aliases": [
+      "hinge"
+    ],
+    "beats": [
+      "A stiff iron hinge crusted with salt."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "tower_stair"
+    },
+    "item": false
+  },
+  {
+    "id": "oil_can",
+    "name": "oil can",
+    "aliases": [
+      "can",
+      "oilcan"
+    ],
+    "beats": [
+      "A copper can with a long spout."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "lamp_room"
+    },
+    "item": true
+  },
+  {
+    "id": "lamp_wick",
+    "name": "lamp wick",
+    "aliases": [
+      "wick"
+    ],
+    "beats": [
+      "A fresh coil of woven wick."
+    ],
+    "placement": {
+      "kind": "person",
+      "person": "orrin"
+    },
+    "item": true
+  },
+  {
+    "id": "lamp_lens",
+    "name": "great lens",
+    "aliases": [
+      "lens"
+    ],
+    "beats": [
+      "Rings of glass prisms taller than a man."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "lamp_room"
+    },
+    "item": false
+  },
+  {
+    "id": "soft_cloth",
+    "name": "soft cloth",
+    "aliases": [
+      "cloth",
+      "rag"
+    ],
+    "beats": [
+      "A chamois cloth hanging from a nail."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "lamp_room"
+    },
+    "item": false
+  },
+  {
+    "id": "dust_sheet",
+    "name": "dust sheet",
+    "aliases": [
+      "sheet"
+    ],
+    "beats": [
+      "A canvas sheet spread over the clockwork."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "lamp_room"
+    },
+    "item": false
+  },
+  {
+    "id": "torn_page",
+    "name": "ragged sheet",
+    "aliases": [
+      "page",
+      "sheet of paper"
+    ],
+    "beats": [
+      "A ragged sheet of ruled paper."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "lamp_room"
+    },
+    "item": false,
+    "hidden": true,
+    "fact": "log_page_torn",
+    "document": "Keeper's hand: 'The new oil is no good. Someone has been at the cask. I will tell the Board on Friday.' The sheet ends there."
+  },
+  {
+    "id": "hatch_pin",
+    "name": "hatch pin",
+    "aliases": [
+      "pin"
+    ],
+    "beats": [
+      "A swollen oak pin."
+    ],
+    "placement": {
+      "kind": "nowhere"
+    },
+    "item": true
+  }
+]

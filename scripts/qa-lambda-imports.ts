@@ -4,17 +4,17 @@
  * Guards the ONE thing that separates the Vercel serverless function from every
  * other way this code runs: it is executed by native Node ESM, not a bundler.
  *
- * `api/ai.ts` is deployed as a Node function and Vercel transpiles it per file
- * rather than bundling — the lambda really does contain
- * /var/task/engine/stories/whitechapel-1888/acts.js and friends. Native ESM has
- * no extension resolution, so a relative import written the way a bundler
- * accepts it (`from '../../time'`) throws ERR_MODULE_NOT_FOUND at module load.
- * That takes down the whole function before a single request is served, which
- * is exactly what happened: every /api/ai call returned 500 while dev, `tsc`
- * and all the other qa:* suites stayed green, because Vite and tsx both resolve
- * extensionless specifiers happily.
+ * `api/turn.ts` is deployed as a Node function and Vercel transpiles it per
+ * file rather than bundling — the lambda really does contain
+ * /var/task/packages/engine/state.js and friends. Native ESM has no extension
+ * resolution, so a relative import written the way a bundler accepts it
+ * (`from '../../time'`) throws ERR_MODULE_NOT_FOUND at module load. That takes
+ * down the whole function before a single request is served, which is exactly
+ * what happened to the old /api/ai function: every call returned 500 while
+ * dev, `tsc` and all the other qa:* suites stayed green, because Vite and tsx
+ * both resolve extensionless specifiers happily.
  *
- * The rule enforced here, for every file reachable from api/ai.ts:
+ * The rule enforced here, for every file reachable from api/turn.ts:
  *   a relative import is either fully type-only (erased before Node sees it)
  *   or it carries an explicit .js extension.
  *
@@ -31,7 +31,7 @@ import { fileURLToPath } from 'url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
-const ENTRY = path.join(ROOT, 'api/ai.ts');
+const ENTRIES = ['api/turn.ts'].map(e => path.join(ROOT, e));
 
 interface Offender {
   file: string;
@@ -95,10 +95,10 @@ function walk(file: string): void {
   }
 }
 
-walk(ENTRY);
+for (const entry of ENTRIES) walk(entry);
 
 console.log('─'.repeat(72));
-console.log('Lambda ESM import check — files reachable from api/ai.ts:', visited.size);
+console.log('Lambda ESM import check — files reachable from api/turn.ts:', visited.size);
 console.log('─'.repeat(72));
 
 if (offenders.length === 0) {
@@ -113,5 +113,5 @@ for (const o of offenders) {
   console.log(`       Fix: '${o.specifier}.js', or mark the import 'import type' if it is types only.`);
 }
 
-console.log(`\n${offenders.length} import(s) would crash /api/ai at module load.\n`);
+console.log(`\n${offenders.length} import(s) would crash /api/turn at module load.\n`);
 process.exit(1);

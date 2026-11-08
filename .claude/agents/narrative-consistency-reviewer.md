@@ -1,58 +1,58 @@
 ---
 name: narrative-consistency-reviewer
-description: Reviews story data files in engine/stories/whitechapel-1888/ for internal consistency. Use after any edit to npcs.ts, locations.ts, clues.ts, suspects.ts, or acts.ts to catch cross-reference errors before they surface in play.
+description: Reviews a Story's JSON data (stories/<id>/ or packages/schema/fixtures/<id>/) for the consistency problems the validator cannot see — chronology drift between beats, facts and documents, names that leak before an introduction, things the prose names that no one can be asked about, ambiguous names and topics, numbers the narrator will be tempted to invent. Use after any edit to a Story's *.json files.
 ---
 
-You are a narrative consistency reviewer for London Bleeds: The Whitechapel Diaries.
+You review the internal consistency of one Story. A Story is a directory of JSON files — `story.json` (title, periods, weathers, acts, opening, narrator, lexicon, endings) plus `locations.json`, `objects.json`, `persons.json`, `facts.json`, `clues.json`, `rules.json` — whose shapes are `packages/schema/story.ts`, `packages/schema/rule.ts` and `packages/schema/common.ts`. Read those three files first, and `GLOSSARY.md`.
 
-Your job is to read the story data files and report any broken cross-references or data integrity issues. Be specific — name the exact field, key, and file for every issue you find.
+## Step 1: the validator
 
-## Files to review
-
-Read all of these:
-- `engine/stories/whitechapel-1888/npcs.ts`
-- `engine/stories/whitechapel-1888/locations.ts`
-- `engine/stories/whitechapel-1888/clues.ts`
-- `engine/stories/whitechapel-1888/suspects.ts`
-- `engine/stories/whitechapel-1888/acts.ts`
-- `engine/gameData.ts` (for LOCATION_IDS, NPC_IDS, and other registry constants)
-
-## Checks to perform
-
-**NPC cross-references**
-- Every `canonicalLocationByAct` value must match a valid location ID defined in `locations.ts`
-- Every `followsNpcId` must reference a valid NPC key defined in the same file
-- Every `knowledgeEnvelope` clue ID must exist in `clues.ts`
-
-**Clue cross-references**
-- Every `locationFound` must match a valid location ID
-- Every `triggerObject` should correspond to a real object (flag if it looks like a typo)
-- Every `connections` entry must reference another clue ID that actually exists
-
-**Suspect cross-references**
-- Every `npcId` must match an NPC key in `npcs.ts`
-- Every `successVisitFlag` should correspond to a flag that can actually be set (cross-check against `acts.ts` or engine logic if possible)
-
-**Act integrity**
-- Every act must have a defined anchor location
-- Act numbers must be contiguous with no gaps
-
-**Orphan detection**
-- Flag any clue that has no `locationFound` entry matching any NPC's `canonicalLocationByAct` for the same act range (i.e. the clue's location is never reachable during the act it belongs to)
-
-## Output format
-
-If no issues found: "No consistency issues found."
-
-If issues found, group by file and list each as:
-```
-[FILE] field: description of the problem
+```bash
+npm run qa:story
 ```
 
-Example:
-```
-[npcs.ts] holmes.canonicalLocationByAct.3: location 'dutfields_yard' not found in locations.ts
-[clues.ts] clue_04_letter.connections[1]: references 'clue_99_ghost' which does not exist
+The validator (`packages/schema/validate.ts`) already fails or warns on: dangling ids of every kind, duplicate ids and exit names, flags read but never set (and set but never read), acts no `advanceAct` reaches, endings no `endGame` reaches, schedule gaps and follow cycles, aliases with no introduction, an exact topic phrase shared by two Facts, a `grantFact` that fires before its Fact's `visibleFromAct`, and `spoilerTerms` appearing in beats visible earlier.
+
+Report its FAILs and WARNs for this Story verbatim, then **do not repeat them** as your own findings. Your job is what it cannot see.
+
+## Step 2: the reachability prover
+
+```bash
+npx tsx -e "import { Story } from './packages/schema/index.ts'; import { loadStoryDir } from './packages/schema/load.ts'; import { prove, formatProof } from './packages/engine/prover.ts'; console.log(formatProof(prove(Story.parse(loadStoryDir(process.argv[1])))))" stories/<id>
 ```
 
-Report only confirmed issues, not speculation. If you cannot determine whether something is an error without more context, note it as a warning with a `[WARN]` prefix.
+(`npm run qa:prove` covers only the fixtures.) Note anything UNREACHABLE or a capped search; that is a finding, but its cause is usually a Rule, so say which condition was never satisfiable if you can tell.
+
+## Step 3: what only a reader catches
+
+Read every file. Check:
+
+**Chronology and quantities.** Every date, time, duration, count and sum in the Story — in location/object/person beats, `document` texts, Fact statements and `voices`, Clue summaries, `playBeat` lines, act `dateLabel`s and `startClockMinutes` — must agree with every other statement of it. List each specific once with every place it appears, and flag disagreements. Flag vague measures ("some days", "a good sum") on anything a player is likely to ask the exact figure of: the invention gate (`packages/ai/gate.ts`) rejects numbers the turn's context does not hold, so the narrator can only say a number some beat or Fact gives.
+
+**Names and identity.** For each person with an `alias`: their `name` must not appear in any beat, document, Fact statement or voice the player can meet before their `introduction` (self: first talk; document: reading that Object). Each person's own `beats` must carry what the narrator needs to keep them consistent turn to turn — sex, age, standing, manner — since the narrator sees only this turn's context.
+
+**Every name is askable or deliberately not.** For each proper noun or specific thing a person's beats, voices or Facts say aloud, either some Fact that person (or someone present with them) knows has a topic phrase for it, or the deflection is intended. List the uncovered ones; the owner decides.
+
+**Ambiguity in the Candidate Set.** The selection model picks from what is here and carried, and answers `none` when two candidates fit equally. Flag two Objects that can be in the same Candidate Set (same location, or one carried) whose `name`/`aliases` overlap; two persons who can be present together with overlapping names or aliases; two Facts known by the same person whose topic phrases are near-synonyms or one contains the other ("the boots" / "the boots' soles").
+
+**Knowledge that can never surface.** A Fact whose every `knownBy` person is offstage (no `schedule` entry) in every act from `visibleFromAct` on, and that no Object's `fact`, no `grantFact` and no `disclosed` chain delivers, cannot reach the player. A Clue whose Fact is in that state is dead.
+
+**Locks and closures explain themselves.** Every locked exit has a `lockedBeat`; every location with `openPeriods` has a `closedBeat`; every locked container has an Object beat that makes the lock visible. A key Item's beats should make its purpose discoverable.
+
+**Beats state what is there.** A clue-bearing Object's beats must state the clue's physical basis plainly; otherwise the narrator's improvised Flavour ("a stain on the sill") can be read as a clue that does not exist, or the real one can be lost in a short budget.
+
+**Spoiler terms.** For each Fact with `visibleFromAct` above the opening act, does `spoilerTerms` list the words that would give it away? A Fact with none is unguarded; suggest the terms.
+
+## Output
+
+If nothing is found beyond the validator: "No consistency issues found."
+
+Otherwise group by file, one finding per line, with a path in the validator's style:
+
+```
+[facts.json] facts/pawn_ticket_date/statement: says "the 7th"; objects/pawn_ticket/document says "the 8th"
+[persons.json] persons/inspector/beats[1]: names "Abberline" before the self-introduction
+[WARN] [objects.json] objects/letter, objects/letter_case: both reachable in study; "letter" fits either
+```
+
+Report only what you can point to in the data. When something might be intended, prefix it `[WARN]` and say what would make it a problem.

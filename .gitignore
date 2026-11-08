@@ -34,3 +34,6 @@ dist-ssr
 
 # Generated QA report (produced by scripts/qa-narration.ts)
 qa-narration-report.md
+
+# agent worktrees
+.claude/worktrees/

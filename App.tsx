@@ -3,14 +3,15 @@
  *
  * Owns:
  *   - isSidebarOpen (affects root layout; both Sidebar and Header need it)
- *   - isAuthModalOpen / isEditProfileOpen / isFirstRunProfile (modal orchestration)
+ *   - which modal is open (auth, profile, investigations, diary)
  *   - SupabaseProvider / ErrorBoundary wrappers
  *
- * Everything else lives in hooks/useGameState.ts and the focused components.
+ * The game itself is hooks/useInvestigation.ts: the server owns every
+ * Investigation (ADR-0001) and the browser renders what it says. Nothing here
+ * knows a Story.
  */
 
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
-import { AnimatePresence } from 'motion/react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { cssEase, EASE_IN_OUT } from './components/motionTokens';
 import { SupabaseProvider, useSupabase } from './components/SupabaseProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -21,15 +22,15 @@ import { NarrativeFeed } from './components/NarrativeFeed';
 import { CommandInput } from './components/CommandInput';
 import { AuthModal } from './components/AuthModal';
 import { EditProfileModal } from './components/EditProfileModal';
-import { SaveSlotsModal } from './components/SaveSlotsModal';
+import { InvestigationsModal } from './components/InvestigationsModal';
 import { DiaryModal, diaryTabTotals, type DiaryTab } from './components/DiaryModal';
 import { DiaryToast } from './components/DiaryToast';
 import { ResetPasswordModal } from './components/ResetPasswordModal';
-import { ActBreakCurtain } from './components/ActBreakCurtain';
-import { TurnFailureScreen } from './components/TurnFailureScreen';
-import { useGameState } from './hooks/useGameState';
-import { sceneView, suggestionsFor } from './hooks/gameState/sceneView';
+import { useInvestigation } from './hooks/useInvestigation';
+import { useAppearance } from './hooks/gameState/useAppearance';
+import { useConnections } from './hooks/gameState/useConnections';
 import { useAudio } from './hooks/useAudio';
+import type { TimePeriod } from './types';
 
 // The `desk` breakpoint (tailwind.config.js) — the width at or above which the
 // Sidebar docks beside the game instead of sliding over it as a drawer, as in
@@ -37,10 +38,24 @@ import { useAudio } from './hooks/useAudio';
 // this in step with the `desk:` classes on the Sidebar itself.
 const DESK_QUERY = '(min-width: 901px)';
 
+/** The auto theme follows the in-game hour; a Story's own Periods are not needed for that. */
+function themePeriod(clock: number | undefined): TimePeriod {
+  if (clock === undefined) return 'evening';
+  const h = Math.floor((((clock % 1440) + 1440) % 1440) / 60);
+  if (h < 5) return 'lateNight';
+  if (h < 7) return 'dawn';
+  if (h < 12) return 'morning';
+  if (h < 17) return 'afternoon';
+  if (h < 20) return 'evening';
+  return 'night';
+}
+
+const sumTotals = (t: Record<DiaryTab, number>) => t.evidence + t.persons + t.documents;
+
 // ── Inner app (has access to Supabase context) ──────────────────────────────
 
 const AppContent: React.FC = () => {
-  const { user, isAuthReady, isNewUser, isPasswordRecovery, userProfile, logout } = useSupabase();
+  const { user, isGuest, isAuthReady, isNewUser, isPasswordRecovery, userProfile, authError, logout } = useSupabase();
   // Open by default on desktop (lg+); closed on smaller devices where the
   // sidebar is an overlay drawer that would otherwise cover the game.
   const [isSidebarOpen, setIsSidebarOpen] = useState(
@@ -62,82 +77,67 @@ const AppContent: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isFirstRunProfile, setIsFirstRunProfile] = useState(false);
-  const [isSlotMenuOpen, setIsSlotMenuOpen] = useState(false);
+  const [isInvestigationsOpen, setIsInvestigationsOpen] = useState(false);
   const [isDiaryOpen, setIsDiaryOpen] = useState(false);
-  // Entries seen as of the last time the diary was opened — drives the unread badge.
-  const [diarySeenCount, setDiarySeenCount] = useState(0);
-  // Ids of entries logged since the last open — flagged as "new" in the diary.
-  const [diaryNewIds, setDiaryNewIds] = useState<Set<string>>(new Set());
-  // Per-tab item counts at the last open, and the tabs that have grown since.
-  const diarySeenTabs = useRef<Record<DiaryTab, number> | null>(null);
-  const [diaryNewTabs, setDiaryNewTabs] = useState<Set<DiaryTab>>(new Set());
-  const [isDiaryToastShown, setIsDiaryToastShown] = useState(false);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  const gs = useGameState({ user, isAuthReady, userProfile });
+  const inv = useInvestigation({ userId: isAuthReady ? user?.id ?? null : null });
+  const view = inv.view;
+  const appearance = useAppearance({ user, userProfile, currentTimePeriod: themePeriod(view?.clock) });
+  const { connectionStatus, checkConnections } = useConnections({ isAuthReady, setNotification });
 
-  // Drive the ambient audio layer from game state (SFX fire from inside the hook).
+  // Ambient bed from what the player can see; one-shots from the latest turn's Events.
   useAudio({
-    location: gs.location,
-    weatherCondition: gs.weather?.condition,
-    currentAct: gs.currentAct,
-    playerTurns: gs.history.filter(m => m.role === 'user').length,
-    isActClosing: gs.pendingActTransition !== null,
-    isCurtainPlaying: gs.isCurtainPlaying,
-    soundEffects: gs.soundEffects,
-    ambientAudio: gs.ambientAudio,
+    location: view?.location.id ?? '',
+    weatherCondition: view?.weather.id,
+    currentAct: view?.act.id ?? 0,
+    events: inv.lastEvents,
+    soundEffects: appearance.soundEffects,
+    ambientAudio: appearance.ambientAudio,
   });
 
-  const diaryUnreadCount = Math.max(0, gs.diaryEntries.length - diarySeenCount);
+  // Turn errors surface as a notification.
+  useEffect(() => {
+    if (inv.error) setNotification({ message: inv.error, type: 'error' });
+  }, [inv.error]);
+  useEffect(() => {
+    if (authError) setNotification({ message: authError, type: 'error' });
+  }, [authError]);
+
+  // ── Diary: unread badge, new-tab dots, and a toast when play records something ──
+  const totals = view ? diaryTabTotals(view.diary) : null;
+  const [diarySeen, setDiarySeen] = useState<Record<DiaryTab, number> | null>(null);
+  const [diaryNewTabs, setDiaryNewTabs] = useState<Set<DiaryTab>>(new Set());
+  const [isDiaryToastShown, setIsDiaryToastShown] = useState(false);
+  const diaryUnreadCount = totals ? Math.max(0, sumTotals(totals) - (diarySeen ? sumTotals(diarySeen) : 0)) : 0;
   const openDiary = () => {
-    // Capture which entries are new (logged since the last open) before resetting
-    // the seen boundary; entries are appended in sequence order.
-    setDiaryNewIds(new Set(gs.diaryEntries.slice(diarySeenCount).map(e => e.id)));
-    setDiarySeenCount(gs.diaryEntries.length);
-    const totals = diaryTabTotals(gs.diaryEntries, gs.flags);
-    const seen = diarySeenTabs.current;
-    setDiaryNewTabs(new Set((Object.keys(totals) as DiaryTab[]).filter(t => totals[t] > (seen?.[t] ?? 0))));
-    diarySeenTabs.current = totals;
+    if (totals) {
+      setDiaryNewTabs(new Set((Object.keys(totals) as DiaryTab[]).filter(t => totals[t] > (diarySeen?.[t] ?? 0))));
+      setDiarySeen(totals);
+    }
     setIsDiaryToastShown(false);
     setIsDiaryOpen(true);
   };
   const closeDiary = useCallback(() => setIsDiaryOpen(false), []);
-
-  // A new game or a load replaces the entries wholesale: forget the old seen state.
+  // Another Investigation: the diary starts over, everything in it already "seen".
   useEffect(() => {
-    if (gs.diaryEntries.length < diarySeenCount) {
-      setDiarySeenCount(0);
-      diarySeenTabs.current = null;
-    }
-  }, [gs.diaryEntries.length, diarySeenCount]);
-
-  // "Noted in the diary": a short toast when play records something while the diary is closed.
+    setDiarySeen(inv.view ? diaryTabTotals(inv.view.diary) : null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inv.investigationId]);
+  // "Noted in the diary": the latest turn found a Clue or read a document.
   useEffect(() => {
-    if (gs.diaryCaptureCount === 0 || isDiaryOpen) return;
+    if (isDiaryOpen || !inv.lastEvents.some(e => e.kind === 'ClueDiscovered' || e.kind === 'Read')) return;
     setIsDiaryToastShown(true);
     const t = window.setTimeout(() => setIsDiaryToastShown(false), 2400);
     return () => window.clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gs.diaryCaptureCount]);
+  }, [inv.lastEvents]);
 
-  // Tracks the user id we've already run login setup for. Supabase fires
-  // onAuthStateChange (SIGNED_IN / TOKEN_REFRESHED) whenever the tab regains
-  // focus, handing us a fresh User object with the same id. Without these
-  // guards the effect below would reopen the slot menu every time the player
-  // switched away and came back.
-  const slotMenuShownFor = useRef<string | null>(null);
   const dockRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   // A sidebar click puts its command in the input; the nonce re-applies the
   // same command if it is clicked twice.
   const [prefill, setPrefill] = useState<{ text: string; nonce: number } | null>(null);
-  // "Try" chips: things in view not yet tried (sceneView.ts), when the setting is on.
-  const suggestions = useMemo(() => {
-    if (!gs.showSuggestions) return [];
-    const view = sceneView({
-      location: gs.location, currentAct: gs.currentAct, inventory: gs.inventory,
-      npcStates: gs.npcStates, introducedNpcs: gs.introducedNpcs, flags: gs.flags,
-    });
-    return suggestionsFor(view, gs.location, gs.flags, gs.locationVisitCounts);
-  }, [gs.showSuggestions, gs.location, gs.currentAct, gs.inventory, gs.npcStates, gs.introducedNpcs, gs.flags, gs.locationVisitCounts]);
   const prefillCommand = useCallback((text: string) => setPrefill(p => ({ text, nonce: (p?.nonce ?? 0) + 1 })), []);
 
   // Desktop sidebar toggle: one layout change, then FLIP each piece that moves
@@ -165,42 +165,27 @@ const AppContent: React.FC = () => {
       );
     });
   }, [isSidebarOpen]);
-  const firstRunShownFor = useRef<string | null>(null);
 
-  // On login, show the slot-select menu instead of auto-loading the last game.
+  // Nothing open once the player's investigations are loaded: choose or begin one.
   useEffect(() => {
-    if (!user || !isAuthReady) {
-      // Cleared on logout so signing back in (even as the same user) reopens the menu.
-      slotMenuShownFor.current = null;
-      firstRunShownFor.current = null;
-      return;
-    }
-    setIsAuthModalOpen(false);
-    // A password-recovery session must set a new password first — the reset modal
-    // takes precedence; don't open the slot menu or first-run profile underneath it.
-    if (isPasswordRecovery) {
-      setIsSlotMenuOpen(false);
-      return;
-    }
-    // Open the slot menu once per genuine login, not on focus-triggered refreshes.
-    if (slotMenuShownFor.current !== user.id) {
-      slotMenuShownFor.current = user.id;
-      gs.refreshSlots();
-      setIsSlotMenuOpen(true);
-    }
-    // isNewUser resolves asynchronously (after the profile loads), so handle the
-    // first-run prompt separately — but still only once per user.
-    if (isNewUser && firstRunShownFor.current !== user.id) {
-      firstRunShownFor.current = user.id;
-      setIsFirstRunProfile(true);
-      setIsEditProfileOpen(true);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, isNewUser, isAuthReady, isPasswordRecovery]);
+    if (inv.isReady && !inv.investigationId && !isPasswordRecovery) setIsInvestigationsOpen(true);
+  }, [inv.isReady, inv.investigationId, isPasswordRecovery]);
 
-  const openSlotMenu = () => {
-    gs.refreshSlots();
-    setIsSlotMenuOpen(true);
+  // A signed-in (not guest) player with no display name yet: the first-run profile prompt, once.
+  const firstRunShownFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user || isGuest || !isNewUser || isPasswordRecovery || firstRunShownFor.current === user.id) return;
+    firstRunShownFor.current = user.id;
+    setIsAuthModalOpen(false);
+    setIsFirstRunProfile(true);
+    setIsEditProfileOpen(true);
+  }, [user, isGuest, isNewUser, isPasswordRecovery]);
+  // Signing in closes the sign-in modal.
+  useEffect(() => { if (user && !isGuest) setIsAuthModalOpen(false); }, [user, isGuest]);
+
+  const openInvestigations = () => {
+    void inv.refreshList();
+    setIsInvestigationsOpen(true);
   };
 
   const handleOpenEditProfile = () => {
@@ -235,6 +220,10 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const history = inv.history;
+  let lastUserIdx = -1;
+  history.forEach((m, i) => { if (m.role === 'user') lastUserIdx = i; });
+
   return (
     <div
       className="flex h-screen h-dvh w-full overflow-hidden font-sans selection:bg-lb-accent selection:text-white bg-lb-bg text-lb-primary"
@@ -250,73 +239,38 @@ const AppContent: React.FC = () => {
         onClick={() => setIsSidebarOpen(false)}
       />
 
-      {gs.notification && (
+      {notification && (
         <Notification
-          message={gs.notification.message}
-          type={gs.notification.type}
-          onClose={() => gs.setNotification(null)}
+          message={notification.message}
+          type={notification.type}
+          onClose={() => { setNotification(null); inv.clearError(); }}
         />
       )}
 
       <DiaryToast show={isDiaryToastShown} />
 
-      <AnimatePresence>
-        {gs.isCurtainPlaying && gs.pendingActTransition && (
-          <ActBreakCurtain
-            key="act-curtain"
-            fromAct={gs.pendingActTransition.fromAct}
-            toAct={gs.pendingActTransition.toAct}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {gs.turnFailure && (
-          <TurnFailureScreen
-            key={`turn-failure-${gs.turnFailure.attempts}`}
-            failure={gs.turnFailure}
-            onSaveGame={gs.handleSaveGame}
-            connectionStatus={gs.connectionStatus}
-            onRetryConnection={gs.retryConnections}
-          />
-        )}
-      </AnimatePresence>
-
       <Sidebar
         isSidebarOpen={isSidebarOpen}
         onClose={() => { if (!window.matchMedia(DESK_QUERY).matches) setIsSidebarOpen(false); }}
         onPrefill={prefillCommand}
-        location={gs.location}
-        inventory={gs.inventory}
-        currentAct={gs.currentAct}
-        npcStates={gs.npcStates}
-        introducedNpcs={gs.introducedNpcs}
-        displayTime={gs.displayTime}
-        displayDate={gs.displayDate}
-        weather={gs.weather}
-        flags={gs.flags}
+        view={view}
       />
 
       <div className="flex-1 flex flex-col h-full relative w-full min-w-0">
         <Header
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={toggleSidebar}
-          connectionStatus={gs.connectionStatus}
-          onRetryConnection={gs.retryConnections}
-          isSaving={gs.isSaving}
-          themeMode={gs.themeMode}
-          onSetThemeMode={gs.setThemeMode}
-          soundEffects={gs.soundEffects}
-          onToggleSound={() => gs.setSoundEffects(v => !v)}
-          ambientAudio={gs.ambientAudio}
-          onToggleAmbient={() => gs.setAmbientAudio(v => !v)}
-          showSuggestions={gs.showSuggestions}
-          onToggleSuggestions={() => gs.setShowSuggestions(v => !v)}
-          user={user}
+          connectionStatus={{ engine: inv.engineOk, supabase: connectionStatus.supabase }}
+          onRetryConnection={checkConnections}
+          themeMode={appearance.themeMode}
+          onSetThemeMode={appearance.setThemeMode}
+          soundEffects={appearance.soundEffects}
+          onToggleSound={() => appearance.setSoundEffects(v => !v)}
+          ambientAudio={appearance.ambientAudio}
+          onToggleAmbient={() => appearance.setAmbientAudio(v => !v)}
+          user={isGuest ? null : user}
           userProfile={userProfile}
-          onSave={() => gs.handleSaveGame()}
-          onLoad={openSlotMenu}
-          onNewGame={openSlotMenu}
+          onOpenInvestigations={openInvestigations}
           onOpenAuth={() => setIsAuthModalOpen(true)}
           onOpenEditProfile={handleOpenEditProfile}
           onLogout={logout}
@@ -325,49 +279,39 @@ const AppContent: React.FC = () => {
         />
 
         <NarrativeFeed
-          history={gs.history}
-          isGameOver={gs.isGameOver}
-          actualLastUserIdx={gs.actualLastUserIdx}
-          scrollRef={gs.scrollRef}
+          history={history}
+          actualLastUserIdx={lastUserIdx}
+          scrollRef={scrollRef}
           dockRef={dockRef}
-          onJournalDone={gs.handleJournalTypewriterDone}
-          pendingActTransition={gs.pendingActTransition}
-          isActBreakReady={gs.isActBreakReady}
-          onBeginAct={gs.beginNextAct}
         />
 
         <CommandInput
-          isLoading={gs.isLoading || gs.pendingActTransition !== null || gs.isCurtainPlaying || gs.turnFailure !== null}
-          isGameOver={gs.isGameOver}
-          isConsultingHolmes={gs.isConsultingHolmes}
-          isAdvancingAct={gs.isAdvancingAct}
-          history={gs.history}
-          onAction={gs.handleAction}
-          onConsultHolmes={gs.handleConsultHolmes}
+          isLoading={inv.isBusy || !inv.investigationId}
+          isGameOver={!!view?.ended}
+          history={history}
+          onAction={inv.send}
           dockRef={dockRef}
           prefill={prefill}
-          suggestions={suggestions}
         />
       </div>
 
       {/* Modals */}
-      <SaveSlotsModal
-        isOpen={isSlotMenuOpen}
-        slots={gs.slots}
-        onSelect={(inv) => { gs.handleSelectSlot(inv); setIsSlotMenuOpen(false); }}
-        onStartInSlot={(n) => { gs.handleStartInSlot(n); setIsSlotMenuOpen(false); }}
-        onContinue={() => { gs.handleContinue(); setIsSlotMenuOpen(false); }}
-        onDelete={(inv) => gs.handleDeleteSlot(inv)}
-        onClose={() => setIsSlotMenuOpen(false)}
+      <InvestigationsModal
+        isOpen={isInvestigationsOpen}
+        investigations={inv.investigations}
+        activeId={inv.investigationId}
+        isGuest={isGuest}
+        canClose={!!inv.investigationId}
+        isBusy={inv.isBusy}
+        onOpen={async id => { if (await inv.resume(id)) setIsInvestigationsOpen(false); }}
+        onStart={async name => { setIsInvestigationsOpen(false); if (!(await inv.start(name))) setIsInvestigationsOpen(true); }}
+        onDelete={id => { void inv.remove(id); }}
+        onClose={() => setIsInvestigationsOpen(false)}
       />
       <DiaryModal
         isOpen={isDiaryOpen}
         onClose={closeDiary}
-        entries={gs.diaryEntries}
-        currentAct={gs.currentAct}
-        flags={gs.flags}
-        inventory={gs.inventory}
-        newEntryIds={diaryNewIds}
+        view={view}
         newTabs={diaryNewTabs}
       />
       <ResetPasswordModal isOpen={isPasswordRecovery} />

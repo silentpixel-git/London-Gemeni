@@ -1,0 +1,132 @@
+[
+  {
+    "id": "hall_clock",
+    "name": "long-case clock",
+    "aliases": [
+      "clock",
+      "grandfather clock"
+    ],
+    "beats": [
+      "A tall walnut case with a small door below the face."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "hall"
+    },
+    "item": false,
+    "container": {
+      "state": "closed"
+    }
+  },
+  {
+    "id": "brass_key",
+    "name": "brass key",
+    "aliases": [
+      "key",
+      "study key"
+    ],
+    "beats": [
+      "A small brass key, worn bright at the bow."
+    ],
+    "placement": {
+      "kind": "nowhere"
+    },
+    "item": true
+  },
+  {
+    "id": "mat",
+    "name": "doormat",
+    "aliases": [
+      "mat",
+      "rug"
+    ],
+    "beats": [
+      "Coir, frayed at one corner, with nothing underneath but dust."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "hall"
+    },
+    "item": false
+  },
+  {
+    "id": "matches",
+    "name": "box of matches",
+    "aliases": [
+      "matches",
+      "match"
+    ],
+    "beats": [
+      "A half-empty box of lucifers."
+    ],
+    "placement": {
+      "kind": "inventory"
+    },
+    "item": true
+  },
+  {
+    "id": "candle",
+    "name": "candle",
+    "aliases": [
+      "candlestick"
+    ],
+    "beats": [
+      "A stub of tallow in a pewter stick."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "study"
+    },
+    "item": true
+  },
+  {
+    "id": "desk",
+    "name": "desk",
+    "aliases": [
+      "writing desk"
+    ],
+    "beats": [
+      "A leather-topped desk, its drawers pulled out and left open."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "study"
+    },
+    "item": false
+  },
+  {
+    "id": "letter",
+    "name": "letter",
+    "aliases": [
+      "note",
+      "paper"
+    ],
+    "beats": [
+      "A single sheet, folded twice, the ink browned."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "study"
+    },
+    "item": true,
+    "hidden": true,
+    "fact": "letter_confession",
+    "document": "Sir \u2014 I will not ask again. Fifty pounds by Friday, or your wife learns what the gardener knows. You know where to leave it."
+  },
+  {
+    "id": "rose",
+    "name": "rose bush",
+    "aliases": [
+      "rose",
+      "bush"
+    ],
+    "beats": [
+      "One late bloom, brown at the edges."
+    ],
+    "placement": {
+      "kind": "location",
+      "location": "garden"
+    },
+    "item": false
+  }
+]

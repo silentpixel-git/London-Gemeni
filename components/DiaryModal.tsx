@@ -1,11 +1,15 @@
 /**
  * components/DiaryModal.tsx
  *
- * Watson's diary — the frame and motion of the Act 0 prototype
- * (docs/act0-prototype.html, docs/diary-design.md) over today's data:
+ * The narrator's diary — frame and motion of the Act 0 prototype
+ * (docs/act0-prototype.html, docs/diary-design.md), rendered purely from the
+ * server-provided PlayerView.diary (packages/schema/view.ts). The client holds
+ * no story data: acts, clues, persons (with what they have told the player)
+ * and documents all arrive as names, labels and text.
  *
- *  - Spine: "Watson's Diary", a guarded "Private / J. H. Watson, M.D." line,
- *    and vertical tabs with a count line and an amber dot for anything new.
+ *  - Spine: "<narrator>'s Diary" (or "Diary"), a guarded "Private / <narrator>"
+ *    line, and vertical tabs with a count line and an amber dot for any tab
+ *    that has grown since the diary was last opened (`newTabs`).
  *    On mobile the spine becomes a title row and a horizontal tab ribbon.
  *  - Panels share one grid cell; a tab change is a direction-aware crossfade
  *    (interruptible CSS transitions), keyboard switches are instant, and on
@@ -14,14 +18,13 @@
  *    active panel (capped at 86vh), eases between heights, and closes on a
  *    downward drag of its handle.
  *
- *  - Journal: the act accordion of captured entries (clues, decisions, the
- *    act's closing reflection). Entries store only a reference; the
- *    Watson-voiced text is resolved from story data via resolveDiaryEntry().
+ *  - Journal: the act accordion; each act lists the clues found in it, timed.
  *  - Evidence: discovered clues.
- *  - Persons: the suspect ledger mirroring the engine's NOTEBOOK verb.
- *  - Documents: papers Watson has filed, verbatim.
+ *  - Persons: people met, with everything they have told the player.
+ *  - Documents: papers held, verbatim.
  *
- * Read-only throughout. Built from lb-* theme tokens so it adapts to every palette.
+ * Read-only throughout. A null view reads as an empty diary.
+ * Built from lb-* theme tokens so it adapts to every palette.
  */
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -29,21 +32,17 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { X, ChevronDown } from 'lucide-react';
 import { ModalBackdrop } from './ModalBackdrop';
 import { overlayPresence, DUR_EXIT, EASE_OUT_EXPO, EASE_OUT_QUINT, EASE_DRAWER } from './motionTokens';
-import type { DiaryEntry } from '../types';
-import { resolveDiaryEntry, ACT_NAMES, CLUE_DEFINITIONS, LOCATIONS, PERSONS_OF_INTEREST, TAKEABLE_OBJECTS, DOCUMENT_TEXT, DOCUMENT_OBJECT_IDS } from '../engine/gameData';
+import type { Diary, PlayerView } from '../packages/schema/view.js';
+import { formatClock } from '../services/viewFormat';
 
 export type DiaryTab = 'journal' | 'evidence' | 'persons' | 'documents';
 
 interface DiaryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  entries: DiaryEntry[];
-  currentAct: number;
-  flags: Record<string, boolean>;
-  inventory: string[];
-  newEntryIds?: Set<string>;
-  /** Tabs with something added since the diary was last opened. */
-  newTabs?: Set<DiaryTab>;
+  view: PlayerView | null;
+  /** Tabs that have grown since the diary was last opened (amber dot). */
+  newTabs: Set<DiaryTab>;
 }
 
 const TABS: { id: DiaryTab; label: string }[] = [
@@ -56,34 +55,21 @@ const TABS: { id: DiaryTab; label: string }[] = [
 const MOBILE_QUERY = '(max-width: 639px)';
 const VELOCITY = 0.11; // px per ms — a flick commits a swipe or closes the sheet
 
-const clueEntries = (entries: DiaryEntry[]) => entries.filter(e => e.kind === 'clue' && CLUE_DEFINITIONS[e.refId]);
-const visiblePersons = (flags: Record<string, boolean>) => PERSONS_OF_INTEREST.filter(p => !p.requiresFlag || flags[p.requiresFlag]);
-const filedDocuments = (flags: Record<string, boolean>) => DOCUMENT_OBJECT_IDS.filter(id => flags[`filed_${id}`]);
+const EMPTY_DIARY: Diary = { acts: [], clues: [], persons: [], documents: [] };
 
 /** How many items each tab holds — App compares these across visits for the tabs' new-dots. */
-export const diaryTabTotals = (entries: DiaryEntry[], flags: Record<string, boolean>): Record<DiaryTab, number> => ({
-  journal: entries.length,
-  evidence: clueEntries(entries).length,
-  persons: visiblePersons(flags).length,
-  documents: filedDocuments(flags).length,
-});
+export function diaryTabTotals(diary: Diary): Record<DiaryTab, number> {
+  return {
+    journal: diary.clues.length,
+    evidence: diary.clues.length,
+    persons: diary.persons.length,
+    documents: diary.documents.length,
+  };
+}
 
-const plural = (n: number, one: string, many: string) => (n === 0 ? 'none yet' : `${n} ${n === 1 ? one : many}`);
+const count = (n: number, one: string, many: string) => (n === 0 ? 'none yet' : `${n} ${n === 1 ? one : many}`);
 /** "7:35 PM" → "7:35" for the journal's time tile. */
 const shortTime = (label?: string) => (label ? label.replace(/\s*(AM|PM)$/i, '') : '—');
-
-const KIND_LABEL: Record<DiaryEntry['kind'], string> = {
-  clue: 'Clue',
-  decision: 'Decision',
-  revelation: 'Revelation',
-  act: 'Reflection',
-};
-
-const actLabel = (act: number): string => {
-  const name = ACT_NAMES[act];
-  if (act === 0) return name || 'Prologue';
-  return name ? `Act ${act} — ${name}` : `Act ${act}`;
-};
 
 const NewDot: React.FC<{ className?: string }> = ({ className = '' }) => (
   <span className={`w-2 h-2 rounded-full bg-lb-accent shrink-0 ${className}`}><span className="sr-only">new</span></span>
@@ -96,80 +82,51 @@ const Empty: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 // --- Panels ------------------------------------------------------------
 
 const JournalPanel: React.FC<{
-  entries: DiaryEntry[];
-  currentAct: number;
+  diary: Diary;
   openAct: number | null;
   onToggleAct: (act: number) => void;
-  newEntryIds?: Set<string>;
-}> = ({ entries, currentAct, openAct, onToggleAct, newEntryIds }) => {
-  if (entries.length === 0) return <Empty>Watson has yet to commit anything to his diary.</Empty>;
-
-  const byAct = new Map<number, DiaryEntry[]>();
-  for (const e of entries) byAct.set(e.actNumber, [...(byAct.get(e.actNumber) ?? []), e]);
-  const acts = Array.from(byAct.keys()).sort((a, b) => b - a);
-  let fresh = 0; // stagger index across the newly added entries
+}> = ({ diary, openAct, onToggleAct }) => {
+  if (diary.acts.length === 0) return <Empty>Nothing noted yet.</Empty>;
+  const latest = diary.acts[diary.acts.length - 1].id;
+  const acts = [...diary.acts].reverse(); // newest act first
 
   return (
     <div className="flex flex-col gap-2">
       {acts.map(act => {
-        const expanded = openAct === act;
-        // Newest first, except the act's closing reflection, which always reads last.
-        const actEntries = [...byAct.get(act)!].sort((a, b) => {
-          if (a.kind === 'act' && b.kind !== 'act') return 1;
-          if (b.kind === 'act' && a.kind !== 'act') return -1;
-          return b.sequence - a.sequence;
-        });
+        const expanded = openAct === act.id;
+        const entries = diary.clues.filter(c => c.act === act.id);
         return (
-          <section key={act}>
+          <section key={act.id}>
             <button
               type="button"
-              onClick={() => onToggleAct(act)}
+              onClick={() => onToggleAct(act.id)}
               aria-expanded={expanded}
               className="w-full flex items-center justify-between gap-3 py-2 text-left"
             >
-              <span className={`text-[11px] font-bold uppercase tracking-[0.18em] ${act === currentAct ? 'text-lb-accent' : 'text-lb-primary/60'}`}>
-                {actLabel(act)}
+              <span className="flex flex-col gap-0.5 min-w-0">
+                <span className={`text-[11px] font-bold uppercase tracking-[0.18em] ${act.id === latest ? 'text-lb-accent' : 'text-lb-primary/60'}`}>
+                  {act.name}
+                </span>
+                {act.dateLabel && <span className="text-xs text-lb-primary/60">{act.dateLabel}</span>}
               </span>
-              <ChevronDown size={16} className={`text-lb-primary/50 transition-transform duration-200 ${expanded ? '' : '-rotate-90'}`} />
+              <ChevronDown size={16} className={`shrink-0 text-lb-primary/50 transition-transform duration-200 ${expanded ? '' : '-rotate-90'}`} />
             </button>
             <div className={`grid transition-[grid-template-rows] duration-300 ease-out-quint ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
               <div className="overflow-hidden">
-                <ul className="list-none m-0 p-0 flex flex-col gap-3.5 pt-2 pb-4">
-                  {actEntries.map(entry => {
-                    const resolved = resolveDiaryEntry(entry);
-                    if (!resolved) return null;
-                    const isNew = newEntryIds?.has(entry.id) ?? false;
-                    const stagger = isNew ? { className: 'lb-stagger', style: { '--i': fresh++ } as React.CSSProperties } : {};
-                    if (entry.kind === 'act') {
-                      return (
-                        <li key={entry.id} {...stagger} className={`mt-1.5 pl-[18px] border-l-2 border-lb-muted/40 ${stagger.className ?? ''}`}>
-                          <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-lb-primary/60">
-                            Reflection{isNew && <NewDot />}
-                          </span>
-                          <p className="mt-1.5 mb-0 font-playfair italic text-[18px] leading-relaxed text-lb-primary">{resolved.body}</p>
-                          <span className="block text-right text-sm text-lb-primary/60 mt-1.5">— J. H. W.</span>
-                        </li>
-                      );
-                    }
-                    return (
-                      <li key={entry.id} {...stagger} className={`grid grid-cols-[48px_minmax(0,1fr)] sm:grid-cols-[56px_minmax(0,1fr)] gap-x-3 sm:gap-x-4 items-start ${stagger.className ?? ''}`}>
-                        <span className="relative grid place-items-center h-11 rounded-lg bg-lb-primary/[0.06] text-sm font-bold tabular-nums">
-                          {shortTime(entry.timeLabel)}
-                          {isNew && <NewDot className="absolute -top-[3px] -right-[3px] ring-2 ring-lb-paper" />}
+                {entries.length === 0 ? (
+                  <div className="pt-2 pb-4"><Empty>Nothing noted yet.</Empty></div>
+                ) : (
+                  <ul className="list-none m-0 p-0 flex flex-col gap-3.5 pt-2 pb-4">
+                    {entries.map(clue => (
+                      <li key={clue.id} className="grid grid-cols-[48px_minmax(0,1fr)] sm:grid-cols-[56px_minmax(0,1fr)] gap-x-3 sm:gap-x-4 items-start">
+                        <span className="grid place-items-center h-11 rounded-lg bg-lb-primary/[0.06] text-sm font-bold tabular-nums">
+                          {shortTime(formatClock(clue.clock))}
                         </span>
-                        <div className="min-w-0">
-                          <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-lb-accent mt-0.5 mb-1">
-                            {KIND_LABEL[entry.kind]}
-                          </span>
-                          <p className="m-0 font-serif text-[17px] leading-snug text-lb-primary">{resolved.title}</p>
-                          {resolved.body && (
-                            <p className="mt-1 mb-0 text-[15px] leading-relaxed text-lb-primary/85">{resolved.body}</p>
-                          )}
-                        </div>
+                        <p className="m-0 mt-0.5 font-serif text-[17px] leading-snug text-lb-primary">{clue.summary}</p>
                       </li>
-                    );
-                  })}
-                </ul>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
           </section>
@@ -179,139 +136,53 @@ const JournalPanel: React.FC<{
   );
 };
 
-const EvidencePanel: React.FC<{ entries: DiaryEntry[]; newEntryIds?: Set<string> }> = ({ entries, newEntryIds }) => {
-  const clues = clueEntries(entries).sort((a, b) => b.sequence - a.sequence);
-  if (clues.length === 0) return <Empty>Watson has found nothing he would call evidence yet.</Empty>;
-  let fresh = 0;
+const EvidencePanel: React.FC<{ diary: Diary }> = ({ diary }) => {
+  if (diary.clues.length === 0) return <Empty>No evidence yet.</Empty>;
   return (
     <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
-      {clues.map(entry => {
-        const def = CLUE_DEFINITIONS[entry.refId];
-        const where = LOCATIONS[def.locationFound]?.name ?? def.locationFound;
-        const isNew = newEntryIds?.has(entry.id) ?? false;
-        return (
-          <li
-            key={entry.id}
-            className={`flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0 ${isNew ? 'lb-stagger' : ''}`}
-            style={isNew ? ({ '--i': fresh++ } as React.CSSProperties) : undefined}
-          >
-            <p className="m-0 font-serif text-[19px] text-lb-primary">{def.name}</p>
-            <p className="m-0 text-[15px] leading-relaxed text-lb-primary/90">{def.diaryNote}</p>
-            <p className="m-0 flex items-center gap-2 text-[13px] text-lb-primary/70">
-              {isNew && <NewDot />}— {where}{entry.timeLabel && ` · ${entry.timeLabel}`}
-            </p>
-          </li>
-        );
-      })}
+      {diary.clues.map(clue => (
+        <li key={clue.id} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
+          <p className="m-0 font-serif text-[19px] text-lb-primary">{clue.name}</p>
+          <p className="m-0 text-[15px] leading-relaxed text-lb-primary/90">{clue.summary}</p>
+        </li>
+      ))}
     </ul>
   );
 };
 
-const PersonsPanel: React.FC<{ flags: Record<string, boolean> }> = ({ flags }) => {
-  const visible = visiblePersons(flags);
-  if (visible.length === 0) return <Empty>Watson has no names in his ledger yet.</Empty>;
+const PersonsPanel: React.FC<{ diary: Diary }> = ({ diary }) => {
+  if (diary.persons.length === 0) return <Empty>No one met yet.</Empty>;
   return (
     <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
-      {visible.map(p => {
-        const cleared = Boolean(p.clearedByFlag && flags[p.clearedByFlag]);
-        return (
-          <li key={p.id} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
-            <p className="m-0 font-serif text-[19px]">
-              {cleared ? (
-                <s className="text-lb-primary/55 decoration-lb-accent decoration-2">{p.label}</s>
-              ) : (
-                <span className="text-lb-primary">{p.label}</span>
-              )}
-            </p>
-            <p className={`m-0 text-[15px] leading-relaxed ${cleared ? 'text-lb-primary/65' : 'text-lb-primary/90'}`}>
-              {cleared && p.clearedNote ? p.clearedNote : p.detail}
-            </p>
-          </li>
-        );
-      })}
+      {diary.persons.map(p => (
+        <li key={p.id} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
+          <p className="m-0 font-serif text-[19px] text-lb-primary">{p.name}</p>
+          {p.told.length === 0 ? (
+            <p className="m-0 text-[15px] leading-relaxed text-lb-primary/65">Has told you nothing of note yet.</p>
+          ) : (
+            <ul className="list-disc m-0 pl-5 flex flex-col gap-1.5">
+              {p.told.map((line, i) => (
+                <li key={i} className="text-[15px] leading-relaxed text-lb-primary/90">{line}</li>
+              ))}
+            </ul>
+          )}
+        </li>
+      ))}
     </ul>
   );
 };
 
-/** One parsed line of a filed document's text. */
-type DocLine =
-  | { kind: 'body'; text: string }
-  | { kind: 'label'; text: string }    // short *…* caption — date, attribution, signature
-  | { kind: 'aside'; text: string };   // long *…* caption — Watson's own annotation
-
-/**
- * Split a document's authored text into a provenance header (the leading
- * run of *…* caption lines — what the paper is, who took it, when) and the
- * lines that follow. Provenance renders as the source line under the title;
- * only a long caption later in the text is a true aside (Watson's voice).
- */
-const parseDocumentText = (raw: string): { provenance: string[]; lines: DocLine[] } => {
-  const provenance: string[] = [];
-  const lines: DocLine[] = [];
-  let inHeader = true;
-  for (const line of raw.split('\n')) {
-    const trimmed = line.trim();
-    if (trimmed === '') continue;
-    const caption = trimmed.match(/^\*(.+)\*$/);
-    if (caption && inHeader) {
-      provenance.push(caption[1]);
-    } else if (caption) {
-      lines.push(caption[1].length <= 70 ? { kind: 'label', text: caption[1] } : { kind: 'aside', text: caption[1] });
-    } else {
-      inHeader = false;
-      lines.push({ kind: 'body', text: trimmed });
-    }
-  }
-  return { provenance, lines };
-};
-
-/** "Watson's note: …" asides get a run-in label; anything else renders plain. */
-const ASIDE_LABEL_RE = /^Watson's note:\s*/i;
-
-/**
- * Filed once, kept forever — driven by the engine's `filed_<objectId>` flags,
- * not live inventory. NOTE on colors: secondary text avoids `text-lb-muted`,
- * which fails WCAG AA at body sizes against lb-paper; `text-lb-primary/70+` passes.
- */
-const DocumentsPanel: React.FC<{ flags: Record<string, boolean>; inventory: string[] }> = ({ flags, inventory }) => {
-  const docs = filedDocuments(flags).map(objectId => ({
-    objectId,
-    name: TAKEABLE_OBJECTS[objectId],
-    carried: inventory.includes(TAKEABLE_OBJECTS[objectId]),
-  }));
-  if (docs.length === 0) return <Empty>No papers filed yet.</Empty>;
+/** NOTE on colors: secondary text avoids `text-lb-muted`, which fails WCAG AA at body sizes against lb-paper; `text-lb-primary/70+` passes. */
+const DocumentsPanel: React.FC<{ diary: Diary }> = ({ diary }) => {
+  if (diary.documents.length === 0) return <Empty>No documents yet.</Empty>;
   return (
     <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
-      {docs.map(doc => {
-        const { provenance, lines } = parseDocumentText(DOCUMENT_TEXT[doc.objectId]);
-        const source = [...provenance, ...(doc.carried ? [] : ['filed'])].join(' · ');
-        return (
-          <li key={doc.objectId} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
-            <p className="m-0 font-serif text-[19px] text-lb-primary">{doc.name}</p>
-            {source && <p className="m-0 text-[13px] text-lb-primary/70">— {source}</p>}
-            <div className="mt-2 flex flex-col gap-3">
-              {lines.map((line, j) => {
-                if (line.kind === 'body') {
-                  return <p key={j} className="m-0 font-serif italic text-[16px] text-lb-primary/90 leading-relaxed">{line.text}</p>;
-                }
-                if (line.kind === 'label') {
-                  return <p key={j} className="m-0 uppercase tracking-wider text-[10px] font-bold text-lb-primary/75">{line.text}</p>;
-                }
-                const noteText = line.text.replace(ASIDE_LABEL_RE, '');
-                const hasLabel = noteText !== line.text;
-                return (
-                  <div key={j} className="bg-lb-accent/[0.12] rounded px-3.5 py-3 text-[14px] text-lb-primary/90 leading-relaxed">
-                    {hasLabel && (
-                      <span className="uppercase tracking-[0.07em] text-[11px] font-bold text-lb-primary mr-2">Watson's note</span>
-                    )}
-                    {noteText}
-                  </div>
-                );
-              })}
-            </div>
-          </li>
-        );
-      })}
+      {diary.documents.map(doc => (
+        <li key={doc.id} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
+          <p className="m-0 font-serif text-[19px] text-lb-primary">{doc.name}</p>
+          <p className="mt-2 mb-0 whitespace-pre-wrap font-serif italic text-[16px] text-lb-primary/90 leading-relaxed">{doc.text}</p>
+        </li>
+      ))}
     </ul>
   );
 };
@@ -329,7 +200,10 @@ function useIsMobile() {
   return mobile;
 }
 
-export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries, currentAct, flags, inventory, newEntryIds, newTabs }) => {
+export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, view, newTabs }) => {
+  const diary = view?.diary ?? EMPTY_DIARY;
+  const narrator = view?.narrator ?? null;
+  const latestAct = diary.acts.length > 0 ? diary.acts[diary.acts.length - 1].id : null;
   const reducedMotion = useReducedMotion();
   const isMobile = useIsMobile();
   const [openAct, setOpenAct] = useState<number | null>(null);
@@ -381,12 +255,12 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
   // Every open lands on Journal with the current act unfolded, without animating there.
   useEffect(() => {
     if (!isOpen) return;
-    setOpenAct(currentAct);
+    setOpenAct(latestAct);
     nextInstant.current = true;
     setActiveTab('journal');
     setSheetH(null);
     setAnimateHeight(false);
-  }, [isOpen, currentAct]);
+  }, [isOpen, latestAct]);
 
   const selectTab = useCallback((tab: DiaryTab, instant = false) => {
     nextInstant.current = instant;
@@ -563,14 +437,12 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
           hidden: { opacity: 0, y: 10, transition: { duration: 0.18, ease: EASE_OUT_QUINT } },
         };
 
-  const totals = diaryTabTotals(entries, flags);
-  const persons = visiblePersons(flags);
-  const cleared = persons.filter(p => p.clearedByFlag && flags[p.clearedByFlag]).length;
+  const totals = diaryTabTotals(diary);
   const counts: Record<DiaryTab, string> = {
-    journal: plural(totals.journal, 'entry', 'entries'),
-    evidence: plural(totals.evidence, 'recorded', 'recorded'),
-    persons: persons.length === 0 ? 'none yet' : `${cleared} cleared, ${persons.length - cleared} open`,
-    documents: plural(totals.documents, 'filed', 'filed'),
+    journal: count(totals.journal, 'entry', 'entries'),
+    evidence: count(totals.evidence, 'clue', 'clues'),
+    persons: count(totals.persons, 'person', 'persons'),
+    documents: count(totals.documents, 'document', 'documents'),
   };
 
   return (
@@ -624,10 +496,10 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                 className="flex flex-col gap-2.5 sm:gap-6 pt-[18px] sm:pt-7 sm:pb-6 min-w-0 bg-lb-primary/[0.04] border-b sm:border-b-0 sm:border-r border-lb-border"
               >
                 <div className="flex flex-row sm:flex-col flex-wrap items-baseline sm:items-start gap-x-3 gap-y-2 pl-5 pr-16 sm:px-6">
-                  <h2 id="diary-title" className="m-0 font-serif font-normal text-2xl sm:text-[28px] leading-[1.05]">Watson's Diary</h2>
+                  <h2 id="diary-title" className="m-0 font-serif font-normal text-2xl sm:text-[28px] leading-[1.05]">{narrator ? `${narrator}'s Diary` : 'Diary'}</h2>
                   <p className="m-0 flex flex-row sm:flex-col items-baseline sm:items-start gap-2 sm:gap-0.5">
                     <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-lb-primary/60">Private</span>
-                    <em className="font-playfair text-sm text-lb-primary/70">J. H. Watson, M.D.</em>
+                    {narrator && <em className="font-playfair text-sm text-lb-primary/70">/ {narrator}</em>}
                   </p>
                 </div>
                 <div
@@ -639,7 +511,7 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                 >
                   {TABS.map(t => {
                     const selected = activeTab === t.id;
-                    const isNewTab = newTabs?.has(t.id) ?? false;
+                    const isNewTab = newTabs.has(t.id);
                     return (
                       <button
                         key={t.id}
@@ -693,16 +565,14 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, entries
                     <div className="px-5 pt-5 pb-[calc(28px+env(safe-area-inset-bottom,0px))] sm:pl-8 sm:pr-16 sm:pt-7 sm:pb-9">
                       {t.id === 'journal' && (
                         <JournalPanel
-                          entries={entries}
-                          currentAct={currentAct}
+                          diary={diary}
                           openAct={openAct}
                           onToggleAct={act => setOpenAct(prev => (prev === act ? null : act))}
-                          newEntryIds={newEntryIds}
                         />
                       )}
-                      {t.id === 'evidence' && <EvidencePanel entries={entries} newEntryIds={newEntryIds} />}
-                      {t.id === 'persons' && <PersonsPanel flags={flags} />}
-                      {t.id === 'documents' && <DocumentsPanel flags={flags} inventory={inventory} />}
+                      {t.id === 'evidence' && <EvidencePanel diary={diary} />}
+                      {t.id === 'persons' && <PersonsPanel diary={diary} />}
+                      {t.id === 'documents' && <DocumentsPanel diary={diary} />}
                     </div>
                   </div>
                 ))}

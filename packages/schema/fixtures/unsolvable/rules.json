@@ -1,0 +1,410 @@
+[
+  {
+    "id": "greet_housekeeper",
+    "trigger": {
+      "kind": "proximity",
+      "person": "housekeeper"
+    },
+    "when": {
+      "act": [
+        0
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "The housekeeper says the master would not have wanted strangers in the house, and then that she supposes it hardly matters now."
+        ]
+      },
+      {
+        "kind": "setDisposition",
+        "person": "housekeeper",
+        "disposition": "neutral"
+      }
+    ]
+  },
+  {
+    "id": "housekeeper_tells_key",
+    "trigger": {
+      "kind": "disclosed",
+      "fact": "key_in_clock",
+      "from": "housekeeper",
+      "to": "player"
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "setFlag",
+        "flag": "knows_key_location"
+      }
+    ]
+  },
+  {
+    "id": "open_clock_knowing",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "open"
+      ],
+      "target": [
+        "hall_clock"
+      ]
+    },
+    "when": {
+      "flagsAll": [
+        "knows_key_location"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Exactly where she said it would be."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "housekeeper_remembers_overnight",
+    "trigger": {
+      "kind": "flag",
+      "flag": "knows_key_location"
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "grantFact",
+        "person": "housekeeper",
+        "fact": "master_was_afraid",
+        "delayPeriods": 1
+      }
+    ]
+  },
+  {
+    "id": "study_is_dark",
+    "trigger": {
+      "kind": "enter",
+      "location": "study"
+    },
+    "when": {
+      "flagsNone": [
+        "candle_lit"
+      ]
+    },
+    "once": false,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "It is too dark to make out more than shapes."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "clock_chimes_on_leaving",
+    "trigger": {
+      "kind": "leave",
+      "location": "hall"
+    },
+    "once": false,
+    "effects": [
+      {
+        "kind": "cue",
+        "sound": "clock_chime"
+      }
+    ]
+  },
+  {
+    "id": "light_candle",
+    "trigger": {
+      "kind": "combine",
+      "items": [
+        "candle",
+        "matches"
+      ]
+    },
+    "when": {
+      "location": [
+        "study"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "setFlag",
+        "flag": "candle_lit"
+      },
+      {
+        "kind": "revealObject",
+        "object": "letter"
+      },
+      {
+        "kind": "playBeat",
+        "beats": [
+          "The flame steadies, and the desk gives up a folded sheet that was lying in plain sight all along."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "read_letter",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "read"
+      ],
+      "target": [
+        "letter"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "setFlag",
+        "flag": "letter_read"
+      }
+    ]
+  },
+  {
+    "id": "letter_opens_the_garden",
+    "trigger": {
+      "kind": "flag",
+      "flag": "letter_read"
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "advanceAct",
+        "act": 1
+      },
+      {
+        "kind": "setFlag",
+        "flag": "garden_unlocked"
+      }
+    ]
+  },
+  {
+    "id": "housekeeper_takes_letter",
+    "trigger": {
+      "kind": "disclosed",
+      "fact": "letter_confession",
+      "from": "player",
+      "to": "housekeeper"
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "takeItem",
+        "object": "letter"
+      },
+      {
+        "kind": "moveObject",
+        "object": "letter",
+        "placement": {
+          "kind": "person",
+          "person": "housekeeper"
+        }
+      },
+      {
+        "kind": "setDisposition",
+        "person": "housekeeper",
+        "disposition": "trusting"
+      },
+      {
+        "kind": "playBeat",
+        "beats": [
+          "She reads it once, folds it into her sleeve, and does not give it back."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "midnight_bells",
+    "trigger": {
+      "kind": "clock",
+      "atMinutes": 0,
+      "act": [
+        0,
+        1
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Midnight, from a church somewhere beyond the wall."
+        ],
+        "asQuote": true
+      }
+    ]
+  },
+  {
+    "id": "tick_cat",
+    "trigger": {
+      "kind": "tick"
+    },
+    "when": {
+      "location": [
+        "hall",
+        "study"
+      ]
+    },
+    "once": false,
+    "weight": 3,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "A cat crosses the hall without looking at you."
+        ],
+        "asQuote": true
+      }
+    ]
+  },
+  {
+    "id": "tick_fog",
+    "trigger": {
+      "kind": "tick"
+    },
+    "when": {
+      "weather": [
+        "foggy"
+      ]
+    },
+    "once": false,
+    "weight": 1,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Fog presses at the window glass."
+        ],
+        "asQuote": true
+      }
+    ]
+  },
+  {
+    "id": "tick_housekeeper_comes_to_the_light",
+    "trigger": {
+      "kind": "tick"
+    },
+    "when": {
+      "act": [
+        0
+      ],
+      "location": [
+        "study"
+      ],
+      "flagsAll": [
+        "candle_lit"
+      ]
+    },
+    "once": true,
+    "weight": 2,
+    "effects": [
+      {
+        "kind": "summonPerson",
+        "person": "housekeeper"
+      },
+      {
+        "kind": "playBeat",
+        "beats": [
+          "The housekeeper is in the doorway. You did not hear her on the stairs."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "wind_slams_study_door",
+    "trigger": {
+      "kind": "tick"
+    },
+    "when": {
+      "act": [
+        1
+      ]
+    },
+    "once": true,
+    "weight": 1,
+    "effects": [
+      {
+        "kind": "lockExit",
+        "location": "hall",
+        "exit": "study_door",
+        "lock": {
+          "kind": "key",
+          "object": "brass_key"
+        }
+      },
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Somewhere in the house a door slams, and a lock drops."
+        ],
+        "asQuote": true
+      }
+    ]
+  },
+  {
+    "id": "deduce_gardener",
+    "trigger": {
+      "kind": "deduction",
+      "facts": [
+        "letter_confession",
+        "gardener_fled"
+      ]
+    },
+    "when": {
+      "act": [
+        1
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "endGame",
+        "ending": "solved"
+      }
+    ]
+  },
+  {
+    "id": "deduce_housekeeper",
+    "trigger": {
+      "kind": "deduction",
+      "suspect": "housekeeper"
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "endGame",
+        "ending": "accused_wrongly"
+      }
+    ]
+  },
+  {
+    "id": "one_oclock_ends_it",
+    "trigger": {
+      "kind": "clock",
+      "atMinutes": 60,
+      "act": [
+        1
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "dismissPerson",
+        "person": "housekeeper"
+      },
+      {
+        "kind": "endGame",
+        "ending": "unsolved"
+      }
+    ]
+  }
+]

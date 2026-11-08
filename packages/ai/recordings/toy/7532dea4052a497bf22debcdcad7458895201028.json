@@ -1,0 +1,8 @@
+{
+  "kind": "narrate",
+  "summary": "narrate compact at hall: TurnReceived,IntentRejected",
+  "result": {
+    "prose": "You reach for a lamp that is not there.",
+    "observations": []
+  }
+}

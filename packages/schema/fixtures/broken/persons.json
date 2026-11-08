@@ -1,0 +1,14 @@
+[
+  {
+    "id": "housekeeper",
+    "name": "Mrs. Hale",
+    "alias": "the housekeeper",
+    "introduction": { "kind": "self" },
+    "schedule": {
+      "0": { "default": { "kind": "at", "location": "hall" } },
+      "1": { "default": { "kind": "at", "location": "garden" }, "byPeriod": { "late_night": { "kind": "offstage" } } }
+    },
+    "disposition": "wary",
+    "beats": ["Fifties, black dress, hands folded. Answers exactly what is asked and not a word more."]
+  }
+]

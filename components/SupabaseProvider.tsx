@@ -1,11 +1,13 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../supabase';
+import { supabase, isSupabaseConfigured } from '../supabase';
 import { User, Session } from '@supabase/supabase-js';
 import { GameRepository, UserProfile } from '../services/GameRepository';
 
 interface SupabaseContextType {
   user: User | null;
+  /** An anonymous Supabase user: plays and saves, but has not claimed an account (server/TURN.md). */
+  isGuest: boolean;
   session: Session | null;
   isAuthReady: boolean;
   authError: string | null;
@@ -35,7 +37,17 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-  const loadProfile = async (userId: string) => {
+  // Guests play as anonymous users; the turn endpoint needs a JWT for every request.
+  const signInAsGuest = async () => {
+    if (!isSupabaseConfigured) return;
+    const { error } = await supabase.auth.signInAnonymously();
+    if (error) setAuthError(`Guest play is unavailable: ${error.message}`);
+  };
+
+  const loadProfile = async (sessionUser: User) => {
+    // A guest has no profile to name; the first-run profile prompt waits for a claimed account.
+    if (sessionUser.is_anonymous) { setUserProfile(null); setIsNewUser(false); return; }
+    const userId = sessionUser.id;
     const profile = await GameRepository.getProfile(userId);
     setUserProfile(profile);
     // Treat as new user if no display name has been set yet
@@ -44,13 +56,16 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   useEffect(() => {
     // Check for existing session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setIsAuthReady(true);
       if (session?.user) {
-        loadProfile(session.user.id);
+        loadProfile(session.user);
+      } else {
+        // No session: play as a guest. onAuthStateChange delivers the new user.
+        await signInAsGuest();
       }
+      setIsAuthReady(true);
     });
 
     // Listen for auth state changes (token refresh, sign-in/out, etc.)
@@ -73,8 +88,8 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         // that also need the lock — most visibly updateUser() during password
         // recovery, which would hang forever. setTimeout(0) releases the lock
         // first. (Supabase's documented guidance for this callback.)
-        const uid = session.user.id;
-        setTimeout(() => { loadProfile(uid); }, 0);
+        const sessionUser = session.user;
+        setTimeout(() => { loadProfile(sessionUser); }, 0);
       } else {
         setUserProfile(null);
         setIsNewUser(false);
@@ -101,6 +116,18 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const loginWithEmail = async (email: string): Promise<boolean> => {
     setAuthError(null);
+    // A guest claims their account in place: the email is attached to the anonymous
+    // user, so its id (and every Investigation it owns) is kept once the link is confirmed.
+    if (user?.is_anonymous) {
+      const { error } = await supabase.auth.updateUser({ email }, { emailRedirectTo: window.location.origin });
+      if (!error) return true;
+      // The email already has an account: sign in to that one instead; the guest's
+      // investigations stay with the guest and are not moved.
+      if (!/already/i.test(error.message)) {
+        setAuthError(error.message);
+        return false;
+      }
+    }
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: window.location.origin },
@@ -201,12 +228,14 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setUserProfile(null);
     setIsNewUser(false);
     setIsPasswordRecovery(false);
+    // Signed out is a fresh guest, so the game stays playable.
+    await signInAsGuest();
   };
 
   const clearAuthError = () => setAuthError(null);
 
   const refreshProfile = async () => {
-    if (!user) return;
+    if (!user || user.is_anonymous) return;
     const profile = await GameRepository.getProfile(user.id);
     setUserProfile(profile);
     if (profile?.displayName) setIsNewUser(false);
@@ -214,7 +243,7 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   return (
     <SupabaseContext.Provider value={{
-      user, session, isAuthReady, authError,
+      user, isGuest: !!user?.is_anonymous, session, isAuthReady, authError,
       isNewUser, isPasswordRecovery, userProfile,
       loginWithGoogle, loginWithEmail,
       loginWithPassword, signUpWithPassword, resetPassword,
