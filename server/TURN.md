@@ -1,6 +1,6 @@
 # The turn endpoint (plan §2.2, ADR-0001)
 
-`POST /api/turn` — one request per player turn or Tick. Deployed as `api/turn.ts` (Vercel Node function, `.js`-suffixed relative imports; `qa:lambda-imports` must walk it too) and mounted on the Vite dev server exactly as `/api/ai` is.
+`POST /api/turn` — one request per player turn or Tick. Deployed as `api/turn.ts` (Vercel Node function, `.js`-suffixed relative imports; `qa:lambda-imports` walks it) and mounted on the Vite dev server by `apiDevGateway` in `vite.config.ts`.
 
 ## Request
 ```json
@@ -35,7 +35,7 @@ Errors: a single `{ "kind": "error", "message": "..." }` line and HTTP 4xx/5xx b
 
 ## Persistence
 Migration `supabase/migrations/009_event_log.sql` (idempotent, in the house style):
-- `investigations`: add `story_id text`, `name text`, `last_event_seq integer not null default -1`. Existing columns stay until Phase 4 removes them.
+- `investigations`: add `story_id text`, `name text`, `last_event_seq integer not null default -1`. Migration `010_drop_snapshot_engine.sql` (Phase 4) then deletes the old save slots, drops the snapshot columns and the old per-investigation tables, and makes `story_id` and `name` required.
 - `events (investigation_id uuid references investigations on delete cascade, seq integer, turn integer, payload jsonb, created_at timestamptz default now(), primary key (investigation_id, seq))` with RLS: owner of the investigation can select/insert; no update or delete.
 - Anonymous sign-in must be enabled in the Supabase dashboard (note it in the migration header; it is not SQL). Claiming an account later is `supabase.auth.linkIdentity` / email upgrade on the client; the `owner_id` is unchanged, so nothing moves.
 

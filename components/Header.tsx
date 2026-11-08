@@ -26,7 +26,7 @@ import type { ThemeMode } from '../types';
 interface HeaderProps {
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
-  connectionStatus: { gemini: boolean | null; supabase: boolean | null };
+  connectionStatus: { engine: boolean | null; supabase: boolean | null };
   onRetryConnection: () => void;
   onOpenDiary: () => void;
   diaryUnreadCount: number;
@@ -188,7 +188,7 @@ export const Header: React.FC<HeaderProps> = ({
     </Tooltip>
   );
 
-  const connectionDown = connectionStatus.gemini === false || connectionStatus.supabase === false;
+  const connectionDown = connectionStatus.engine === false || connectionStatus.supabase === false;
 
   return (
     <header className="sticky top-[env(safe-area-inset-top,0px)] z-30 px-4 py-3 desk:px-16 desk:py-4 flex items-center justify-between gap-3 bg-lb-bg/90 backdrop-blur-sm border-b border-lb-border">
@@ -212,14 +212,14 @@ export const Header: React.FC<HeaderProps> = ({
           <div
             className="flex items-center gap-1.5"
             title={
-              connectionStatus.gemini === true  ? 'Engine Connected'    :
-              connectionStatus.gemini === false ? 'Engine Disconnected' :
+              connectionStatus.engine === true  ? 'Engine Connected'    :
+              connectionStatus.engine === false ? 'Engine Disconnected' :
               'Checking Engine...'
             }
           >
             <div className={`w-1.5 h-1.5 rounded-full ${
-              connectionStatus.gemini === true  ? 'bg-green-500' :
-              connectionStatus.gemini === false ? 'bg-red-500'   :
+              connectionStatus.engine === true  ? 'bg-green-500' :
+              connectionStatus.engine === false ? 'bg-red-500'   :
               'bg-yellow-500 animate-pulse'
             }`} />
             <span className="text-[9px] uppercase tracking-widest text-lb-muted font-bold">Engine</span>

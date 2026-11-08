@@ -86,14 +86,12 @@ const AppContent: React.FC = () => {
   const appearance = useAppearance({ user, userProfile, currentTimePeriod: themePeriod(view?.clock) });
   const { connectionStatus, checkConnections } = useConnections({ isAuthReady, setNotification });
 
-  // Drive the ambient audio layer from what the player can see.
+  // Ambient bed from what the player can see; one-shots from the latest turn's Events.
   useAudio({
     location: view?.location.id ?? '',
     weatherCondition: view?.weather.id,
     currentAct: view?.act.id ?? 0,
-    playerTurns: inv.feed.filter(f => f.kind === 'player').length,
-    isActClosing: false,
-    isCurtainPlaying: false,
+    events: inv.lastEvents,
     soundEffects: appearance.soundEffects,
     ambientAudio: appearance.ambientAudio,
   });
@@ -262,7 +260,7 @@ const AppContent: React.FC = () => {
         <Header
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={toggleSidebar}
-          connectionStatus={connectionStatus}
+          connectionStatus={{ engine: inv.engineOk, supabase: connectionStatus.supabase }}
           onRetryConnection={checkConnections}
           themeMode={appearance.themeMode}
           onSetThemeMode={appearance.setThemeMode}
@@ -282,13 +280,9 @@ const AppContent: React.FC = () => {
 
         <NarrativeFeed
           history={history}
-          isGameOver={false}
           actualLastUserIdx={lastUserIdx}
           scrollRef={scrollRef}
           dockRef={dockRef}
-          pendingActTransition={null}
-          isActBreakReady={false}
-          onBeginAct={() => {}}
         />
 
         <CommandInput

@@ -64,6 +64,8 @@ export function useInvestigation({ userId }: { userId: string | null }) {
   const [error, setError] = useState<string | null>(null);
   /** Initial load for this user finished (list fetched, last Investigation resumed or not). */
   const [isReady, setIsReady] = useState(false);
+  /** Whether POST /api/turn answered the last request: the header's Engine dot. null before the first. */
+  const [engineOk, setEngineOk] = useState<boolean | null>(null);
   /** The engine Events of the latest turn, for presentation cues (audio). */
   const [lastEvents, setLastEvents] = useState<EventPayload[]>([]);
 
@@ -112,8 +114,11 @@ export function useInvestigation({ userId }: { userId: string | null }) {
     };
     try {
       await postTurn(body, onLine);
+      setEngineOk(true);
     } catch (err) {
       ok = false;
+      // A refusal (busy, not found, signed out) is the endpoint answering; anything else is it not.
+      setEngineOk(err instanceof TurnRefused && err.status < 500);
       setPending(null);
       if (err instanceof TurnRefused && err.status === 409) {
         if (!isTick) setError('The last turn is still being written. Try again in a moment.');
@@ -228,7 +233,7 @@ export function useInvestigation({ userId }: { userId: string | null }) {
   useEffect(() => { if (view?.ended) idleTicks.current = MAX_IDLE_TICKS; }, [view?.ended]);
 
   return {
-    investigationId, name, feed, pending, view, isBusy, investigations, error, isReady, lastEvents,
+    investigationId, name, feed, pending, view, isBusy, investigations, error, isReady, lastEvents, engineOk,
     history: historyFrom(feed, pending),
     start, send, resume, remove, refreshList, clearError: () => setError(null),
   };

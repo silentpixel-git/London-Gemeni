@@ -4,25 +4,25 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from 'tailwindcss';
 import autoprefixer from 'autoprefixer';
 
-// Dev-only middleware that serves POST /api/ai and POST /api/turn by loading
-// the same Vercel web handlers used in production (api/ai.ts, api/turn.ts), so
-// `npm run dev` works without `vercel dev`. The GEMINI key stays server-side —
-// it is NOT defined into the client bundle.
+// Dev-only middleware that serves POST /api/turn by loading the same Vercel
+// web handler used in production (api/turn.ts), so `npm run dev` works without
+// `vercel dev`. The GEMINI key stays server-side — it is NOT defined into the
+// client bundle.
 const SERVER_ENV_KEYS = [
-  'GEMINI_API_KEY', 'GEMINI_MODEL_ID',
+  'GEMINI_API_KEY',
   // api/turn.ts: Supabase client per request, and the AI seam's job config.
   'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY',
   'AI_SELECT_PROVIDER', 'AI_SELECT_MODEL', 'AI_NARRATE_PROVIDER', 'AI_NARRATE_MODEL', 'AI_RECORDINGS_DIR',
 ];
 
-function aiDevGateway(env: Record<string, string>): Plugin {
+function apiDevGateway(env: Record<string, string>): Plugin {
   return {
-    name: 'ai-dev-gateway',
+    name: 'api-dev-gateway',
     configureServer(server: ViteDevServer) {
       for (const key of SERVER_ENV_KEYS) {
         if (env[key] && !process.env[key]) process.env[key] = env[key];
       }
-      for (const route of ['/api/ai', '/api/turn']) {
+      for (const route of ['/api/turn']) {
         server.middlewares.use(route, (req, res) => {
           void (async () => {
             if (req.method !== 'POST') {
@@ -70,7 +70,7 @@ export default defineConfig(({ mode }) => {
         port: Number(process.env.PORT) || 3000,
         host: '0.0.0.0',
       },
-      plugins: [react(), aiDevGateway(env)],
+      plugins: [react(), apiDevGateway(env)],
       css: {
         postcss: {
           plugins: [tailwindcss, autoprefixer],
@@ -79,7 +79,6 @@ export default defineConfig(({ mode }) => {
       define: {
         'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
         'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
-        'import.meta.env.VITE_AI_PARSER': JSON.stringify(env.VITE_AI_PARSER ?? ''),
       },
       resolve: {
         alias: {

@@ -16,9 +16,8 @@ import { AMBIENT_BEDS, ACT_BEDS, WEATHER_LAYERS, SFX_FILES, SFX_TRIM, SfxId } fr
 
 const FADE_MS = 1200;
 // The Act 0 prototype's mix: beds well under the prose, one-shots at about half
-// the bed (docs/audio-prompts.md), and a dip as an act closes.
+// the bed (docs/audio-prompts.md).
 const BED_VOLUME = 0.35;
-const BED_DIP = 0.2;
 const SFX_VOLUME = BED_VOLUME * 0.5;
 
 class AudioManager {
@@ -60,16 +59,6 @@ class AudioManager {
       this.sfxCache.set(id, howl);
     }
     howl.play();
-  }
-
-  /** The act is closing: let the bed sink under the last lines. */
-  dipBed(): void {
-    if (this.bed) this.bed.fade(this.bed.volume(), BED_DIP, 1500);
-  }
-
-  /** The curtain: the whole ambience fades to silence; the next act's bed fades in on arrival. */
-  fadeOutAmbient(ms: number): void {
-    for (const h of [this.bed, this.weather]) if (h) h.fade(h.volume(), 0, ms);
   }
 
   /** Cross-fade to the bed + weather layer for the current location/weather (and act). */

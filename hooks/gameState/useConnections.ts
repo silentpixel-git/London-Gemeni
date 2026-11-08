@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { aiService } from '../../services/AIService';
 import { supabaseUrl, supabaseAnonKey, isSupabaseConfigured } from '../../supabase';
 
 export interface ConnectionsDeps {
@@ -11,9 +10,8 @@ export function useConnections(deps: ConnectionsDeps) {
   const { isAuthReady, setNotification } = deps;
 
   const [connectionStatus, setConnectionStatus] = useState<{
-    gemini: boolean | null;
     supabase: boolean | null;
-  }>({ gemini: null, supabase: null });
+  }>({ supabase: null });
 
   // ── Supabase connectivity ping ────────────────────────────────────────────
   // Uses a direct fetch to GoTrue's public /health endpoint instead of the
@@ -33,21 +31,15 @@ export function useConnections(deps: ConnectionsDeps) {
     }
   }, []);
 
-  // Full connection check (Supabase + Gemini) — used on mount and manual retry
+  // Supabase check — used on mount and manual retry. Whether the turn endpoint
+  // answers is known from the turns themselves (useInvestigation's engineOk).
   const checkConnections = useCallback(async () => {
-    setConnectionStatus({ gemini: null, supabase: null });
+    setConnectionStatus({ supabase: null });
 
     const supabaseOk = await pingSupabase();
     setConnectionStatus(prev => ({ ...prev, supabase: supabaseOk }));
     if (!supabaseOk) {
       setNotification({ message: 'Cloud unavailable — progress will save locally.', type: 'error' });
-    }
-
-    try {
-      const test = await aiService.ping();
-      setConnectionStatus(prev => ({ ...prev, gemini: test.toLowerCase().includes('ok') }));
-    } catch {
-      setConnectionStatus(prev => ({ ...prev, gemini: false }));
     }
   }, [pingSupabase]);
 
