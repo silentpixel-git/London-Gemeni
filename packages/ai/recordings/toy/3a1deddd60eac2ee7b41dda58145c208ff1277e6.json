@@ -1,0 +1,8 @@
+{
+  "kind": "select",
+  "summary": "select \"look around\"",
+  "selection": {
+    "kind": "intent",
+    "verb": "look"
+  }
+}

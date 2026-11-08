@@ -1,0 +1,9 @@
+{
+  "kind": "select",
+  "summary": "select \"light the lamp\"",
+  "selection": {
+    "kind": "intent",
+    "verb": "use",
+    "target": "ghost_lamp"
+  }
+}
