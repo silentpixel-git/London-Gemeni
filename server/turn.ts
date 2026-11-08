@@ -2,7 +2,7 @@
 // Tick: replay the log, select, resolve, append, then stream narration.
 // Supabase and the environment stay outside: api/turn.ts and the dev
 // middleware build the deps, scripts/qa-turn.ts passes in-memory ones.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import {
@@ -97,7 +97,7 @@ async function prepare(body: z.infer<typeof TurnRequest>, deps: TurnDeps): Promi
   if ('start' in body) {
     const story = deps.loadStory(body.start.storyId);
     if (!story) return { status: 404, message: `no story ${body.start.storyId}` };
-    const { id } = await deps.store.create(story.id, body.start.name, deps.ownerId ?? null);
+    const { id } = await deps.store.create(body.start.storyId, body.start.name, deps.ownerId ?? null);
     const seed = (deps.newSeed ?? randomSeed)();
     const events: EventPayload[] = [{ kind: 'InvestigationStarted', story: story.id, seed }];
     const { rows, state } = number(story, initialState(story, seed), events, 0);
@@ -200,35 +200,22 @@ function randomSeed(): number {
 }
 
 /**
- * Stories by id from directories of Story directories, tried in order. A
- * directory named after the id wins; otherwise the first whose story.json
- * declares that id (the toy fixture lives in `toy/` but its id is
- * `locked_study`). Parsed once per process.
+ * Stories by directory name, from roots tried in order (TURN.md: `stories/<id>`
+ * then `packages/schema/fixtures/<id>`). The directory name is the key an
+ * Investigation stores. For a real Story it equals story.json's id; the
+ * fixtures are variants sharing one id (toy, unsolvable and broken are all
+ * `locked_study`), so only the directory tells them apart: the toy is `toy`.
+ * Parsed once per process.
  */
 export function fileStoryLoader(roots: string[]): (storyId: string) => Story | null {
   const cache = new Map<string, Story>();
   return storyId => {
     const hit = cache.get(storyId);
     if (hit) return hit;
-    const dir = findStoryDir(roots, storyId);
+    const dir = roots.map(root => join(root, storyId)).find(d => existsSync(join(d, 'story.json')));
     if (!dir) return null;
     const story = Story.parse(loadStoryDir(dir));
     cache.set(storyId, story);
     return story;
   };
-}
-
-function findStoryDir(roots: string[], storyId: string): string | null {
-  for (const root of roots) {
-    if (!existsSync(root)) continue;
-    if (existsSync(join(root, storyId, 'story.json'))) return join(root, storyId);
-    for (const entry of readdirSync(root, { withFileTypes: true })) {
-      const file = join(root, entry.name, 'story.json');
-      if (!entry.isDirectory() || !existsSync(file)) continue;
-      try {
-        if ((JSON.parse(readFileSync(file, 'utf8')) as { id?: unknown }).id === storyId) return join(root, entry.name);
-      } catch { /* a malformed story.json is the validator's problem, not a match */ }
-    }
-  }
-  return null;
 }
