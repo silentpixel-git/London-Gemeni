@@ -4,51 +4,60 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from 'tailwindcss';
 import autoprefixer from 'autoprefixer';
 
-// Dev-only middleware that serves POST /api/ai by loading the same Vercel web
-// handler used in production (api/ai.ts), so `npm run dev` works without
+// Dev-only middleware that serves POST /api/turn by loading the same Vercel
+// web handler used in production (api/turn.ts), so `npm run dev` works without
 // `vercel dev`. The GEMINI key stays server-side — it is NOT defined into the
 // client bundle.
-function aiDevGateway(env: Record<string, string>): Plugin {
+const SERVER_ENV_KEYS = [
+  'GEMINI_API_KEY',
+  // api/turn.ts: Supabase client per request, and the AI seam's job config.
+  'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY',
+  'AI_SELECT_PROVIDER', 'AI_SELECT_MODEL', 'AI_NARRATE_PROVIDER', 'AI_NARRATE_MODEL', 'AI_RECORDINGS_DIR',
+];
+
+function apiDevGateway(env: Record<string, string>): Plugin {
   return {
-    name: 'ai-dev-gateway',
+    name: 'api-dev-gateway',
     configureServer(server: ViteDevServer) {
-      if (env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY) {
-        process.env.GEMINI_API_KEY = env.GEMINI_API_KEY;
+      for (const key of SERVER_ENV_KEYS) {
+        if (env[key] && !process.env[key]) process.env[key] = env[key];
       }
-      if (env.GEMINI_MODEL_ID && !process.env.GEMINI_MODEL_ID) {
-        process.env.GEMINI_MODEL_ID = env.GEMINI_MODEL_ID;
-      }
-      server.middlewares.use('/api/ai', (req, res) => {
-        void (async () => {
-          if (req.method !== 'POST') {
-            res.statusCode = 405;
-            res.end();
-            return;
-          }
-          const chunks: Buffer[] = [];
-          for await (const chunk of req) chunks.push(chunk as Buffer);
-          const mod = await server.ssrLoadModule('/api/ai.ts');
-          const response: Response = await mod.POST(
-            new Request('http://localhost/api/ai', {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: Buffer.concat(chunks),
-            })
-          );
-          res.statusCode = response.status;
-          response.headers.forEach((value, key) => res.setHeader(key, value));
-          if (response.body) {
-            for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
-              res.write(chunk);
+      for (const route of ['/api/turn']) {
+        server.middlewares.use(route, (req, res) => {
+          void (async () => {
+            if (req.method !== 'POST') {
+              res.statusCode = 405;
+              res.end();
+              return;
             }
-          }
-          res.end();
-        })().catch(err => {
-          console.error('[ai-dev-gateway]', err);
-          if (!res.headersSent) res.statusCode = 500;
-          res.end(JSON.stringify({ error: 'AI gateway failed.' }));
+            const chunks: Buffer[] = [];
+            for await (const chunk of req) chunks.push(chunk as Buffer);
+            const mod = await server.ssrLoadModule(`${route}.ts`);
+            const response: Response = await mod.POST(
+              new Request(`http://localhost${route}`, {
+                method: 'POST',
+                headers: {
+                  'content-type': 'application/json',
+                  ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
+                },
+                body: Buffer.concat(chunks),
+              })
+            );
+            res.statusCode = response.status;
+            response.headers.forEach((value, key) => res.setHeader(key, value));
+            if (response.body) {
+              for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+                res.write(chunk);
+              }
+            }
+            res.end();
+          })().catch(err => {
+            console.error(`[ai-dev-gateway ${route}]`, err);
+            if (!res.headersSent) res.statusCode = 500;
+            res.end(JSON.stringify({ error: 'AI gateway failed.' }));
+          });
         });
-      });
+      }
     },
   };
 }
@@ -61,7 +70,7 @@ export default defineConfig(({ mode }) => {
         port: Number(process.env.PORT) || 3000,
         host: '0.0.0.0',
       },
-      plugins: [react(), aiDevGateway(env)],
+      plugins: [react(), apiDevGateway(env)],
       css: {
         postcss: {
           plugins: [tailwindcss, autoprefixer],
@@ -70,7 +79,6 @@ export default defineConfig(({ mode }) => {
       define: {
         'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
         'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
-        'import.meta.env.VITE_AI_PARSER': JSON.stringify(env.VITE_AI_PARSER ?? ''),
       },
       resolve: {
         alias: {

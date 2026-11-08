@@ -1,0 +1,112 @@
+[
+  {
+    "id": "orrin",
+    "name": "Orrin Vale",
+    "schedule": {
+      "0": {
+        "default": {
+          "kind": "at",
+          "location": "jetty"
+        }
+      },
+      "1": {
+        "default": {
+          "kind": "at",
+          "location": "jetty"
+        }
+      }
+    },
+    "disposition": "neutral",
+    "beats": [
+      "A weathered boatman in his sixties, sparing with words."
+    ]
+  },
+  {
+    "id": "maud",
+    "name": "Maud Pike",
+    "schedule": {
+      "0": {
+        "default": {
+          "kind": "at",
+          "location": "kitchen"
+        }
+      },
+      "1": {
+        "default": {
+          "kind": "at",
+          "location": "kitchen"
+        }
+      },
+      "2": {
+        "default": {
+          "kind": "at",
+          "location": "kitchen"
+        }
+      }
+    },
+    "disposition": "wary",
+    "beats": [
+      "The cook: broad forearms, flour to the elbow, suspicious of visitors."
+    ]
+  },
+  {
+    "id": "ines",
+    "name": "Ines Tarrow",
+    "alias": "the woman in oilskins",
+    "introduction": {
+      "kind": "document",
+      "object": "keeper_log"
+    },
+    "schedule": {
+      "0": {
+        "default": {
+          "kind": "at",
+          "location": "kitchen"
+        }
+      },
+      "1": {
+        "default": {
+          "kind": "at",
+          "location": "kitchen"
+        }
+      },
+      "2": {
+        "default": {
+          "kind": "at",
+          "location": "tower_stair"
+        }
+      }
+    },
+    "disposition": "wary",
+    "beats": [
+      "A thin woman in a yellow oilskin who watches the door."
+    ]
+  },
+  {
+    "id": "dov",
+    "name": "Dov Hallam",
+    "schedule": {
+      "0": {
+        "default": {
+          "kind": "offstage"
+        }
+      },
+      "1": {
+        "default": {
+          "kind": "follows",
+          "person": "player"
+        }
+      },
+      "2": {
+        "default": {
+          "kind": "follows",
+          "person": "player"
+        }
+      }
+    },
+    "disposition": "warm",
+    "beats": [
+      "The relief keeper sent to assist you: young, cheerful, always one step behind."
+    ]
+  }
+]

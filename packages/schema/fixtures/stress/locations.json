@@ -1,0 +1,163 @@
+[
+  {
+    "id": "jetty",
+    "name": "The Jetty",
+    "beats": [
+      "A weathered timber jetty runs out into the grey estuary. A tackle chest sits at the landward end with its lid shut."
+    ],
+    "exits": [
+      {
+        "id": "to_kitchen",
+        "names": [
+          "kitchen",
+          "the cottage",
+          "path",
+          "west"
+        ],
+        "to": "kitchen"
+      },
+      {
+        "id": "to_loft",
+        "names": [
+          "loft",
+          "the net loft",
+          "nets",
+          "north"
+        ],
+        "to": "net_loft"
+      }
+    ]
+  },
+  {
+    "id": "net_loft",
+    "name": "The Net Loft",
+    "beats": [
+      "Nets hang in drifts from the rafters and the air smells of tar and old fish."
+    ],
+    "openPeriods": [
+      "afternoon"
+    ],
+    "closedBeat": "The loft is padlocked until the netters come in with the afternoon tide.",
+    "exits": [
+      {
+        "id": "to_jetty",
+        "names": [
+          "jetty",
+          "out",
+          "south"
+        ],
+        "to": "jetty"
+      }
+    ]
+  },
+  {
+    "id": "kitchen",
+    "name": "The Keepers' Kitchen",
+    "beats": [
+      "A low kitchen with a black range, a scrubbed table and a window that looks only at fog or rain."
+    ],
+    "exits": [
+      {
+        "id": "to_jetty",
+        "names": [
+          "jetty",
+          "outside",
+          "east"
+        ],
+        "to": "jetty"
+      },
+      {
+        "id": "to_store",
+        "names": [
+          "store",
+          "the oil store",
+          "cellar door"
+        ],
+        "to": "oil_store",
+        "lock": {
+          "kind": "key",
+          "object": "store_key"
+        },
+        "lockedBeat": "The oil store door is padlocked."
+      },
+      {
+        "id": "to_tower",
+        "names": [
+          "tower",
+          "the tower door",
+          "stair"
+        ],
+        "to": "tower_stair",
+        "lock": {
+          "kind": "flag",
+          "flag": "tower_unbarred"
+        },
+        "lockedBeat": "The tower door is barred from this side, and the cook has the say of it."
+      }
+    ]
+  },
+  {
+    "id": "oil_store",
+    "name": "The Oil Store",
+    "beats": [
+      "A cold stone cell stacked with casks, smelling of paraffin."
+    ],
+    "exits": [
+      {
+        "id": "to_kitchen",
+        "names": [
+          "kitchen",
+          "back",
+          "up"
+        ],
+        "to": "kitchen"
+      }
+    ]
+  },
+  {
+    "id": "tower_stair",
+    "name": "The Tower Stair",
+    "beats": [
+      "A cramped iron spiral, wet with condensation, climbing to a hatch in the ceiling."
+    ],
+    "exits": [
+      {
+        "id": "to_kitchen",
+        "names": [
+          "kitchen",
+          "down",
+          "the door"
+        ],
+        "to": "kitchen"
+      },
+      {
+        "id": "to_lamp_room",
+        "names": [
+          "lamp room",
+          "hatch",
+          "up"
+        ],
+        "to": "lamp_room",
+        "lockedBeat": "The hatch will not budge."
+      }
+    ]
+  },
+  {
+    "id": "lamp_room",
+    "name": "The Lamp Room",
+    "beats": [
+      "A glass cage at the top of the tower, the great lens standing dark at its centre with a sheet thrown over the clockwork."
+    ],
+    "exits": [
+      {
+        "id": "to_tower",
+        "names": [
+          "stair",
+          "tower",
+          "down"
+        ],
+        "to": "tower_stair"
+      }
+    ]
+  }
+]

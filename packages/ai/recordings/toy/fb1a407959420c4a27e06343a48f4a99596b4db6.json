@@ -1,0 +1,8 @@
+{
+  "kind": "narrate",
+  "summary": "narrate compact at hall: TurnReceived,IntentSelected,Taken,ClockAdvanced",
+  "result": {
+    "prose": "You take the brass key. It is worn bright at the bow.",
+    "observations": []
+  }
+}

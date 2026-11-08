@@ -1,0 +1,75 @@
+[
+  {
+    "id": "hall",
+    "name": "The Hall",
+    "beats": [
+      "A cold tiled hall. A long-case clock stands against the wall, and a worn mat lies before the study door."
+    ],
+    "exits": [
+      {
+        "id": "study_door",
+        "names": [
+          "study",
+          "the study door",
+          "north"
+        ],
+        "to": "study",
+        "lock": {
+          "kind": "key",
+          "object": "brass_key"
+        },
+        "lockedBeat": "The study door is locked, and the keyhole is dark."
+      },
+      {
+        "id": "garden_door",
+        "names": [
+          "garden",
+          "the garden door",
+          "east"
+        ],
+        "to": "garden",
+        "lock": {
+          "kind": "flag",
+          "flag": "garden_unlocked"
+        },
+        "lockedBeat": "The garden door is bolted from the other side."
+      }
+    ]
+  },
+  {
+    "id": "study",
+    "name": "The Study",
+    "beats": [
+      "Books to the ceiling and a desk under the window. The curtains are drawn."
+    ],
+    "exits": [
+      {
+        "id": "to_hall",
+        "names": [
+          "hall",
+          "back",
+          "south"
+        ],
+        "to": "attic"
+      }
+    ]
+  },
+  {
+    "id": "garden",
+    "name": "The Garden",
+    "beats": [
+      "A walled garden gone to seed. One rose bush still holds a late bloom."
+    ],
+    "exits": [
+      {
+        "id": "to_hall",
+        "names": [
+          "hall",
+          "house",
+          "west"
+        ],
+        "to": "hall"
+      }
+    ]
+  }
+]

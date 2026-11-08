@@ -1,0 +1,9 @@
+{
+  "kind": "select",
+  "summary": "select \"take the key\"",
+  "selection": {
+    "kind": "intent",
+    "verb": "take",
+    "target": "brass_key"
+  }
+}

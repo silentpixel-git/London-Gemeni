@@ -1,0 +1,8 @@
+{
+  "kind": "narrate",
+  "summary": "narrate full at hall: TurnReceived,IntentSelected,RuleFired,BeatQueued,DispositionChanged,Looked,ClockAdvanced",
+  "result": {
+    "prose": "Cold tiles, a worn mat before the study door, and the clock. The housekeeper says the master would not have wanted strangers here.",
+    "observations": []
+  }
+}

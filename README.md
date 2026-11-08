@@ -1,68 +1,58 @@
 # London Bleeds: The Whitechapel Diaries
 
-A text-adventure game set in 1888 London, during the Jack the Ripper murders. You play as Dr. John H. Watson, assisting Sherlock Holmes in an investigation that takes you through Whitechapel — examining crime scenes, interviewing witnesses, and piecing together a theory before it's too late.
+A text adventure set in London in November 1888, during the Whitechapel murders. You play Dr. John H. Watson, assisting Sherlock Holmes through an investigation told in acts.
 
 **Live:** [london-gemeni.vercel.app](https://london-gemeni.vercel.app)
 
+> **Status:** the engine has been rebuilt (see [`docs/engine-rebuild-plan.md`](docs/engine-rebuild-plan.md)). The Whitechapel story has not yet been re-authored for the new engine, so new games start on a story-neutral test story, *The Saltmarsh Light*. The previous engine and the Whitechapel story as TypeScript are preserved on the `archive/pre-phase4-engine` branch.
+
 ---
 
-## How It Works
+## How it works
 
-The game is built on a strict separation of concerns: a deterministic TypeScript engine resolves every player action against canonical world data, and the Gemini AI is only ever asked to write narrative prose for outcomes that have already been decided.
+**The engine decides; the AI narrates.** A deterministic TypeScript engine resolves every player action against a Story authored as data. Gemini is used twice per turn, and neither use can change the world:
 
-The AI cannot hallucinate a clue, invent an exit, or move an NPC — it receives a fully resolved `EngineResult` and narrates it. This keeps gameplay consistent while making each turn feel like it was written by a Victorian novelist.
+1. **Selection.** The player's free text is mapped onto one action, chosen from the *Candidate Set* — everything the player could mean right now: things here and carried, people present, exits, subjects the addressed person can speak to. The model can only pick from that list or decline; a few exact commands (`look`, `inventory`, `wait`, compass directions) skip it.
+2. **Narration.** The engine's resolved outcome — this turn's Events, the authored Beats, the Facts that may be said — goes to the narrator, which writes prose. It may improvise *Flavour* (texture that carries no fact), which is recorded as an *Observation* so later turns repeat it. A server-side *invention gate* rejects any name or number the turn's context did not supply.
 
-### Architecture
+Only the engine creates *Facts*: a clue, an exit, where a thing or person is, who knows what. People remember what they have said because the engine keeps a *Disclosure Ledger* of every Fact they have told the player, rather than asking the model to remember.
+
+Each game (an *Investigation*) is an append-only log of Events on the server; the current state is the replay of that log. Resuming, on any device, is replay, and any bug is reproducible from its log. The browser never holds the Story or the state, either of which would show it the solution: it receives a player view (location, people, objects, exits, inventory, diary) and the feed.
+
+Stories are JSON validated by a schema. Puzzles, scripted scenes, timed happenings and ambient life are all *Rules*: a Trigger (an action on an object, entering a place, a flag, a clock time, an idle Tick, combining items, a fact being told, someone being near, an accusation) paired with Effects. A build-blocking validator checks every reference, and a reachability prover walks the real engine to show every act, clue and ending can be reached.
+
+The vocabulary is defined in [`GLOSSARY.md`](GLOSSARY.md); the decisions behind it are in [`docs/adr/`](docs/adr/).
+
+### A turn
 
 ```
-Player input
-    │
-    ▼
-intentParser.ts        — classifies free text into a typed intent
-    │                    (move / examine / talk / take / use / deduce / query / …)
-    ▼
-GameEngine.ts          — resolves intent against gameData.ts (no AI)
-    │                    returns EngineResult: state changes + NarrationContext
-    ▼
-useGameState.ts        — applies state changes, injects STIM + Holmes synthesis
-    │
-    ▼
-AIService.ts           — streams narrative prose from Gemini
-    │                    (3 prompt modes: opening / full / compact)
-    ▼
-NarrativeFeed.tsx      — renders streamed markdown with typewriter animation
+browser                     api/turn.ts → server/turn.ts                    packages/
+  text / tick / resume ──▶  load log → replay → Candidate Set → exact         engine: reducer, verbs, Rules, Ticks,
+  ◀── NDJSON: events,       command or ai.select → resolve → append Events    prover, projections (no I/O, no AI)
+      prose, view + feed    → narrate → invention gate → append narration     ai: select/narrate seam, Gemini adapter
+                                                                              schema: Zod contracts, validator
 ```
 
-### Game Engine
+The turn endpoint's contract is [`server/TURN.md`](server/TURN.md).
 
-`engine/gameData.ts` is the single source of truth for all world data: locations, NPCs, clues, objects, act progression, and suspect profiles. Nothing in this file changes at runtime.
+---
 
-`engine/GameEngine.ts` enforces rules deterministically:
-- Movement validates exits from the current location
-- Clue discovery is triggered by examining specific objects
-- NPC movement follows data-driven rules (`followsNpcId`)
-- Deduction checks the player's theory against `SUSPECT_PROFILES`
-- Natural-language questions (`what is…`, `describe…`) route to `resolveQuery` — Watson answers in-character with no state change
+## Project structure
 
-### AI Narration
-
-`services/AIService.ts` wraps the Google Gemini API with three narration modes:
-
-| Mode | Used for | Word limit |
-|------|----------|-----------|
-| `opening` | Game start | 130 words, 2 paragraphs, mystery hook |
-| `full` | Movement / look-around | 220 words, Act header + atmosphere + scene |
-| `compact` | All other actions | 100 words, action-focused |
-
-Sanity affects prose style. Below 70 sanity Watson's text shows strain; below 40 it fragments — short broken sentences, intrusive thoughts, unreliable perception.
-
-When new clues are found, `consultHolmesMultiClue` fires a non-streaming call that synthesises all discovered evidence into a cross-case Holmesian deduction. This is injected into the narration prompt so Holmes's commentary advances meaningfully with each discovery.
-
-### Cloud Save (Supabase)
-
-Players can sign in with Google OAuth or an email magic link. Progress is saved to Supabase and syncs across devices. All tables use Row Level Security — players can only access their own data.
-
-The Supabase connection uses a direct `fetch` to GoTrue's `/auth/v1/health` endpoint for connectivity checks, bypassing the SDK's Web Locks mechanism which can cause false "disconnected" readings during token refresh.
+```
+├── packages/
+│   ├── schema/        # Zod contracts (Story, Rule, Event, Candidate Set, narration, player view), validator, test fixtures
+│   ├── engine/        # Pure engine: reducer, verbs, Rules, Ticks, projections, reachability prover
+│   └── ai/            # select/narrate seam, prompts, invention gate, Gemini and recorded adapters
+├── server/            # turn.ts (the one turn endpoint), investigationStore.ts (memory / Supabase)
+├── api/turn.ts        # Vercel function wrapping server/turn.ts
+├── stories/           # Stories as JSON (from Phase 6; until then fixtures under packages/schema/fixtures/)
+├── hooks/             # useInvestigation (client game state), useAudio, gameState/*
+├── services/          # turnClient (NDJSON), InvestigationRepository, GameRepository (profiles), audio
+├── components/        # React UI: feed, sidebar, diary, command input, auth, settings
+├── scripts/           # qa-*.ts harnesses
+└── supabase/migrations/
+```
 
 ---
 
@@ -70,36 +60,27 @@ The Supabase connection uses a direct `fetch` to GoTrue's `/auth/v1/health` endp
 
 ### Prerequisites
 
-- Node.js 18+
-- A [Supabase](https://supabase.com) project
+- Node.js 20+
+- A [Supabase](https://supabase.com) project with **anonymous sign-in enabled** (guests play as anonymous users; signing in by magic link claims the account)
 - A [Google AI Studio](https://aistudio.google.com) API key (Gemini)
 
 ### Install
 
 ```bash
 git clone https://github.com/silentpixel-git/London-Gemeni.git
-cd London-Gemeni
-npm install
 ```
 
-### Environment variables
-
-Create a `.env` file in the project root:
-
-```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-GEMINI_API_KEY=your-gemini-api-key
+```bash
+cd London-Gemeni && npm install
 ```
+
+### Environment
+
+Copy `.env.example` to `.env` and fill it in. `GEMINI_API_KEY` is server-only and never reaches the browser bundle. The AI model for each job, and the Story new games start on (`VITE_DEFAULT_STORY`), are configurable there.
 
 ### Database
 
-Run the migrations in order in your Supabase SQL Editor:
-
-```
-supabase/migrations/001_schema_update.sql
-supabase/migrations/002_profile_role_theme.sql
-```
+Apply `supabase/migrations/*.sql` in order in the Supabase SQL editor.
 
 ### Run locally
 
@@ -107,12 +88,23 @@ supabase/migrations/002_profile_role_theme.sql
 npm run dev
 ```
 
+Vite serves the app on port 3000 and mounts `POST /api/turn` through a dev middleware, so no separate server is needed.
+
+### Check
+
+```bash
+npm run qa:all
+```
+
+Type-checking plus every deterministic harness: story validation, the engine's behavioural spec, the reachability prover, the stress story, the invention gate, the turn endpoint with recorded AI, and the Vercel function's import graph. None needs an API key. `npx tsx scripts/qa-browser.ts` plays the real app in Chromium; `scripts/smoke-gemini.ts` makes one live call to each model.
+
 ### Deploy
 
 ```bash
-npm run build
 vercel --prod
 ```
+
+`npm run build` validates every Story before building and fails on an invalid one.
 
 ---
 
@@ -122,34 +114,10 @@ vercel --prod
 |-------|-----------|
 | UI | React 19 + TypeScript |
 | Styling | Tailwind CSS (build-time, PostCSS) |
-| Animation | Motion (Framer Motion) |
+| Animation | Motion |
+| Audio | Howler |
+| Schemas | Zod |
 | AI | Google Gemini (`@google/genai`) |
-| Auth + DB | Supabase (PostgreSQL + GoTrue) |
+| Auth + DB | Supabase (PostgreSQL + GoTrue, row-level security) |
 | Bundler | Vite 6 |
 | Hosting | Vercel |
-
----
-
-## Project Structure
-
-```
-├── engine/
-│   ├── gameData.ts          # All world data (locations, NPCs, clues, suspects)
-│   ├── GameEngine.ts        # Deterministic rule resolver
-│   └── intentParser.ts      # Free-text → typed intent
-├── services/
-│   ├── AIService.ts         # Gemini narration (streaming + Holmes synthesis)
-│   ├── GameRepository.ts    # Supabase data access
-│   └── geminiService.ts     # Low-level Gemini wrapper
-├── hooks/
-│   └── useGameState.ts      # All game state, effects, and handlers
-├── components/
-│   ├── AuthModal.tsx        # Sign in / create account
-│   ├── EditProfileModal.tsx # Display name + Victorian role picker
-│   ├── Header.tsx           # Connection status, profile dropdown
-│   ├── NarrativeFeed.tsx    # Streamed story output
-│   ├── Sidebar.tsx          # Location, inventory, journal
-│   └── CommandInput.tsx     # Player text input
-└── supabase/
-    └── migrations/          # Database schema
-```

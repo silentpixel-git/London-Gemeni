@@ -1,0 +1,60 @@
+[
+  {
+    "id": "key_in_clock",
+    "statement": "The master kept the study key inside the long-case clock.",
+    "knownBy": [
+      "housekeeper"
+    ],
+    "visibleFromAct": 0,
+    "topics": [
+      "key",
+      "the study key",
+      "the clock",
+      "study door"
+    ]
+  },
+  {
+    "id": "letter_confession",
+    "statement": "The letter in the desk is a blackmail demand that names the gardener.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "letter",
+      "the letter",
+      "blackmail"
+    ],
+    "spoilerTerms": [
+      "blackmail"
+    ]
+  },
+  {
+    "id": "gardener_fled",
+    "statement": "The gardener left the house the night the master died and has not been seen since.",
+    "knownBy": [
+      "housekeeper"
+    ],
+    "visibleFromAct": 1,
+    "topics": [
+      "gardener",
+      "the gardener"
+    ],
+    "voices": {
+      "housekeeper": "He was gone before the doctor came. Took nothing. Left the gate open."
+    },
+    "spoilerTerms": [
+      "gardener left",
+      "not been seen"
+    ]
+  },
+  {
+    "id": "master_was_afraid",
+    "statement": "In his last week the master would not sit with his back to a window.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "the master",
+      "the master's fear",
+      "afraid"
+    ]
+  }
+]

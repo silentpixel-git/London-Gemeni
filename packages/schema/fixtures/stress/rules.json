@@ -1,0 +1,111 @@
+[
+  { "id": "maud_greets", "trigger": { "kind": "proximity", "person": "maud" }, "when": { "act": [0] }, "once": false,
+    "effects": [ { "kind": "playBeat", "beats": ["The cook looks you over and says the relief boat is always late."] } ] },
+  { "id": "dov_remarks", "trigger": { "kind": "proximity", "person": "dov" }, "when": { "act": [1] }, "once": false,
+    "effects": [ { "kind": "playBeat", "beats": ["Dov glances at the sky and says the glass has been falling since breakfast."] } ] },
+  { "id": "chest_creaks", "trigger": { "kind": "action", "verb": ["open"], "target": ["tackle_chest"] }, "once": true,
+    "effects": [ { "kind": "cue", "sound": "chest_creak" } ] },
+  { "id": "jetty_foghorn", "trigger": { "kind": "leave", "location": "jetty" }, "once": false,
+    "effects": [ { "kind": "cue", "sound": "foghorn_far" } ] },
+  { "id": "loft_first_look", "trigger": { "kind": "enter", "location": "net_loft" }, "once": false,
+    "effects": [ { "kind": "playBeat", "beats": ["Dust turns slowly in a bar of light from the louvres."] } ] },
+  { "id": "orrin_rumor_to_maud", "trigger": { "kind": "disclosed", "fact": "cargo_was_barrels", "from": "orrin", "to": "player" }, "once": true,
+    "effects": [ { "kind": "grantFact", "person": "maud", "fact": "cargo_was_barrels", "delayPeriods": 1 } ] },
+  { "id": "orrin_unlatches_chest", "trigger": { "kind": "disclosed", "fact": "cargo_was_barrels", "from": "orrin", "to": "player" }, "when": { "act": [1] }, "once": true,
+    "effects": [
+      { "kind": "setFlag", "flag": "chest_ok" },
+      { "kind": "grantFact", "person": "player", "fact": "store_key_in_chest" },
+      { "kind": "playBeat", "beats": ["Orrin jerks his chin at the chest and says the latch is only stuck, and that he never saw you open it."] }
+    ] },
+  { "id": "log_read_starts_storm", "trigger": { "kind": "action", "verb": ["read"], "target": ["keeper_log"] }, "when": { "act": [0], "factsKnown": ["cargo_was_barrels"] }, "once": true,
+    "effects": [ { "kind": "playBeat", "beats": ["As you close the log the window rattles, and the afternoon darkens at once."] }, { "kind": "advanceAct", "act": 1 } ] },
+  { "id": "dov_briefs_player", "trigger": { "kind": "enter", "location": "kitchen" }, "when": { "act": [1] }, "once": true,
+    "effects": [ { "kind": "grantFact", "person": "player", "fact": "storm_due" } ] },
+  { "id": "store_door_snaps", "trigger": { "kind": "enter", "location": "oil_store" }, "once": true,
+    "effects": [
+      { "kind": "takeItem", "object": "store_key" },
+      { "kind": "unlockExit", "location": "kitchen", "exit": "to_store" },
+      { "kind": "playBeat", "beats": ["The old padlock gives with a crack and the key comes away in two pieces."] }
+    ] },
+  { "id": "maud_takes_key", "trigger": { "kind": "action", "verb": ["give"], "target": ["store_key"], "person": ["maud"] }, "once": true,
+    "effects": [
+      { "kind": "takeItem", "object": "store_key" },
+      { "kind": "unlockExit", "location": "kitchen", "exit": "to_store" },
+      { "kind": "setDisposition", "person": "maud", "disposition": "warm" },
+      { "kind": "playBeat", "beats": ["Maud pockets the key, mutters that she would have fetched it herself, and sets the store door ajar."] }
+    ] },
+  { "id": "maud_unbars_tower", "trigger": { "kind": "disclosed", "fact": "oil_watered", "from": "player", "to": "maud" }, "once": true,
+    "effects": [
+      { "kind": "setFlag", "flag": "tower_unbarred" },
+      { "kind": "moveObject", "object": "tower_keys", "placement": { "kind": "person", "person": "dov" } },
+      { "kind": "playBeat", "beats": ["The cook goes white, then lifts the bar from the tower door without a word and presses the keys on Dov."] }
+    ] },
+  { "id": "hatch_trick_learned", "trigger": { "kind": "disclosed", "fact": "hatch_sticks", "to": "player" }, "once": true,
+    "effects": [ { "kind": "setFlag", "flag": "hatch_trick_known" } ] },
+  { "id": "hatch_swells", "trigger": { "kind": "enter", "location": "tower_stair" }, "once": true,
+    "effects": [
+      { "kind": "lockExit", "location": "tower_stair", "exit": "to_lamp_room", "lock": { "kind": "key", "object": "hatch_pin" } },
+      { "kind": "playBeat", "beats": ["Damp has swollen the hatch tight in its frame."], "asQuote": true }
+    ] },
+  { "id": "free_hatch", "trigger": { "kind": "action", "verb": ["use"], "target": ["hatch_hinge"] }, "when": { "location": ["tower_stair"], "flagsAll": ["hatch_trick_known"] }, "once": true,
+    "effects": [
+      { "kind": "unlockExit", "location": "tower_stair", "exit": "to_lamp_room" },
+      { "kind": "playBeat", "beats": ["A smear of tallow on the hinge, a shove, and the hatch swings free."] }
+    ] },
+  { "id": "lamp_room_reached", "trigger": { "kind": "enter", "location": "lamp_room" }, "when": { "act": [1] }, "once": true,
+    "effects": [ { "kind": "advanceAct", "act": 2 } ] },
+  { "id": "orrin_ducks_into_loft", "trigger": { "kind": "clock", "atMinutes": 960, "act": [1] }, "once": true,
+    "effects": [
+      { "kind": "movePerson", "person": "orrin", "location": "net_loft" },
+      { "kind": "playBeat", "beats": ["Through the window you see the boatman running for the net loft ahead of a wall of rain."], "asQuote": true }
+    ] },
+  { "id": "orrin_seen_in_loft", "trigger": { "kind": "proximity", "person": "orrin" }, "when": { "act": [1], "location": ["net_loft"] }, "once": true,
+    "effects": [ { "kind": "setFlag", "flag": "orrin_at_loft" } ] },
+  { "id": "orrin_promises_wick", "trigger": { "kind": "flag", "flag": "orrin_at_loft" }, "once": true,
+    "effects": [
+      { "kind": "setFlag", "flag": "wick_promised" },
+      { "kind": "playBeat", "beats": ["Orrin shrugs and says the spare wick is in the lamp room drawer, if anyone ever gets up there."] }
+    ] },
+  { "id": "drawer_wick", "trigger": { "kind": "enter", "location": "lamp_room" }, "when": { "act": [2], "flagsAll": ["wick_promised"] }, "once": true,
+    "effects": [
+      { "kind": "giveItem", "object": "lamp_wick" },
+      { "kind": "playBeat", "beats": ["The drawer under the burner holds exactly the coil of wick Orrin promised."] }
+    ] },
+  { "id": "lens_examined", "trigger": { "kind": "action", "verb": ["examine"], "target": ["lamp_lens"] }, "when": { "act": [2] }, "once": true,
+    "effects": [ { "kind": "setFlag", "flag": "lens_inspected" } ] },
+  { "id": "lens_flaw_noted", "trigger": { "kind": "flag", "flag": "lens_inspected" }, "when": { "act": [2] }, "once": true,
+    "effects": [ { "kind": "grantFact", "person": "player", "fact": "lens_is_cracked" } ] },
+  { "id": "polish_lens", "trigger": { "kind": "action", "verb": ["use"], "target": ["soft_cloth"], "secondary": ["lamp_lens"] }, "once": true,
+    "effects": [
+      { "kind": "setFlag", "flag": "lens_polished" },
+      { "kind": "playBeat", "beats": ["You rub a clear window in the grime of the lens."] }
+    ] },
+  { "id": "prime_lamp", "trigger": { "kind": "combine", "items": ["oil_can", "lamp_wick"] }, "when": { "act": [2], "location": ["lamp_room"] }, "once": true,
+    "effects": [
+      { "kind": "setFlag", "flag": "lamp_primed" },
+      { "kind": "hideObject", "object": "dust_sheet" },
+      { "kind": "revealObject", "object": "torn_page" },
+      { "kind": "playBeat", "beats": ["As you work the wick into the burner, the sheet slides from the clockwork and a folded paper drops out."] }
+    ] },
+  { "id": "deduce_saboteur", "trigger": { "kind": "deduction", "facts": ["oil_watered", "log_page_torn"] }, "when": { "act": [2] }, "once": true,
+    "effects": [ { "kind": "endGame", "ending": "lamp_restored" } ] },
+  { "id": "deduce_cook", "trigger": { "kind": "deduction", "suspect": "maud" }, "once": true,
+    "effects": [ { "kind": "endGame", "ending": "wrong_accusation" } ] },
+  { "id": "ship_lost_at_ten", "trigger": { "kind": "clock", "atMinutes": 1320, "act": [2] }, "once": true,
+    "effects": [ { "kind": "dismissPerson", "person": "ines" }, { "kind": "endGame", "ending": "ship_lost" } ] },
+  { "id": "tick_gulls", "trigger": { "kind": "tick" }, "when": { "location": ["jetty"] }, "once": false, "weight": 3,
+    "effects": [ { "kind": "playBeat", "beats": ["A gull lands on the chest, looks at you, and leaves."], "asQuote": true } ] },
+  { "id": "tick_kettle", "trigger": { "kind": "tick" }, "when": { "location": ["kitchen"] }, "once": false, "weight": 2,
+    "effects": [ { "kind": "playBeat", "beats": ["The kettle begins to sing on the range."], "asQuote": true } ] },
+  { "id": "tick_maud_climbs", "trigger": { "kind": "tick" }, "when": { "act": [1], "location": ["tower_stair"] }, "once": true, "weight": 2,
+    "effects": [
+      { "kind": "summonPerson", "person": "maud" },
+      { "kind": "playBeat", "beats": ["Maud comes up the stair behind you, breathing hard, and says she wants to see for herself."] }
+    ] },
+  { "id": "tick_fog_bell", "trigger": { "kind": "tick" }, "when": { "weather": ["fog"] }, "once": false, "weight": 1,
+    "effects": [ { "kind": "playBeat", "beats": ["A buoy bell tolls far out in the fog."], "asQuote": true } ] },
+  { "id": "tick_lens_dull", "trigger": { "kind": "tick" }, "when": { "location": ["lamp_room"], "flagsNone": ["lens_polished"] }, "once": false, "weight": 1,
+    "effects": [ { "kind": "playBeat", "beats": ["The unlit lens swallows what little light there is."], "asQuote": true } ] },
+  { "id": "tick_lamp_hum", "trigger": { "kind": "tick" }, "when": { "location": ["lamp_room"], "flagsAll": ["lamp_primed"] }, "once": false, "weight": 1,
+    "effects": [ { "kind": "playBeat", "beats": ["The burner ticks as it cools."], "asQuote": true } ] }
+]
