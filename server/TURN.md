@@ -7,6 +7,7 @@
 { "investigationId": "uuid", "text": "look at the clock" }      // a player turn
 { "investigationId": "uuid", "tick": true }                       // an idle Tick from the UI (TICK_MINUTES)
 { "start": { "storyId": "locked_study", "name": "My first game" } } // creates an Investigation, returns its id and the opening narration
+{ "investigationId": "uuid", "resume": true }                     // reads only: the whole feed and the current view
 ```
 Auth: the client's Supabase JWT in `Authorization: Bearer …` (anonymous users included). The server builds a Supabase client with that token so RLS applies; no service role key.
 
@@ -14,7 +15,9 @@ Auth: the client's Supabase JWT in `Authorization: Bearer …` (anonymous users 
 NDJSON stream, one object per line, in this order:
 1. `{ "kind": "events", "events": [...EventPayload], "seqFrom": n }` — everything the engine appended for this turn, before narration.
 2. `{ "kind": "text", "delta": "..." }` repeated while prose streams.
-3. `{ "kind": "done", "narrated": { ...Narrated event }, "observations": [...], "state": { "act", "location", "clock", "period", "weather", "inventory": [ids], "personsPresent": [ids], "ended" } }` — a small view for the sidebar; the client never needs the full State.
+3. `{ "kind": "done", "narrated": { ...Narrated event }, "observations": [...], "view": PlayerView, "feed": FeedItem[] }` — `view` is the sidebar and diary (names and labels only, `packages/schema/view.ts`); `feed` is this turn's feed blocks, which replace whatever streamed. The client never holds the Story or the State: both would show it the solution.
+
+A resume answers one line, `{ "kind": "resume", "investigationId", "name", "feed": FeedItem[], "view": PlayerView, "busy": boolean }`, with nothing appended. `feed` is built by the same `feedOf` as each turn's `done.feed`, so a second browser renders exactly what the first one saw; `busy` means a turn is still being narrated.
 Errors: a single `{ "kind": "error", "message": "..." }` line and HTTP 4xx/5xx before any stream starts; after the stream has started, an `error` line and a closed stream.
 - **409** means another turn on this Investigation is still being narrated. A client sends one turn at a time; an idle Tick that gets 409 is simply dropped.
 
@@ -25,6 +28,7 @@ Errors: a single `{ "kind": "error", "message": "..." }` line and HTTP 4xx/5xx b
 3. Append the new Events in one insert with consecutive `seq`; update `investigations.last_event_seq`. Emit the `events` line. If another request took that `seq` first (`SeqConflict`, the primary key's 23505), start again from step 1, up to three times, then 409.
 4. `buildNarrationContext(story, newState, turnEvents, mode)` with mode `opening` on the first turn, `flavour` for FlavourRequested, `compact` when the turn produced no Fact, Beat, Clue or move, else `full`. `ai.narrate(ctx)`, streaming `text` lines.
 5. `gateNarration(ctx, result)`. On rejection, narrate once more with `ctx.beats` prefixed by a line naming the rejected inventions; on a second rejection use `ctx.beats.join(' ')` as prose.
+   A Tick that changed nothing the player can see (no Fact, Beat, Clue, move, act or ending, and the same people present) is **quiet**: no narration call, and an empty `Narrated{text: '', beats: []}` closes it. It costs nothing and adds nothing to the feed or the Transcript.
 6. Append `Narrated{text, beats}` and one `ObservationRecorded` per Observation (same seq series), emit `done`. If narration or this append fails, append a beats-only `Narrated` so the turn closes, then emit `error`.
 
 **Why one turn at a time.** A `Narrated` row belongs to the turn it follows: its row's turn number, and the Transcript of whoever is present at that point in the log, both come from its position. A second turn appended between a turn's engine rows and its `Narrated` would take that narration as its own, so turns are serialised by the log itself rather than retried around each other.

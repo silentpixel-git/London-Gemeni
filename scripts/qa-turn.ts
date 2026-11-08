@@ -4,7 +4,7 @@
  * Drives POST /api/turn (server/turn.ts, contract server/TURN.md) in-process
  * against the toy Story with the memory store and the `recorded` AI provider:
  * NDJSON line order, the Event log's seq series, replay across requests, the
- * sidebar view, Ticks, errors, an out-of-set Selection, both gate rejection
+ * player view and feed, resume, quiet Ticks, Ticks, errors, an out-of-set Selection, both gate rejection
  * branches, the exact-command fast path, and one-turn-at-a-time (409 on an
  * open turn, a lost seq race, a failed or stale turn closed). No key, no network.
  *
@@ -17,7 +17,7 @@
 
 import { join } from 'node:path';
 import { rmSync } from 'node:fs';
-import type { CandidateSet, EventPayload, NarrationContext, NarrationResult, Selection } from '../packages/schema/index.js';
+import type { CandidateSet, EventPayload, FeedItem, NarrationContext, NarrationResult, PlayerView, Selection } from '../packages/schema/index.js';
 import { candidates, exactSelection, initialState, replay } from '../packages/engine/index.js';
 import { recorded, recording } from '../packages/ai/recorded.js';
 import type { Ai } from '../packages/ai/types.js';
@@ -112,6 +112,11 @@ function wellOrdered(kinds: string[]): boolean {
   return /^events(,text)*,done$/.test(kinds.join(','));
 }
 
+const ids = (xs: Array<{ id: string }> | undefined) => JSON.stringify((xs ?? []).map(x => x.id));
+/** Every turn's own feed items, in order: a resume must render exactly these. */
+const feedSoFar: FeedItem[] = [];
+const keep = <T extends { done?: Line }>(r: T): T => { feedSoFar.push(...((r.done?.feed ?? []) as FeedItem[])); return r; };
+
 async function logOf(store: InvestigationStore, id: string) {
   return (await store.load(id))!.events;
 }
@@ -126,7 +131,7 @@ const eventKinds = (r: { events?: Line }) => ((r.events?.events ?? []) as EventP
 
 const store = memoryStore();
 
-const start = await post({ start: { storyId: 'toy', name: 'QA' } }, { store });
+const start = keep(await post({ start: { storyId: 'toy', name: 'QA' } }, { store }));
 const id = start.events?.investigationId as string;
 check('start: 200 and NDJSON in order events → text → done', start.status === 200 && wellOrdered(start.kinds), start.kinds.join(','));
 check('start: the events line is InvestigationStarted(locked_study) at seq 0 and names the new id',
@@ -134,18 +139,29 @@ check('start: the events line is InvestigationStarted(locked_study) at seq 0 and
   && start.events?.events[0].story === 'locked_study' && typeof id === 'string');
 // The authoring stub sends no text chunks; only replay streams.
 if (!AUTHOR) check('start: streamed text is the narrated text', start.streamed === start.done?.narrated.text && start.streamed === PROSE.opening);
-check('start: done.state is the opening view',
-  start.done?.state.act === 0 && start.done?.state.location === 'hall' && start.done?.state.clock === 1230
-  && start.done?.state.period === 'night' && start.done?.state.weather === 'foggy'
-  && JSON.stringify(start.done?.state.inventory) === '["matches"]'
-  && JSON.stringify(start.done?.state.personsPresent) === '["housekeeper"]' && start.done?.state.ended === null,
-  JSON.stringify(start.done?.state));
+const startView = start.done?.view as PlayerView | undefined;
+check('start: done.view is the opening view, by id and by name',
+  startView?.act.id === 0 && startView.location.id === 'hall' && startView.location.name === 'The Hall' && startView.clock === 1230
+  && startView.period.id === 'night' && startView.weather.id === 'foggy'
+  && ids(startView.inventory) === '["matches"]' && ids(startView.persons) === '["housekeeper"]' && startView.ended === null
+  && startView.exits.some(x => x.id === 'study_door' && x.name === 'study' && x.to === 'The Study'),
+  JSON.stringify(startView));
+check('start: the view holds no Story beyond names, and the diary only who was met (by alias)',
+  !JSON.stringify(startView).includes('A cold tiled hall') && JSON.stringify(startView?.diary) === JSON.stringify({ acts: [{ id: 0, name: startView?.act.name, dateLabel: startView?.act.dateLabel }], clues: [], persons: [{ id: 'housekeeper', name: 'the housekeeper', told: [] }], documents: [] }),
+  JSON.stringify(startView?.diary));
+const startFeed = start.done?.feed as FeedItem[];
+check('start: the feed is one prose block headed by the location and the act',
+  startFeed.length === 1 && startFeed[0].kind === 'prose' && startFeed[0].location === 'The Hall' && !!startFeed[0].actHeading
+  && startFeed[0].text === start.done?.narrated.text, JSON.stringify(startFeed));
 check('start: the Observation is returned and logged',
   start.done?.observations.length === 1
   && (await logOf(store, id)).some(e => e.payload.kind === 'ObservationRecorded' && e.payload.observation.key === 'hall_tiles_cold'));
 
 const callsBeforeLook = selectCalls;
-const look = await post({ investigationId: id, text: 'look around' }, { store });
+const look = keep(await post({ investigationId: id, text: 'look around' }, { store }));
+check('look: the feed is the player line, then prose headed by the location only',
+  JSON.stringify((look.done?.feed as FeedItem[]).map(f => f.kind === 'prose' ? [f.kind, f.location ?? null, f.actHeading ?? null] : [f.kind, 'text' in f ? f.text : ''])) === JSON.stringify([['player', 'look around'], ['prose', 'The Hall', null]]),
+  JSON.stringify(look.done?.feed));
 check('look: an exact command never reaches the selection model', selectCalls === callsBeforeLook);
 check('look: NDJSON in order, events before any text', look.status === 200 && wellOrdered(look.kinds), look.kinds.join(','));
 check('look: seqFrom continues the log after start (3 rows)', look.events?.seqFrom === 3, String(look.events?.seqFrom));
@@ -154,28 +170,36 @@ check('look: resolved as Looked, with the greeting Beat',
 check('look: Narrated carries the turn\'s Beats',
   (look.done?.narrated.beats as string[]).some(b => b.startsWith('The housekeeper says the master')));
 
-const ask = await post({ investigationId: id, text: 'ask the housekeeper about the key' }, { store });
+const ask = keep(await post({ investigationId: id, text: 'ask the housekeeper about the key' }, { store }));
+const askDiary = (ask.done?.view as PlayerView).diary;
+check('ask: the diary gains the Clue, and the housekeeper by name with what she told',
+  askDiary.clues.map(c => c.id).join() === 'clue_key' && askDiary.clues[0].act === 0
+  && askDiary.persons.some(p => p.id === 'housekeeper' && p.name === 'Mrs. Hale' && p.told.length === 1), JSON.stringify(askDiary));
+check('ask: prose with no scene header (nobody moved or looked)',
+  (ask.done?.feed as FeedItem[]).some(f => f.kind === 'prose' && f.location === undefined));
 check('ask: the housekeeper discloses key_in_clock to the player',
   ((ask.events?.events ?? []) as EventPayload[]).some(e => e.kind === 'FactDisclosed' && e.fact === 'key_in_clock' && e.to === 'player'));
 
-const open = await post({ investigationId: id, text: 'open the clock' }, { store });
+const open = keep(await post({ investigationId: id, text: 'open the clock' }, { store }));
 check('open: the clock opens, with the authored Beat',
   eventKinds(open).includes('Opened') && eventKinds(open).includes('BeatQueued'), eventKinds(open).join(','));
 
-const clockBeforeTake = open.done?.state.clock as number;
-const take = await post({ investigationId: id, text: 'take the key' }, { store });
+const clockBeforeTake = (open.done?.view as PlayerView).clock;
+const take = keep(await post({ investigationId: id, text: 'take the key' }, { store }));
+const carried = (r: { done?: Line }) => ((r.done?.view as PlayerView).inventory).map(i => i.id);
 check('take: replayed from the log, the key is now carried',
-  eventKinds(take).includes('Taken') && (take.done?.state.inventory as string[]).includes('brass_key'), JSON.stringify(take.done?.state));
-check('take: the clock advanced across requests', (take.done?.state.clock as number) > clockBeforeTake && clockBeforeTake > 1230,
-  `${clockBeforeTake} → ${take.done?.state.clock}`);
+  eventKinds(take).includes('Taken') && carried(take).includes('brass_key'), JSON.stringify(take.done?.view));
+check('take: the clock advanced across requests', (take.done?.view as PlayerView).clock > clockBeforeTake && clockBeforeTake > 1230,
+  `${clockBeforeTake} → ${(take.done?.view as PlayerView).clock}`);
 
-const tick = await post({ investigationId: id, tick: true }, { store });
+const tick = keep(await post({ investigationId: id, tick: true }, { store }));
 check('tick: NDJSON in order and the turn is a TickResolved', wellOrdered(tick.kinds) && eventKinds(tick)[0] === 'TickResolved',
   eventKinds(tick).join(','));
 check('tick: TickResolved is in the stored log', (await logOf(store, id)).some(e => e.payload.kind === 'TickResolved'));
-check('tick: the key is still carried', (tick.done?.state.inventory as string[]).includes('brass_key'));
+check('tick: the key is still carried', carried(tick).includes('brass_key'));
+check('tick: a narrated Tick is prose with no player line', JSON.stringify((tick.done?.feed as FeedItem[]).map(f => f.kind)) === '["prose"]');
 
-const bogus = await post({ investigationId: id, text: 'light the lamp' }, { store });
+const bogus = keep(await post({ investigationId: id, text: 'light the lamp' }, { store }));
 check('out-of-set Selection: 200, and IntentRejected rather than IntentSelected',
   bogus.status === 200 && wellOrdered(bogus.kinds) && eventKinds(bogus).includes('IntentRejected') && !eventKinds(bogus).includes('IntentSelected'),
   `${bogus.status} ${eventKinds(bogus).join(',')}`);
@@ -184,16 +208,31 @@ const log = await logOf(store, id);
 check('the stored log has consecutive seq from 0', consecutive(log.map(e => e.seq)), log.map(e => e.seq).join(','));
 check('the stored turn numbers never go backwards', log.every((e, i) => i === 0 || e.turn >= log[i - 1].turn));
 const replayed = replay(story, log.map(e => e.payload));
-check('replaying the stored log gives the last done.state',
-  replayed.location === bogus.done?.state.location && replayed.clock === bogus.done?.state.clock
+const lastView = bogus.done?.view as PlayerView;
+check('replaying the stored log gives the last done.view',
+  replayed.location === lastView.location.id && replayed.clock === lastView.clock
   && JSON.stringify(Object.keys(replayed.objects).filter(o => replayed.objects[o].placement.kind === 'inventory').sort())
-    === JSON.stringify([...(bogus.done?.state.inventory as string[])].sort()));
+    === JSON.stringify(carried(bogus).sort()));
+
+// ── Resume: a second browser renders what the first one saw ────────────────
+
+const resumed = await post({ investigationId: id, resume: true }, { store });
+const rline = resumed.lines[0];
+check('resume: 200 and one resume line, nothing appended',
+  resumed.status === 200 && resumed.kinds.join() === 'resume' && rline.busy === false && rline.name === 'QA'
+  && (await logOf(store, id)).length === log.length, `${resumed.status} ${resumed.kinds.join(',')}`);
+check('resume: the feed is exactly every turn\'s own feed, in order', JSON.stringify(rline.feed) === JSON.stringify(feedSoFar),
+  `${(rline.feed as FeedItem[]).length} vs ${feedSoFar.length}`);
+check('resume: the view is the last turn\'s view', JSON.stringify(rline.view) === JSON.stringify(lastView));
 
 // ── Errors ──────────────────────────────────────────────────────────────────
 
 const missing = await post({ investigationId: '00000000-0000-0000-0000-000000000000', text: 'look around' }, { store });
 check('unknown investigation: 404 and a single error line',
   missing.status === 404 && missing.lines.length === 1 && missing.lines[0].kind === 'error', `${missing.status} ${missing.kinds.join(',')}`);
+
+const noResume = await post({ investigationId: '00000000-0000-0000-0000-000000000000', resume: true }, { store });
+check('resume of an unknown investigation: 404 and a single error line', noResume.status === 404 && noResume.kinds.join() === 'error');
 
 const malformed = await post({ investigationId: id }, { store });
 check('malformed request: 400 and a single error line',
@@ -221,6 +260,29 @@ const fallbackBeats = always.done?.narrated.beats as string[];
 check('gate rejects twice: falls back to the Beats alone, no Observations',
   always.done?.narrated.text === fallbackBeats.join(' ') && fallbackBeats.length > 0 && always.done?.observations.length === 0,
   always.done?.narrated.text);
+
+// ── A quiet Tick ────────────────────────────────────────────────────────────
+
+{
+  // The toy's Act 0 Ticks always fire a Rule; without tick Rules nothing visible changes.
+  const quietToy = { ...story, rules: story.rules.filter(r => r.trigger.kind !== 'tick') };
+  const s = memoryStore();
+  const loadQuiet = (storyId: string) => (storyId === 'toy' ? quietToy : null);
+  let narrations = 0;
+  const counting: Ai = { select: async () => ({ kind: 'none' }), async *narrate() { narrations++; yield { kind: 'done', result: { prose: 'Quiet.', observations: [] } }; } };
+  const st = await post({ start: { storyId: 'toy', name: 'QA quiet' } }, { store: s, ai: counting, loadStory: loadQuiet, gate: () => ({ ok: true, inventions: [] }) });
+  // The first Tick is not quiet: the housekeeper's greeting fires on the first proximity.
+  const greeted = await post({ investigationId: st.events?.investigationId, tick: true }, { store: s, ai: counting, loadStory: loadQuiet, gate: () => ({ ok: true, inventions: [] }) });
+  check('quiet-story Tick with a Beat (the greeting) is still narrated', eventKinds(greeted).includes('BeatQueued') && greeted.done?.narrated.text === 'Quiet.');
+  const before = narrations;
+  const quiet = await post({ investigationId: st.events?.investigationId, tick: true }, { store: s, ai: counting, loadStory: loadQuiet });
+  const qlog = await logOf(s, st.events?.investigationId);
+  check('quiet Tick: no narration call, empty prose, empty feed, closed by an empty Narrated',
+    quiet.status === 200 && wellOrdered(quiet.kinds) && narrations === before && quiet.done?.narrated.text === ''
+    && (quiet.done?.feed as FeedItem[]).length === 0 && qlog.at(-1)?.payload.kind === 'Narrated'
+    && eventKinds(quiet).includes('TickResolved'), `${quiet.kinds.join(',')} narrations ${narrations - before}`);
+  check('quiet Tick: the clock still moved', (quiet.done?.view as PlayerView).clock > (greeted.done?.view as PlayerView).clock);
+}
 
 // ── The exact-command fast path (ADR-0003) ──────────────────────────────────
 

@@ -7,4 +7,5 @@ export * from './verbs.js';
 export * from './candidates.js';
 export * from './exact.js';
 export * from './projections.js';
+export * from './view.js';
 export * from './prover.js';

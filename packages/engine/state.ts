@@ -165,6 +165,7 @@ export function apply(story: Story, s: State, e: EventPayload): State {
     }
     case 'BeatQueued': return { ...s, beats: [...s.beats, { beats: e.beats, asQuote: e.asQuote }] };
     case 'Narrated': {
+      if (!e.text.trim()) return s; // a quiet Tick's closing row: nothing was said
       const transcript = { ...s.transcript };
       for (const id of personsPresent(story, s)) {
         transcript[id] = [...(transcript[id] ?? []), { speaker: 'person' as const, text: e.text }].slice(-TRANSCRIPT_WINDOW);
