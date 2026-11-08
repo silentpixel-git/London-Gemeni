@@ -17,10 +17,20 @@ _Avoid_: command, action (reserved for the resolved outcome)
 A turn the player did not type: the world advancing on its own after a period of inactivity or an explicit wait. Resolved exactly like any other intent, so the world stays deterministic and replayable.
 _Avoid_: idle event, real-time update
 
+**Idle pulse**:
+A Tick triggered by player inactivity, which may surface an ambient event.
+
+**Compound turn**:
+One player input containing several ordered requests ("look at the lamp, then tell me anything interesting"), resolved in sequence and narrated once.
+
 ### Fact and flavour
 
 **Fact**:
 Something true in the world that the engine owns: a clue, an exit, an item's whereabouts, who knows what, where a person is. Only the engine may create or change a Fact.
+
+**Authored fact**:
+A piece of world knowledge written by the author, with who knows it and from which act it is visible. An Authored fact is a kind of Fact.
+_Avoid_: lore, knowledge blob
 
 **Flavour**:
 Descriptive detail the narrator is allowed to improvise because it carries no Fact: the grain of a table, a passer-by's cough, period small talk. Flavour may never imply a Fact.
@@ -29,11 +39,22 @@ Descriptive detail the narrator is allowed to improvise because it carries no Fa
 A piece of Flavour that, once narrated, is written back into the world so later turns repeat it consistently. Improvisation becomes canon the moment it is spoken.
 _Avoid_: STIM, stim observation
 
+**Improvised note**:
+An Observation about an unauthored thing (a chimney, a passer-by) that is remembered against that thing so it stays consistent. It is never a clue or an Authored fact.
+_Avoid_: hallucination, flavor text
+
+**Ignorance marker**:
+An explicit author note that a particular character does not know a particular thing. It is the only legitimate reason for a character to say they do not know.
+
 ### World
 
 **Story**:
 Everything authored for one game: its locations, people, objects, facts, rules and beats, held as data the engine loads. The engine knows no particular Story.
 _Avoid_: manifest, story data, content
+
+**Gazetteer**:
+The authored reference list of real period places, people and events that every character can talk about by default.
+_Avoid_: world lore, wiki
 
 **Object**:
 Anything in the world the player can target by name: a thing in a location, a thing carried, a document. One identity whether it lies on a table or sits in the player's bag.
@@ -71,12 +92,13 @@ An authored line or set of lines the narrator must carry into prose this turn. A
 
 **Disclosure Ledger**:
 The engine's mechanical record, per person, of which Facts that person has told the player and which the player has told them. Written by the engine when a topic resolves, never by the narrator.
+_Also called_: Ledger
 _Avoid_: NPC memory, memory summary
 
 **Transcript**:
 The verbatim recent exchanges between the player and one person, kept alongside their Disclosure Ledger so the narrator can match tone and refer back to actual words.
 
-### State
+## State
 
 **Event**:
 One record of something that happened in a game: a turn resolved, a Fact created, a Rule fired, a Tick passed. The game's state is nothing but the replay of its Events.
