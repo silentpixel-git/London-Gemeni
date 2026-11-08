@@ -1,0 +1,10 @@
+{
+  "kind": "select",
+  "summary": "select \"ask the housekeeper about the key\"",
+  "selection": {
+    "kind": "intent",
+    "verb": "ask",
+    "person": "housekeeper",
+    "topic": "key_in_clock"
+  }
+}
