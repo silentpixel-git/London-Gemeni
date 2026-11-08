@@ -15,6 +15,7 @@
     "qa:stress": "npx tsx scripts/qa-stress.ts",
     "qa:gate": "npx tsx scripts/qa-gate.ts",
     "qa:turn": "npx tsx scripts/qa-turn.ts",
+    "qa:browser": "npx tsx scripts/qa-browser.ts",
     "qa:engine": "npx tsx scripts/qa-engine.ts",
     "qa:golden": "npx tsx scripts/qa-golden.ts",
     "qa:parser": "npx tsx scripts/qa-parser.ts",

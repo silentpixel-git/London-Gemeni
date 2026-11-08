@@ -15,7 +15,7 @@ import type { User } from '@supabase/supabase-js';
 import type { UserProfile } from '../services/GameRepository';
 import {
   PanelLeftClose, PanelLeftOpen, User as UserIcon,
-  ChevronDown, ChevronLeft, ChevronRight, Save, FolderOpen, LogOut, LogIn, Pencil, RefreshCw,
+  ChevronDown, ChevronLeft, ChevronRight, FolderOpen, LogOut, LogIn, Pencil, RefreshCw,
   Settings, BookOpenText,
 } from 'lucide-react';
 import { SettingsPanel } from './SettingsPanel';
@@ -30,20 +30,16 @@ interface HeaderProps {
   onRetryConnection: () => void;
   onOpenDiary: () => void;
   diaryUnreadCount: number;
-  isSaving: boolean;
   themeMode: ThemeMode;
   onSetThemeMode: (mode: ThemeMode) => void;
   soundEffects: boolean;
   onToggleSound: () => void;
   ambientAudio: boolean;
   onToggleAmbient: () => void;
-  showSuggestions: boolean;
-  onToggleSuggestions: () => void;
   user: User | null;
   userProfile: UserProfile | null;
-  onSave: () => void;
-  onLoad: () => void;
-  onNewGame: () => void;
+  /** The player's investigations: open one, start one, delete one. Every turn is saved as it happens. */
+  onOpenInvestigations: () => void;
   onOpenAuth: () => void;
   onOpenEditProfile: () => void;
   onLogout: () => void;
@@ -94,20 +90,15 @@ export const Header: React.FC<HeaderProps> = ({
   onRetryConnection,
   onOpenDiary,
   diaryUnreadCount,
-  isSaving,
   themeMode,
   onSetThemeMode,
   soundEffects,
   onToggleSound,
   ambientAudio,
   onToggleAmbient,
-  showSuggestions,
-  onToggleSuggestions,
   user,
   userProfile,
-  onSave,
-  onLoad,
-  onNewGame,
+  onOpenInvestigations,
   onOpenAuth,
   onOpenEditProfile,
   onLogout,
@@ -123,7 +114,6 @@ export const Header: React.FC<HeaderProps> = ({
     lastBadge.current = diaryUnreadCount;
   }, [diaryUnreadCount, reducedMotion]);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [isConfirmingNewGame, setIsConfirmingNewGame] = useState(false);
   const [settingsView, setSettingsView] = useState(false);
   const [isGuestMenuOpen, setIsGuestMenuOpen] = useState(false);
   const [guestSettingsView, setGuestSettingsView] = useState(false);
@@ -144,7 +134,7 @@ export const Header: React.FC<HeaderProps> = ({
     const spaceBelow = window.innerHeight - rect.bottom;
     // If less than 100px of space below, position above instead
     setProfileMenuPositionAbove(spaceBelow < 100);
-  }, [isProfileMenuOpen, isConfirmingNewGame, settingsView]);
+  }, [isProfileMenuOpen, settingsView]);
 
   useLayoutEffect(() => {
     if (!isGuestMenuOpen || !guestMenuRef.current) return;
@@ -155,7 +145,6 @@ export const Header: React.FC<HeaderProps> = ({
 
   const closeProfileMenu = () => {
     setIsProfileMenuOpen(false);
-    setIsConfirmingNewGame(false);
     setSettingsView(false);
   };
 
@@ -263,16 +252,6 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
 
-          {/* Saving dot */}
-          {isSaving && (
-            <>
-              <div className="w-px h-3 bg-lb-border/50" />
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
-                <span className="text-[9px] uppercase tracking-widest text-orange-500 font-bold">Saving</span>
-              </div>
-            </>
-          )}
         </div>
         )}
       </div>
@@ -329,6 +308,13 @@ export const Header: React.FC<HeaderProps> = ({
                             <p className="mt-2 text-[10.5px] text-lb-muted text-center leading-snug">Keep your investigation safe in the cloud.</p>
                           </div>
 
+                          <button
+                            onClick={() => { onOpenInvestigations(); closeGuestMenu(); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
+                          >
+                            <FolderOpen size={14} /><span>Investigations</span>
+                          </button>
+
                           {/* Settings — slides to the sub-page */}
                           <button
                             onClick={() => setGuestSettingsView(true)}
@@ -354,8 +340,6 @@ export const Header: React.FC<HeaderProps> = ({
                             onToggleSound={onToggleSound}
                             ambientAudio={ambientAudio}
                             onToggleAmbient={onToggleAmbient}
-                            showSuggestions={showSuggestions}
-                            onToggleSuggestions={onToggleSuggestions}
                           />
                         </div>
                       }
@@ -374,7 +358,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="relative" ref={profileWrapRef}>
               <Tooltip label="Account">
                 <button
-                  onClick={() => { setIsProfileMenuOpen(o => !o); setIsConfirmingNewGame(false); setSettingsView(false); }}
+                  onClick={() => { setIsProfileMenuOpen(o => !o); setSettingsView(false); }}
                   className="flex items-center gap-2 text-lb-primary group pressable"
                   aria-label="Account menu"
                 >
@@ -436,49 +420,12 @@ export const Header: React.FC<HeaderProps> = ({
 
                           <div className="h-px bg-lb-border my-1" />
 
-                          {/* Save / Load */}
                           <button
-                            onClick={() => { onSave(); closeProfileMenu(); }}
+                            onClick={() => { onOpenInvestigations(); closeProfileMenu(); }}
                             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
                           >
-                            <Save size={14} /><span>Save to Cloud</span>
+                            <FolderOpen size={14} /><span>Investigations</span>
                           </button>
-                          <button
-                            onClick={() => { onLoad(); closeProfileMenu(); }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                          >
-                            <FolderOpen size={14} /><span>Load from Cloud</span>
-                          </button>
-
-                          <div className="h-px bg-lb-border my-1" />
-
-                          {/* New Game */}
-                          {isConfirmingNewGame ? (
-                            <div className="px-3 py-2">
-                              <p className="text-xs text-lb-muted mb-2">Archive current progress and start fresh?</p>
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => { setIsConfirmingNewGame(false); closeProfileMenu(); onNewGame(); }}
-                                  className="flex-1 px-2 py-1.5 bg-lb-primary text-lb-bg text-xs font-semibold rounded hover:bg-lb-accent pressable"
-                                >
-                                  Yes, start fresh
-                                </button>
-                                <button
-                                  onClick={() => setIsConfirmingNewGame(false)}
-                                  className="flex-1 px-2 py-1.5 border border-lb-border text-lb-primary text-xs font-semibold rounded hover:bg-lb-bg pressable"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setIsConfirmingNewGame(true)}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                            >
-                              <RefreshCw size={14} /><span>New Game</span>
-                            </button>
-                          )}
 
                           <div className="h-px bg-lb-border my-1" />
 
@@ -506,8 +453,6 @@ export const Header: React.FC<HeaderProps> = ({
                             onToggleSound={onToggleSound}
                             ambientAudio={ambientAudio}
                             onToggleAmbient={onToggleAmbient}
-                            showSuggestions={showSuggestions}
-                            onToggleSuggestions={onToggleSuggestions}
                           />
                         </div>
                       }

@@ -72,6 +72,7 @@ export function playerView(story: Story, events: EventPayload[]): PlayerView {
   const ending = s.ended ? story.endings.find(x => x.id === s.ended)! : null;
   return {
     storyTitle: story.title,
+    narrator: story.narrator?.name ?? null,
     act: { id: act.id, name: act.name, dateLabel: act.dateLabel },
     clock: s.clock,
     period: { id: period, name: story.periods.find(p => p.id === period)!.name },

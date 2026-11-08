@@ -100,7 +100,8 @@ export function supabaseStore(client: SupabaseClient): InvestigationStore {
       if (error?.code === '23505') throw new SeqConflict(id, events[0].seq);
       if (error) throw error;
       const last = events[events.length - 1].seq;
-      const upd = await client.from('investigations').update({ last_event_seq: last }).eq('id', id);
+      // updated_at orders the player's investigations list (last played first).
+      const upd = await client.from('investigations').update({ last_event_seq: last, updated_at: new Date().toISOString() }).eq('id', id);
       if (upd.error) throw upd.error;
     },
   };

@@ -8,6 +8,8 @@ export interface Named { id: Id; name: string }
 
 export interface PlayerView {
   storyTitle: string;
+  /** Who tells the story (Story.narrator.name), for chrome such as the diary's title; null when the Story names none. */
+  narrator: string | null;
   act: { id: number; name: string; dateLabel: string };
   /** Absolute minutes since midnight of the act's first day; may exceed 1439. */
   clock: number;
