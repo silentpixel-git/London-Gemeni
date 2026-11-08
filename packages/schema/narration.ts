@@ -2,7 +2,7 @@
 // is the whole world for that turn; the result is prose plus Observations,
 // never a Fact.
 import { z } from 'zod';
-import { Disposition, Id, TimePeriod, Weather } from './common';
+import { Disposition, Id } from './common';
 import { EventPayload, Observation } from './event';
 
 export const NarrationMode = z.enum(['opening', 'full', 'compact', 'flavour']);
@@ -12,7 +12,7 @@ export const NarrationContext = z.object({
   mode: NarrationMode,
   storyTitle: z.string(),
   act: z.object({ id: z.number().int(), name: z.string(), dateLabel: z.string() }),
-  clock: z.object({ minutes: z.number().int(), period: TimePeriod, weather: Weather }),
+  clock: z.object({ minutes: z.number().int(), period: z.string(), weather: z.string() }),
   location: z.object({ id: Id, name: z.string(), beats: z.array(z.string()) }),
   personsPresent: z.array(z.object({
     id: Id,

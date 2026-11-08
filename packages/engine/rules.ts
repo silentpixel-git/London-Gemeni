@@ -79,7 +79,7 @@ export function conditionsHold(story: Story, s: State, w: Conditions | undefined
   if (!w) return true;
   if (w.act && !w.act.includes(s.act)) return false;
   if (w.location && !w.location.includes(s.location)) return false;
-  if (w.period && !w.period.includes(currentPeriod(s))) return false;
+  if (w.period && !w.period.includes(currentPeriod(story, s))) return false;
   if (w.weather && !w.weather.includes(currentAct(story, s).weather)) return false;
   if (w.flagsAll && !w.flagsAll.every(f => s.flags[f])) return false;
   if (w.flagsNone && w.flagsNone.some(f => s.flags[f])) return false;

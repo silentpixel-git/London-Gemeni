@@ -40,6 +40,8 @@ Items 1, 3 and 6 are each a different answer to "where does a turn happen and wh
 
 ## 2. Target architecture
 
+**Governing principle: the engine is story-agnostic.** The current Whitechapel content is incomplete and is not an input to engine decisions. Anything a story could reasonably want to vary is declared in the Story, never fixed in the engine: the day's periods and their boundaries, the weather states, the people, the facts, the rules. The engine owns only what every text adventure shares: verbs, placement, locks, time passing, rules firing, and the event log. When a piece of content does not fit, the question is "what general mechanism is missing?", never "how do we special-case this story?".
+
 ### 2.1 Packages
 
 ```
@@ -94,6 +96,7 @@ Target latency budget per turn: select ≤ 700 ms, first narration token ≤ 1.5
 - **Person**: display name, alias and introduction condition, schedule (act × period → location, or `follows: personId`), disposition, knowledge (Fact ids), demeanor beats.
 - **Fact**: statement, `knownBy`, `visibleFromAct`, spoiler tier, topic phrases. A topic is the set of phrases that resolve to a Fact; a person can speak to a Fact if they know it and the act allows it.
 - **Clue**: a Fact the player can discover, with connections to other Clues and the act gate it serves.
+- **Period** and **Weather**: declared by the Story (a list of named day divisions with start times; a list of named weather states). Schedules, conditions and acts refer to them by id.
 - **Act**: name, anchor location, canonical start time, weather, entry Rule.
 - **Rule**: `{ id, trigger, conditions, effects, weight?, once? }`.
 - **Beat**: authored lines a Rule or verb hands to the narrator.

@@ -1,7 +1,7 @@
 // State is nothing but the fold of an Investigation's Events (ADR-0001).
 // `apply` is the only writer; everything else derives.
 import type {
-  Disposition, EventPayload, Id, Lock, Observation, PersonOrPlayer, Placement, Story, TimePeriod,
+  Disposition, EventPayload, Id, Lock, Observation, PersonOrPlayer, Placement, Story,
 } from '../schema';
 import { boundariesCrossed, periodOf } from './time';
 
@@ -154,7 +154,7 @@ export function apply(story: Story, s: State, e: EventPayload): State {
     case 'FlagSet': return { ...s, flags: { ...s.flags, [e.flag]: true } };
     case 'ClockAdvanced': {
       const clock = s.clock + e.minutes;
-      const boundaries = s.boundaries + boundariesCrossed(s.clock, clock);
+      const boundaries = s.boundaries + boundariesCrossed(story, s.clock, clock);
       // Matured grants are emitted as FactLearned by the engine; here they only leave the queue.
       return { ...s, clock, boundaries, pendingGrants: s.pendingGrants.filter(g => g.maturesAtBoundary > boundaries) };
     }
@@ -198,7 +198,7 @@ export function replay(story: Story, events: EventPayload[], seed = 0): State {
 
 // ── Derived views used by the engine and the projections ─────────────────────
 
-export function currentPeriod(s: State): TimePeriod { return periodOf(s.clock); }
+export function currentPeriod(story: Story, s: State): Id { return periodOf(story, s.clock); }
 
 export function currentAct(story: Story, s: State) { return story.acts.find(a => a.id === s.act)!; }
 
@@ -210,7 +210,7 @@ export function personLocation(story: Story, s: State, personId: Id, depth = 0):
   const person = story.persons.find(p => p.id === personId)!;
   const entry = person.schedule[String(s.act)];
   if (!entry) return null;
-  const place = entry.byPeriod?.[currentPeriod(s)] ?? entry.default;
+  const place = entry.byPeriod?.[currentPeriod(story, s)] ?? entry.default;
   switch (place.kind) {
     case 'at': return place.location;
     case 'offstage': return null;

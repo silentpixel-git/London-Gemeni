@@ -55,7 +55,7 @@ export function buildNarrationContext(story: Story, s: State, turnEvents: EventP
     mode,
     storyTitle: story.title,
     act: { id: act.id, name: act.name, dateLabel: act.dateLabel },
-    clock: { minutes: s.clock, period: currentPeriod(s), weather: act.weather },
+    clock: { minutes: s.clock, period: currentPeriod(story, s), weather: story.weathers.find(w => w.id === act.weather)?.name ?? act.weather },
     location: { id: loc.id, name: loc.name, beats: loc.beats },
     personsPresent: present.map(id => {
       const p = story.persons.find(x => x.id === id)!;

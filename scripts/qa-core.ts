@@ -193,7 +193,7 @@ section('show / give');
 // ── 11. delayed grant matures on a period boundary ───────────────────────────
 section('delayed grant / clock rule');
 {
-  // act 1 starts 21:30 (night). lateNight begins 23:00 → one boundary.
+  // act 1 starts 21:30 (night). late_night begins 23:00 → one boundary.
   check(!s.knows.housekeeper.master_was_afraid, 'not yet known before the boundary');
   const es = go('wait', { verb: 'wait' }); // 30 → 22:00
   check(has(es, e => e.kind === 'TickResolved' && e.minutes === 30), 'wait is a 30-minute tick');
@@ -204,7 +204,7 @@ section('delayed grant / clock rule');
   go('wait', { verb: 'wait' }); go('wait', { verb: 'wait' }); // 00:00
   check(fired(log.slice(-40), 'midnight_bells'), 'clock rule fired when the clock passed midnight');
   check(has(log.slice(-40), e => e.kind === 'BeatQueued' && e.asQuote === true), 'its beat is a quote');
-  check(present().length === 0, 'housekeeper offstage in lateNight by schedule');
+  check(present().length === 0, 'housekeeper offstage in late_night by schedule');
 }
 
 // ── 12. deduction → ending ───────────────────────────────────────────────────

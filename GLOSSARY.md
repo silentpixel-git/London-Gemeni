@@ -42,6 +42,13 @@ _Avoid_: interactable, takeable, inventory entry
 **Item**:
 An Object that can be carried. The player's inventory is the set of Items they hold.
 
+**Period**:
+A named stretch of the day that a Story declares, with its start time. Schedules and conditions refer to Periods; the engine knows nothing about dawn or dusk until a Story names them.
+_Avoid_: time period, time of day
+
+**Weather**:
+A named weather state a Story declares. Acts and conditions refer to it by id.
+
 **Candidate Set**:
 Everything the player could mean right now: Objects here and carried, people present, exits, topics the addressed person can speak to. The parser must choose from it or decline.
 

@@ -85,8 +85,18 @@ export function validateStory(raw: unknown): ValidationResult {
   const flagsSet = new Map<string, string[]>();   // flag → where set
   const flagsRead = new Set<string>();
 
+  // ── Periods and weathers ─────────────────────────────────────────────────
+  const periods = new Set(story.periods.map(p => p.id));
+  const weathers = new Set(story.weathers.map(w => w.id));
+  dup(story.periods, 'periods'); dup(story.weathers, 'weathers');
+  for (let i = 1; i < story.periods.length; i++) {
+    if (story.periods[i].startMinutes <= story.periods[i - 1].startMinutes) fail(`periods/${story.periods[i].id}`, 'periods must be in ascending clock order');
+  }
+  const needPeriod = (id: Id, at: string) => { if (!periods.has(id)) fail(at, `unknown period "${id}"`); };
+  const needWeather = (id: Id, at: string) => { if (!weathers.has(id)) fail(at, `unknown weather "${id}"`); };
+
   // ── Acts and opening ─────────────────────────────────────────────────────
-  for (const act of story.acts) needLocation(act.anchorLocation, `acts/${act.id}/anchorLocation`);
+  for (const act of story.acts) { needLocation(act.anchorLocation, `acts/${act.id}/anchorLocation`); needWeather(act.weather, `acts/${act.id}/weather`); }
   needAct(story.opening.act, 'opening/act');
   needLocation(story.opening.location, 'opening/location');
   const firstAct = Math.min(...story.acts.map(a => a.id));
@@ -94,6 +104,7 @@ export function validateStory(raw: unknown): ValidationResult {
 
   // ── Locations and exits ──────────────────────────────────────────────────
   for (const loc of story.locations) {
+    for (const p of loc.openPeriods ?? []) needPeriod(p, `locations/${loc.id}/openPeriods`);
     const names = new Set<string>();
     const ids = new Set<string>();
     for (const [i, exit] of loc.exits.entries()) {
@@ -132,6 +143,7 @@ export function validateStory(raw: unknown): ValidationResult {
     for (const [actKey, entry] of Object.entries(p.schedule)) {
       const actId = Number(actKey);
       needAct(actId, `${at}/schedule/${actKey}`);
+      for (const per of Object.keys(entry.byPeriod ?? {})) needPeriod(per, `${at}/schedule/${actKey}/byPeriod`);
       const places = [entry.default, ...Object.values(entry.byPeriod ?? {})];
       for (const place of places) {
         if (place.kind === 'at') needLocation(place.location, `${at}/schedule/${actKey}`);
@@ -192,6 +204,8 @@ export function validateStory(raw: unknown): ValidationResult {
     if (!w) return;
     for (const a of w.act ?? []) needAct(a, `${at}/act`);
     for (const l of w.location ?? []) needLocation(l, `${at}/location`);
+    for (const p of w.period ?? []) needPeriod(p, `${at}/period`);
+    for (const x of w.weather ?? []) needWeather(x, `${at}/weather`);
     for (const f of w.flagsAll ?? []) flagsRead.add(f);
     for (const f of w.flagsNone ?? []) flagsRead.add(f);
     for (const o of w.hasItems ?? []) needItem(o, `${at}/hasItems`);

@@ -141,7 +141,7 @@ function drawsSelectingEach(weights: number[]): number[] {
 function abstractKey(story: Story, s: State): string {
   const onceRules = Object.keys(s.firedRules).filter(id => story.rules.find(r => r.id === id)?.once);
   return JSON.stringify({
-    act: s.act, location: s.location, period: currentPeriod(s), ended: s.ended,
+    act: s.act, location: s.location, period: currentPeriod(story, s), ended: s.ended,
     flags: Object.keys(s.flags).sort(),
     objects: Object.entries(s.objects).map(([id, o]) => [id, o.placement, o.hidden, o.container?.state ?? null]),
     exitLocks: s.exitLocks,

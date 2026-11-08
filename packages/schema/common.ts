@@ -10,17 +10,19 @@ export type Id = z.infer<typeof Id>;
 export const PersonOrPlayer = z.union([Id, z.literal('player')]);
 export type PersonOrPlayer = z.infer<typeof PersonOrPlayer>;
 
-export const TimePeriod = z.enum(['dawn', 'morning', 'afternoon', 'evening', 'night', 'lateNight']);
-export type TimePeriod = z.infer<typeof TimePeriod>;
-export const PERIOD_ORDER: TimePeriod[] = ['dawn', 'morning', 'afternoon', 'evening', 'night', 'lateNight'];
-
 /** Clock of day in minutes, 0..1439. */
 export const ClockMinutes = z.number().int().min(0).max(1439);
 
-export const Weather = z.enum([
-  'foggy', 'drizzle', 'pouring', 'overcast', 'clear-night', 'clear-cold', 'clear-warm', 'close',
-]);
-export type Weather = z.infer<typeof Weather>;
+/**
+ * A named stretch of the day. The Story declares its own list (dawn, morning,
+ * …, or watches, or bells); the engine only needs each one's start time.
+ */
+export const Period = z.object({ id: Id, name: z.string().min(1), startMinutes: ClockMinutes }).strict();
+export type Period = z.infer<typeof Period>;
+
+/** A named weather state the Story declares; acts and conditions refer to it by id. */
+export const WeatherState = z.object({ id: Id, name: z.string().min(1) }).strict();
+export type WeatherState = z.infer<typeof WeatherState>;
 
 export const Disposition = z.enum(['hostile', 'wary', 'neutral', 'warm', 'trusting']);
 export type Disposition = z.infer<typeof Disposition>;
@@ -57,8 +59,8 @@ export type Placement = z.infer<typeof Placement>;
 export const Conditions = z.object({
   act: z.array(z.number().int().min(0)).min(1).optional(),
   location: z.array(Id).min(1).optional(),
-  period: z.array(TimePeriod).min(1).optional(),
-  weather: z.array(Weather).min(1).optional(),
+  period: z.array(Id).min(1).optional(),
+  weather: z.array(Id).min(1).optional(),
   flagsAll: z.array(Id).min(1).optional(),
   flagsNone: z.array(Id).min(1).optional(),
   hasItems: z.array(Id).min(1).optional(),

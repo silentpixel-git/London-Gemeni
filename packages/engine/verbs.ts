@@ -117,7 +117,7 @@ export function resolveVerb(story: Story, s: State, intent: Intent): EventPayloa
       const exit = loc.exits.find(x => x.id === intent.exit);
       if (!exit) return reject('there is no way that direction');
       const dest = story.locations.find(l => l.id === exit.to);
-      if (dest?.openPeriods && !dest.openPeriods.includes(currentPeriod(s))) return [{ kind: 'MoveBlocked', exit: exit.id, reason: 'closed', lock: null }];
+      if (dest?.openPeriods && !dest.openPeriods.includes(currentPeriod(story, s))) return [{ kind: 'MoveBlocked', exit: exit.id, reason: 'closed', lock: null }];
       const lock = exitLock(story, s, loc.id, exit.id);
       if (!lockOpen(s, lock)) return [{ kind: 'MoveBlocked', exit: exit.id, reason: 'locked', lock }];
       return [{ kind: 'Moved', from: loc.id, to: exit.to, exit: exit.id }];

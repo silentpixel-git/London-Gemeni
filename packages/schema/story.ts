@@ -1,7 +1,7 @@
 // The Story: everything authored for one game, as data. The engine knows no
 // particular Story (ADR-0004).
 import { z } from 'zod';
-import { ClockMinutes, Disposition, Id, Lock, Placement, TimePeriod, Weather } from './common';
+import { ClockMinutes, Disposition, Id, Lock, Period, Placement, WeatherState } from './common';
 import { Rule } from './rule';
 
 const Beats = z.array(z.string().min(1));
@@ -23,7 +23,7 @@ export const Location = z.object({
   beats: Beats.min(1),
   exits: z.array(Exit),
   /** Closed outside these periods; absent means always open. */
-  openPeriods: z.array(TimePeriod).min(1).optional(),
+  openPeriods: z.array(Id).min(1).optional(),
   closedBeat: z.string().optional(),
 }).strict();
 export type Location = z.infer<typeof Location>;
@@ -60,7 +60,7 @@ export type Place = z.infer<typeof Place>;
 
 export const ScheduleEntry = z.object({
   default: Place,
-  byPeriod: z.partialRecord(TimePeriod, Place).optional(),
+  byPeriod: z.record(Id, Place).optional(),
 }).strict();
 
 export const Introduction = z.discriminatedUnion('kind', [
@@ -116,7 +116,7 @@ export const Act = z.object({
   startClockMinutes: ClockMinutes,
   /** Free text shown in the sidebar, e.g. "9 November 1888". */
   dateLabel: z.string().min(1),
-  weather: Weather,
+  weather: Id,
 }).strict();
 export type Act = z.infer<typeof Act>;
 
@@ -136,6 +136,9 @@ export const Opening = z.object({
 export const Story = z.object({
   id: Id,
   title: z.string().min(1),
+  /** The day's divisions, in clock order. At least two. */
+  periods: z.array(Period).min(2),
+  weathers: z.array(WeatherState).min(1),
   acts: z.array(Act).min(1),
   opening: Opening,
   locations: z.array(Location).min(1),
