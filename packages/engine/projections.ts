@@ -13,8 +13,8 @@
 //   ledger               for each present person: told/heard statements
 //   transcript           for each present person: s.transcript[person] ?? []
 //   wordBudget           mode opening 220, full 160, compact 90, flavour 70
-import type { EventPayload, Id, NarrationContext, NarrationMode, Story } from '../schema';
-import { currentAct, currentPeriod, inventory, personsPresent, visibleObjects, type State } from './state';
+import type { EventPayload, Id, NarrationContext, NarrationMode, Story } from '../schema/index.js';
+import { currentAct, currentPeriod, inventory, personsPresent, visibleObjects, type State } from './state.js';
 
 const BUDGET: Record<NarrationMode, number> = { opening: 220, full: 160, compact: 90, flavour: 70 };
 

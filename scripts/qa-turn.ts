@@ -206,12 +206,12 @@ async function lookWithGate(gate: TurnDeps['gate']) {
 }
 
 const once = await lookWithGate((_ctx, result) =>
-  result.prose === PROSE.look ? { ok: false, inventions: [INVENTED] } : { ok: true, inventions: [] });
+  result.prose === PROSE.look ? { ok: false, inventions: [{ kind: 'name' as const, token: INVENTED }] } : { ok: true, inventions: [] });
 check('gate rejects once: the retry\'s prose is the narrated text', once.done?.narrated.text === PROSE.retry, once.done?.narrated.text);
 if (!AUTHOR) check('gate rejects once: only the first attempt streamed', once.streamed === PROSE.look && wellOrdered(once.kinds));
 
 const always = await lookWithGate(ctx =>
-  ctx.events.some(e => e.kind === 'Looked') ? { ok: false, inventions: [INVENTED] } : { ok: true, inventions: [] });
+  ctx.events.some(e => e.kind === 'Looked') ? { ok: false, inventions: [{ kind: 'name' as const, token: INVENTED }] } : { ok: true, inventions: [] });
 const fallbackBeats = always.done?.narrated.beats as string[];
 check('gate rejects twice: falls back to the Beats alone, no Observations',
   always.done?.narrated.text === fallbackBeats.join(' ') && fallbackBeats.length > 0 && always.done?.observations.length === 0,

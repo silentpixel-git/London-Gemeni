@@ -11,8 +11,8 @@
 //                canTell(P,F) → one entry per topic phrase, direction 'ask'
 //                else player knows F and P does not → one entry per phrase, direction 'tell'
 //   knownFacts facts the player knows (for deduce), with statements
-import { Verb, type CandidateSet, type Id, type Story } from '../schema';
-import { canTell, inventory, personsPresent, visibleObjects, type State } from './state';
+import { Verb, type CandidateSet, type Id, type Story } from '../schema/index.js';
+import { canTell, inventory, personsPresent, visibleObjects, type State } from './state.js';
 
 export function candidates(story: Story, s: State): CandidateSet {
   const objName = (id: Id) => story.objects.find(o => o.id === id)!.name;

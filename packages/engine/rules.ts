@@ -1,9 +1,9 @@
 // The Rule cascade. A turn's Events raise Firings; eligible Rules fire in
 // authored order; their Effects become Events, which may raise further
 // Firings. Depth is bounded so a Story cannot loop the engine.
-import type { Conditions, Effect, EventPayload, Id, PersonOrPlayer, Rule, Story, Trigger, Verb } from '../schema';
-import { apply, currentAct, currentPeriod, inventory, personsPresent, type State } from './state';
-import { clockTimePassed } from './time';
+import type { Conditions, Effect, EventPayload, Id, PersonOrPlayer, Rule, Story, Trigger, Verb } from '../schema/index.js';
+import { apply, currentAct, currentPeriod, inventory, personsPresent, type State } from './state.js';
+import { clockTimePassed } from './time.js';
 
 export type Firing =
   | { kind: 'action'; verb: Verb; target?: Id; secondary?: Id; person?: Id }

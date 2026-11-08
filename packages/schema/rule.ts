@@ -2,7 +2,7 @@
 // Trigger and Effect are closed unions on purpose (ADR-0004): the prover and
 // the editor can only reason about what they can enumerate.
 import { z } from 'zod';
-import { Conditions, Disposition, Id, Lock, PersonOrPlayer, Placement, Verb, ClockMinutes } from './common';
+import { Conditions, Disposition, Id, Lock, PersonOrPlayer, Placement, Verb, ClockMinutes } from './common.js';
 
 export const Trigger = z.discriminatedUnion('kind', [
   /** A built-in verb resolved on a target. Empty arrays mean "any". */

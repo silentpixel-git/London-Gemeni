@@ -7,7 +7,7 @@
 // Story-agnostic on purpose: the only names allowed without context are the
 // Story's narrator and its declared lexicon. Everything else must be earned
 // by the turn.
-import type { NarrationContext, NarrationResult } from '../schema';
+import type { NarrationContext, NarrationResult } from '../schema/index.js';
 
 /** Vocabulary that is never story-specific: honorifics, calendar words, counting. */
 const GENERIC = new Set([

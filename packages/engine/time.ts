@@ -1,4 +1,4 @@
-import type { Id, Story } from '../schema';
+import type { Id, Story } from '../schema/index.js';
 
 const DAY = 1440;
 const dayMinute = (clock: number) => ((clock % DAY) + DAY) % DAY;

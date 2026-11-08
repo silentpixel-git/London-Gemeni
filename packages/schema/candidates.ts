@@ -1,7 +1,7 @@
 // The Candidate Set and the Selection: the contract between the engine and
 // the selection model (ADR-0003). The model may only name members of the set.
 import { z } from 'zod';
-import { Id, Verb } from './common';
+import { Id, Verb } from './common.js';
 
 export const CandidateSet = z.object({
   verbs: z.array(Verb).min(1),

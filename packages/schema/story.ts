@@ -1,8 +1,8 @@
 // The Story: everything authored for one game, as data. The engine knows no
 // particular Story (ADR-0004).
 import { z } from 'zod';
-import { ClockMinutes, Disposition, Id, Lock, Period, Placement, WeatherState } from './common';
-import { Rule } from './rule';
+import { ClockMinutes, Disposition, Id, Lock, Period, Placement, WeatherState } from './common.js';
+import { Rule } from './rule.js';
 
 const Beats = z.array(z.string().min(1));
 

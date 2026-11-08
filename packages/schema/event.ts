@@ -2,7 +2,7 @@
 // Events (ADR-0001). The union is closed; adding a kind means teaching the
 // reducer and every projection about it.
 import { z } from 'zod';
-import { Disposition, Id, Lock, PersonOrPlayer, Placement, Verb } from './common';
+import { Disposition, Id, Lock, PersonOrPlayer, Placement, Verb } from './common.js';
 
 export const Observation = z.object({
   /** Stable key so the same detail is reproduced, e.g. "clock_face_crack". */

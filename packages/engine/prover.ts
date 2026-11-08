@@ -2,13 +2,13 @@
 // engine, so there is one set of semantics, with the clock abstracted to its
 // period and randomness branched over every eligible Rule. Reports, for every
 // act, Clue and ending, the shortest action path or UNREACHABLE.
-import type { Id, Selection, Story, Verb } from '../schema';
-import { candidates } from './candidates';
-import { MINUTES, TICK_MINUTES, resolveTurn, tick } from './engine';
-import { fixedRng } from './rng';
-import { eligibleTickRules } from './rules';
-import { currentPeriod, initialState, inventory, visibleObjects, type State } from './state';
-import { minutesUntil } from './time';
+import type { Id, Selection, Story, Verb } from '../schema/index.js';
+import { candidates } from './candidates.js';
+import { MINUTES, TICK_MINUTES, resolveTurn, tick } from './engine.js';
+import { fixedRng } from './rng.js';
+import { eligibleTickRules } from './rules.js';
+import { currentPeriod, initialState, inventory, visibleObjects, type State } from './state.js';
+import { minutesUntil } from './time.js';
 
 export interface ProofGoal { kind: 'act' | 'clue' | 'ending'; id: string }
 export interface ProofLine { goal: ProofGoal; reachable: boolean; path?: string[] }

@@ -3,9 +3,9 @@
 // and will be added here as a further pass.
 //
 // FAIL = the Story cannot be built. WARN = suspicious, review by hand.
-import { Conditions, Id, Lock, Placement } from './common';
-import { Effect, Rule, Trigger } from './rule';
-import { Story } from './story';
+import { Conditions, Id, Lock, Placement } from './common.js';
+import { Effect, Rule, Trigger } from './rule.js';
+import { Story } from './story.js';
 
 export interface Issue {
   level: 'fail' | 'warn';

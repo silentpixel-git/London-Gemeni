@@ -2,8 +2,8 @@
 // `apply` is the only writer; everything else derives.
 import type {
   Disposition, EventPayload, Id, Lock, Observation, PersonOrPlayer, Placement, Story,
-} from '../schema';
-import { boundariesCrossed, periodOf } from './time';
+} from '../schema/index.js';
+import { boundariesCrossed, periodOf } from './time.js';
 
 export interface ObjectState {
   placement: Placement;

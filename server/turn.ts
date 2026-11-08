@@ -152,7 +152,7 @@ async function narrateGated(
   const verdict = first.prose.trim() ? gate(ctx, first) : { ok: false, inventions: [] };
   if (verdict.ok) return first;
   const retryCtx: NarrationContext = verdict.inventions.length
-    ? { ...ctx, beats: [`Rejected inventions, not in this context: ${verdict.inventions.join(', ')}.`, ...ctx.beats] }
+    ? { ...ctx, beats: [`Rejected inventions, not in this context: ${verdict.inventions.map(i => i.token).join(', ')}.`, ...ctx.beats] }
     : ctx;
   const second = await collect(ai.narrate(retryCtx), () => {});
   if (second.prose.trim() && gate(ctx, second).ok) return second;

@@ -4,8 +4,8 @@
 // Both prompts are story-agnostic: every name, voice rule and free word comes
 // from the context the engine built, never from here.
 import { z } from 'zod';
-import { NarrationResult, Selection, type NarrationContext } from '../schema';
-import type { PromptBundle, SelectInput } from './types';
+import { NarrationResult, Selection, type NarrationContext } from '../schema/index.js';
+import type { PromptBundle, SelectInput } from './types.js';
 
 // ── Selection ────────────────────────────────────────────────────────────────
 

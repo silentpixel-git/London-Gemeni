@@ -1,12 +1,12 @@
 // The turn: the one entry point the server, the QA scripts and the prover
 // all drive. Deterministic given (story, state, input, rng); every random
 // draw lands in an Event.
-import type { EventPayload, Selection, Story, Verb } from '../schema';
-import { candidates } from './candidates';
-import { turnRng, type Rng } from './rng';
-import { cascade, chooseByWeight, clueEvents, eligibleTickRules, fireRule, firingsFrom, type Firing } from './rules';
-import { apply, personsPresent, type State } from './state';
-import { resolveVerb, type Intent } from './verbs';
+import type { EventPayload, Selection, Story, Verb } from '../schema/index.js';
+import { candidates } from './candidates.js';
+import { turnRng, type Rng } from './rng.js';
+import { cascade, chooseByWeight, clueEvents, eligibleTickRules, fireRule, firingsFrom, type Firing } from './rules.js';
+import { apply, personsPresent, type State } from './state.js';
+import { resolveVerb, type Intent } from './verbs.js';
 
 export { candidates };
 export type { Intent };

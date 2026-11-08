@@ -1,7 +1,7 @@
 // The AI seam (plan §2.9). Two capabilities, each configured with its own
 // provider and model. packages/engine never imports this; server/turn.ts and
 // the QA scripts do.
-import type { CandidateSet, NarrationContext, NarrationResult, Selection } from '../schema';
+import type { CandidateSet, NarrationContext, NarrationResult, Selection } from '../schema/index.js';
 
 export interface SelectInput {
   /** The player's text, verbatim. */

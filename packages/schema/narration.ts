@@ -2,8 +2,8 @@
 // is the whole world for that turn; the result is prose plus Observations,
 // never a Fact.
 import { z } from 'zod';
-import { Disposition, Id } from './common';
-import { EventPayload, Observation } from './event';
+import { Disposition, Id } from './common.js';
+import { EventPayload, Observation } from './event.js';
 
 export const NarrationMode = z.enum(['opening', 'full', 'compact', 'flavour']);
 export type NarrationMode = z.infer<typeof NarrationMode>;

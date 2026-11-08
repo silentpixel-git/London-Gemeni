@@ -29,8 +29,8 @@
 //   wait        → never reaches here (the engine ticks)
 //
 // Inventory is the set of Objects whose placement.kind === 'inventory'. There is no other list.
-import type { EventPayload, Id, Story, Verb } from '../schema';
-import { canTell, currentPeriod, exitLock, inventory, lockOpen, personsPresent, visibleObjects, type State } from './state';
+import type { EventPayload, Id, Story, Verb } from '../schema/index.js';
+import { canTell, currentPeriod, exitLock, inventory, lockOpen, personsPresent, visibleObjects, type State } from './state.js';
 
 export interface Intent {
   verb: Verb;

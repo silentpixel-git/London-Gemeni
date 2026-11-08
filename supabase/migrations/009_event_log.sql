@@ -32,6 +32,13 @@ ALTER TABLE public.investigations
   ADD COLUMN IF NOT EXISTS name            TEXT,
   ADD COLUMN IF NOT EXISTS last_event_seq  INTEGER NOT NULL DEFAULT -1;
 
+-- The pre-migration table made current_location NOT NULL with no default.
+-- An event-log Investigation has no snapshot location (it is replayed), so
+-- the constraint would reject every row /api/turn creates. Relaxed here;
+-- Phase 4 drops the snapshot columns altogether.
+ALTER TABLE public.investigations
+  ALTER COLUMN current_location DROP NOT NULL;
+
 COMMENT ON COLUMN public.investigations.story_id       IS 'Story id (story.json id) the event log replays against.';
 COMMENT ON COLUMN public.investigations.name           IS 'Player-given name of the investigation.';
 COMMENT ON COLUMN public.investigations.last_event_seq IS 'seq of the newest row in events; -1 when the log is empty. Managed by /api/turn.';
