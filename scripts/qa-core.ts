@@ -10,7 +10,8 @@
 import { join } from 'node:path';
 import { Story, type EventPayload, type Selection } from '../packages/schema';
 import { loadStoryDir } from '../packages/schema/load';
-import { candidates, initialState, replay, resolveTurn, tick, type State } from '../packages/engine';
+import { candidates, initialState, playerView, replay, resolveTurn, tick, type State } from '../packages/engine';
+import { suggestionsFor } from '../services/viewFormat';
 import { fixedRng } from '../packages/engine/rng';
 
 const story = Story.parse(loadStoryDir(join('packages', 'schema', 'fixtures', 'toy')));
@@ -259,6 +260,43 @@ section('flavour / none');
   check(has(fl, e => e.kind === 'FlavourRequested') && has(fl, e => e.kind === 'ClockAdvanced'), 'flavour → FlavourRequested, costs a look');
   const no = resolveTurn(story, s, { text: 'fly', selection: { kind: 'none' } }).events;
   check(has(no, e => e.kind === 'IntentRejected') && !has(no, e => e.kind === 'ClockAdvanced'), 'none → IntentRejected, costs nothing');
+}
+
+// ── 16. player view: what has been tried (the "Try" chips) ──────────────────
+section('player view: tried');
+{
+  let v = initialState(story, 5);
+  const vlog: EventPayload[] = [{ kind: 'InvestigationStarted', story: story.id, seed: 5 }];
+  const turn = (sel: Omit<Extract<Selection, { kind: 'intent' }>, 'kind'>) => {
+    const r = resolveTurn(story, v, { text: sel.verb, selection: { kind: 'intent', ...sel } }, fixedRng([0]));
+    vlog.push(...r.events); v = r.state;
+  };
+  const view0 = playerView(story, vlog);
+  check(!view0.objects.some(o => o.examined) && !view0.persons.some(p => p.spokenTo) && !view0.exits.some(x => x.visited),
+    'opening view: nothing examined, spoken to or visited', JSON.stringify([view0.objects, view0.persons, view0.exits]));
+  check(JSON.stringify(suggestionsFor(view0)) === JSON.stringify(['examine long-case clock', 'examine doormat', 'talk to the housekeeper', 'go study']),
+    'chips: objects, then people, then places, at most four, with the sidebar\'s commands', JSON.stringify(suggestionsFor(view0)));
+
+  turn({ verb: 'examine', target: 'mat' });
+  turn({ verb: 'talk', person: 'housekeeper' });
+  const view1 = playerView(story, vlog);
+  check(view1.objects.find(o => o.id === 'mat')?.examined === true && !view1.objects.find(o => o.id === 'hall_clock')?.examined,
+    'examine marks only that object', JSON.stringify(view1.objects));
+  check(view1.persons.find(p => p.id === 'housekeeper')?.spokenTo === true, 'talk marks the person as spoken to here');
+  check(!suggestionsFor(view1).some(c => c.includes('doormat') || c.startsWith('talk to')) && suggestionsFor(view1).includes('go garden'),
+    'chips drop what was tried and let the next untried thing in', JSON.stringify(suggestionsFor(view1)));
+
+  turn({ verb: 'read', target: 'hall_clock' });
+  check(playerView(story, vlog).objects.find(o => o.id === 'hall_clock')?.examined === true, 'read counts as tried, like examine');
+
+  turn({ verb: 'ask', person: 'housekeeper', topic: 'key_in_clock' });
+  turn({ verb: 'open', target: 'hall_clock' }); turn({ verb: 'take', target: 'brass_key' });
+  turn({ verb: 'move', exit: 'study_door' });
+  const view2 = playerView(story, vlog);
+  check(view2.location.id === 'study' && view2.exits.find(x => x.id === 'to_hall')?.visited === true,
+    'in the study, the way back to the hall (where the game began) is visited', JSON.stringify(view2.exits));
+  turn({ verb: 'move', exit: 'to_hall' });
+  check(playerView(story, vlog).exits.find(x => x.id === 'study_door')?.visited === true, 'back in the hall, the study is visited');
 }
 
 // ── Coverage ─────────────────────────────────────────────────────────────────

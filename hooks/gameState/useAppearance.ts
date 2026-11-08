@@ -31,6 +31,10 @@ export function useAppearance(deps: AppearanceDeps) {
   const [ambientAudio, setAmbientAudio] = useState<boolean>(() => {
     try { return localStorage.getItem('lb-ambient-audio') === 'on'; } catch { return false; }
   });
+  // "Try" suggestion chips above the command line — default on.
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(() => {
+    try { return localStorage.getItem('lb-show-suggestions') !== 'off'; } catch { return true; }
+  });
 
   // Apply the active data-theme. In 'auto' the palette follows the in-game clock
   // (evening/night); 'light' and 'dark' apply that palette directly. Because it's
@@ -80,6 +84,9 @@ export function useAppearance(deps: AppearanceDeps) {
   useEffect(() => {
     try { localStorage.setItem('lb-ambient-audio', ambientAudio ? 'on' : 'off'); } catch {}
   }, [ambientAudio]);
+  useEffect(() => {
+    try { localStorage.setItem('lb-show-suggestions', showSuggestions ? 'on' : 'off'); } catch {}
+  }, [showSuggestions]);
 
   // Load appearance preference from cloud when user profile becomes available
   useEffect(() => {
@@ -90,5 +97,5 @@ export function useAppearance(deps: AppearanceDeps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userProfile?.id]); // only fire when user identity changes, not on every profile update
 
-  return { themeMode, setThemeMode, soundEffects, setSoundEffects, ambientAudio, setAmbientAudio };
+  return { themeMode, setThemeMode, soundEffects, setSoundEffects, ambientAudio, setAmbientAudio, showSuggestions, setShowSuggestions };
 }

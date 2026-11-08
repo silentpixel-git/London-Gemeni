@@ -28,6 +28,7 @@ import { DiaryToast } from './components/DiaryToast';
 import { ResetPasswordModal } from './components/ResetPasswordModal';
 import { useInvestigation } from './hooks/useInvestigation';
 import { useAppearance } from './hooks/gameState/useAppearance';
+import { suggestionsFor } from './services/viewFormat';
 import { useConnections } from './hooks/gameState/useConnections';
 import { useAudio } from './hooks/useAudio';
 import type { TimePeriod } from './types';
@@ -138,6 +139,8 @@ const AppContent: React.FC = () => {
   // A sidebar click puts its command in the input; the nonce re-applies the
   // same command if it is clicked twice.
   const [prefill, setPrefill] = useState<{ text: string; nonce: number } | null>(null);
+  // "Try" chips: things in view not yet tried (services/viewFormat.ts), when the setting is on.
+  const suggestions = appearance.showSuggestions && view ? suggestionsFor(view) : [];
   const prefillCommand = useCallback((text: string) => setPrefill(p => ({ text, nonce: (p?.nonce ?? 0) + 1 })), []);
 
   // Desktop sidebar toggle: one layout change, then FLIP each piece that moves
@@ -268,6 +271,8 @@ const AppContent: React.FC = () => {
           onToggleSound={() => appearance.setSoundEffects(v => !v)}
           ambientAudio={appearance.ambientAudio}
           onToggleAmbient={() => appearance.setAmbientAudio(v => !v)}
+          showSuggestions={appearance.showSuggestions}
+          onToggleSuggestions={() => appearance.setShowSuggestions(v => !v)}
           user={isGuest ? null : user}
           userProfile={userProfile}
           onOpenInvestigations={openInvestigations}
@@ -292,6 +297,7 @@ const AppContent: React.FC = () => {
           onAction={inv.send}
           dockRef={dockRef}
           prefill={prefill}
+          suggestions={suggestions}
         />
       </div>
 
