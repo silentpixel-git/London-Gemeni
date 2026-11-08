@@ -1,0 +1,146 @@
+[
+  {
+    "id": "cargo_was_barrels",
+    "statement": "Orrin ferried unmarked barrels to the light the week before the lamp failed.",
+    "knownBy": [
+      "orrin",
+      "ines",
+      "dov"
+    ],
+    "visibleFromAct": 0,
+    "topics": [
+      "barrels",
+      "the barrels",
+      "cargo"
+    ],
+    "voices": {
+      "orrin": "Aye, unmarked barrels, ferried by night, and I was told to ask nothing.",
+      "maud": "Orrin's barrels? I heard them rolling across the yard after dark."
+    }
+  },
+  {
+    "id": "store_key_in_chest",
+    "statement": "The oil store key is kept in the tackle chest on the jetty.",
+    "knownBy": [
+      "orrin",
+      "maud",
+      "ines",
+      "dov"
+    ],
+    "visibleFromAct": 1,
+    "topics": [
+      "store key",
+      "the oil store key",
+      "the chest"
+    ],
+    "spoilerTerms": [
+      "key is kept in the tackle chest"
+    ]
+  },
+  {
+    "id": "crane_found_at_lamp",
+    "statement": "Keeper Crane was found dead beside the lamp.",
+    "knownBy": [
+      "orrin",
+      "maud",
+      "ines",
+      "dov"
+    ],
+    "visibleFromAct": 1,
+    "topics": [
+      "crane",
+      "the old keeper",
+      "the dead keeper"
+    ],
+    "spoilerTerms": [
+      "found dead beside the lamp"
+    ]
+  },
+  {
+    "id": "oil_watered",
+    "statement": "Seawater has been put into the lamp oil.",
+    "knownBy": [
+      "orrin",
+      "ines",
+      "dov"
+    ],
+    "visibleFromAct": 2,
+    "topics": [
+      "watered oil",
+      "the oil",
+      "seawater in the oil"
+    ],
+    "spoilerTerms": [
+      "seawater",
+      "watered"
+    ]
+  },
+  {
+    "id": "storm_due",
+    "statement": "A gale is due before dusk.",
+    "knownBy": [
+      "orrin",
+      "maud",
+      "ines",
+      "dov"
+    ],
+    "visibleFromAct": 1,
+    "topics": [
+      "gale",
+      "the weather"
+    ],
+    "spoilerTerms": [
+      "storm will break"
+    ]
+  },
+  {
+    "id": "hatch_sticks",
+    "statement": "The lamp-room hatch sticks when damp; a little grease on the hinge frees it.",
+    "knownBy": [
+      "orrin",
+      "maud",
+      "ines",
+      "dov"
+    ],
+    "visibleFromAct": 1,
+    "topics": [
+      "hatch",
+      "the lamp hatch",
+      "hinge"
+    ],
+    "spoilerTerms": [
+      "grease on the hinge"
+    ]
+  },
+  {
+    "id": "log_page_torn",
+    "statement": "A page was torn from the keeper's log the night he died.",
+    "knownBy": [],
+    "visibleFromAct": 2,
+    "topics": [
+      "torn page",
+      "the log page"
+    ],
+    "spoilerTerms": [
+      "page was torn",
+      "missing page"
+    ]
+  },
+  {
+    "id": "lens_is_cracked",
+    "statement": "The great lens is cracked and has been for weeks.",
+    "knownBy": [
+      "ines"
+    ],
+    "visibleFromAct": 2,
+    "topics": [
+      "lens",
+      "the lens",
+      "cracked lens"
+    ],
+    "spoilerTerms": [
+      "lens is cracked",
+      "cracked lens"
+    ]
+  }
+]

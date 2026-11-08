@@ -1,0 +1,92 @@
+{
+  "id": "saltmarsh_light",
+  "title": "The Saltmarsh Light",
+  "periods": [
+    {
+      "id": "morning",
+      "name": "morning",
+      "startMinutes": 420
+    },
+    {
+      "id": "afternoon",
+      "name": "afternoon",
+      "startMinutes": 720
+    },
+    {
+      "id": "evening",
+      "name": "evening",
+      "startMinutes": 1020
+    }
+  ],
+  "weathers": [
+    {
+      "id": "calm",
+      "name": "Calm"
+    },
+    {
+      "id": "squall",
+      "name": "Squall"
+    },
+    {
+      "id": "fog",
+      "name": "Sea fog"
+    }
+  ],
+  "acts": [
+    {
+      "id": 0,
+      "name": "The Jetty",
+      "anchorLocation": "jetty",
+      "startClockMinutes": 660,
+      "dateLabel": "Tuesday, late morning",
+      "weather": "calm"
+    },
+    {
+      "id": 1,
+      "name": "The Kitchen",
+      "anchorLocation": "kitchen",
+      "startClockMinutes": 840,
+      "dateLabel": "Tuesday, early afternoon",
+      "weather": "squall"
+    },
+    {
+      "id": 2,
+      "name": "The Lamp Room",
+      "anchorLocation": "lamp_room",
+      "startClockMinutes": 1140,
+      "dateLabel": "Tuesday, evening",
+      "weather": "fog"
+    }
+  ],
+  "opening": {
+    "act": 0,
+    "location": "jetty",
+    "beats": [
+      "The relief boat leaves you on a timber jetty at the mouth of the estuary. The lamp on the tower above has been dark for three nights.",
+      "Gulls complain overhead. A boatman coils rope and does not look up."
+    ]
+  },
+  "endings": [
+    {
+      "id": "lamp_restored",
+      "name": "The Lamp Relit",
+      "beats": [
+        "You lay out the facts, and the lamp room goes very quiet. By nightfall the beam is sweeping the water again."
+      ]
+    },
+    {
+      "id": "wrong_accusation",
+      "name": "A Cook Wrongly Named",
+      "beats": [
+        "You name the cook. She stares at you, then at the floor, and the cottage never speaks to you again."
+      ]
+    },
+    {
+      "id": "ship_lost",
+      "name": "The Dark Water",
+      "beats": [
+        "Ten o'clock strikes below. Somewhere out in the murk a hull finds the sandbar, and no light warns it."
+      ]
+    }
+  ]
+}

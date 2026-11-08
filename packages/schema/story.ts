@@ -127,6 +127,14 @@ export const Ending = z.object({
 }).strict();
 export type Ending = z.infer<typeof Ending>;
 
+/** Who tells the story and how. Voice lines are authored style constraints, e.g. "first person, past tense". */
+export const Narrator = z.object({
+  name: z.string().min(1),
+  aliases: z.array(z.string().min(1)).optional(),
+  voice: Beats.min(1),
+}).strict();
+export type Narrator = z.infer<typeof Narrator>;
+
 export const Opening = z.object({
   act: z.number().int().min(0),
   location: Id,
@@ -141,6 +149,9 @@ export const Story = z.object({
   weathers: z.array(WeatherState).min(1),
   acts: z.array(Act).min(1),
   opening: Opening,
+  narrator: Narrator.optional(),
+  /** Words the narrator may use freely although no turn context names them (a city, a nationality, a deity). */
+  lexicon: z.array(z.string().min(1)).optional(),
   locations: z.array(Location).min(1),
   objects: z.array(StoryObject),
   persons: z.array(Person),

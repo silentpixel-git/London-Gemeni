@@ -11,6 +11,8 @@ export type NarrationMode = z.infer<typeof NarrationMode>;
 export const NarrationContext = z.object({
   mode: NarrationMode,
   storyTitle: z.string(),
+  narrator: z.object({ name: z.string(), aliases: z.array(z.string()), voice: z.array(z.string()) }).optional(),
+  lexicon: z.array(z.string()),
   act: z.object({ id: z.number().int(), name: z.string(), dateLabel: z.string() }),
   clock: z.object({ minutes: z.number().int(), period: z.string(), weather: z.string() }),
   location: z.object({ id: Id, name: z.string(), beats: z.array(z.string()) }),

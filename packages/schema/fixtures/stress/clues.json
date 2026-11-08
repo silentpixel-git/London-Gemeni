@@ -1,0 +1,7 @@
+[
+  { "id": "clue_barrels", "name": "Midnight Barrels", "fact": "cargo_was_barrels", "summary": "Orrin ran unmarked barrels to the light before the lamp failed." },
+  { "id": "clue_crane", "name": "Crane's Death", "fact": "crane_found_at_lamp", "summary": "The old keeper died beside the lamp." },
+  { "id": "clue_oil", "name": "Watered Oil", "fact": "oil_watered", "summary": "Water in the oil cask would smother any flame.", "connections": ["clue_barrels"] },
+  { "id": "clue_page", "name": "The Ragged Sheet", "fact": "log_page_torn", "summary": "Crane wrote that someone had been at the cask.", "connections": ["clue_oil", "clue_crane"] },
+  { "id": "clue_lens", "name": "The Flawed Lens", "fact": "lens_is_cracked", "summary": "The lens has been flawed for weeks.", "connections": ["clue_page"] }
+]

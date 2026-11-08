@@ -29,6 +29,13 @@ const FIXTURES = join('packages', 'schema', 'fixtures');
   show(r.issues);
 }
 
+// 1b. The stress Story builds too (every Trigger and Effect kind, three acts).
+{
+  const r = validateStory(loadStoryDir(join(FIXTURES, 'stress')));
+  if (r.ok) pass(`stress story validates (${r.issues.length} warning(s))`); else fail('stress story should validate');
+  show(r.issues);
+}
+
 // 2. An empty Story does not.
 {
   const r = validateStory(loadStoryDir(join(FIXTURES, 'empty')));

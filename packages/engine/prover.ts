@@ -92,6 +92,13 @@ function actionsFrom(story: Story, s: State): Action[] {
     if (listens('examine')) acts.push(intent(`examine ${id}`, { verb: 'examine', target: id }));
     if (listens('use')) acts.push(intent(`use ${id}`, { verb: 'use', target: id }));
   }
+  // use X on Y, only in the pairs some Rule listens for.
+  for (const r of story.rules) {
+    if (r.trigger.kind !== 'action' || !r.trigger.verb.includes('use') || !r.trigger.secondary?.length) continue;
+    for (const a of r.trigger.target ?? reachable) for (const b of r.trigger.secondary) {
+      if (reachable.includes(a) && (reachable.includes(b) || c.persons.some(p => p.id === b))) acts.push(intent(`use ${a} on ${b}`, { verb: 'use', target: a, secondary: b }));
+    }
+  }
   if (listens('drop')) for (const id of carried) acts.push(intent(`drop ${id}`, { verb: 'drop', target: id }));
   for (const t of c.topics) acts.push(intent(`ask ${t.person} about ${t.fact}`, { verb: 'ask', person: t.person, topic: t.fact }));
   if (listens('talk')) for (const p of c.persons) acts.push(intent(`talk ${p.id}`, { verb: 'talk', person: p.id }));

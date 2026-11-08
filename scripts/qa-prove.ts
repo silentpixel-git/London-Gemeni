@@ -4,6 +4,7 @@
  *   fixtures/toy         every act, Clue and ending must be REACHABLE
  *   fixtures/unsolvable  the toy with the study key removed: act 1, clue_letter, solved and
  *                        unsolved must be UNREACHABLE; accused_wrongly must stay REACHABLE
+ *   fixtures/stress      the 3-act, 6-room, 33-Rule stress Story: every goal REACHABLE, search not capped
  *
  * Run: npx tsx scripts/qa-prove.ts     Exit 1 on any unexpected outcome.
  */
@@ -31,6 +32,14 @@ const load = (name: string) => Story.parse(loadStoryDir(join('packages', 'schema
   if (by['ending:accused_wrongly']) pass('unsolvable: accused_wrongly still reachable'); else fail('unsolvable: accused_wrongly should be reachable');
   if (by['clue:clue_key']) pass('unsolvable: clue_key still reachable'); else fail('unsolvable: clue_key should be reachable');
   if (r.capped) fail('unsolvable: search capped');
+}
+{
+  const r = prove(load('stress'));
+  console.log(formatProof(r));
+  const unreachable = r.lines.filter(l => !l.reachable).map(l => `${l.goal.kind}:${l.goal.id}`);
+  if (r.capped) fail(`stress: search capped after ${r.explored} states`);
+  else if (unreachable.length) fail(`stress: UNREACHABLE ${unreachable.join(', ')}`);
+  else pass(`stress: every act, clue and ending reachable (${r.explored} states explored)`);
 }
 console.log(`\n${fails === 0 ? 'OK' : `${fails} FAILURE(S)`}`);
 process.exit(fails === 0 ? 0 : 1);

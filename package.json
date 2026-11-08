@@ -12,6 +12,8 @@
     "qa:story": "npx tsx scripts/qa-story.ts",
     "qa:core": "npx tsx scripts/qa-core.ts",
     "qa:prove": "npx tsx scripts/qa-prove.ts",
+    "qa:stress": "npx tsx scripts/qa-stress.ts",
+    "qa:gate": "npx tsx scripts/qa-gate.ts",
     "qa:engine": "npx tsx scripts/qa-engine.ts",
     "qa:golden": "npx tsx scripts/qa-golden.ts",
     "qa:parser": "npx tsx scripts/qa-parser.ts",
@@ -21,7 +23,7 @@
     "qa:lambda-imports": "npx tsx scripts/qa-lambda-imports.ts",
     "qa:narration-inject": "npx tsx scripts/qa-narration-inject.ts",
     "story:map": "npx tsx scripts/build-story-map.ts",
-    "qa:all": "npm run lint && npm run qa:lambda-imports && npm run qa:engine && npm run qa:golden && npm run qa:parser && npm run qa:topics && npm run qa:hints && npm run qa:diary-leads && npm run qa:validate && npm run qa:story && npm run qa:core && npm run qa:prove"
+    "qa:all": "npm run lint && npm run qa:lambda-imports && npm run qa:engine && npm run qa:golden && npm run qa:parser && npm run qa:topics && npm run qa:hints && npm run qa:diary-leads && npm run qa:validate && npm run qa:story && npm run qa:core && npm run qa:prove && npm run qa:stress && npm run qa:gate"
   },
   "dependencies": {
     "@google/genai": "^1.33.0",

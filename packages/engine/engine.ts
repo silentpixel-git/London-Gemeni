@@ -40,16 +40,19 @@ export function resolveTurn(story: Story, state: State, input: TurnInput, rng: R
       t.emit({ kind: 'IntentSelected', ...intent });
       if (intent.verb === 'wait') { tickInto(t, MINUTES.wait, rng); return t.result(); }
 
-      const proximity: Firing[] = personsPresent(story, t.state).map(person => ({ kind: 'proximity', person }));
+      // Proximity is a start-of-turn fact: its Rules see the world before the verb moves anything.
+      t.absorb(cascade(story, t.state, proximityFirings(story, t.state)));
+      if (t.state.ended) return t.result();
       const verbEvents = resolveVerb(story, t.state, intent);
       for (const e of verbEvents) {
         t.emit(e);
         for (const c of clueEvents(story, t.state, e)) t.emit(c);
       }
       const rejected = verbEvents.some(e => e.kind === 'IntentRejected');
+      // A blocked attempt (locked door, locked chest) is not the action: its trigger does not fire, but trying still costs time.
+      const blocked = rejected || verbEvents.some(e => e.kind === 'MoveBlocked' || e.kind === 'OpenBlocked');
       const firings: Firing[] = [
-        ...proximity,
-        ...(rejected ? [] : [{ kind: 'action', verb: intent.verb, target: intent.target, secondary: intent.secondary, person: intent.person } as Firing]),
+        ...(blocked ? [] : [{ kind: 'action', verb: intent.verb, target: intent.target, secondary: intent.secondary, person: intent.person } as Firing]),
         ...firingsFrom(story, verbEvents),
       ];
       t.absorb(cascade(story, t.state, firings));
@@ -69,14 +72,19 @@ export function tick(story: Story, state: State, minutes: number = TICK_MINUTES,
 }
 
 function tickInto(t: Emitter, minutes: number, rng: Rng) {
-  const proximity: Firing[] = personsPresent(t.story, t.state).map(person => ({ kind: 'proximity', person }));
+  t.absorb(cascade(t.story, t.state, proximityFirings(t.story, t.state)));
+  if (t.state.ended) return;
   const eligible = eligibleTickRules(t.story, t.state);
   const draw = rng.next();
   const chosen = chooseByWeight(eligible, draw);
   t.emit({ kind: 'TickResolved', minutes, draw, rule: chosen?.id ?? null });
   const fired = chosen ? t.absorb(fireRule(t.story, t.state, chosen)) : [];
-  t.absorb(cascade(t.story, t.state, [...proximity, ...firingsFrom(t.story, fired)]));
+  t.absorb(cascade(t.story, t.state, firingsFrom(t.story, fired)));
   advanceClock(t, minutes);
+}
+
+function proximityFirings(story: Story, s: State): Firing[] {
+  return personsPresent(story, s).map(person => ({ kind: 'proximity', person }));
 }
 
 /** Move the clock, mature scheduled grants, and fire clock Rules the move passed. */
