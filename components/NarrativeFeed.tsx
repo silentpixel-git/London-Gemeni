@@ -2,32 +2,26 @@
  * components/NarrativeFeed.tsx
  *
  * Scrollable narrative history — the main reading area of the game.
- * Renders the title lockup, the message history (user commands +
- * AI narration), and the GameOverScreen when the case closes.
+ * Renders the title lockup and the feed: the player's lines and the
+ * narrated prose, each prose block under its scene and act headers. An
+ * ending arrives as a feed block like any other.
  */
 
 import React, { useRef } from 'react';
-import { Feather, Lightbulb, MapPin } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
-import { EASE_OUT, DUR_DRAMATIC, DUR_PANEL } from './motionTokens';
+import { EASE_OUT, DUR_PANEL } from './motionTokens';
 import { StoryRenderer } from './StoryRenderer';
 import { TypewriterBlock } from './TypewriterBlock';
-import { GameOverScreen } from './GameOverScreen';
-import { GameHistoryItem, PendingActTransition } from '../types';
+import { GameHistoryItem } from '../types';
 import { useFeedFollow } from '../hooks/gameState/useFeedFollow';
-import { ACT_ROMAN } from '../constants';
 
 interface NarrativeFeedProps {
   history: GameHistoryItem[];
-  isGameOver: boolean;
   actualLastUserIdx: number;
   scrollRef: React.RefObject<HTMLDivElement>;
   /** The command dock's form: the feed never types text underneath it. */
   dockRef: React.RefObject<HTMLElement>;
-  onJournalDone?: () => void;
-  pendingActTransition: PendingActTransition | null;
-  isActBreakReady: boolean;
-  onBeginAct: () => void;
 }
 
 /**
@@ -64,18 +58,13 @@ function SceneHeader({ actHeading, location }: { actHeading?: string; location?:
 
 export function NarrativeFeed({
   history,
-  isGameOver,
   actualLastUserIdx,
   scrollRef,
   dockRef,
-  onJournalDone,
-  pendingActTransition,
-  isActBreakReady,
-  onBeginAct,
 }: NarrativeFeedProps) {
   const reducedMotion = useReducedMotion();
   const contentRef = useRef<HTMLDivElement>(null);
-  // Every block — the act-closing journal included — types in below the last
+  // Every block types in below the last
   // and is followed line by line, so the reader always starts at its first line.
   const follow = useFeedFollow(scrollRef, contentRef, dockRef, history.length);
 
@@ -99,8 +88,6 @@ export function NarrativeFeed({
       <AnimatePresence initial={false}>
         {history.map((msg, index) => {
           const isAI = msg.role === 'assistant';
-          const isJournal = isAI && msg.type === 'journal';
-          const isHint = isAI && msg.type === 'hint';
           const isLast = index === history.length - 1;
           const isLatestUser = index === actualLastUserIdx;
 
@@ -126,77 +113,8 @@ export function NarrativeFeed({
             );
           }
 
-          // Act-closing journal entry — diary styling. The latest one types out.
-          if (isJournal && msg.text !== '') {
-            // StoryRenderer sets its own prose ramp; the child selectors restyle it as an aside.
-            const diaryInnerClass =
-              "italic [&>div]:font-serif [&>div]:text-[15px] [&>div]:leading-[1.7] [&>div]:text-lb-primary/70";
-            return (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: DUR_DRAMATIC, ease: EASE_OUT }}
-                className="my-6"
-              >
-                <div className="border-l-2 border-lb-muted/40 pl-5">
-                  <div className="flex items-center gap-2 mb-2 text-lb-muted">
-                    <Feather size={14} />
-                    <span className="text-[10px] font-sans font-bold uppercase tracking-[0.18em]">Watson's Journal</span>
-                  </div>
-                  {isLast ? (
-                    <TypewriterBlock
-                      text={msg.text}
-                      onComplete={onJournalDone}
-                      onProgress={follow}
-                      className={diaryInnerClass}
-                      cursorClassName="inline-block w-1 h-[1em] bg-lb-muted opacity-40 animate-pulse ml-0.5 align-text-bottom"
-                    />
-                  ) : (
-                    <div className={diaryInnerClass}>
-                      <StoryRenderer text={msg.text} />
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            );
-          }
-
-          // Watson's thoughts (the hint button) — a quiet aside that types in like the prose.
-          if (isHint) {
-            const thoughtClass = "italic [&>div]:font-playfair [&>div]:text-[20px] [&>div]:desk:text-[24px] [&>div]:leading-[1.7] [&>div]:text-lb-primary/70";
-            return (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: DUR_PANEL, ease: EASE_OUT }}
-                className="my-6"
-              >
-                <div className="border-l-2 border-lb-muted/40 pl-5">
-                  <div className="flex items-center gap-2 mb-2 text-lb-muted">
-                    <Lightbulb size={14} />
-                    <span className="text-[10px] font-sans font-bold uppercase tracking-[0.18em]">Watson's thoughts</span>
-                  </div>
-                  {isLast ? (
-                    <TypewriterBlock
-                      text={msg.text}
-                      onProgress={follow}
-                      className={thoughtClass}
-                      cursorClassName="inline-block w-1 h-[1em] bg-lb-muted opacity-50 animate-pulse ml-0.5 align-text-bottom"
-                    />
-                  ) : (
-                    <div className={thoughtClass}>
-                      <StoryRenderer text={msg.text} />
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            );
-          }
-
           // Latest AI message — typewriter animation while streaming
-          if (isLast && isAI && !isJournal && (msg.text !== '' || msg.actHeading || msg.location)) {
+          if (isLast && isAI && (msg.text !== '' || msg.actHeading || msg.location)) {
             return (
               <motion.div
                 key={index}
@@ -211,7 +129,7 @@ export function NarrativeFeed({
           }
 
           // Previous AI messages — static render
-          if (isAI && !isJournal && (msg.text !== '' || msg.actHeading || msg.location)) {
+          if (isAI && (msg.text !== '' || msg.actHeading || msg.location)) {
             return (
               <motion.div
                 key={index}
@@ -229,23 +147,6 @@ export function NarrativeFeed({
         })}
       </AnimatePresence>
 
-      {pendingActTransition && isActBreakReady && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: DUR_PANEL, ease: EASE_OUT }}
-          className="my-6 flex"
-        >
-          <button
-            onClick={onBeginAct}
-            className="font-sans text-xs font-bold tracking-[0.14em] uppercase text-lb-accent border border-lb-accent/50 rounded px-5 py-2.5 hover:bg-lb-accent/[0.08] pressable"
-          >
-            Begin Act {ACT_ROMAN[pendingActTransition.toAct] ?? pendingActTransition.toAct} →
-          </button>
-        </motion.div>
-      )}
-
-      {isGameOver && <GameOverScreen />}
     </div>
   </div>
   );

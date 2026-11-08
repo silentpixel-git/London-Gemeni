@@ -10,8 +10,8 @@ import {
 } from '../packages/schema/index.js';
 import { loadStoryDir } from '../packages/schema/load.js';
 import {
-  apply, buildNarrationContext, candidates, currentAct, currentPeriod, exactSelection, initialState, inventory,
-  personsPresent, replay, resolveTurn, tick, type State,
+  apply, buildNarrationContext, candidates, exactSelection, feedOf, initialState, personsPresent, playerView,
+  replay, resolveTurn, tick, type State,
 } from '../packages/engine/index.js';
 import { gateNarration, type GateVerdict } from '../packages/ai/gate.js';
 import { confineSelection } from '../packages/ai/selection.js';
@@ -34,6 +34,7 @@ export interface TurnDeps {
 const TurnRequest = z.union([
   z.object({ investigationId: z.string().min(1), text: z.string().trim().min(1) }).strict(),
   z.object({ investigationId: z.string().min(1), tick: z.literal(true) }).strict(),
+  z.object({ investigationId: z.string().min(1), resume: z.literal(true) }).strict(),
   z.object({ start: z.object({ storyId: Id, name: z.string().trim().min(1) }).strict() }).strict(),
 ]);
 
@@ -59,7 +60,15 @@ export async function handleTurn(request: Request, deps: TurnDeps): Promise<Resp
   try {
     body = TurnRequest.parse(await request.json());
   } catch {
-    return fail(400, 'expected {investigationId, text}, {investigationId, tick: true} or {start: {storyId, name}}');
+    return fail(400, 'expected {investigationId, text}, {investigationId, tick: true}, {investigationId, resume: true} or {start: {storyId, name}}');
+  }
+  if ('resume' in body) {
+    try {
+      return await resume(body.investigationId, deps);
+    } catch (err) {
+      console.error('api/turn resume:', err);
+      return fail(500, 'the investigation could not be loaded');
+    }
   }
 
   let turn: Prepared;
@@ -81,13 +90,18 @@ export async function handleTurn(request: Request, deps: TurnDeps): Promise<Resp
         // investigationId is not in TURN.md's line shape; a start request needs it back somewhere.
         send({ kind: 'events', events: turn.events, seqFrom: turn.seqFrom, investigationId: turn.investigationId });
         const ctx = buildNarrationContext(turn.story, turn.state, turn.events, turn.mode);
-        const result = await narrateGated(ctx, deps.ai, deps.gate ?? gateNarration, delta => send({ kind: 'text', delta }));
-        const narrated: EventPayload = { kind: 'Narrated', text: result.prose, beats: ctx.beats };
+        // A quiet Tick costs nothing: no narration call, and an empty Narrated closes it.
+        const result = turn.quiet
+          ? { prose: '', observations: [] }
+          : await narrateGated(ctx, deps.ai, deps.gate ?? gateNarration, delta => send({ kind: 'text', delta }));
+        const narrated: EventPayload = { kind: 'Narrated', text: result.prose, beats: turn.quiet ? [] : ctx.beats };
         const tail: EventPayload[] = [narrated, ...result.observations.map(observation => ({ kind: 'ObservationRecorded' as const, observation }))];
-        const { rows, state } = number(turn.story, turn.state, tail, turn.seqFrom + turn.events.length);
+        const { rows } = number(turn.story, turn.state, tail, turn.seqFrom + turn.events.length);
         await deps.store.append(turn.investigationId, rows);
         closed = true;
-        send({ kind: 'done', narrated, observations: result.observations, state: view(turn.story, state) });
+        const log = [...turn.prior, ...turn.events, ...tail];
+        const feed = feedOf(turn.story, log).slice(feedOf(turn.story, turn.prior).length);
+        send({ kind: 'done', narrated, observations: result.observations, view: playerView(turn.story, log), feed });
       } catch (err) {
         console.error('api/turn stream:', err);
         // Close the turn with its Beats so the Investigation is not left busy.
@@ -110,14 +124,20 @@ interface Prepared {
   /** State after this turn's engine Events. */
   state: State;
   events: EventPayload[];
+  /** The log before this turn, for the feed and view projections. */
+  prior: EventPayload[];
   seqFrom: number;
   mode: NarrationMode;
+  /** A Tick that changed nothing the player can see: not narrated. */
+  quiet: boolean;
 }
 
 type Refusal = { status: number; message: string };
+/** A request that resolves a turn (a resume reads only). */
+type TurnBody = Exclude<z.infer<typeof TurnRequest>, { resume: true }>;
 
 /** Server steps 1–3: everything that can still answer with a plain HTTP error. A lost race for the next seq starts over from a fresh load. */
-async function prepare(body: z.infer<typeof TurnRequest>, deps: TurnDeps): Promise<Prepared | Refusal> {
+async function prepare(body: TurnBody, deps: TurnDeps): Promise<Prepared | Refusal> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await prepareOnce(body, deps);
@@ -128,7 +148,7 @@ async function prepare(body: z.infer<typeof TurnRequest>, deps: TurnDeps): Promi
   }
 }
 
-async function prepareOnce(body: z.infer<typeof TurnRequest>, deps: TurnDeps): Promise<Prepared | Refusal> {
+async function prepareOnce(body: TurnBody, deps: TurnDeps): Promise<Prepared | Refusal> {
   if ('start' in body) {
     const story = deps.loadStory(body.start.storyId);
     if (!story) return { status: 404, message: `no story ${body.start.storyId}` };
@@ -137,7 +157,7 @@ async function prepareOnce(body: z.infer<typeof TurnRequest>, deps: TurnDeps): P
     const events: EventPayload[] = [{ kind: 'InvestigationStarted', story: story.id, seed }];
     const { rows, state } = number(story, initialState(story, seed), events, 0);
     await deps.store.append(id, rows);
-    return { investigationId: id, story, state, events, seqFrom: 0, mode: 'opening' };
+    return { investigationId: id, story, state, events, prior: [], seqFrom: 0, mode: 'opening', quiet: false };
   }
 
   const inv = await deps.store.load(body.investigationId);
@@ -168,7 +188,22 @@ async function prepareOnce(body: z.infer<typeof TurnRequest>, deps: TurnDeps): P
   const seqFrom = (log.at(-1)?.seq ?? -1) + 1;
   const { rows, state } = number(story, before, events, seqFrom);
   await deps.store.append(body.investigationId, rows);
-  return { investigationId: body.investigationId, story, state, events, seqFrom, mode: modeFor(events) };
+  const mode = modeFor(events);
+  const quiet = 'tick' in body && mode === 'compact' && state.location === before.location
+    && personsPresent(story, state).join() === personsPresent(story, before).join();
+  return { investigationId: body.investigationId, story, state, events, prior, seqFrom, mode, quiet };
+}
+
+/** The whole feed and the current view, for a page load or a second browser. Appends nothing. */
+async function resume(id: string, deps: TurnDeps): Promise<Response> {
+  const inv = await deps.store.load(id);
+  if (!inv) return fail(404, `no investigation ${id}`);
+  const story = deps.loadStory(inv.storyId);
+  if (!story) return fail(500, `the investigation's story ${inv.storyId} is not on this server`);
+  const log = inv.events.map(e => e.payload);
+  const busy = log.length > 0 && !closesTurn(log[log.length - 1]);
+  const line = { kind: 'resume', investigationId: id, name: inv.name, feed: feedOf(story, log), view: playerView(story, log), busy };
+  return new Response(JSON.stringify(line) + '\n', { headers: NDJSON });
 }
 
 /** A turn's last rows are its Narrated and Observations; anything else last means a turn is open. */
@@ -240,20 +275,6 @@ function number(story: Story, from: State, events: EventPayload[], seqFrom: numb
     return { seq: seqFrom + i, turn: state.turn, payload };
   });
   return { rows, state };
-}
-
-/** The sidebar's view of State: the client never needs the whole thing. */
-function view(story: Story, s: State) {
-  return {
-    act: s.act,
-    location: s.location,
-    clock: s.clock,
-    period: currentPeriod(story, s),
-    weather: currentAct(story, s).weather,
-    inventory: inventory(s),
-    personsPresent: personsPresent(story, s),
-    ended: s.ended,
-  };
 }
 
 function fail(status: number, message: string): Response {

@@ -23,22 +23,19 @@ const LOADING_VARIANTS: Array<{ icon: LucideIcon; text: string }> = [
   { icon: Microscope, text: 'Investigating closely...' },
 ];
 
+// Story-agnostic: the prompt never names a character or a setting.
 const PROMPTS_DESKTOP = [
-  'How do you choose to proceed, Doctor?',
-  'The game is afoot. What next?',
-  'The fog thickens. What will you do?',
-  'Holmes waits. Proceed, Doctor.',
+  'How do you choose to proceed?',
+  'What will you do?',
   'What does your instinct tell you?',
   'Every second counts. Your move.',
-  'The night is watching. Choose carefully.',
+  'Choose carefully.',
 ];
 
 const PROMPTS_MOBILE = [
-  'Your move, Doctor.',
-  'The game is afoot.',
-  'Proceed, Doctor.',
-  'Holmes waits.',
+  'Your move.',
   'What next?',
+  'Proceed.',
   'Choose carefully.',
   'Every second counts.',
 ];
@@ -46,11 +43,12 @@ const PROMPTS_MOBILE = [
 interface CommandInputProps {
   isLoading: boolean;
   isGameOver: boolean;
-  isConsultingHolmes: boolean;
-  isAdvancingAct: boolean;
+  isConsultingHolmes?: boolean;
+  isAdvancingAct?: boolean;
   history: GameHistoryItem[];
   onAction: (userAction: string) => Promise<void>;
-  onConsultHolmes: () => void;
+  /** The hint button; hidden when absent. */
+  onConsultHolmes?: () => void;
   /** Lets the feed keep typed text clear of the dock (chips + input). */
   dockRef?: React.Ref<HTMLDivElement>;
   /** A command placed in the input from the sidebar; the nonce re-applies a repeat. */
@@ -62,8 +60,8 @@ interface CommandInputProps {
 export const CommandInput: React.FC<CommandInputProps> = ({
   isLoading,
   isGameOver,
-  isConsultingHolmes,
-  isAdvancingAct,
+  isConsultingHolmes = false,
+  isAdvancingAct = false,
   history,
   onAction,
   onConsultHolmes,
@@ -191,6 +189,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
             autoFocus
           />
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 z-20">
+            {onConsultHolmes && (
             <Tooltip label="Gather your thoughts" side="top">
               <button
                 type="button"
@@ -202,6 +201,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
                 <Lightbulb size={20} />
               </button>
             </Tooltip>
+            )}
             <Tooltip label="Send" side="top">
               <button
                 type="submit"

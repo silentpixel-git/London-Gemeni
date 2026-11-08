@@ -1,33 +1,49 @@
 /**
  * hooks/useAudio.ts
  *
- * Thin bridge between React game state and the AudioManager singleton. Most SFX
- * are fired directly from event emission points in useGameState; this hook
- * drives the state-based ambient layer, the one-time autoplay unlock, and the
- * scene cues the Act 0 prototype established: the bed dipping as an act closes,
- * fading out under the curtain, and the lamplighter heard through the window
- * early in the Prologue.
+ * Thin bridge between what the player can see and the AudioManager singleton:
+ * the one-time autoplay unlock, the ambient bed for the current location, and
+ * one-shot sounds for the latest turn's Events. Story-agnostic: a Story asks
+ * for a sound with a Rule's `cue` Effect (a CuePlayed Event); a cue id is the
+ * SFX id with underscores (`pages_riffle` → `pages-riffle`), and an id with no
+ * file is silent. A few generic Events have their own sound.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
+import type { EventPayload } from '../packages/schema/index.js';
 import { audioManager } from '../services/AudioManager';
+import { SFX_FILES, type SfxId } from '../services/audioManifest';
 
 interface UseAudioArgs {
   location: string;
   weatherCondition: string | undefined;
   currentAct: number;
-  /** Commands the player has entered this session. */
-  playerTurns: number;
-  /** The act's closing beat is on screen (an act transition is pending). */
-  isActClosing: boolean;
-  isCurtainPlaying: boolean;
+  /** The engine Events of the latest turn (empty after a resume, so nothing replays). */
+  events: EventPayload[];
   soundEffects: boolean;
   ambientAudio: boolean;
 }
 
-export function useAudio({
-  location, weatherCondition, currentAct, playerTurns, isActClosing, isCurtainPlaying, soundEffects, ambientAudio,
-}: UseAudioArgs): void {
+const EVENT_SOUNDS: Partial<Record<EventPayload['kind'], SfxId>> = {
+  ClueDiscovered: 'clue-discovered',
+  Taken: 'item-pickup',
+  ActEntered: 'act-bell',
+};
+
+function soundsFor(events: EventPayload[]): SfxId[] {
+  const ids = new Set<SfxId>();
+  for (const e of events) {
+    const generic = EVENT_SOUNDS[e.kind];
+    if (generic) ids.add(generic);
+    if (e.kind === 'CuePlayed') {
+      const id = e.sound.replace(/_/g, '-');
+      if (id in SFX_FILES) ids.add(id as SfxId);
+    }
+  }
+  return [...ids];
+}
+
+export function useAudio({ location, weatherCondition, currentAct, events, soundEffects, ambientAudio }: UseAudioArgs): void {
   // Unlock the audio context on the first user gesture (autoplay policy).
   useEffect(() => {
     const onGesture = () => audioManager.unlock();
@@ -43,22 +59,11 @@ export function useAudio({
   // toggling ambient on immediately starts the bed for the current location.
   useEffect(() => {
     audioManager.setEnabled({ sfx: soundEffects, ambient: ambientAudio });
-    if (!isActClosing && !isCurtainPlaying) audioManager.setAmbient(location, weatherCondition, currentAct);
-  }, [soundEffects, ambientAudio, location, weatherCondition, currentAct, isActClosing, isCurtainPlaying]);
+    audioManager.setAmbient(location, weatherCondition, currentAct);
+  }, [soundEffects, ambientAudio, location, weatherCondition, currentAct]);
 
-  // The act closing: the bed sinks under its last lines, then fades out under
-  // the curtain; the next act's bed fades in when Watson arrives.
+  // One-shots for the turn just played, staggered so two never land together.
   useEffect(() => {
-    if (isCurtainPlaying) audioManager.fadeOutAmbient(3000);
-    else if (isActClosing) audioManager.dipBed();
-  }, [isActClosing, isCurtainPlaying]);
-
-  // The lamplighter, once, a little way into the Prologue at Baker Street —
-  // dusk arriving in the street below. Presentation only: nothing is saved.
-  const lamplighterPlayed = useRef(false);
-  useEffect(() => {
-    if (lamplighterPlayed.current || currentAct !== 0 || location !== 'baker_street' || playerTurns < 2) return;
-    lamplighterPlayed.current = true;
-    audioManager.playSfx('lamplighter', 250);
-  }, [currentAct, location, playerTurns]);
+    soundsFor(events).forEach((id, i) => audioManager.playSfx(id, i * 400));
+  }, [events]);
 }
