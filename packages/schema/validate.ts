@@ -286,11 +286,13 @@ export function validateStory(raw: unknown): ValidationResult {
     // A clock Rule at its act's start time never fires on entry (the clock starts there, it does not pass it).
     if (r.trigger.kind === 'clock') {
       const t = r.trigger;
+      // A Rule restricted to an act is about that act; an unrestricted one (a daily chime) only warns.
+      const restricted = !!t.act || !!r.when?.act;
       const can = story.acts.filter(a => (!t.act || t.act.includes(a.id)) && (!r.when?.act || r.when.act.includes(a.id)));
       for (const a of can) {
         if (t.atMinutes === a.startClockMinutes % 1440) {
-          fail(`${at}/trigger`, `fires at ${t.atMinutes}, the start of act ${a.id}: the clock starts there and does not pass it, so this waits a whole day; use an enter Rule on "${a.anchorLocation}"`);
-        } else {
+          (restricted ? fail : warn)(`${at}/trigger`, `fires at ${t.atMinutes}, the start of act ${a.id}: the clock starts there and does not pass it, so in that act this waits a whole day; use an enter Rule on "${a.anchorLocation}"`);
+        } else if (restricted) {
           // Overnight Rules (midnight bells in an evening act) are normal; a wait of most of a day is not.
           const wait = (t.atMinutes - (a.startClockMinutes % 1440) + 1440) % 1440;
           if (wait > 720) warn(`${at}/trigger`, `fires at ${t.atMinutes}, ${Math.round(wait / 60)} hours after act ${a.id} starts (${a.startClockMinutes}): did you mean a time later that day?`);

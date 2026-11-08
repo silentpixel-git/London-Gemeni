@@ -156,7 +156,7 @@ person `beats`, Fact statements and Clue summaries alike.
   `visibleFromAct`. A Fact learned mid-act arrives by `grantFact` (optionally with
   `delayPeriods`, for a rumor; entering any act delivers it at once). The player
   may learn a Fact before its act from a document or a Rule: the prover lists each
-  such path as EARLY, and the score says which are deliberate (ADR-0005).
+  such path it finds as EARLY, and the score says which are deliberate (ADR-0005).
 - `knownBy: ["player"]` means the player starts knowing the Fact.
 - A Clue is discovered the moment the player learns its Fact by any route: told,
   read (an Object's `fact`), or `grantFact` to `player`.

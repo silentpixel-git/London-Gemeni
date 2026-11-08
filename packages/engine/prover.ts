@@ -7,8 +7,9 @@
 // the endpoint would accept against that moment's Candidate Set, the search
 // starts from the opening turn the server plays, and time can always be
 // waited to the next period. "wait until X" in a path stands for as many
-// waits as it takes. It also reports, as EARLY, the first path on which the
-// player comes to know a Fact before its visibleFromAct.
+// waits as it takes. It also reports, as EARLY, the first path it meets on
+// which the player comes to know a Fact before its visibleFromAct. The search
+// stops once every goal is found, so EARLY is a net, not a proof of absence.
 import { inCandidateSet, type Id, type Selection, type Story, type Verb } from '../schema/index.js';
 import { candidates } from './candidates.js';
 import { MINUTES, TICK_MINUTES, resolveTurn, startInvestigation, tick } from './engine.js';

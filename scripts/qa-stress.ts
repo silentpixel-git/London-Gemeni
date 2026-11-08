@@ -15,10 +15,11 @@
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { Effect, Story, Trigger, inCandidateSet, validateStory, type EventPayload, type Selection } from '../packages/schema';
+import { gateNarration } from '../packages/ai/gate';
 import { loadStoryDir } from '../packages/schema/load';
 import {
   buildNarrationContext, candidates, currentPeriod, exitLock, personLocation, personsPresent,
-  replay, resolveTurn, startInvestigation, tick, type State,
+  playerView, replay, resolveTurn, startInvestigation, tick, type State,
 } from '../packages/engine';
 import { fixedRng } from '../packages/engine/rng';
 
@@ -458,7 +459,11 @@ section('pinned 3: an act boundary is time enough for every rumour');
   const atStart = validateStory(variant(r2 => {
     r2.rules.push({ id: 'bell_at_start', trigger: { kind: 'clock', atMinutes: 840, act: [1] }, once: true, effects: [{ kind: 'cue', sound: 'bell' }] });
   }));
-  check(!atStart.ok && atStart.issues.some(i => i.level === 'fail' && i.at === 'rules/bell_at_start/trigger'), 'a clock Rule at its act\'s start time fails validation');
+  check(!atStart.ok && atStart.issues.some(i => i.level === 'fail' && i.at === 'rules/bell_at_start/trigger'), 'a clock Rule restricted to an act, at that act\'s start time, fails validation');
+  const daily = validateStory(variant(r2 => {
+    r2.rules.push({ id: 'daily_chime', trigger: { kind: 'clock', atMinutes: 840 }, once: false, effects: [{ kind: 'cue', sound: 'bell' }] });
+  }));
+  check(daily.ok && daily.issues.some(i => i.level === 'warn' && i.at === 'rules/daily_chime/trigger'), 'an unrestricted daily Rule at some act\'s start time only warns');
   const overnight = validateStory(variant(r2 => {
     r2.rules.push({ id: 'midnight', trigger: { kind: 'clock', atMinutes: 0, act: [2] }, once: true, effects: [{ kind: 'cue', sound: 'bell' }] });
   }));
@@ -492,6 +497,14 @@ section('pinned 5: a player can accuse anyone met; examine and use reach people'
   check(inCandidateSet({ kind: 'intent', verb: 'use', target: 'tackle_chest', secondary: 'orrin' }, r.cand()), 'use … on accepts a person present');
   check(!inCandidateSet({ kind: 'intent', verb: 'take', target: 'orrin' }, r.cand()) && !inCandidateSet({ kind: 'intent', verb: 'examine', target: 'maud' }, r.cand()),
     'but only for those verbs, and only someone present');
+  const accused = r.go('it was the woman in oilskins', { verb: 'deduce', facts: [], person: 'ines' });
+  const ctx = buildNarrationContext(story, r.s, accused, 'compact');
+  check(!fired(accused, 'deduce_cook') && JSON.stringify(ctx.personsNamed) === '[{"id":"ines","label":"the woman in oilskins"}]',
+    'an absent suspect reaches the narrator by the label the player knows, not as a bare id', JSON.stringify(ctx.personsNamed));
+  check(!gateNarration(ctx, { prose: 'You name her. Far off in the kitchen, Tarrow would not have flinched.', observations: [] }).ok,
+    'her surname, which no id carries, is still an invention to the gate (an id like "ines" itself still licenses a first name: review finding H8)');
+  const diary = playerView(story, r.log).diary.persons.map(p => p.id).sort().join();
+  check(diary === r.cand().suspects.map(p => p.id).sort().join(), 'the diary\'s people met are exactly the suspects', diary);
   check(r.replays(), 'replays exactly');
 }
 section('pinned 6 and 7: visibleFromAct gates speech; knownBy player is honoured');

@@ -19,6 +19,6 @@ Choices a later phase should not undo without reading the plan:
 - **Flags are implicit strings.** A flag exists because an Effect sets it. The validator fails any flag that is read but never set, and warns on the reverse.
 - **`once` is required on every Rule.** A puzzle left repeating by accident is the default failure mode; the author states it.
 - **Objects have one identity.** Carried or on a table, the same id. `placement.kind === 'inventory'` is the inventory; there is no separate item list.
-- **A Fact's `visibleFromAct` gates speech, not learning** (ADR-0005). No person tells the player the Fact before that act. A document or a Rule may still teach it earlier: the validator warns on a `grantFact` to the player that can fire earlier, and the prover lists every such path as EARLY. `spoilerTerms` extend the gate to prose beats, where a leak fails validation.
+- **A Fact's `visibleFromAct` gates speech, not learning** (ADR-0005). No person tells the player the Fact before that act. A document or a Rule may still teach it earlier: the validator warns on a `grantFact` to the player that can fire earlier, and the prover lists each such path it finds as EARLY. `spoilerTerms` extend the gate to prose beats, where a leak fails validation.
 - **The Selection check is here.** `inCandidateSet` (`candidates.ts`) is the one rule the selection adapters, the turn endpoint and the prover all apply, so the prover proves only what a player can select.
 - **Verbs are closed.** A Story adds behaviour with Rules, never verbs.
