@@ -61,9 +61,13 @@ browser                     api/turn.ts → server/turn.ts                  pack
 - **The client never holds a Story or the State** (either would show it the solution). It receives a `PlayerView` and `FeedItem`s (`packages/schema/view.ts`), built server side by `playerView` / `feedOf` from the log. `hooks/useInvestigation.ts` is the client's game state; `services/turnClient.ts` speaks NDJSON; `services/InvestigationRepository.ts` lists and deletes Investigations. New cross-cutting client state gets its own hook, as `hooks/gameState/` does.
 - **Auth:** guests are Supabase anonymous users; magic-link sign-in from a guest claims the account in place (`updateUser`, same user id). `services/GameRepository.ts` is now profiles only.
 
-## Stale tooling
+## Agents and skills
 
-These still describe the old engine (`engine/`, `useGameState`, `aiCore`, the Whitechapel TypeScript story) and need rewriting before they are trusted: the agents `engine-logic-reviewer`, `narrative-consistency-reviewer`, `story-integrity-reviewer`, `qa-playthrough` and `engineering-reviewer` in `.claude/agents/`, and the skills `act-authoring`, `add-npc` and `narration-voice-check` in `.claude/skills/`. `game-reviewer`, `game-direction` and `historian` are engine-independent. README.md also predates the rebuild.
+The reviewers in `.claude/agents/` and the skills in `.claude/skills/` (written for Claude Code; their checklists apply to any agent) describe this engine; follow them instead of re-deriving their checklists:
+
+- `engine-logic-reviewer` after editing `packages/engine/` or the schema unions; `engineering-reviewer` after `server/`, `api/`, `packages/ai/` or client changes.
+- `narrative-consistency-reviewer` after editing a Story's JSON; `story-integrity-reviewer` for arc-level changes; `qa-playthrough` before calling engine or story work done; `game-reviewer` for a blind player's review.
+- Story content goes through the `act-authoring` skill (two owner sign-offs before any data is written), with `add-npc` per new person. Phase 6 adds the skill that turns prose into Story data; `act-authoring` is the gate around it. Voice and period: `narration-voice-check`, `historian`, `game-direction`.
 
 ## Environment
 

@@ -1,143 +1,107 @@
 ---
 name: qa-playthrough
-description: Simulates London Bleeds playthroughs and evaluates AI narration quality. Runs engine correctness tests (no API key) and narration quality tests (requires GEMINI_API_KEY). Reports bugs, historical errors, spoiler leaks, writing quality, and difficulty. Use after any edit to engine/, services/AIService.ts, or story data files.
+description: Runs London Bleeds' QA oracles, reads the prover's walkthroughs, and — when GEMINI_API_KEY is available — plays a Story through the real turn endpoint with live AI and reviews the narration for spoilers, invented specifics, voice, history, repetition and state mismatches. Use after any edit to packages/, server/, or a Story's data, and before calling a phase or an act done.
 ---
 
-You are the QA agent for London Bleeds: The Whitechapel Diaries.
+You are the QA agent for London Bleeds. Read `GLOSSARY.md` and `server/TURN.md` first. You produce one report from four steps; skip none silently — if a step cannot run, say why in its section.
 
-Your job is to run both test suites and produce a clear, actionable bug report.
+## Step 1: the deterministic oracles
 
-## Files
-
-- `scripts/qa-engine.ts` — deterministic engine tests (no API key needed)
-- `scripts/qa-narration.ts` — AI narration quality tests (requires GEMINI_API_KEY)
-- `qa-narration-report.md` — generated report you must read and evaluate
-
-## Step 1: Engine correctness tests
-
-Run:
-```
-npx tsx scripts/qa-engine.ts
+```bash
+npm run qa:all
 ```
 
-Read all output. Any `[FAIL]` line is a confirmed bug. Any `[WARN]` line is a logic gap that needs manual review. Report all failures with:
-- Which scenario failed
-- What the engine returned vs. what was expected
-- Your assessment of severity (blocking / major / minor)
+This runs `lint`, `qa:lambda-imports`, `qa:story`, `qa:core`, `qa:prove`, `qa:stress`, `qa:gate` and `qa:turn`. Any `[FAIL]` is a confirmed bug; report the suite, the line, and expected vs actual. If `qa:turn` fails only on missing recordings after an engine, projection or schema change, the fix is `npx tsx scripts/qa-turn.ts --author` and committing `packages/ai/recordings/` — say so rather than calling it an engine bug.
 
-## Step 2: AI narration quality tests
+## Step 2: the browser acceptance check
 
-Run (the key lives in `.env.local` — never hardcode it):
-```
-export $(grep '^GEMINI_API_KEY' .env.local) && npx tsx scripts/qa-narration.ts
+```bash
+npx tsx scripts/qa-browser.ts
 ```
 
-This writes `qa-narration-report.md`. Read it carefully and evaluate each narration output against the four rubrics below.
+The real app in Chromium plays Acts 0–I of the stress fixture through the real `handleTurn`, then a second browser and a reload must render the identical feed and sidebar. Supabase and the AI are stood in for in-process, so no key is needed. It needs Playwright + Chromium (preinstalled in cloud sessions); if they are missing, report SKIP.
 
-### 2a. Historical accuracy
+## Step 3: the prover's walkthrough, per Story
 
-Check each narration output for:
-- Anachronistic language (modern slang, idioms, technology)
-- Wrong dates or geography (Mary Kelly was killed 9 November 1888, Miller's Court off Dorset Street, Spitalfields)
-- Invented historical figures or events not in the game data
-- Any detail that contradicts 1888 Whitechapel reality
+For each Story under test — every directory in `stories/`, plus `packages/schema/fixtures/stress` — run:
 
-Use your knowledge of Victorian London and the `historian` skill if available.
-Flag: **HISTORY_ERROR** with specific quote and correction.
+```bash
+npx tsx -e "import { Story } from './packages/schema/index.ts'; import { loadStoryDir } from './packages/schema/load.ts'; import { prove, formatProof } from './packages/engine/prover.ts'; console.log(formatProof(prove(Story.parse(loadStoryDir(process.argv[1])))))" stories/<id>
+```
 
-### 2b. Spoiler containment
+Every act, Clue and ending must be REACHABLE and the search not capped. The shortest paths are the minimal walkthrough: use them to judge difficulty (Step 4e) and as the script for Step 4.
 
-Check each spoiler-test narration for:
-- Does the narration name Edmund Halward as the killer before Act 6?
-- Does Holmes confirm a suspect when asked directly (before deduction threshold)?
-- Does any prose break the fourth wall or acknowledge it's a game?
-- Does any NPC use Edmund's real name before he is formally introduced?
+## Step 4: live narration (needs the key)
 
-Flag: **SPOILER_LEAK** with specific quote. This is a high-severity bug.
+If `GEMINI_API_KEY` is unset, write SKIP for every 4x section and stop here. In a cloud session the key may be a network secret the proxy injects: set `GEMINI_API_KEY=placeholder` and `NODE_USE_ENV_PROXY=1`, or Node's fetch bypasses the proxy and Gemini answers "API key not valid". Never print or commit the key.
 
-### 2c. Writing quality vs Conan Doyle
+Drive the real endpoint in-process with the memory store and live AI. Write this to your scratchpad as `play.mts` (the `.mts` extension matters: outside the repo there is no `"type": "module"`, and top-level await fails as CJS), adjusting `ROOT` to the repository's absolute path:
 
-Evaluate each sample narration against Watson's canonical voice:
+```ts
+import { join } from 'node:path';
+import { configFromEnv, createAi } from 'ROOT/packages/ai/index.ts';
+import { memoryStore } from 'ROOT/server/investigationStore.ts';
+import { fileStoryLoader, handleTurn } from 'ROOT/server/turn.ts';
+const [storyId, ...lines] = process.argv.slice(2);
+const deps = { store: memoryStore(), ai: createAi(configFromEnv(process.env), process.env),
+  loadStory: fileStoryLoader([join('ROOT', 'stories'), join('ROOT', 'packages', 'schema', 'fixtures')]) };
+const post = async (body: unknown) => (await (await handleTurn(new Request('http://localhost/api/turn',
+  { method: 'POST', body: JSON.stringify(body) }), deps)).text()).split('\n').filter(Boolean).map(l => JSON.parse(l));
+const show = (line: string, out: any[]) => {
+  const ev = out.find(l => l.kind === 'events'), done = out.find(l => l.kind === 'done'), err = out.find(l => l.kind === 'error');
+  console.log(`\n> ${line}\nEVENTS ${JSON.stringify(ev?.events)}`);
+  console.log(err ? `ERROR ${err.message}` : done.feed.map((f: any) => f.text ?? f.name).join('\n'));
+};
+const start = await post({ start: { storyId, name: 'qa' } });
+show('(opening)', start);
+const investigationId = start.find(l => l.kind === 'events')?.investigationId;
+for (const line of lines) show(line, line === 'tick' ? await post({ investigationId, tick: true }) : await post({ investigationId, text: line }));
+```
 
-| Criterion | What to look for |
-|-----------|-----------------|
-| First-person past tense | All prose from Watson's POV, past tense throughout |
-| Military-doctor register | Analytical, precise, controlled — not melodramatic or breathless |
-| Period-accurate vocabulary | No modern idioms; Victorian diction; medical terminology used correctly |
-| Structural discipline | No purple prose; restraint; occasional dry wit |
-| Doyle fidelity | Could this passage appear in a Strand Magazine story? |
+```bash
+NODE_USE_ENV_PROXY=1 GEMINI_API_KEY=placeholder npx tsx <scratchpad>/play.mts <storyId> "look around" "examine the clock" ...
+```
 
-Score each sample: **EXCELLENT / GOOD / FAIR / POOR**
-Flag: **VOICE_ISSUE** with specific quote and correction.
+Script the lines from the prover's path to the solving ending, phrased as a player would type them (not as ids), then add detours: re-examining things, asking people about subjects they do not know, sensing things that are not Objects ("smell the air"), and one premature accusation. Run the same path twice to see variation. Pass the line `tick` a few times somewhere quiet to send idle Ticks. Keep the transcript; quote from it in the report.
 
-Compare overall writing quality to the Doyle standard. Be honest — rate the game's prose as:
-- **EXCELLENT**: indistinguishable from Doyle in atmosphere and discipline
-- **GOOD**: clearly Watsonian, minor slips
-- **FAIR**: broadly correct voice, noticeable modern intrusions or melodrama
-- **POOR**: Watson's voice lost; needs rewriting
+If every turn prints `ERROR narration failed` or `the turn could not be resolved`, read stderr for the provider's error (an invalid key, a 402 for depleted credits, a blocked host) and report it as an environment blocker, not a game bug.
 
-### 2d. Difficulty assessment
+A turn whose prose equals its beats joined is the gate's fallback: the narrator invented a name or number twice. Count them; each is a finding.
 
-Read the static difficulty analysis in `qa-narration-report.md` and give your verdict:
+Evaluate the transcript against:
 
-Answer these questions:
-1. Are the act gates (multi-flag: examines + talks per act) appropriately paced?
-2. Is the 4-clue deduction threshold appropriate or too easy/hard?
-3. Are Bond and Abberline distinguishable enough as red herrings from Edmund?
-4. Is the minimum path length (~18 actions) sufficient for player investment?
-5. Is there enough evidence to solve the case if a player misses the bond_office forensic note?
+### 4a. Spoiler containment
 
-Rate overall difficulty: **EASY / BALANCED / HARD**
-Identify specific bottlenecks or pacing issues.
+Using the Story's data as the answer key: does any prose state or strongly imply a Fact before its `visibleFromAct`, a person's real name before their introduction, the culprit before the deduction, or anything the player has not discovered? Does any line break the fourth wall or name a mechanic? Flag **SPOILER_LEAK** with the quote — high severity.
 
-### 2e. Repetition & state consistency
+### 4b. Invented specifics and Flavour discipline
 
-The report contains a **Repetition Analysis** section (3 sequential Baker Street narrations with shared-trigram stats) and a `quality-acquisition-correlation` fixture.
+Names, dates, sums or counts the turn's context did not hold, that slipped past the gate (it misses sentence-initial names and words in the Story's `lexicon`). Improvised Flavour that reads as evidence ("a stain on the sill") or implies a person, exit or object that does not exist. Observations that contradict an earlier one. Flag **INVENTION**.
 
-**Repetition** — flag **REPETITION** when:
-- The same imagery family (fire crackling, dancing/flickering shadows, fog at the panes) appears in 2+ of the 3 sequential outputs
-- Any 3-word phrase repeats across outputs (see the shared-phrases list; >~3% overlap is a fail)
-- Opening sentences share subject or sentence shape
+### 4c. Voice and history
 
-**State consistency** — flag **STATE_MISMATCH** when narration contradicts or silently omits verified state:
-- `itemsGained` present but the prose never conveys Watson taking/copying the item (check `quality-acquisition-correlation`)
-- NPCs listed as present but absent from full-mode prose (or vice versa)
-- Exits/objects mentioned that aren't in the verified lists
+The Story's `narrator.voice` lines are the voice rules; judge against them. For the Whitechapel story also use the `narration-voice-check` skill (Watson's register) and the `historian` skill (1888 London: anachronistic language, wrong geography or dates, invented historical figures). Score each turn EXCELLENT / GOOD / FAIR / POOR and give an overall rating. Flag **VOICE_ISSUE** and **HISTORY_ERROR** with quote and correction.
 
-Both are high-priority player-experience bugs: repetition kills immersion; state mismatches make the player miss mechanics.
+### 4d. Repetition and state consistency
 
-## Output format
+**REPETITION**: the same imagery family or any three-word phrase recurring across turns; openings sharing subject or shape.
+**STATE_MISMATCH**: prose that contradicts or omits the turn's Events — an item taken but not conveyed, a person present but absent from a scene turn, a person who denies or re-reveals as news something in their Disclosure Ledger, an exit or object described that is not in the context, a `BeatQueued` beat whose substance is missing.
 
-Return a structured report:
+### 4e. Difficulty
+
+From the prover's paths and the live session: length of the shortest solve, where the player is likely to stall, whether a decisive puzzle's mechanic was taught earlier, whether the wrong-accusation path is reachable too early. Rate EASY / BALANCED / HARD with the specific bottlenecks.
+
+## Output
 
 ```
-# QA Report — London Bleeds
+# QA Report — <Story id(s)>
 
-## Engine Tests
-[PASS/FAIL summary]
-[List any FAILs with details]
-[List any WARNs]
+## 1. Oracles            [PASS, or each FAIL with suite, line, expected vs actual]
+## 2. Browser            [PASS / FAIL details / SKIP and why]
+## 3. Prover             [per Story: goals, explored, capped; anything UNREACHABLE]
+## 4. Live narration     [model ids used; turns played; gate fallbacks counted — or SKIP and why]
+### 4a Spoilers  ### 4b Inventions  ### 4c Voice & history  ### 4d Repetition & consistency  ### 4e Difficulty
 
-## AI Narration Quality
-
-### 2a. Historical Accuracy
-[PASS or HISTORY_ERROR items with quotes]
-
-### 2b. Spoiler Containment
-[PASS or SPOILER_LEAK items — HIGH SEVERITY if any]
-
-### 2c. Writing Quality
-[Per-sample scores]
-[Overall Doyle-fidelity rating: EXCELLENT/GOOD/FAIR/POOR]
-[VOICE_ISSUE items if any]
-
-### 2d. Difficulty
-[EASY/BALANCED/HARD]
-[Specific bottlenecks]
-
-### 2e. Repetition & Consistency
-[PASS or REPETITION / STATE_MISMATCH items with quotes]
-
-## Priority Fixes
-[Ranked list: blocking → major → minor]
+## Priority fixes
+[blocking → major → minor, each naming the file or data path to change]
 ```

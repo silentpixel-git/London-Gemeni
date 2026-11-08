@@ -11,69 +11,68 @@ scripted scenarios, and not allowed to know the ending in advance.
 
 ## Hard rule: story-blindness
 
-You may **never** read, grep, or open any of these files, before or during
-your playthrough:
+You may **never** read, grep, or open any of these, before or during your
+playthrough:
 
-- `engine/stories/whitechapel-1888/npcs.ts`
-- `engine/stories/whitechapel-1888/clues.ts`
-- `engine/stories/whitechapel-1888/suspects.ts`
-- `engine/stories/whitechapel-1888/locations.ts`
-- `engine/stories/whitechapel-1888/acts.ts`
-- `engine/stories/whitechapel-1888/diary.ts`
-- `engine/stories/whitechapel-1888/endings.ts`
-- `engine/stories/whitechapel-1888/hints.ts`
-- `qa-narration-report.md` or any other QA output that quotes narration/story text
+- anything under `stories/` or `packages/schema/fixtures/` (the Story data: every location, person, Fact, Rule and ending)
+- `packages/ai/recordings/` (recorded narration)
+- `scripts/qa-*.ts` (they script playthroughs and assert on story content)
+- the `archive/pre-phase4-engine` branch, and story specs or walkthroughs under `docs/`
+- any QA output that quotes narration or story text
 
 If a tool result, file listing, or grep incidentally surfaces content from one
-of these files, do not read further into it — note that you saw it and move
+of these, do not read further into it — note that you saw it and move
 on. Everything you know about the mystery must come from what you personally
 observe by playing, turn by turn, in this session.
 
 You **are** allowed to read, before you start playing:
 
-- `engine/GameEngine.ts` — how actions resolve
-- `engine/intentParser.ts` — how player text maps to verbs/intents
-- `engine/stories/types.ts` — shape of the world data (not its content)
-- `constants.ts` / `types.ts` — session/state shape
-- `README.md` — just the "How It Works" section, for the mechanical overview
-- The in-game `HELP` command's own output, once you're playing
+- `GLOSSARY.md` — the game's vocabulary (Story, Fact, Rule, Tick, …)
+- `packages/schema/common.ts` — the built-in verbs (`Verb`) and the shape of locks and placements
+- the header comments of `packages/engine/verbs.ts` (what each verb does) and `packages/engine/exact.ts` (the few commands that need no interpretation)
+- `README.md` — just the "How it works" section, for the mechanical overview
 
 This gives you the rules of the game without spoiling what's in it.
 
 ## What you need to know before playing
 
-**Verbs/intents this engine understands** (from `intentParser.ts` /
-`GameEngine.ts`): `look`, `go <place>` / move, `examine <thing>`, `talk to
-<person>`, `take <object>`, `use <object>` (including "use X with Y"), `show
-<item> to <person>`, `read <document>`, `drop <object>`, `inventory`,
-`notebook`, `help`, free-form questions (`query` — answered in character, no
-state change), and `deduce`/`solve <name>` (naming the killer — requires at
-least 4 discovered clues; ends the game, right or wrong).
+**What the game understands.** Free text is mapped by a model onto one of a
+closed set of verbs, using only what is around you right now (things here and
+carried, people present, exits, subjects the person you address can speak to):
+`look`, `examine <thing or person>`, `read <document>`, `take` / `drop`,
+`open` / `close`, `use <thing> [on <thing>]`, `combine <thing> <thing>`,
+`show` / `give <thing> to <person>`, `talk to <person>`, `ask <person> about
+<subject>`, `deduce` / accuse (naming what you know and, optionally, a
+suspect — this can end the game, right or wrong), `go <exit>` (compass
+abbreviations work where an exit is so named), `wait`, `inventory`. Asking to
+look at or listen to something that isn't an object gets a description only.
 
 **Mechanics to expect, without knowing specifics:**
-- Locations have exits to other locations; some are gated by story progress (act) or flags and won't be available yet — that's normal, not a bug.
-- Examining objects can surface clues; re-examining the same thing again is expected to be a no-op.
-- Talking to people can advance the act; the game will move you to a new anchor location when that happens.
-- You accumulate clues into a notebook; `deduce`/`solve` is locked until you have enough.
-- The game is narrated by an AI (Dr. Watson's voice) — response text is generated per turn, not fixed.
+- Locations have exits; some are locked or closed at certain hours, and the game says so in-world — that's normal, not a bug.
+- Examining, reading and talking can teach you things; what you learn goes in the diary (the book icon), along with the people you've met and documents you've read.
+- People may be known only by a description until they introduce themselves.
+- The story moves in acts; entering a new act may move you to a new place.
+- The world moves on its own: if you idle, time passes and things may happen around you.
+- The narration is written per turn by an AI; the facts of the world are decided by the engine and should never contradict themselves.
 
 **General text-adventure instincts to apply as you play:**
 - Use `look` on arrival at a new location, then `examine` everything of interest before moving on.
 - If a command fails or seems misunderstood, try rephrasing before assuming it's broken — but note the failure either way.
-- Check `inventory` and `notebook` periodically to track what you're carrying and what you know.
-- If you feel stuck, use `help` rather than flailing — and note whether the help was actually useful.
+- Check `inventory` and the diary periodically to track what you're carrying and what you know.
+- If you feel stuck, note how long and what you tried; a game that leaves you flailing is a finding.
 - Try to exhaust the exits/interactions at a location before moving on, like a completionist player would.
 
 ## How to play
 
 1. Start the dev server with `preview_start`.
-2. Load the app and take a `preview_snapshot`. If the page is blank with no
-   console error, this is the known env condition where `GEMINI_API_KEY` (or
-   Supabase env) is missing from `.env.local` in this worktree — check with
-   `preview_console_logs` / a quick look at whether `.env.local` exists, and
-   if that's the cause, **stop and report it as an environment blocker**, not
-   a game bug. Do not try to work around it by reading engine code and
-   simulating play in your head.
+2. Load the app and take a `preview_snapshot`. Every turn goes through the
+   server (`POST /api/turn`), which needs `GEMINI_API_KEY` and the Supabase
+   env (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, anonymous sign-in
+   enabled). If the page is blank, or every turn errors, check
+   `preview_console_logs` and the dev server's output: a missing key or env,
+   or the AI provider refusing (an invalid key, depleted credits), is an
+   **environment blocker** — stop and report it, not a game bug. Do not work
+   around it by reading story data or simulating play in your head.
 3. Play turn by turn: `preview_fill` the single text `input[type="text"]` in
    the command bar with your next action, submit it (Enter or the send
    button), wait for the response, then `preview_snapshot` (or
