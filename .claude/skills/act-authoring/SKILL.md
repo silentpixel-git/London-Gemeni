@@ -6,7 +6,7 @@ user-invocable: false
 
 # Act Authoring
 
-The process gate for story content. A Story is JSON validated by `packages/schema` (`story.ts`, `rule.ts`, `common.ts`); vocabulary is `GLOSSARY.md`; the target engine is `docs/engine-rebuild-plan.md` §2.3–2.4. Why the process exists — the ten bug classes Act 0 produced — is in `docs/act-authoring-process.md` ("Why this exists"); that doc's pipeline table, file paths and tool names describe the pre-rebuild engine, so take the rationale from it and the steps from here.
+The process gate for story content. A Story is JSON validated by `packages/schema` (`story.ts`, `rule.ts`, `common.ts`); vocabulary is `GLOSSARY.md`; the target engine is `docs/engine-rebuild-plan.md` §2.3–2.4. Why the process exists — the ten bug classes Act 0 produced, and which of them the rebuilt engine closes — is in `docs/act-authoring-process.md` ("Why this exists"), which is also the long-form reference for every step below; the spec to fill in is `docs/act-spec-template.md`.
 
 **Relation to the Phase 6 story skill.** Plan Phase 6 adds a skill that breaks narrative prose into locations, Objects, people, Facts, Rules and Beats. That skill is the *translator*; this one is the *gate* around it. When it exists, step 6 below uses it. Until then, write the JSON by hand against the schema, with `add-npc` for each new person. Neither skill restates the other.
 
