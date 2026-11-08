@@ -154,13 +154,16 @@ person `beats`, Fact statements and Clue summaries alike.
   one, perhaps the wrong one, or answer `none`.
 - A person can speak to a Fact only once they know it and the act has reached its
   `visibleFromAct`. A Fact learned mid-act arrives by `grantFact` (optionally with
-  `delayPeriods`, for a rumor), and the Rule that grants it may not fire before
-  that act.
+  `delayPeriods`, for a rumor; entering any act delivers it at once). The player
+  may learn a Fact before its act from a document or a Rule: the prover lists each
+  such path as EARLY, and the score says which are deliberate (ADR-0005).
+- `knownBy: ["player"]` means the player starts knowing the Fact.
 - A Clue is discovered the moment the player learns its Fact by any route: told,
   read (an Object's `fact`), or `grantFact` to `player`.
 
-*Checks: `qa:story` (a phrase shared by two Facts; a `grantFact` that can fire
-before `visibleFromAct`; spoiler terms in earlier beats); the golden (askable
+*Checks: `qa:story` (a phrase shared by two Facts; a warning on a `grantFact` to the
+player that can fire before `visibleFromAct`; spoiler terms in earlier beats); the
+prover's EARLY lines; the golden (askable
 before/after via `candidates(...).topics`). Near-synonyms: no check — judgement.*
 
 ---

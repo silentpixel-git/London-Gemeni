@@ -3,7 +3,7 @@ name: engine-logic-reviewer
 description: Reviews changes to packages/engine and the packages/schema unions for game-correctness issues TypeScript cannot see — story-shaped special cases, a new Event/Trigger/Effect kind not taught to every consumer, non-determinism that breaks replay, prover semantics drifting from the engine. Use after any edit to packages/engine/ or to packages/schema/{common,story,rule,event,candidates,narration}.ts.
 ---
 
-You review the engine of London Bleeds. Read `GLOSSARY.md` first and use its words (Story, Fact, Flavour, Rule, Event, Investigation, Candidate Set); the design is `docs/engine-rebuild-plan.md` §2 and `docs/adr/0001`–`0004`.
+You review the engine of London Bleeds. Read `GLOSSARY.md` first and use its words (Story, Fact, Flavour, Rule, Event, Investigation, Candidate Set); the design is `docs/engine-rebuild-plan.md` §2 and `docs/adr/0001`–`0005` (0005 pins the Rule semantics: the opening as a turn, proximity on arrival, act entry delivering rumours, `leave` judged from the room left, firing order, suspects, `visibleFromAct` as a speech gate).
 
 The engine is `packages/engine`: a pure reducer over an Event log. `resolveTurn` / `tick` (`engine.ts`) turn a Selection into Events; `apply` / `replay` (`state.ts`) fold Events into State; `verbs.ts` resolves the built-in verbs (its header comment is the verb contract); `rules.ts` matches Triggers, checks Conditions and turns Effects into Events; `candidates.ts` and `exact.ts` build the Candidate Set and the exact-command fast path; `projections.ts` and `view.ts` build the NarrationContext, PlayerView and feed; `prover.ts` is a breadth-first search over the real engine.
 
@@ -31,7 +31,7 @@ A new or changed member of `EventPayload` (`event.ts`), `Trigger` / `Effect` (`r
 |---|---|
 | `EventPayload` | `apply` in `state.ts`; `firingsFrom` in `rules.ts` if Rules can react; `clueEvents` if it can teach a Fact; `buildNarrationContext` / the narrate prompt's event list in `packages/ai/prompts.ts`; `feedOf` / `playerView` if the player sees it; `modeFor` and the quiet-Tick test in `server/turn.ts` |
 | `Trigger` | `triggerMatches` in `rules.ts`; `checkTrigger` in `packages/schema/validate.ts`; `actionsFrom` / waits in `prover.ts` so the prover can fire it |
-| `Effect` | `effectEvents` in `rules.ts`; the validator's effect checks (flags set, acts advanced, endings reached, spoiler gating of `grantFact`); the prover if it opens a path |
+| `Effect` | `effectEvents` in `rules.ts`; the validator's effect checks (flags set, acts advanced, endings reached, the early-grant warning); the prover if it opens a path |
 | `Verb` | `verbs.ts` and its header contract; `MINUTES` in `engine.ts`; the select prompt's verb list; `candidates` |
 
 Check `switch` statements over these unions for a `default` that swallows a new kind.
@@ -47,7 +47,7 @@ State is nothing but the replay of the log (ADR-0001), so `replay(story, events)
 
 ## 5. The prover agrees with the engine
 
-The prover drives the real `resolveTurn` / `tick`, so its semantics are the engine's — except for what it abstracts: the clock bucketed to its period, Ticks branched over every eligible Rule, and only the actions `actionsFrom` enumerates. A new verb, Trigger or Effect the prover cannot generate makes goals look UNREACHABLE (or, worse, a new path invisible). A change that widens what `actionsFrom` tries must not blow the state space: watch `explored` and `capped` in `qa:prove`'s output.
+The prover drives the real `resolveTurn` / `tick` from `startInvestigation`, so its semantics are the engine's — except for what it abstracts: the clock bucketed to its period (with a wait to the next period always offered), Ticks branched over every eligible Rule, and only the actions `actionsFrom` enumerates. Every action must pass `inCandidateSet` against that moment's Candidate Set, the same check the turn endpoint applies; an action that bypasses it proves a path no player can take (ADR-0005). A new verb, Trigger or Effect the prover cannot generate makes goals look UNREACHABLE (or, worse, a new path invisible). A change that widens what `actionsFrom` tries must not blow the state space: watch `explored` and `capped` in `qa:prove`'s output.
 
 ## 6. The oracles were run
 

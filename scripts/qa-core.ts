@@ -10,7 +10,7 @@
 import { join } from 'node:path';
 import { Story, type EventPayload, type Selection } from '../packages/schema';
 import { loadStoryDir } from '../packages/schema/load';
-import { candidates, initialState, playerView, replay, resolveTurn, tick, type State } from '../packages/engine';
+import { candidates, initialState, playerView, replay, resolveTurn, startInvestigation, tick, type State } from '../packages/engine';
 import { suggestionsFor } from '../services/viewFormat';
 import { fixedRng } from '../packages/engine/rng';
 
@@ -23,8 +23,10 @@ const check = (cond: boolean, label: string, detail?: string) => (cond ? pass(la
 const section = (t: string) => console.log(`\n── ${t} ${'─'.repeat(Math.max(0, 60 - t.length))}`);
 
 // ── Harness ──────────────────────────────────────────────────────────────────
-let s: State = initialState(story, 42);
-const log: EventPayload[] = [];
+// The game opens as the server opens it: the opening turn, with its Rules (ADR-0005).
+const opening = startInvestigation(story, 42);
+let s: State = opening.state;
+const log: EventPayload[] = [...opening.events];
 const verbsUsed = new Set<string>();
 const kinds = (es: EventPayload[]) => es.map(e => e.kind).join(',');
 const has = (es: EventPayload[], pred: (e: EventPayload) => boolean) => es.some(pred);
@@ -57,17 +59,20 @@ check(s.act === 0 && s.location === 'hall' && s.clock === 1230, 'opening state: 
   check(c.knownFacts.length === 0, 'candidates: player knows nothing yet');
 }
 
-// ── 2. look, proximity once ──────────────────────────────────────────────────
-section('look / proximity');
+// ── 2. proximity on arrival, look ────────────────────────────────────────────
+section('proximity on arrival / look');
 {
-  const es = go('look around', { verb: 'look' });
-  check(has(es, e => e.kind === 'Looked'), 'look → Looked');
-  check(fired(es, 'greet_housekeeper'), 'proximity rule fires on the first turn she is present');
+  const es = opening.events;
+  check(es[0].kind === 'InvestigationStarted', 'the opening turn begins with InvestigationStarted');
+  check(fired(es, 'greet_housekeeper'), 'proximity fires on the opening: she is standing there when the game begins');
   check(has(es, e => e.kind === 'BeatQueued') && has(es, e => e.kind === 'DispositionChanged' && e.disposition === 'neutral'), 'its beat and disposition effects land');
-  check(s.beats.length === 1, 'state.beats holds the beat for the narrator this turn');
-  const again = go('look', { verb: 'look' });
-  check(!fired(again, 'greet_housekeeper'), 'once:true rule does not fire twice');
+  check(s.beats.length === 1, 'state.beats holds the beat for the opening narration');
+  check(JSON.stringify(replay(story, es, 42)) === JSON.stringify(s), 'the opening turn replays from its own Events');
+  const look = go('look around', { verb: 'look' });
+  check(has(look, e => e.kind === 'Looked'), 'look → Looked');
+  check(!has(look, e => e.kind === 'RuleFired'), 'staying together raises no proximity: nothing fires on the first look');
   check(s.beats.length === 0, 'beats cleared on the next turn');
+  go('look', { verb: 'look' });
   check(s.clock === 1234, 'two looks cost 4 minutes');
 }
 
@@ -170,6 +175,9 @@ section('read / act entry');
   check(fired(es, 'read_letter') && fired(es, 'letter_opens_the_garden'), 'action rule set the flag; flag rule cascaded');
   check(has(es, e => e.kind === 'ActEntered' && e.act === 1), 'ActEntered 1');
   check(s.act === 1 && s.location === 'garden' && s.clock === 1290, 'act entry: anchor location, act clock');
+  const afraid = es.findIndex(e => e.kind === 'FactLearned' && e.person === 'housekeeper' && e.fact === 'master_was_afraid');
+  check(afraid > es.findIndex(e => e.kind === 'ActEntered') && s.knows.housekeeper.master_was_afraid === true && s.pendingGrants.length === 0,
+    'act entry delivers the delayed grant still in flight, right after ActEntered');
   check(s.flags.garden_unlocked === true, 'garden unlocked');
   check(present().includes('housekeeper') && s.persons.housekeeper.override === undefined, 'housekeeper is in the garden by schedule, not by a pin');
   check(candidates(story, s).topics.some(t => t.fact === 'gardener_fled' && t.direction === 'ask'), 'act-1 fact is now askable');
@@ -191,18 +199,12 @@ section('show / give');
   check(has(go('talk to her', { verb: 'talk', person: 'housekeeper' }), e => e.kind === 'Spoke' && e.fact === undefined), 'talk → Spoke without a fact');
 }
 
-// ── 11. delayed grant matures on a period boundary ───────────────────────────
-section('delayed grant / clock rule');
+// ── 11. clock rule ───────────────────────────────────────────────────────────
+section('clock rule');
 {
-  // act 1 starts 21:30 (night). late_night begins 23:00 → one boundary.
-  check(!s.knows.housekeeper.master_was_afraid, 'not yet known before the boundary');
-  const es = go('wait', { verb: 'wait' }); // 30 → 22:00
+  const es = go('wait', { verb: 'wait' });
   check(has(es, e => e.kind === 'TickResolved' && e.minutes === 30), 'wait is a 30-minute tick');
-  go('wait', { verb: 'wait' }); // 22:30
-  const cross = go('wait', { verb: 'wait' }); // 23:00 → boundary crossed
-  check(has(cross, e => e.kind === 'FactLearned' && e.person === 'housekeeper' && e.fact === 'master_was_afraid'), 'grant matured when the boundary was crossed');
-  check(s.pendingGrants.length === 0, 'pending queue emptied');
-  go('wait', { verb: 'wait' }); go('wait', { verb: 'wait' }); // 00:00
+  go('wait', { verb: 'wait' }); go('wait', { verb: 'wait' }); go('wait', { verb: 'wait' }); go('wait', { verb: 'wait' }); // past 00:00
   check(fired(log.slice(-40), 'midnight_bells'), 'clock rule fired when the clock passed midnight');
   check(has(log.slice(-40), e => e.kind === 'BeatQueued' && e.asQuote === true), 'its beat is a quote');
   check(present().length === 0, 'housekeeper offstage in late_night by schedule');
@@ -250,6 +252,20 @@ section('alternate endings');
   check(s.act === 1, 'shortest path reaches act 1');
   let guard = 0; while (!s.ended && guard++ < 20) go('wait', { verb: 'wait' });
   check(s.ended === 'unsolved' && s.persons.housekeeper.override === null, 'one o\'clock ends it unsolved and dismisses her');
+}
+
+// ── 14b. delayed grant matures on a period boundary, within an act ───────────
+section('delayed grant / period boundary');
+{
+  s = startInvestigation(story, 12).state;
+  go('ask her about the key', { verb: 'ask', person: 'housekeeper', topic: 'key_in_clock' });
+  check(s.pendingGrants.length === 1 && s.boundaries === 0, 'the grant is scheduled one boundary out (act 0, night)');
+  let before = true; let cross: EventPayload[] = []; let guard = 0;
+  while (s.boundaries === 0 && guard++ < 10) { before = before && !s.knows.housekeeper.master_was_afraid; cross = go('wait', { verb: 'wait' }); }
+  check(before, 'not known on any turn before the boundary');
+  check(has(cross, e => e.kind === 'FactLearned' && e.person === 'housekeeper' && e.fact === 'master_was_afraid') && s.act === 0,
+    'it matures on the turn the clock crosses into the small hours, still in act 0');
+  check(s.pendingGrants.length === 0, 'pending queue emptied');
 }
 
 // ── 15. flavour and none selections ──────────────────────────────────────────

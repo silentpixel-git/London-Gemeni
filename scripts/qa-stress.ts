@@ -14,15 +14,18 @@
  */
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { Effect, Story, Trigger, type EventPayload, type Selection } from '../packages/schema';
+import { Effect, Story, Trigger, inCandidateSet, validateStory, type EventPayload, type Selection } from '../packages/schema';
 import { loadStoryDir } from '../packages/schema/load';
 import {
-  buildNarrationContext, candidates, currentPeriod, exitLock, initialState, personLocation, personsPresent,
-  replay, resolveTurn, tick, type State,
+  buildNarrationContext, candidates, currentPeriod, exitLock, personLocation, personsPresent,
+  replay, resolveTurn, startInvestigation, tick, type State,
 } from '../packages/engine';
 import { fixedRng } from '../packages/engine/rng';
 
-const story = Story.parse(loadStoryDir(join('packages', 'schema', 'fixtures', 'stress')));
+const rawStory = loadStoryDir(join('packages', 'schema', 'fixtures', 'stress')) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+const story = Story.parse(rawStory);
+/** A copy of the fixture with authored changes, for the pinned-semantics probes (section 6). */
+const variant = (mutate: (raw: any) => void) => { const raw = structuredClone(rawStory); mutate(raw); return raw; }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 let fails = 0;
 const pass = (l: string) => console.log(`[PASS] ${l}`);
@@ -41,14 +44,19 @@ const everKinds = new Set<string>();
 class Run {
   s: State;
   log: EventPayload[] = [];
-  constructor(public name: string, public seed: number) { this.s = initialState(story, seed); }
+  /** Opens as the server opens: the opening turn and the Rules it sets off. */
+  constructor(public name: string, public seed: number, public story: Story = Run.base) {
+    const o = startInvestigation(this.story, seed);
+    this.s = o.state; this.absorb(o.events, o.state);
+  }
+  static base: Story;
 
   go(text: string, sel: Sel, draw = 0): EventPayload[] {
-    const r = resolveTurn(story, this.s, { text, selection: { kind: 'intent', ...sel } }, fixedRng([draw]));
+    const r = resolveTurn(this.story, this.s, { text, selection: { kind: 'intent', ...sel } }, fixedRng([draw]));
     return this.absorb(r.events, r.state);
   }
   idle(minutes: number, draw = 0): EventPayload[] {
-    const r = tick(story, this.s, minutes, fixedRng([draw]));
+    const r = tick(this.story, this.s, minutes, fixedRng([draw]));
     return this.absorb(r.events, r.state);
   }
   private absorb(events: EventPayload[], state: State) {
@@ -61,13 +69,14 @@ class Run {
   wait() { return this.go('wait', { verb: 'wait' }); }
   look() { return this.go('look', { verb: 'look' }); }
   where(id: string) { return this.s.objects[id].placement; }
-  present() { return personsPresent(story, this.s); }
-  cand() { return candidates(story, this.s); }
+  present() { return personsPresent(this.story, this.s); }
+  cand() { return candidates(this.story, this.s); }
   /** A turn on a copy of the state: observed, never logged. */
-  probe(sel: Sel, draw = 0) { return resolveTurn(story, this.s, { text: 'probe', selection: { kind: 'intent', ...sel } }, fixedRng([draw])); }
+  probe(sel: Sel, draw = 0) { return resolveTurn(this.story, this.s, { text: 'probe', selection: { kind: 'intent', ...sel } }, fixedRng([draw])); }
   /** Replaying the log from scratch must land on exactly this State. */
-  replays(): boolean { return isDeepStrictEqual(replay(story, this.log, this.seed), this.s); }
+  replays(): boolean { return isDeepStrictEqual(replay(this.story, this.log, this.seed), this.s); }
 }
+Run.base = story;
 
 const ASKABLE = (r: Run, person: string, fact: string, dir: 'ask' | 'tell') =>
   r.cand().topics.some(t => t.person === person && t.fact === fact && t.direction === dir);
@@ -222,10 +231,10 @@ section('act 1 / companion');
   const inLoft = r.move('to_loft');
   check(has(inLoft, e => e.kind === 'Moved' && e.to === 'net_loft') && currentPeriod(story, r.s) === 'afternoon', 'the loft is still open (afternoon) → Moved');
   check(dovHere() && r.present().includes('orrin'), 'in the loft with Orrin and the companion');
-  check(!r.s.flags.orrin_at_loft, 'proximity is measured at the start of a turn: no flag on the arrival turn itself');
+  check(fired(inLoft, 'orrin_seen_in_loft') && r.s.flags.orrin_at_loft === true, 'proximity fires on arrival: walking in on Orrin sets orrin_at_loft on the move itself');
+  check(fired(inLoft, 'orrin_promises_wick') && r.s.flags.wick_promised === true, 'flag trigger cascades in the same turn: wick_promised');
   const look = r.look();
-  check(fired(look, 'orrin_seen_in_loft') && r.s.flags.orrin_at_loft === true, 'next turn: the proximity rule (when.location: net_loft) sets orrin_at_loft');
-  check(fired(look, 'orrin_promises_wick') && r.s.flags.wick_promised === true, 'flag trigger cascades in the same turn: wick_promised');
+  check(!fired(look, 'dov_remarks') && !has(look, e => e.kind === 'RuleFired'), 'staying together raises no proximity: the next look fires nothing, not even the repeatable dov_remarks');
   step('to_jetty'); step('to_kitchen');
   step('to_store');
   check(r.s.location === 'oil_store', 'carrying the key opens the oil store');
@@ -377,6 +386,131 @@ section('endings on fresh Investigations');
   check(late.s.persons.ines.override === null, 'dismissPerson ran before endGame');
   check(guard <= 8, 'the deadline is a handful of waits away', String(guard));
   check(late.replays(), 'timeout ending replays exactly');
+}
+
+// ── 6. Pinned semantics (docs/adr/0005) ──────────────────────────────────────
+// Each of the seven decisions, on a variant of the fixture authored here.
+const load = (raw: unknown) => Story.parse(raw);
+section('pinned 1: the opening counts as entering an act');
+{
+  const v = load(variant(r => {
+    r.rules.push({ id: 'jetty_welcome', trigger: { kind: 'enter', location: 'jetty' }, once: true, effects: [{ kind: 'setFlag', flag: 'welcomed' }] });
+    r.rules.push({ id: 'orrin_nods', trigger: { kind: 'proximity', person: 'orrin' }, when: { act: [0] }, once: true, effects: [{ kind: 'setFlag', flag: 'nodded' }] });
+  }));
+  const r = new Run('opening', 41, v);
+  check(fired(r.log, 'jetty_welcome') && r.s.flags.welcomed === true, 'an enter Rule on the opening location fires on the opening turn');
+  check(fired(r.log, 'orrin_nods') && r.s.flags.nodded === true, 'a proximity Rule for someone standing there fires on the opening turn');
+  check(r.log.every(e => e.kind !== 'TurnReceived'), 'and both before any player turn');
+  r.move('to_kitchen');
+  check(!fired(r.move('to_jetty'), 'jetty_welcome'), 'once: returning does not fire it again');
+  check(r.replays(), 'the opening replays exactly');
+}
+section('pinned 2: proximity fires on arrival, not every turn');
+{
+  const r = new Run('arrival', 42);
+  const into = r.move('to_kitchen');
+  check(fired(into, 'maud_greets'), 'walking into the kitchen: the repeatable maud_greets fires on arrival');
+  check(!fired(r.look(), 'maud_greets') && !fired(r.look(), 'maud_greets'), 'and not on the turns the player stays');
+  r.move('to_jetty');
+  check(fired(r.move('to_kitchen'), 'maud_greets'), 'leaving and coming back is a new arrival');
+  check(r.replays(), 'replays exactly');
+
+  const ahead = load(variant(r2 => {
+    r2.rules.push({ id: 'meet_ines_starts_act2', trigger: { kind: 'proximity', person: 'ines' }, when: { act: [0] }, once: true, effects: [{ kind: 'advanceAct', act: 2 }] });
+  }));
+  const a = new Run('arrival_act', 43, ahead);
+  const met = a.move('to_kitchen');
+  check(fired(met, 'meet_ines_starts_act2') && a.s.act === 2 && a.s.location === 'lamp_room', 'a proximity Rule that enters an act does so on the arrival turn itself');
+  check(!a.cand().persons.some(p => p.id === 'ines'), 'so the next command is chosen against the new act, not against someone who is no longer there');
+
+  const sched = load(variant(r2 => {
+    r2.persons.find((p: { id: string }) => p.id === 'orrin').schedule['0'] = { default: { kind: 'at', location: 'jetty' }, byPeriod: { afternoon: { kind: 'at', location: 'kitchen' } } };
+    r2.rules.push({ id: 'orrin_comes_in', trigger: { kind: 'proximity', person: 'orrin' }, when: { location: ['kitchen'] }, once: false, effects: [{ kind: 'playBeat', beats: ['The boatman stamps in out of the wind.'] }] });
+  }));
+  const b = new Run('arrival_schedule', 44, sched);
+  b.move('to_kitchen');
+  let noon: EventPayload[] = []; let guard = 0;
+  while (currentPeriod(sched, b.s) === 'morning' && guard++ < 20) noon = b.idle(15);
+  check(fired(noon, 'orrin_comes_in') && b.present().includes('orrin'), 'a schedule that brings someone to the player is an arrival, on the Tick that crosses the period');
+  check(!fired(b.idle(15), 'orrin_comes_in'), 'the following Tick, with him still there, fires nothing');
+  check(b.replays(), 'replays exactly');
+}
+section('pinned 3: an act boundary is time enough for every rumour');
+{
+  const r = new Run('rumour_act', 45);
+  const told = r.ask('orrin', 'cargo_was_barrels');
+  check(has(told, e => e.kind === 'GrantScheduled' && e.person === 'maud'), 'the rumour to Maud is scheduled one period out, in the morning');
+  r.move('to_kitchen');
+  const entered = r.go('read the log', { verb: 'read', target: 'keeper_log' });
+  const at = entered.findIndex(e => e.kind === 'ActEntered');
+  check(at >= 0 && entered.findIndex(e => e.kind === 'FactLearned' && e.person === 'maud' && e.fact === 'cargo_was_barrels') > at,
+    'entering act 1 delivers it right after ActEntered, though no period boundary was crossed');
+  check(r.s.pendingGrants.length === 0 && ASKABLE(r, 'maud', 'cargo_was_barrels', 'ask'), 'the queue is empty and Maud can be asked at once');
+  check(r.replays(), 'replays exactly');
+
+  const tickAct = load(variant(r2 => {
+    r2.rules.push({ id: 'tick_jump', trigger: { kind: 'tick' }, when: { act: [0], location: ['jetty'] }, once: true, weight: 100, effects: [{ kind: 'advanceAct', act: 1 }] });
+  }));
+  const t = new Run('tick_act', 46, tickAct);
+  t.idle(15, 0.99);
+  check(t.s.act === 1 && t.s.clock === tickAct.acts[1].startClockMinutes, 'a Tick that enters an act starts it at the act\'s own clock, with no Tick minutes added');
+
+  const atStart = validateStory(variant(r2 => {
+    r2.rules.push({ id: 'bell_at_start', trigger: { kind: 'clock', atMinutes: 840, act: [1] }, once: true, effects: [{ kind: 'cue', sound: 'bell' }] });
+  }));
+  check(!atStart.ok && atStart.issues.some(i => i.level === 'fail' && i.at === 'rules/bell_at_start/trigger'), 'a clock Rule at its act\'s start time fails validation');
+  const overnight = validateStory(variant(r2 => {
+    r2.rules.push({ id: 'midnight', trigger: { kind: 'clock', atMinutes: 0, act: [2] }, once: true, effects: [{ kind: 'cue', sound: 'bell' }] });
+  }));
+  check(overnight.ok && !overnight.issues.some(i => i.at === 'rules/midnight/trigger'), 'an overnight clock Rule (midnight in an evening act) is accepted silently');
+}
+section('pinned 4: leave Rules judge from the room being left');
+{
+  const v = load(variant(r2 => {
+    r2.rules.unshift({ id: 'enter_kitchen_listed_first', trigger: { kind: 'enter', location: 'kitchen' }, once: false, effects: [{ kind: 'cue', sound: 'door' }] });
+    r2.rules.push({ id: 'orrin_calls_after', trigger: { kind: 'leave', location: 'jetty' }, when: { location: ['jetty'], personsPresent: ['orrin'] }, once: false, effects: [{ kind: 'cue', sound: 'shout' }] });
+  }));
+  const r = new Run('leave', 47, v);
+  const out = r.move('to_kitchen');
+  check(fired(out, 'orrin_calls_after'), 'when.location and when.personsPresent are judged from the jetty being left');
+  const order = out.filter(e => e.kind === 'RuleFired').map(e => (e as { rule: string }).rule);
+  check(order.indexOf('jetty_foghorn') < order.indexOf('orrin_calls_after') && order.indexOf('orrin_calls_after') < order.indexOf('enter_kitchen_listed_first')
+    && order.indexOf('enter_kitchen_listed_first') < order.indexOf('maud_greets'),
+    'firing order is leave, then enter, then arrivals; Story order holds only within each', order.join(','));
+  check(r.replays(), 'replays exactly');
+}
+section('pinned 5: a player can accuse anyone met; examine and use reach people');
+{
+  const r = new Run('suspects', 48);
+  const accuse = (c: ReturnType<Run['cand']>) => inCandidateSet({ kind: 'intent', verb: 'deduce', facts: [], person: 'maud' }, c);
+  check(JSON.stringify(r.cand().suspects.map(p => p.id)) === '["orrin"]', 'at the opening the only suspect is whoever stands there');
+  check(!accuse(r.cand()), 'Maud, not yet met, cannot be accused');
+  r.move('to_kitchen'); r.move('to_jetty');
+  check(r.cand().suspects.some(p => p.id === 'maud') && !r.present().includes('maud') && accuse(r.cand()), 'once met, Maud can be accused from the jetty');
+  check(r.cand().suspects.find(p => p.id === 'ines')?.name === 'the woman in oilskins', 'suspects carry the label the player knows them by');
+  check(inCandidateSet({ kind: 'intent', verb: 'examine', target: 'orrin' }, r.cand()), 'examine accepts a person present');
+  check(inCandidateSet({ kind: 'intent', verb: 'use', target: 'tackle_chest', secondary: 'orrin' }, r.cand()), 'use … on accepts a person present');
+  check(!inCandidateSet({ kind: 'intent', verb: 'take', target: 'orrin' }, r.cand()) && !inCandidateSet({ kind: 'intent', verb: 'examine', target: 'maud' }, r.cand()),
+    'but only for those verbs, and only someone present');
+  check(r.replays(), 'replays exactly');
+}
+section('pinned 6 and 7: visibleFromAct gates speech; knownBy player is honoured');
+{
+  const v = load(variant(r2 => {
+    r2.facts.push({ id: 'relief_overdue', statement: 'The relief boat was due three days ago.', knownBy: ['player'], visibleFromAct: 0, topics: ['the relief boat'] });
+    r2.clues.push({ id: 'clue_relief', name: 'Overdue', fact: 'relief_overdue', summary: 'The relief boat is three days late.' });
+  }));
+  const r = new Run('known_by_player', 49, v);
+  check(r.s.knows.player.relief_overdue === true && r.cand().knownFacts.some(f => f.id === 'relief_overdue'), 'a Fact knownBy player is known from the start, and may be named in a deduction');
+  check(has(r.log, e => e.kind === 'ClueDiscovered' && e.clue === 'clue_relief') && r.log.every(e => e.kind !== 'TurnReceived'), 'its Clue is found on the opening turn');
+  check(ASKABLE(r, 'orrin', 'relief_overdue', 'tell'), 'and the player can tell it to someone who does not know it');
+  check(r.replays(), 'replays exactly');
+
+  const early = new Run('early_learning', 50);
+  early.move('to_kitchen');
+  early.go('read the log', { verb: 'read', target: 'keeper_log' });
+  check(early.s.act === 0 && early.s.knows.player.crane_found_at_lamp === true, 'reading a document teaches its Fact before the Fact\'s visibleFromAct (the prover reports it as EARLY)');
+  check(!ASKABLE(early, 'maud', 'crane_found_at_lamp', 'ask'), 'but nobody tells the player that Fact before its act');
 }
 
 // ── 5. Coverage ──────────────────────────────────────────────────────────────

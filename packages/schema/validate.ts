@@ -273,12 +273,28 @@ export function validateStory(raw: unknown): ValidationResult {
     if (r.trigger.kind === 'flag' && r.effects.some(e => e.kind === 'setFlag' && e.flag === (r.trigger as { flag: string }).flag)) {
       warn(at, 'sets the flag that triggers it');
     }
-    // A Fact must not be surfaced by a Rule that can fire before its act.
+    // visibleFromAct gates who may TELL the player a Fact, not who may learn it (ADR-0005).
+    // Granting it to a person early is harmless; granting it to the player early is
+    // allowed but worth a look, and the prover reports the exact path as EARLY.
     for (const [i, e] of r.effects.entries()) {
-      if (e.kind !== 'grantFact') continue;
+      if (e.kind !== 'grantFact' || e.person !== 'player') continue;
       const f = facts.get(e.fact);
       if (f && minActOfRule(r) < f.visibleFromAct) {
-        fail(`${at}/effects[${i}]`, `grants "${e.fact}" (visible from act ${f.visibleFromAct}) but the rule can fire in act ${minActOfRule(r)}`);
+        warn(`${at}/effects[${i}]`, `grants the player "${e.fact}" (visible from act ${f.visibleFromAct}) and the rule can fire in act ${minActOfRule(r)}${r.when?.act ? '' : '; add when.act if it cannot'}`);
+      }
+    }
+    // A clock Rule at its act's start time never fires on entry (the clock starts there, it does not pass it).
+    if (r.trigger.kind === 'clock') {
+      const t = r.trigger;
+      const can = story.acts.filter(a => (!t.act || t.act.includes(a.id)) && (!r.when?.act || r.when.act.includes(a.id)));
+      for (const a of can) {
+        if (t.atMinutes === a.startClockMinutes % 1440) {
+          fail(`${at}/trigger`, `fires at ${t.atMinutes}, the start of act ${a.id}: the clock starts there and does not pass it, so this waits a whole day; use an enter Rule on "${a.anchorLocation}"`);
+        } else {
+          // Overnight Rules (midnight bells in an evening act) are normal; a wait of most of a day is not.
+          const wait = (t.atMinutes - (a.startClockMinutes % 1440) + 1440) % 1440;
+          if (wait > 720) warn(`${at}/trigger`, `fires at ${t.atMinutes}, ${Math.round(wait / 60)} hours after act ${a.id} starts (${a.startClockMinutes}): did you mean a time later that day?`);
+        }
       }
     }
   }

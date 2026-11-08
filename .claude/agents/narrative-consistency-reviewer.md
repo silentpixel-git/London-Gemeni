@@ -11,7 +11,7 @@ You review the internal consistency of one Story. A Story is a directory of JSON
 npm run qa:story
 ```
 
-The validator (`packages/schema/validate.ts`) already fails or warns on: dangling ids of every kind, duplicate ids and exit names, flags read but never set (and set but never read), acts no `advanceAct` reaches, endings no `endGame` reaches, schedule gaps and follow cycles, aliases with no introduction, an exact topic phrase shared by two Facts, a `grantFact` that fires before its Fact's `visibleFromAct`, and `spoilerTerms` appearing in beats visible earlier.
+The validator (`packages/schema/validate.ts`) already fails or warns on: dangling ids of every kind, duplicate ids and exit names, flags read but never set (and set but never read), acts no `advanceAct` reaches, endings no `endGame` reaches, schedule gaps and follow cycles, aliases with no introduction, an exact topic phrase shared by two Facts, a clock Rule at its act's start time, and `spoilerTerms` appearing in beats visible earlier. It warns on a `grantFact` to the player that can fire before its Fact's `visibleFromAct`; the prover lists every path on which the player learns a Fact early as EARLY (ADR-0005), and each one should be a deliberate early clue.
 
 Report its FAILs and WARNs for this Story verbatim, then **do not repeat them** as your own findings. Your job is what it cannot see.
 

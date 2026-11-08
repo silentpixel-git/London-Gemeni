@@ -1,6 +1,8 @@
-// The Rule cascade. A turn's Events raise Firings; eligible Rules fire in
-// authored order; their Effects become Events, which may raise further
-// Firings. Depth is bounded so a Story cannot loop the engine.
+// The Rule cascade. A turn's Events raise Firings; for each Firing, in the
+// order raised, eligible Rules fire in authored order; their Effects become
+// Events, which may raise further Firings. Proximity is raised by arrival: a
+// person who was not with the player when the cascade began, and now is.
+// Depth is bounded so a Story cannot loop the engine. Semantics: ADR-0005.
 import type { Conditions, Effect, EventPayload, Id, PersonOrPlayer, Rule, Story, Trigger, Verb } from '../schema/index.js';
 import { apply, currentAct, currentPeriod, inventory, personsPresent, type State } from './state.js';
 import { clockTimePassed } from './time.js';
@@ -25,6 +27,8 @@ export function firingsFrom(story: Story, events: EventPayload[]): Firing[] {
   for (const e of events) {
     switch (e.kind) {
       case 'Moved': out.push({ kind: 'leave', location: e.from }, { kind: 'enter', location: e.to }); break;
+      /** The opening counts as entering the opening location, as entering any later act counts as entering its anchor. */
+      case 'InvestigationStarted': out.push({ kind: 'enter', location: story.opening.location }); break;
       /** Entering an act puts the player at its anchor; that counts as entering the location. */
       case 'ActEntered': out.push({ kind: 'enter', location: story.acts.find(a => a.id === e.act)!.anchorLocation }); break;
       case 'FlagSet': out.push({ kind: 'flag', flag: e.flag }); break;
@@ -91,7 +95,9 @@ export function conditionsHold(story: Story, s: State, w: Conditions | undefined
 
 export function ruleEligible(story: Story, s: State, r: Rule, f: Firing): boolean {
   if (r.once && (s.firedRules[r.id] ?? 0) > 0) return false;
-  return triggerMatches(r.trigger, f, s) && conditionsHold(story, s, r.when);
+  if (!triggerMatches(r.trigger, f, s)) return false;
+  // A leave Rule judges its conditions from the room being left: the world as it is now, with the player still there.
+  return conditionsHold(story, f.kind === 'leave' ? { ...s, location: f.location } : s, r.when);
 }
 
 /** Tick Rules that could fire now, in authored order. The engine draws one by weight. */
@@ -130,7 +136,15 @@ export function effectEvents(story: Story, s: State, e: Effect, ruleId: Id): Eve
     case 'setDisposition': return [{ kind: 'DispositionChanged', person: e.person, disposition: e.disposition }];
     case 'playBeat': return [{ kind: 'BeatQueued', rule: ruleId, beats: e.beats, asQuote: e.asQuote ?? false }];
     case 'cue': return [{ kind: 'CuePlayed', sound: e.sound }];
-    case 'advanceAct': return s.act === e.act ? [] : [{ kind: 'ActEntered', act: e.act }];
+    case 'advanceAct': {
+      if (s.act === e.act) return [];
+      // Entering an act delivers every delayed grant still in flight (ADR-0005).
+      const due = new Map<string, EventPayload>();
+      for (const g of s.pendingGrants) {
+        if (!s.knows[g.person]?.[g.fact]) due.set(`${g.person}/${g.fact}`, { kind: 'FactLearned', person: g.person, fact: g.fact });
+      }
+      return [{ kind: 'ActEntered', act: e.act }, ...due.values()];
+    }
     case 'endGame': return s.ended ? [] : [{ kind: 'GameEnded', ending: e.ending }];
   }
 }
@@ -142,12 +156,22 @@ export interface Cascade { events: EventPayload[]; state: State }
  * follow the Firings those Effects raise, to a bounded depth. Clue discovery
  * is folded in: whenever the player comes to know a Fact, its Clue is found.
  * Stops as soon as the game ends.
+ *
+ * `presentBefore` is who was with the player before whatever this cascade
+ * follows (a move, a Tick, the clock); anyone with the player now who was not
+ * then has arrived, and raises a proximity Firing after the given ones. It
+ * defaults to whoever is present in `state`, i.e. no arrivals.
  */
-export function cascade(story: Story, state: State, firings: Firing[]): Cascade {
+export function cascade(story: Story, state: State, firings: Firing[], presentBefore?: Id[]): Cascade {
   const out: EventPayload[] = [];
   let s = state;
   let pending = firings;
-  for (let depth = 0; pending.length > 0 && depth < MAX_CASCADE_DEPTH && !s.ended; depth++) {
+  let seen = presentBefore ?? personsPresent(story, s);
+  for (let depth = 0; depth < MAX_CASCADE_DEPTH && !s.ended; depth++) {
+    const now = personsPresent(story, s);
+    pending = [...pending, ...now.filter(p => !seen.includes(p)).map(person => ({ kind: 'proximity', person }) as Firing)];
+    seen = now;
+    if (pending.length === 0) break;
     const produced: EventPayload[] = [];
     for (const f of pending) {
       if (s.ended) break;

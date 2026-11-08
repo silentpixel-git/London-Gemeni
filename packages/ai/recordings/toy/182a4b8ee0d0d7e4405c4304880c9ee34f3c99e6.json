@@ -1,6 +1,6 @@
 {
   "kind": "narrate",
-  "summary": "narrate opening at hall: InvestigationStarted",
+  "summary": "narrate opening at hall: InvestigationStarted,RuleFired,BeatQueued,DispositionChanged",
   "result": {
     "prose": "The house is dark when you arrive. In the hall a long-case clock ticks, and the housekeeper watches you from the foot of the stairs.",
     "observations": [

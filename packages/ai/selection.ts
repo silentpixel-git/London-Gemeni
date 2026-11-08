@@ -1,23 +1,11 @@
-// The one membership check for a Selection against its Candidate Set, and for
+// The membership checks at the seam: a Selection against its Candidate Set, and
 // Observations against the narration context. The adapters apply them (README:
 // a Selection naming an id outside the set becomes none) and the turn endpoint
-// applies the Selection check again, so both read the same rule.
-import type { CandidateSet, NarrationContext, NarrationResult, Selection } from '../schema/index.js';
+// applies the Selection check again. The Selection rule itself lives in the
+// schema (inCandidateSet), so the prover reads the same one.
+import { inCandidateSet, type CandidateSet, type NarrationContext, type NarrationResult, type Selection } from '../schema/index.js';
 
-export function inCandidateSet(sel: Selection, set: CandidateSet): boolean {
-  if (sel.kind !== 'intent') return true;
-  const objects = new Set(set.objects.map(o => o.id));
-  const persons = new Set(set.persons.map(p => p.id));
-  if (!set.verbs.includes(sel.verb)) return false;
-  if (sel.target !== undefined && !objects.has(sel.target)) return false;
-  if (sel.secondary !== undefined && !objects.has(sel.secondary)) return false;
-  if (sel.person !== undefined && !persons.has(sel.person)) return false;
-  if (sel.exit !== undefined && !set.exits.some(x => x.id === sel.exit)) return false;
-  // A topic is a Fact id offered for the named person (or for anyone present when none is named).
-  if (sel.topic !== undefined && !set.topics.some(t => t.fact === sel.topic && (sel.person === undefined || t.person === sel.person))) return false;
-  if (sel.facts?.some(f => !set.knownFacts.some(k => k.id === f))) return false;
-  return true;
-}
+export { inCandidateSet };
 
 /** The Selection, or none when it names something the set does not hold. */
 export function confineSelection(sel: Selection, set: CandidateSet): Selection {

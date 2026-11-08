@@ -11,7 +11,7 @@ import {
 import { loadStoryDir } from '../packages/schema/load.js';
 import {
   apply, buildNarrationContext, candidates, exactSelection, feedOf, initialState, personsPresent, playerView,
-  replay, resolveTurn, tick, type State,
+  replay, resolveTurn, startInvestigation, tick, type State,
 } from '../packages/engine/index.js';
 import { gateNarration, type GateVerdict } from '../packages/ai/gate.js';
 import { confineSelection } from '../packages/ai/selection.js';
@@ -154,7 +154,8 @@ async function prepareOnce(body: TurnBody, deps: TurnDeps): Promise<Prepared | R
     if (!story) return { status: 404, message: `no story ${body.start.storyId}` };
     const { id } = await deps.store.create(body.start.storyId, body.start.name, deps.ownerId ?? null);
     const seed = (deps.newSeed ?? randomSeed)();
-    const events: EventPayload[] = [{ kind: 'InvestigationStarted', story: story.id, seed }];
+    // The opening is a turn: InvestigationStarted, then the Rules it sets off (ADR-0005).
+    const { events } = startInvestigation(story, seed);
     const { rows, state } = number(story, initialState(story, seed), events, 0);
     await deps.store.append(id, rows);
     return { investigationId: id, story, state, events, prior: [], seqFrom: 0, mode: 'opening', quiet: false };

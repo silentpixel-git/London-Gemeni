@@ -19,7 +19,7 @@ Bias toward caution over speed; use judgment on trivial tasks.
 
 The engine is mid-rebuild (`docs/engine-rebuild-plan.md`). Phases 0–4 are done: a story-agnostic engine runs on the server and the UI renders what it says. The Whitechapel story is not yet authored for it (Phase 6), so new games start on the stress fixture, "The Saltmarsh Light". The last commit with the old engine and the Whitechapel story as TypeScript is on the `archive/pre-phase4-engine` branch; Phase 6 reads its source material from there.
 
-Read before touching `packages/`, `server/` or `api/`, in this order: `GLOSSARY.md` (the vocabulary: Story, Fact, Flavour, Rule, Event, Investigation, Candidate Set), the plan, `docs/adr/0001`–`0004`, `server/TURN.md` (the turn endpoint's contract), `packages/schema/README.md`.
+Read before touching `packages/`, `server/` or `api/`, in this order: `GLOSSARY.md` (the vocabulary: Story, Fact, Flavour, Rule, Event, Investigation, Candidate Set), the plan, `docs/adr/0001`–`0005` (0005 pins the Rule semantics every act is authored against), `server/TURN.md` (the turn endpoint's contract), `packages/schema/README.md`.
 
 **The invariant:** the engine decides, the AI narrates. Every Fact (a clue, an exit, where a thing or person is, who knows what) is created only by the engine. The narrator may improvise Flavour, which is recorded as an Observation, and the server-side invention gate rejects names and numbers the turn's context does not hold. The engine stays general: content that does not fit asks "what general mechanism is missing?", never for a story-shaped special case.
 

@@ -42,6 +42,8 @@ export interface State {
   firedRules: Record<Id, number>;
   pendingGrants: Array<{ person: PersonOrPlayer; fact: Id; maturesAtBoundary: number }>;
   examined: Record<Id, true>;
+  /** Everyone who has shared a location with the player: who a deduction may accuse. */
+  met: Record<Id, true>;
   observations: Observation[];
   ended: Id | null;
   /** The text of the current turn, so Spoke can log the player's line. */
@@ -52,7 +54,7 @@ export interface State {
 
 export function initialState(story: Story, seed: number): State {
   const act = story.acts.find(a => a.id === story.opening.act)!;
-  return {
+  const s: State = {
     story: story.id,
     seed,
     turn: 0,
@@ -73,7 +75,7 @@ export function initialState(story: Story, seed: number): State {
       introduced: !p.alias,
     }])),
     knows: {
-      player: {},
+      player: Object.fromEntries(story.facts.filter(f => f.knownBy.includes('player')).map(f => [f.id, true as const])),
       ...Object.fromEntries(story.persons.map(p => [p.id, Object.fromEntries(
         story.facts.filter(f => f.knownBy.includes(p.id)).map(f => [f.id, true as const]),
       )])),
@@ -84,11 +86,19 @@ export function initialState(story: Story, seed: number): State {
     firedRules: {},
     pendingGrants: [],
     examined: {},
+    met: {},
     observations: [],
     ended: null,
     turnText: '',
     beats: [],
   };
+  return withMet(story, s);
+}
+
+/** Presence can change only on these Events; each one records whoever is with the player now as met. */
+function withMet(story: Story, s: State): State {
+  const fresh = personsPresent(story, s).filter(id => !s.met[id]);
+  return fresh.length ? { ...s, met: { ...s.met, ...Object.fromEntries(fresh.map(id => [id, true as const])) } } : s;
 }
 
 const TRANSCRIPT_WINDOW = 12;
@@ -104,7 +114,7 @@ export function apply(story: Story, s: State, e: EventPayload): State {
     case 'Used': case 'Combined': case 'Shown': case 'Deduced': case 'CuePlayed':
       return s;
     case 'RuleFired': return { ...s, firedRules: { ...s.firedRules, [e.rule]: (s.firedRules[e.rule] ?? 0) + 1 } };
-    case 'Moved': return { ...s, location: e.to };
+    case 'Moved': return withMet(story, { ...s, location: e.to });
     case 'Examined': return { ...s, examined: { ...s.examined, [e.object]: true } };
     case 'Read': {
       // A 'document' introduction names the person once their document is read.
@@ -126,7 +136,7 @@ export function apply(story: Story, s: State, e: EventPayload): State {
       return { ...s, objects: { ...s.objects, [e.object]: { ...cur, placement: e.placement, hidden: e.hidden ?? cur.hidden } } };
     }
     case 'ExitLockChanged': return { ...s, exitLocks: { ...s.exitLocks, [`${e.location}/${e.exit}`]: e.lock } };
-    case 'PersonMoved': return { ...s, persons: { ...s.persons, [e.person]: { ...s.persons[e.person], override: e.location } } };
+    case 'PersonMoved': return withMet(story, { ...s, persons: { ...s.persons, [e.person]: { ...s.persons[e.person], override: e.location } } });
     case 'DispositionChanged': return { ...s, persons: { ...s.persons, [e.person]: { ...s.persons[e.person], disposition: e.disposition } } };
     case 'Spoke': {
       const p = story.persons.find(x => x.id === e.person);
@@ -156,12 +166,14 @@ export function apply(story: Story, s: State, e: EventPayload): State {
       const clock = s.clock + e.minutes;
       const boundaries = s.boundaries + boundariesCrossed(story, s.clock, clock);
       // Matured grants are emitted as FactLearned by the engine; here they only leave the queue.
-      return { ...s, clock, boundaries, pendingGrants: s.pendingGrants.filter(g => g.maturesAtBoundary > boundaries) };
+      return withMet(story, { ...s, clock, boundaries, pendingGrants: s.pendingGrants.filter(g => g.maturesAtBoundary > boundaries) });
     }
     case 'ActEntered': {
       const act = story.acts.find(a => a.id === e.act)!;
       const persons = Object.fromEntries(Object.entries(s.persons).map(([id, p]) => [id, { ...p, override: undefined }]));
-      return { ...s, act: act.id, location: act.anchorLocation, clock: act.startClockMinutes, persons };
+      // An act boundary is time enough for every rumour in flight: the engine emits their
+      // FactLearned right after this Event, so here they only leave the queue (ADR-0005).
+      return withMet(story, { ...s, act: act.id, location: act.anchorLocation, clock: act.startClockMinutes, persons, pendingGrants: [] });
     }
     case 'BeatQueued': return { ...s, beats: [...s.beats, { beats: e.beats, asQuote: e.asQuote }] };
     case 'Narrated': {

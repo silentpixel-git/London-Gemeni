@@ -6,6 +6,8 @@ Scope as briefed: `packages/schema`, `packages/engine`, `packages/ai`, `server/t
 
 ## Summary
 
+> **Follow-up (same branch).** The owner pinned the seven semantics recommended after this review; they are recorded in `docs/adr/0005-pinned-rule-semantics.md` and enforced by the engine and the QA suites. That resolves H1 to H7, M1, M2, L1, and design questions 1 and 2. M3 is narrowed: a scheduled arrival now fires `proximity`, so an author can narrate it, but a departure is still invisible to the narrator. H8, H9, the other Mediums, Lows and design questions are unchanged and independent of those decisions. The findings below describe the engine as reviewed, at `6af289a`.
+
 Phase 6 can start on this engine. The core is sound: State is a pure fold of the log, the server, `feedOf` and `playerView` all fold with the same `apply`, every random draw is recorded, and the seq series plus the "one turn at a time" rule hold under the races I could construct. I found no replay divergence and no way to read another account's log.
 
 What I did find is a layer of semantic traps between what an author will reasonably write and what the engine does, and none of them produce an error. Four should be fixed before the first act is authored, because each one shapes how every act's Rules are written:
