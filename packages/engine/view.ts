@@ -39,6 +39,11 @@ export function feedOf(story: Story, events: EventPayload[]): FeedItem[] {
 export function playerView(story: Story, events: EventPayload[]): PlayerView {
   const diary: Diary = { acts: [], clues: [], persons: [], documents: [] };
   const met = new Set<Id>();
+  // What the player has tried, for the client's "Try" chips: examined or read Objects,
+  // people spoken to (per location, as "person@location"), locations visited.
+  const examined = new Set<Id>();
+  const spoken = new Set<string>();
+  const visited = new Set<Id>();
   let s = initialState(story, 0);
   const enterAct = (st: State) => {
     const a = currentAct(story, st);
@@ -46,6 +51,9 @@ export function playerView(story: Story, events: EventPayload[]): PlayerView {
   };
   for (const e of events) {
     s = apply(story, s, e);
+    if (e.kind === 'InvestigationStarted' || e.kind === 'ActEntered' || e.kind === 'Moved') visited.add(s.location);
+    if (e.kind === 'Examined' || e.kind === 'Read') examined.add(e.object);
+    if (e.kind === 'Spoke') spoken.add(`${e.person}@${s.location}`);
     if (e.kind === 'InvestigationStarted' || e.kind === 'ActEntered') enterAct(s);
     else if (e.kind === 'ClueDiscovered' && !diary.clues.some(c => c.id === e.clue)) {
       const c = story.clues.find(x => x.id === e.clue)!;
@@ -79,7 +87,7 @@ export function playerView(story: Story, events: EventPayload[]): PlayerView {
     weather: { id: act.weather, name: story.weathers.find(w => w.id === act.weather)?.name ?? act.weather },
     location: { id: loc.id, name: loc.name },
     inventory: inventory(s).map(id => ({ id, name: objName(id) })),
-    persons: personsPresent(story, s).map(id => ({ id, name: label(id) })),
+    persons: personsPresent(story, s).map(id => ({ id, name: label(id), ...(spoken.has(`${id}@${s.location}`) ? { spokenTo: true as const } : {}) })),
     objects: visibleObjects(s, s.location).map(id => {
       const o = s.objects[id];
       return {
@@ -87,9 +95,10 @@ export function playerView(story: Story, events: EventPayload[]): PlayerView {
         name: objName(id),
         ...(o.container && o.container.state !== 'open' ? { closed: true as const } : {}),
         ...(o.placement.kind === 'container' ? { inside: o.placement.container } : {}),
+        ...(examined.has(id) ? { examined: true as const } : {}),
       };
     }),
-    exits: loc.exits.map(x => ({ id: x.id, name: x.names[0], to: story.locations.find(l => l.id === x.to)!.name })),
+    exits: loc.exits.map(x => ({ id: x.id, name: x.names[0], to: story.locations.find(l => l.id === x.to)!.name, ...(visited.has(x.to) ? { visited: true as const } : {}) })),
     ended: ending ? { id: ending.id, name: ending.name } : null,
     diary,
   };

@@ -36,6 +36,8 @@ interface HeaderProps {
   onToggleSound: () => void;
   ambientAudio: boolean;
   onToggleAmbient: () => void;
+  showSuggestions: boolean;
+  onToggleSuggestions: () => void;
   user: User | null;
   userProfile: UserProfile | null;
   /** The player's investigations: open one, start one, delete one. Every turn is saved as it happens. */
@@ -96,6 +98,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSound,
   ambientAudio,
   onToggleAmbient,
+  showSuggestions,
+  onToggleSuggestions,
   user,
   userProfile,
   onOpenInvestigations,
@@ -340,6 +344,8 @@ export const Header: React.FC<HeaderProps> = ({
                             onToggleSound={onToggleSound}
                             ambientAudio={ambientAudio}
                             onToggleAmbient={onToggleAmbient}
+                            showSuggestions={showSuggestions}
+                            onToggleSuggestions={onToggleSuggestions}
                           />
                         </div>
                       }
@@ -453,6 +459,8 @@ export const Header: React.FC<HeaderProps> = ({
                             onToggleSound={onToggleSound}
                             ambientAudio={ambientAudio}
                             onToggleAmbient={onToggleAmbient}
+                            showSuggestions={showSuggestions}
+                            onToggleSuggestions={onToggleSuggestions}
                           />
                         </div>
                       }

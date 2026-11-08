@@ -17,12 +17,12 @@ export interface PlayerView {
   weather: Named;
   location: Named;
   inventory: Named[];
-  /** People here, by the label the player knows them by (alias until introduced). */
-  persons: Named[];
-  /** Objects here and not carried. `inside` names the open container holding it. */
-  objects: Array<Named & { closed?: true; inside?: Id }>;
-  /** `name` is the exit's first authored name (a command word); `to` the destination's name. */
-  exits: Array<{ id: Id; name: string; to: string }>;
+  /** People here, by the label the player knows them by (alias until introduced). `spokenTo`: the player has talked to them in this location. */
+  persons: Array<Named & { spokenTo?: true }>;
+  /** Objects here and not carried. `inside` names the open container holding it; `examined`: the player has examined or read it. */
+  objects: Array<Named & { closed?: true; inside?: Id; examined?: true }>;
+  /** `name` is the exit's first authored name (a command word); `to` the destination's name; `visited`: the player has been there. */
+  exits: Array<{ id: Id; name: string; to: string; visited?: true }>;
   ended: Named | null;
   diary: Diary;
 }
