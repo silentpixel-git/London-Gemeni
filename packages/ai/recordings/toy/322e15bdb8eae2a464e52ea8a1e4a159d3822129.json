@@ -1,0 +1,8 @@
+{
+  "kind": "narrate",
+  "summary": "narrate full at hall: TurnReceived,IntentSelected,Spoke,FactDisclosed,ClueDiscovered,RuleFired,FlagSet,RuleFired,GrantScheduled,ClockAdvanced",
+  "result": {
+    "prose": "You look again: tiles, the mat, the clock, and the housekeeper by the stairs.",
+    "observations": []
+  }
+}

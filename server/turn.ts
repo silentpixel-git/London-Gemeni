@@ -217,29 +217,44 @@ function fallbackNarrated(ctx: NarrationContext): EventPayload {
   return { kind: 'Narrated', text: fallbackProse(ctx), beats: ctx.beats };
 }
 
+/** The miss line when nothing better can be said. Tense- and person-neutral, and never the selection model's own reason. */
+const NOTHING_TO_HAND = 'Nothing of the kind to hand.';
+
+/** A rejected narration attempt, with whether the gate found an invented name in it. */
+interface Attempt { prose: string; inventedName: boolean }
+
 /**
- * What the player reads when the narration cannot be used. The Beats, when the
- * turn has any: they carry its substance. A turn with none (a take, a talk, a
- * miss) keeps the narrator's own sentences that pass the gate on their own,
- * from the retry, then the first attempt, so it is never silent and nothing
- * invented survives. Failing that, the engine's own words for the turn.
+ * What the player reads when the narration cannot be used, in order:
+ *   the turn's Beats, which carry its substance;
+ *   on a turn with none, the Facts it told the player, in the speaker's voice;
+ *   the narrator's sentences that pass the gate on their own, from an attempt
+ *     that invented no name (a sentence about an invented person would
+ *     survive without them: "He nods to you.");
+ *   a fixed miss line for a rejected intent;
+ *   the names of what the turn touched.
+ * Nothing written by the selection model, and nothing that failed the gate,
+ * reaches the log.
  */
-function fallbackProse(ctx: NarrationContext, attempts: string[] = [], gate?: NonNullable<TurnDeps['gate']>): string {
+function fallbackProse(ctx: NarrationContext, attempts: Attempt[] = [], gate?: NonNullable<TurnDeps['gate']>): string {
   if (ctx.beats.length) return ctx.beats.join(' ');
+  if (ctx.facts.length) return ctx.facts.map(f => f.voice ?? f.statement).join(' ');
   if (gate) {
-    for (const prose of attempts) {
-      const kept = prose.split(/\n{2,}/)
-        .map(par => par.split(/(?<=[.!?…]["”’)]*)\s+/).filter(s => s.trim() && gate(ctx, { prose: s, observations: [] }).ok).join(' '))
+    for (const a of attempts) {
+      if (a.inventedName) continue;
+      const kept = a.prose.split(/\n{2,}/)
+        .map(par => par.split(/(?<=[.!?…]["”’')]*)\s+/).filter(s => s.trim() && gate(ctx, { prose: s, observations: [] }).ok).join(' '))
         .filter(Boolean).join('\n\n');
       if (kept) return kept;
     }
   }
-  const rejected = ctx.events.find(e => e.kind === 'IntentRejected');
-  if (rejected?.kind === 'IntentRejected') return `${rejected.reason[0].toUpperCase()}${rejected.reason.slice(1)}.`;
-  const name = (id: string) => ctx.objectsVisible.find(o => o.id === id)?.name ?? ctx.personsPresent.find(p => p.id === id)?.label;
+  if (ctx.events.some(e => e.kind === 'IntentRejected')) return NOTHING_TO_HAND;
+  const name = (id: string) => {
+    const object = ctx.objectsVisible.find(o => o.id === id)?.name;
+    return object ? `the ${object}` : ctx.personsPresent.find(p => p.id === id)?.label ?? ctx.personsNamed.find(p => p.id === id)?.label;
+  };
   const touched = [...new Set(ctx.events.flatMap(e => ('object' in e ? [e.object] : 'person' in e && typeof e.person === 'string' ? [e.person] : [])))]
     .map(name).filter((x): x is string => !!x);
-  return touched.length ? `${touched.map(t => t[0].toUpperCase() + t.slice(1)).join('. ')}.` : '';
+  return touched.map(t => `${t[0].toUpperCase()}${t.slice(1)}.`).join(' ');
 }
 
 /** Close a turn whose request died before narrating it, with the fallback it would have used. */
@@ -281,8 +296,11 @@ async function narrateGated(
     ? { ...ctx, beats: [`Rejected inventions, not in this context: ${verdict.inventions.map(i => i.token).join(', ')}.`, ...ctx.beats] }
     : ctx;
   const second = await collect(ai.narrate(retryCtx), () => {});
-  if (second.prose.trim() && gate(ctx, second).ok) return second;
-  return { prose: fallbackProse(ctx, [second.prose, first.prose], gate), observations: [] };
+  const again = second.prose.trim() ? gate(ctx, second) : { ok: false, inventions: [] };
+  if (again.ok) return second;
+  const named = (v: GateVerdict) => v.inventions.some(i => i.kind === 'name');
+  const attempts = [{ prose: second.prose, inventedName: named(again) }, { prose: first.prose, inventedName: named(verdict) }];
+  return { prose: fallbackProse(ctx, attempts, gate), observations: [] };
 }
 
 async function collect(chunks: AsyncIterable<{ kind: 'text'; delta: string } | { kind: 'done'; result: NarrationResult }>, onDelta: (delta: string) => void): Promise<NarrationResult> {

@@ -5,6 +5,7 @@
 //   personsPresent       label = introduced ? name : alias ?? name; beats = person.beats
 //   objectsVisible       visibleObjects(here) + inventory, by name
 //   personsNamed         persons a turnEvent names (person, suspect, from, to) who are not present, labelled as above
+//   placesNamed          the destinations of this location's exits, and Moved.from, by name (not the location itself)
 //   events               turnEvents verbatim
 //   beats                flattened from s.beats (BeatQueued this turn), plus Location.beats on Moved/Looked,
 //                        Object.beats on Examined, Object.document on Read, Ending.beats on GameEnded
@@ -58,6 +59,10 @@ export function buildNarrationContext(story: Story, s: State, turnEvents: EventP
     for (const id of ids) if (id && story.persons.some(p => p.id === id) && !present.includes(id)) named.add(id);
   }
 
+  const places = new Set<Id>(loc.exits.map(x => x.to));
+  for (const e of turnEvents) if (e.kind === 'Moved') places.add(e.from);
+  places.delete(loc.id);
+
   const stmts = (ids: Id[]) => ids.map(id => fact(id)?.statement).filter((x): x is string => !!x);
   const subjects = new Set<Id>([s.location, ...present, ...visible]);
   return {
@@ -71,6 +76,7 @@ export function buildNarrationContext(story: Story, s: State, turnEvents: EventP
     personsPresent: present.map(id => ({ id, label: label(id), disposition: s.persons[id].disposition, beats: story.persons.find(x => x.id === id)!.beats })),
     objectsVisible: visible.map(id => ({ id, name: obj(id)!.name })),
     personsNamed: story.persons.filter(p => named.has(p.id)).map(p => ({ id: p.id, label: label(p.id) })),
+    placesNamed: story.locations.filter(l => places.has(l.id)).map(l => ({ id: l.id, name: l.name })),
     events: turnEvents,
     beats,
     facts,

@@ -266,19 +266,28 @@ check('gate rejects twice: falls back to the Beats alone, no Observations',
   always.done?.narrated.text);
 
 {
-  // A turn with no Beats (a plain take) used to fall back to the Beats alone, which is nothing: silence.
-  const s = memoryStore();
-  const strict: TurnDeps['gate'] = (_ctx, result) =>
-    /bright|look again/i.test(result.prose) ? { ok: false, inventions: [{ kind: 'name' as const, token: INVENTED }] } : { ok: true, inventions: [] };
-  const st = await post({ start: { storyId: 'toy', name: 'QA beatless' } }, { store: s, gate: strict });
-  const invId = st.events?.investigationId as string;
-  await post({ investigationId: invId, text: 'open the clock' }, { store: s, gate: strict });
-  const took = await post({ investigationId: invId, text: 'take the key' }, { store: s, gate: strict });
+  // A turn with no Beats (a plain take, an ask) used to fall back to the Beats alone, which is nothing: silence.
+  const rejecting = (pattern: RegExp, kind: 'name' | 'number'): TurnDeps['gate'] => (_ctx, result) =>
+    pattern.test(result.prose) ? { ok: false, inventions: [{ kind, token: INVENTED }] } : { ok: true, inventions: [] };
+  const playTo = async (gate: TurnDeps['gate'], last: string) => {
+    const s = memoryStore();
+    const st = await post({ start: { storyId: 'toy', name: 'QA beatless' } }, { store: s, gate });
+    const invId = st.events?.investigationId as string;
+    if (last === 'take the key') await post({ investigationId: invId, text: 'open the clock' }, { store: s, gate });
+    return post({ investigationId: invId, text: last }, { store: s, gate });
+  };
+  const numbers = await playTo(rejecting(/bright|look again/i, 'number'), 'take the key');
   check('gate rejects twice on a turn with no Beats: the narrator\'s sentences that pass, not silence',
-    took.done?.narrated.text === 'You take the brass key.' && (took.done?.narrated.beats as string[]).length === 0 && took.done?.observations.length === 0
-    && JSON.stringify((took.done?.feed as FeedItem[]).map(f => f.kind)) === '["player","prose"]', took.done?.narrated.text);
+    numbers.done?.narrated.text === 'You take the brass key.' && (numbers.done?.narrated.beats as string[]).length === 0 && numbers.done?.observations.length === 0
+    && JSON.stringify((numbers.done?.feed as FeedItem[]).map(f => f.kind)) === '["player","prose"]', numbers.done?.narrated.text);
+  const names = await playTo(rejecting(/bright|look again/i, 'name'), 'take the key');
+  check('…but not from an attempt that invented a name (its other sentences may be about that person): the thing taken instead',
+    names.done?.narrated.text === 'The brass key.', names.done?.narrated.text);
+  const fact = story.facts.find(f => f.id === 'key_in_clock')!;
+  const asked = await playTo(rejecting(/hesitates|look again/i, 'name'), 'ask the housekeeper about the key');
+  check('…and an ask keeps its substance: the Fact told, in the speaker\'s voice',
+    asked.done?.narrated.text === (fact.voices?.housekeeper ?? fact.statement), asked.done?.narrated.text);
 }
-
 // ── A quiet Tick ────────────────────────────────────────────────────────────
 
 {
@@ -351,6 +360,21 @@ async function startWith(s: InvestigationStore, extra: Partial<TurnDeps> = {}) {
 }
 const kindsIn = async (s: InvestigationStore, invId: string) => (await logOf(s, invId)).map(e => e.payload.kind);
 const isError = (r: { status: number; kinds: string[] }, status: number) => r.status === status && r.kinds.join() === 'error';
+
+{
+  // A selection model's miss reason is free text: it must neither crash the fallback (an empty one did) nor reach the player.
+  for (const reason of ['', 'Mary Kelly is not here, the player is confused']) {
+    const s = memoryStore();
+    const inventive: Ai = { select: async () => ({ kind: 'none', reason }), async *narrate() { yield { kind: 'done', result: { prose: 'You see Lestrade by the door.', observations: [] } }; } };
+    const st = await post({ start: { storyId: 'toy', name: 'QA miss' } }, { store: s, gate: passGate });
+    const invId = st.events?.investigationId as string;
+    const miss = await post({ investigationId: invId, text: 'fly away' }, { store: s, ai: inventive });
+    const next = await post({ investigationId: invId, text: 'look' }, { store: s, ai: stubAi(), gate: passGate });
+    check(`a miss with reason ${JSON.stringify(reason)} and a narrator that invents twice: a fixed miss line, and play goes on`,
+      miss.status === 200 && wellOrdered(miss.kinds) && miss.done?.narrated.text === 'Nothing of the kind to hand.' && next.status === 200,
+      `${miss.status} ${miss.kinds.join(',')} ${miss.done?.narrated.text} / next ${next.status}`);
+  }
+}
 
 {
   const s = memoryStore();

@@ -44,8 +44,25 @@ check(caught(ctx, '"Go," Pemberton said.').includes('Pemberton'), 'a name right 
 check(['fourteen', 'sixty', 'dozen'].every(t => caught(ctx, 'Some fourteen casks, sixty gallons, a dozen men.').includes(t)), 'teens, tens and a dozen are numbers');
 check(caught(ctx, 'There were 66 of them.').includes('66'), 'a number is matched whole, not inside another');
 check(ctx.clock.minutes === 1235, 'the turn above is at 20:35', String(ctx.clock.minutes));
-check(verdict('It was gone eight, near enough, when the Inspector and two French sailors came; she said, "Yes."').ok, 'the hour in words, ranks, nationalities and a quoted reply pass');
-check(!verdict('It was gone nine when she came.').ok, 'an hour other than the clock\'s is still an invention');
+check(verdict('It was gone eight, near enough, and twenty-five to nine by the hall clock; she said, "Yes," and then, \'Never, sir.\'').ok, 'the hour in words (and "to the hour"), and quoted replies pass');
+check(!verdict('It was gone ten when she came.').ok, 'an hour other than the clock\'s is still an invention');
+check(['Sergeant', 'French'].every(t => caught(ctx, 'Then the Sergeant and two French sailors came.').includes(t)), 'ranks and nationalities are the Story\'s call: rejected without the lexicon');
+check(gateNarration({ ...ctx, lexicon: [...ctx.lexicon, 'Sergeant', 'French'] }, { prose: 'Then the Sergeant and two French sailors came.', observations: [] }).ok, '…and accepted once the Story lists them');
+
+// Engineering review of the first gate fix.
+const asked = { ...ctx, transcript: [{ person: 'housekeeper', lines: [{ speaker: 'player' as const, text: 'ask the housekeeper about Mary Kelly and the 40 barrels' }] }] };
+check(['Kelly', '40'].every(t => caught(asked, 'She frowns at the name of Kelly, and says that 40 casks is a lie.').includes(t)), 'the player\'s own lines in the Transcript license nothing');
+check(caught(withEvents([{ kind: 'IntentRejected', reason: 'Mary Kelly is not here' }]), 'She has never heard of Kelly.').includes('Kelly'), 'a selection model\'s miss reason licenses nothing');
+check(['She said, "Lestrade was here."', 'She whispered, "Kelly, it was," and looked away.', 'She said, (Lestrade had told her) it was so.'].every(p => !verdict(p).ok),
+  'a name opening a quotation or a parenthesis is checked');
+check(caught(ctx, 'You find Mr. Lestrade waiting, and Dr. Abberline.').join() === 'Lestrade,Abberline', 'an abbreviation\'s full stop does not hide the name after it');
+check(['31', '3', '4'].every(t => caught(ctx, 'She called on the 31st and paid 3s 4d.').includes(t)), 'a number with letters attached is still a number');
+check(['ninth', 'third'].every(t => caught(ctx, 'It was the ninth of the month, the third time.').includes(t)), 'spelled ordinals are numbers');
+check(caught(ctx, 'A card on the mat reads LESTRADE & SONS.').includes('LESTRADE'), 'a name in capitals is caught');
+check(caught(ctx, 'She mentions Müller, a lodger.').includes('Müller'), 'a name with a non-ASCII letter is caught');
+const waited = withEvents([{ kind: 'TickResolved', minutes: 15, draw: 0.5, rule: null }, { kind: 'ClockAdvanced', minutes: 15 }]);
+check(gateNarration(waited, { prose: 'The clock ticks on, and fifteen minutes crawl by.', observations: [] }).ok, 'the minutes a turn took may be said');
+check(verdict('The door to the Study stands shut.').ok && ctx.placesNamed.some(p => p.name === 'The Study'), 'the places this location\'s exits lead to may be named');
 
 console.log(`\n${fails === 0 ? 'OK' : `${fails} FAILURE(S)`}`);
 process.exit(fails === 0 ? 0 : 1);
