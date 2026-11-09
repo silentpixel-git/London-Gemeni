@@ -8,7 +8,7 @@ import { Story } from '../packages/schema';
 import { loadStoryDir } from '../packages/schema/load';
 import { buildNarrationContext, initialState, resolveTurn } from '../packages/engine';
 import { fixedRng } from '../packages/engine/rng';
-import { gateNarration } from '../packages/ai/gate';
+import { findInventions, gateNarration } from '../packages/ai/gate';
 
 const raw = loadStoryDir(join('packages', 'schema', 'fixtures', 'toy')) as Record<string, unknown>;
 raw.narrator = { name: 'Inspector Marsh', aliases: ['the inspector'], voice: ['first person, past tense'] };
@@ -63,6 +63,18 @@ check(caught(ctx, 'She mentions Müller, a lodger.').includes('Müller'), 'a nam
 const waited = withEvents([{ kind: 'TickResolved', minutes: 15, draw: 0.5, rule: null }, { kind: 'ClockAdvanced', minutes: 15 }]);
 check(gateNarration(waited, { prose: 'The clock ticks on, and fifteen minutes crawl by.', observations: [] }).ok, 'the minutes a turn took may be said');
 check(verdict('The door to the Study stands shut.').ok && ctx.placesNamed.some(p => p.name === 'The Study'), 'the places this location\'s exits lead to may be named');
+
+// Second engineering review.
+check(['Pemberton', 'Kelly'].every(t => caught(ctx, '"Who is it?" Pemberton asked from the door. "Go!" Kelly cried.').includes(t)), 'a name attributing dialogue after ?" or !" is checked');
+check(caught(ctx, 'It was signed J. Lestrade, and below it MR. Abberline.').join() === 'Lestrade,Abberline', 'an initial or a capitalised title does not hide the name after it');
+check(['nine', 'five'].every(t => caught(ctx, 'She had nine keys, and paid five shillings for them.').includes(t)), 'the clock\'s numbers are licensed only as a time, not as a count');
+check(caught(ctx, 'It happened on the twenty-first of August.').includes('twenty'), '…so "twenty" from 20:35 does not license "the twenty-first"');
+check(caught(waited, 'She had fifteen keys.').includes('fifteen') && gateNarration(waited, { prose: 'Fifteen minutes crawl by.', observations: [] }).ok, 'elapsed minutes likewise: "fifteen minutes" yes, "fifteen keys" no');
+check(findInventions('Pemberton nods to you.', ctx, { strict: true }).some(i => i.token === 'Pemberton') && findInventions('Pemberton nods to you.', ctx).length === 0,
+  'strict mode checks a sentence\'s first word too (for Observations and salvaged sentences)');
+const remembered = { ...ctx, transcript: [{ person: 'housekeeper', lines: [{ speaker: 'person' as const, text: 'The hall is dark. Lestrade watches you from the stairs.' }] }] };
+check(caught(remembered, 'The housekeeper glances at Lestrade, who says nothing.').includes('Lestrade'), 'the narrator\'s own earlier prose licenses nothing, so a slip does not become a licence');
+check(gateNarration({ ...ctx, lexicon: [...ctx.lexicon, 'George'] }, { prose: 'A portrait of George III hangs by the stairs.', observations: [] }).ok, 'a Roman numeral in capitals is not a name');
 
 console.log(`\n${fails === 0 ? 'OK' : `${fails} FAILURE(S)`}`);
 process.exit(fails === 0 ? 0 : 1);

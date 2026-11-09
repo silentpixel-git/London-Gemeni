@@ -362,6 +362,21 @@ const kindsIn = async (s: InvestigationStore, invId: string) => (await logOf(s, 
 const isError = (r: { status: number; kinds: string[] }, status: number) => r.status === status && r.kinds.join() === 'error';
 
 {
+  // The fallback's salvaged sentences and every kept Observation pass the strict check: no first word escapes.
+  const s = memoryStore();
+  const fixed = (result: NarrationResult): Ai => ({ select: async input => SELECTIONS[input.text] ?? { kind: 'none' }, async *narrate() { yield { kind: 'done', result }; } });
+  const st = await post({ start: { storyId: 'toy', name: 'QA strict' } }, { store: s, ai: fixed(QUIET), gate: passGate });
+  const invId = st.events?.investigationId as string;
+  await post({ investigationId: invId, text: 'open the clock' }, { store: s, ai: fixed(QUIET), gate: passGate });
+  const took = await post({ investigationId: invId, text: 'take the key' }, { store: s, ai: fixed({ prose: 'You take the brass key. Pemberton nods to you from the door. He counts 40 coins.', observations: [] }) });
+  check('a salvaged sentence that opens with an invented name is dropped too',
+    took.done?.narrated.text === 'You take the brass key.', took.done?.narrated.text);
+  const obs = await post({ investigationId: invId, text: 'look' }, { store: s, ai: fixed({ prose: 'The hall is as it was.', observations: [
+    { key: 'clock_maker', subject: 'hall_clock', text: 'Thwaites made the case.' }, { key: 'clock_grain', subject: 'hall_clock', text: 'The walnut is worn pale.' }] }) });
+  check('an Observation whose first word is an invented name is dropped; the prose and the clean Observation stand',
+    obs.done?.narrated.text === 'The hall is as it was.' && JSON.stringify((obs.done?.observations as Array<{ key: string }>).map(o => o.key)) === '["clock_grain"]', JSON.stringify(obs.done?.observations));
+}
+{
   // A selection model's miss reason is free text: it must neither crash the fallback (an empty one did) nor reach the player.
   for (const reason of ['', 'Mary Kelly is not here, the player is confused']) {
     const s = memoryStore();

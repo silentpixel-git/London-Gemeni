@@ -13,7 +13,7 @@ import {
   apply, buildNarrationContext, candidates, exactSelection, feedOf, initialState, personsPresent, playerView,
   replay, resolveTurn, startInvestigation, tick, type State,
 } from '../packages/engine/index.js';
-import { gateNarration, type GateVerdict } from '../packages/ai/gate.js';
+import { findInventions, gateNarration, type GateVerdict } from '../packages/ai/gate.js';
 import { confineSelection } from '../packages/ai/selection.js';
 import type { Ai } from '../packages/ai/types.js';
 import { SeqConflict, type InvestigationStore } from './investigationStore.js';
@@ -217,6 +217,19 @@ function fallbackNarrated(ctx: NarrationContext): EventPayload {
   return { kind: 'Narrated', text: fallbackProse(ctx), beats: ctx.beats };
 }
 
+/**
+ * An Observation is canon from the moment it is kept, and licenses its words on
+ * later turns, so it must pass the strict check (its first word too). One that
+ * does not is dropped; the prose around it stands.
+ */
+function canonObservations(ctx: NarrationContext, result: NarrationResult): NarrationResult {
+  return { ...result, observations: result.observations.filter(o => findInventions(o.text, ctx, { strict: true }).length === 0) };
+}
+
+/** A sentence kept with no narration around it: it passes the gate, and the strict check, on its own. */
+const standsAlone = (ctx: NarrationContext, sentence: string, gate: NonNullable<TurnDeps['gate']>) =>
+  gate(ctx, { prose: sentence, observations: [] }).ok && findInventions(sentence, ctx, { strict: true }).length === 0;
+
 /** The miss line when nothing better can be said. Tense- and person-neutral, and never the selection model's own reason. */
 const NOTHING_TO_HAND = 'Nothing of the kind to hand.';
 
@@ -242,7 +255,7 @@ function fallbackProse(ctx: NarrationContext, attempts: Attempt[] = [], gate?: N
     for (const a of attempts) {
       if (a.inventedName) continue;
       const kept = a.prose.split(/\n{2,}/)
-        .map(par => par.split(/(?<=[.!?…]["”’')]*)\s+/).filter(s => s.trim() && gate(ctx, { prose: s, observations: [] }).ok).join(' '))
+        .map(par => par.replace(/\b(Mr|Mrs|Ms|Dr|St|Rev|[A-Z])\.\s+/g, '$1.\u0001').split(/(?<=[.!?…]["”’')]*)\s+/).map(x => x.replace(/\u0001/g, ' ')).filter(s => s.trim() && standsAlone(ctx, s, gate)).join(' '))
         .filter(Boolean).join('\n\n');
       if (kept) return kept;
     }
@@ -291,13 +304,13 @@ async function narrateGated(
 ): Promise<NarrationResult> {
   const first = await collect(ai.narrate(ctx), onDelta);
   const verdict = first.prose.trim() ? gate(ctx, first) : { ok: false, inventions: [] };
-  if (verdict.ok) return first;
+  if (verdict.ok) return canonObservations(ctx, first);
   const retryCtx: NarrationContext = verdict.inventions.length
     ? { ...ctx, beats: [`Rejected inventions, not in this context: ${verdict.inventions.map(i => i.token).join(', ')}.`, ...ctx.beats] }
     : ctx;
   const second = await collect(ai.narrate(retryCtx), () => {});
   const again = second.prose.trim() ? gate(ctx, second) : { ok: false, inventions: [] };
-  if (again.ok) return second;
+  if (again.ok) return canonObservations(ctx, second);
   const named = (v: GateVerdict) => v.inventions.some(i => i.kind === 'name');
   const attempts = [{ prose: second.prose, inventedName: named(again) }, { prose: first.prose, inventedName: named(verdict) }];
   return { prose: fallbackProse(ctx, attempts, gate), observations: [] };
