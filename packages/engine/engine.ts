@@ -5,7 +5,7 @@ import type { EventPayload, Selection, Story, Verb } from '../schema/index.js';
 import { candidates } from './candidates.js';
 import { turnRng, type Rng } from './rng.js';
 import { cascade, chooseByWeight, clueEvents, eligibleTickRules, fireRule, firingsFrom, type Firing } from './rules.js';
-import { apply, personsPresent, type State } from './state.js';
+import { apply, initialState, personsPresent, type State } from './state.js';
 import { resolveVerb, type Intent } from './verbs.js';
 
 export { candidates };
@@ -21,6 +21,20 @@ export const TICK_MINUTES = 15;
 
 export interface TurnInput { text: string; selection: Selection }
 export interface TurnResult { events: EventPayload[]; state: State }
+
+/**
+ * The opening, as a turn: InvestigationStarted, the Clues for any Fact the
+ * player starts knowing, then the Rules the opening sets off. It counts as
+ * entering the opening location, and everyone standing there has just arrived
+ * (ADR-0005), exactly as entering any later act counts as entering its anchor.
+ */
+export function startInvestigation(story: Story, seed: number): TurnResult {
+  const t = new Emitter(story, initialState(story, seed));
+  t.emit({ kind: 'InvestigationStarted', story: story.id, seed });
+  for (const c of story.clues) if (t.state.knows.player[c.fact] && !t.state.clues.includes(c.id)) t.emit({ kind: 'ClueDiscovered', clue: c.id });
+  t.absorb(cascade(story, t.state, firingsFrom(story, [t.events[0]]), []));
+  return t.result();
+}
 
 export function resolveTurn(story: Story, state: State, input: TurnInput, rng: Rng = turnRng(state.seed, state.turn + 1)): TurnResult {
   const t = new Emitter(story, state);
@@ -40,9 +54,8 @@ export function resolveTurn(story: Story, state: State, input: TurnInput, rng: R
       t.emit({ kind: 'IntentSelected', ...intent });
       if (intent.verb === 'wait') { tickInto(t, MINUTES.wait, rng); return t.result(); }
 
-      // Proximity is a start-of-turn fact: its Rules see the world before the verb moves anything.
-      t.absorb(cascade(story, t.state, proximityFirings(story, t.state)));
-      if (t.state.ended) return t.result();
+      // Who is here before the verb: anyone here after it, or after the Rules it sets off, has arrived.
+      const present = personsPresent(story, t.state);
       const verbEvents = resolveVerb(story, t.state, intent);
       for (const e of verbEvents) {
         t.emit(e);
@@ -55,7 +68,7 @@ export function resolveTurn(story: Story, state: State, input: TurnInput, rng: R
         ...(blocked ? [] : [{ kind: 'action', verb: intent.verb, target: intent.target, secondary: intent.secondary, person: intent.person } as Firing]),
         ...firingsFrom(story, verbEvents),
       ];
-      t.absorb(cascade(story, t.state, firings));
+      t.absorb(cascade(story, t.state, firings, present));
       // Entering an act sets the clock to that act's start; the verb's own minutes would skew it.
       if (!rejected && !t.events.some(e => e.kind === 'ActEntered')) advanceClock(t, MINUTES[intent.verb]);
       return t.result();
@@ -72,19 +85,15 @@ export function tick(story: Story, state: State, minutes: number = TICK_MINUTES,
 }
 
 function tickInto(t: Emitter, minutes: number, rng: Rng) {
-  t.absorb(cascade(t.story, t.state, proximityFirings(t.story, t.state)));
-  if (t.state.ended) return;
+  const present = personsPresent(t.story, t.state);
   const eligible = eligibleTickRules(t.story, t.state);
   const draw = rng.next();
   const chosen = chooseByWeight(eligible, draw);
   t.emit({ kind: 'TickResolved', minutes, draw, rule: chosen?.id ?? null });
   const fired = chosen ? t.absorb(fireRule(t.story, t.state, chosen)) : [];
-  t.absorb(cascade(t.story, t.state, firingsFrom(t.story, fired)));
-  advanceClock(t, minutes);
-}
-
-function proximityFirings(story: Story, s: State): Firing[] {
-  return personsPresent(story, s).map(person => ({ kind: 'proximity', person }));
+  t.absorb(cascade(t.story, t.state, firingsFrom(t.story, fired), present));
+  // As on a player turn: an act entered by this Tick starts at the act's own clock.
+  if (!t.events.some(e => e.kind === 'ActEntered')) advanceClock(t, minutes);
 }
 
 /** Move the clock, mature scheduled grants, and fire clock Rules the move passed. */
@@ -92,6 +101,7 @@ function advanceClock(t: Emitter, minutes: number) {
   if (t.state.ended || minutes <= 0) return;
   const from = t.state.clock;
   const before = t.state;
+  const present = personsPresent(t.story, before);
   t.emit({ kind: 'ClockAdvanced', minutes });
   const to = t.state.clock;
   const matured = before.pendingGrants.filter(g => g.maturesAtBoundary <= t.state.boundaries);
@@ -101,7 +111,8 @@ function advanceClock(t: Emitter, minutes: number) {
     t.emit(e);
     for (const c of clueEvents(t.story, t.state, e)) t.emit(c);
   }
-  t.absorb(cascade(t.story, t.state, [{ kind: 'clock', from, to }]));
+  // A schedule that brings someone to the player counts as an arrival.
+  t.absorb(cascade(t.story, t.state, [{ kind: 'clock', from, to }], present));
 }
 
 /** Collects Events and keeps State in step with them. */

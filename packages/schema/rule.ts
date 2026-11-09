@@ -14,7 +14,9 @@ export const Trigger = z.discriminatedUnion('kind', [
     person: z.array(Id).optional(),
   }).strict(),
   z.object({ kind: z.literal('flag'), flag: Id }).strict(),
+  /** The player arrives in the location: by moving, by entering an act whose anchor it is, or at the opening. */
   z.object({ kind: z.literal('enter'), location: Id }).strict(),
+  /** The player moves out of the location. The Rule's `when` is judged from the room being left. */
   z.object({ kind: z.literal('leave'), location: Id }).strict(),
   /** The Investigation clock passes a time of day during the given act(s). */
   z.object({ kind: z.literal('clock'), atMinutes: ClockMinutes, act: z.array(z.number().int().min(0)).min(1).optional() }).strict(),
@@ -23,7 +25,12 @@ export const Trigger = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('combine'), items: z.array(Id).length(2) }).strict(),
   /** A Fact was told. Omitted fields match anything. */
   z.object({ kind: z.literal('disclosed'), fact: Id.optional(), from: PersonOrPlayer.optional(), to: PersonOrPlayer.optional() }).strict(),
-  /** The player and the person share a location at the start of a turn. */
+  /**
+   * The player and the person come to share a location: the player arrives where
+   * the person is, the person arrives where the player is (a Rule, a schedule,
+   * an act entry), or the game opens with them together. Fires once per arrival,
+   * not on every turn they stay together (ADR-0005).
+   */
   z.object({ kind: z.literal('proximity'), person: Id }).strict(),
   /** The player names Facts and/or a suspect. All listed facts must be named. */
   z.object({ kind: z.literal('deduction'), facts: z.array(Id).min(1).optional(), suspect: Id.optional() }).strict(),
@@ -43,7 +50,7 @@ export const Effect = z.discriminatedUnion('kind', [
   /** Brings the person to wherever the player is. */
   z.object({ kind: z.literal('summonPerson'), person: Id }).strict(),
   z.object({ kind: z.literal('dismissPerson'), person: Id }).strict(),
-  /** The person learns the Fact, optionally after N time-period boundaries. */
+  /** The person learns the Fact, optionally after N time-period boundaries; entering any act delivers it at once. */
   z.object({ kind: z.literal('grantFact'), person: PersonOrPlayer, fact: Id, delayPeriods: z.number().int().min(0).optional() }).strict(),
   z.object({ kind: z.literal('setDisposition'), person: Id, disposition: Disposition }).strict(),
   /** Authored lines the narrator must carry this turn. asQuote renders as a world blockquote. */

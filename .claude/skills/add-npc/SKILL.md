@@ -55,7 +55,7 @@ One entry per thing they can say, in `facts.json`:
 }
 ```
 
-- **visibleFromAct** is the spoiler gate: no one surfaces the Fact before that act, and a `grantFact` that can fire earlier fails validation. Anything that gives away the case is gated.
+- **visibleFromAct** is the spoiler gate for speech: no one tells the player the Fact before that act (ADR-0005). A document or a Rule can still teach it earlier, and the prover lists each such path it finds as EARLY. Anything that gives away the case is gated, and no Object carrying it is readable before its act unless the score says so.
 - **topics** are the phrases a player might use. Cover every proper noun or specific the person's own beats and voices say aloud, or the person will deflect on a thing they just mentioned. No phrase may belong to two Facts (`qa:story` fails it); avoid near-synonyms and containment across Facts the same person knows ("the boat" / "the boat's lamp").
 - **voices** give how this person phrases it when the plain statement would not do.
 - **spoilerTerms** list the words that would leak the Fact in a beat seen earlier; the validator scans beats for them.

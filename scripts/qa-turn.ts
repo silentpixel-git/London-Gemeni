@@ -134,9 +134,12 @@ const store = memoryStore();
 const start = keep(await post({ start: { storyId: 'toy', name: 'QA' } }, { store }));
 const id = start.events?.investigationId as string;
 check('start: 200 and NDJSON in order events → text → done', start.status === 200 && wellOrdered(start.kinds), start.kinds.join(','));
-check('start: the events line is InvestigationStarted(locked_study) at seq 0 and names the new id',
-  start.events?.seqFrom === 0 && eventKinds(start).join() === 'InvestigationStarted'
+check('start: the events line opens with InvestigationStarted(locked_study) at seq 0 and names the new id',
+  start.events?.seqFrom === 0 && eventKinds(start)[0] === 'InvestigationStarted'
   && start.events?.events[0].story === 'locked_study' && typeof id === 'string');
+check('start: the opening is a turn, so the greeting Rule fires on it (ADR-0005)',
+  ((start.events?.events ?? []) as EventPayload[]).some(e => e.kind === 'RuleFired' && e.rule === 'greet_housekeeper')
+  && (start.done?.narrated.beats as string[]).some(b => b.startsWith('The housekeeper says the master')), eventKinds(start).join(','));
 // The authoring stub sends no text chunks; only replay streams.
 if (!AUTHOR) check('start: streamed text is the narrated text', start.streamed === start.done?.narrated.text && start.streamed === PROSE.opening);
 const startView = start.done?.view as PlayerView | undefined;
@@ -164,11 +167,12 @@ check('look: the feed is the player line, then prose headed by the location only
   JSON.stringify(look.done?.feed));
 check('look: an exact command never reaches the selection model', selectCalls === callsBeforeLook);
 check('look: NDJSON in order, events before any text', look.status === 200 && wellOrdered(look.kinds), look.kinds.join(','));
-check('look: seqFrom continues the log after start (3 rows)', look.events?.seqFrom === 3, String(look.events?.seqFrom));
-check('look: resolved as Looked, with the greeting Beat',
-  eventKinds(look).includes('Looked') && eventKinds(look).includes('BeatQueued'), eventKinds(look).join(','));
-check('look: Narrated carries the turn\'s Beats',
-  (look.done?.narrated.beats as string[]).some(b => b.startsWith('The housekeeper says the master')));
+const startRows = (start.events?.events.length ?? 0) + 1 + (start.done?.observations.length ?? 0);
+check(`look: seqFrom continues the log after start (${startRows} rows)`, look.events?.seqFrom === startRows, String(look.events?.seqFrom));
+check('look: resolved as Looked, and the greeting does not repeat',
+  eventKinds(look).includes('Looked') && !eventKinds(look).includes('RuleFired'), eventKinds(look).join(','));
+check('look: Narrated carries the turn\'s Beats (the hall\'s own)',
+  (look.done?.narrated.beats as string[]).some(b => b.includes('A cold tiled hall')), JSON.stringify(look.done?.narrated.beats));
 
 const ask = keep(await post({ investigationId: id, text: 'ask the housekeeper about the key' }, { store }));
 const askDiary = (ask.done?.view as PlayerView).diary;
@@ -264,16 +268,18 @@ check('gate rejects twice: falls back to the Beats alone, no Observations',
 // ── A quiet Tick ────────────────────────────────────────────────────────────
 
 {
-  // The toy's Act 0 Ticks always fire a Rule; without tick Rules nothing visible changes.
-  const quietToy = { ...story, rules: story.rules.filter(r => r.trigger.kind !== 'tick') };
+  // The toy's Act 0 Ticks always fire a Rule; without tick Rules nothing visible changes,
+  // except a clock Rule authored here to fire on the first Tick (act 0 opens at 20:30).
+  const chime = { id: 'quarter_chime', trigger: { kind: 'clock' as const, atMinutes: 1245, act: [0] }, once: true, effects: [{ kind: 'playBeat' as const, beats: ['The clock strikes the quarter.'] }] };
+  const quietToy = { ...story, rules: [...story.rules.filter(r => r.trigger.kind !== 'tick'), chime] };
   const s = memoryStore();
   const loadQuiet = (storyId: string) => (storyId === 'toy' ? quietToy : null);
   let narrations = 0;
   const counting: Ai = { select: async () => ({ kind: 'none' }), async *narrate() { narrations++; yield { kind: 'done', result: { prose: 'Quiet.', observations: [] } }; } };
   const st = await post({ start: { storyId: 'toy', name: 'QA quiet' } }, { store: s, ai: counting, loadStory: loadQuiet, gate: () => ({ ok: true, inventions: [] }) });
-  // The first Tick is not quiet: the housekeeper's greeting fires on the first proximity.
+  // The first Tick is not quiet: the quarter chimes. (The greeting fired on the opening turn.)
   const greeted = await post({ investigationId: st.events?.investigationId, tick: true }, { store: s, ai: counting, loadStory: loadQuiet, gate: () => ({ ok: true, inventions: [] }) });
-  check('quiet-story Tick with a Beat (the greeting) is still narrated', eventKinds(greeted).includes('BeatQueued') && greeted.done?.narrated.text === 'Quiet.');
+  check('quiet-story Tick with a Beat (a clock Rule) is still narrated', eventKinds(greeted).includes('BeatQueued') && greeted.done?.narrated.text === 'Quiet.', eventKinds(greeted).join(','));
   const before = narrations;
   const quiet = await post({ investigationId: st.events?.investigationId, tick: true }, { store: s, ai: counting, loadStory: loadQuiet });
   const qlog = await logOf(s, st.events?.investigationId);

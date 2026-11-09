@@ -24,6 +24,8 @@ export const NarrationContext = z.object({
     beats: z.array(z.string()),
   })),
   objectsVisible: z.array(z.object({ id: Id, name: z.string() })),
+  /** People this turn's Events name who are not present (an accused suspect, someone dismissed), by the label the player knows them by. */
+  personsNamed: z.array(z.object({ id: Id, label: z.string() })),
   /** What the engine resolved this turn; the narration describes exactly this. */
   events: z.array(EventPayload),
   /** Authored lines that must appear in substance this turn. */

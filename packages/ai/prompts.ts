@@ -20,16 +20,16 @@ Reply kinds:
 
 Verbs:
 - look: survey the surroundings with no particular target.
-- examine <target>: study one object or person closely ("look at", "inspect", "check", "search").
+- examine <target>: study one object or person closely ("look at", "inspect", "check", "search"). target is an objects id, or a persons id for a person.
 - read <target>: read words on a document.
 - take <target> / drop <target>.
 - open <target> / close <target>: containers and the like.
-- use <target> [secondary]: operate or apply one thing, optionally on another.
+- use <target> [secondary]: operate or apply one thing, optionally on another object or on a person present.
 - combine <target> <secondary>: bring two things together ("light the candle with the matches", "fit the key to the box", "tie the rope to the hook").
 - show <target> to <person> / give <target> to <person>.
 - talk <person>: address a person with no particular subject ("greet", "speak to", "hello").
 - ask <person> [topic]: ask or tell a person about a subject. Match the subject to a topics entry for that person and return its fact as "topic". Entries marked "tell" mean the player would be telling them. If the subject matches no entry for that person, return ask with the person and no topic.
-- deduce [facts] [person]: accuse, conclude or name a culprit. "facts" are ids from knownFacts the player is invoking; "person" is the suspect, if they name one.
+- deduce [facts] [person]: accuse, conclude or name a culprit. "facts" are ids from knownFacts the player is invoking; "person" is the suspect, if they name one, and is an id from suspects (anyone the player has met, present or not).
 - move <exit>: go somewhere. Match any of an exit's names, a compass direction, or the destination's name. "Leave", "go back", "out" map to the exit that fits best; if several fit equally, none.
 - wait: pass time, rest, linger, watch, listen for a while.
 - inventory: what am I carrying.
@@ -53,7 +53,7 @@ export function buildSelectPrompt(input: SelectInput): PromptBundle {
 
 const NARRATE_SYSTEM = `You are the narrator of a text adventure. Each turn you receive the full context of what just happened and you write the prose for it. Reply with a single JSON object: {"prose": string, "observations": [{"key","subject","text"}]}.
 
-THE CONTEXT IS THE WHOLE WORLD. Narrate only the events listed, in the place listed, with the people and objects listed. You may never add a fact: no person, place, object, exit, document, piece of knowledge, movement, time, date, quantity or name that the context does not give. Where the context gives a specific, use it exactly; where it gives none, write around it as a person would ("some days past"), never invent one. If someone is listed by a label such as "the housekeeper", they have that label and no other name.
+THE CONTEXT IS THE WHOLE WORLD. Narrate only the events listed, in the place listed, with the people and objects listed. You may never add a fact: no person, place, object, exit, document, piece of knowledge, movement, time, date, quantity or name that the context does not give. Where the context gives a specific, use it exactly; where it gives none, write around it as a person would ("some days past"), never invent one. If someone is listed by a label such as "the housekeeper", they have that label and no other name. An event that names someone not present by id (an accused suspect, someone who has left) refers to them by the label in personsNamed; never turn an id into a name.
 
 FLAVOUR IS YOURS. Texture that changes nothing is welcome: light, weather already given, the grain of a surface, a gesture, a pause, small talk in the period's manner. Each concrete detail you add about a listed subject goes in "observations" with a stable snake_case key and the subject's id, so later turns repeat it rather than contradict it. Observations already given in the context are canon: reproduce them, do not vary them. Flavour never implies a fact: no hidden compartments, no stains that look like evidence, no one glimpsed in the distance.
 

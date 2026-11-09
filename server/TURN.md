@@ -22,6 +22,7 @@ Errors: a single `{ "kind": "error", "message": "..." }` line and HTTP 4xx/5xx b
 - **409** means another turn on this Investigation is still being narrated. A client sends one turn at a time; an idle Tick that gets 409 is simply dropped.
 
 ## Server steps
+0. Start: create the Investigation, then append the opening turn from `startInvestigation(story, seed)`: `InvestigationStarted`, the Clues of any Fact the player starts knowing, and the Rules the opening sets off (`enter` on the opening location, arrivals for everyone there; ADR-0005). It is narrated in `opening` mode.
 1. Load the Investigation's Events (ordered by `seq`), `replay` them with the Story loaded from `stories/<storyId>` (fall back to `packages/schema/fixtures/<storyId>` so the toy is playable before real content exists).
    If the log's last row is not `Narrated`/`ObservationRecorded`, a turn is open: answer 409, unless the newest row is older than `STALE_TURN_MS` (the request that owned it died), in which case close it first with a beats-only `Narrated` and carry on.
 2. Player turn: `candidates(story, state)` → `exactSelection(text, set)` (look, inventory, wait, an exit by an authored name or compass abbreviation, ADR-0003) or else `ai.select({ text, candidates, recentTexts })` → validate the Selection against the set → `resolveTurn`. Tick: `tick(story, state)`.

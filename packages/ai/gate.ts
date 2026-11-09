@@ -29,6 +29,7 @@ export function contextHaystack(ctx: NarrationContext): string {
     ctx.location.name, ...ctx.location.beats,
     ...ctx.personsPresent.flatMap(p => [p.label, p.disposition, ...p.beats]),
     ...ctx.objectsVisible.map(o => o.name),
+    ...ctx.personsNamed.map(p => p.label),
     ...ctx.beats,
     ...ctx.facts.flatMap(f => [f.statement, f.voice ?? '']),
     ...ctx.observations.map(o => o.text),

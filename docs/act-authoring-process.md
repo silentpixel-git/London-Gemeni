@@ -86,7 +86,7 @@ Plus, once per act:
 - **The gate**: which Rule's `advanceAct` ends the act, and every condition it needs.
 - **The choice**: each branch, the flag it sets, and every downstream Rule or condition that reads that flag.
 - **Schedule rows**: one per person on stage, act × period → `at` / `follows` / `offstage`.
-- **Act fields**: `anchorLocation`, `startClockMinutes`, `dateLabel`, `weather`. Entering the act moves the player to the anchor, which counts as entering that location for `enter` Rules, sets the clock to `startClockMinutes`, and clears every person moved by an Effect back to the new act's schedule.
+- **Act fields**: `anchorLocation`, `startClockMinutes`, `dateLabel`, `weather`. Entering the act moves the player to the anchor, which counts as entering that location for `enter` Rules and as an arrival for everyone there; sets the clock to `startClockMinutes`; delivers every delayed `grantFact` still in flight; and clears every person moved by an Effect back to the new act's schedule. The opening behaves the same way for the opening act and location (ADR-0005).
 
 The worked example is Act 0's score (`docs/act0-mechanical-score.md`). Its columns name the pre-rebuild mechanisms (resolver flag grammar, story events); the dimensions it pins are the same ones this score pins, which is why the score survived the rebuild and the code did not.
 
@@ -99,11 +99,11 @@ The worked example is Act 0's score (`docs/act0-mechanical-score.md`). Its colum
 - **Flags.** Every flag read is set by some `setFlag` and every flag set is read (`qa:story` fails the first and warns on the second). Built-in verbs set no flags: a flag exists only because a Rule sets it. Name flags for the world state, not the beat (`study_door_unlocked`, not `beat_7_done`).
 - **Presence.** Every person a beat needs has a schedule entry for that act (and period), or arrives by an Effect, and the score says which. `personsPresent` in a `when` makes the dependency explicit.
 - **Chronology.** Every date, time and duration stated once, in a canonical block in the score; beats cite it rather than restating it.
-- **Spoilers.** Each Fact visible after the act's start lists `spoilerTerms`, and the score's beats avoid them. `qa:story` fails a leak into the opening, or into a Rule that can fire before the Fact's act, and warns on location, Object and person beats. It also fails a `grantFact` that can fire before the Fact's `visibleFromAct`.
+- **Spoilers.** Each Fact visible after the act's start lists `spoilerTerms`, and the score's beats avoid them. `qa:story` fails a leak into the opening, or into a Rule that can fire before the Fact's act, and warns on location, Object and person beats. `visibleFromAct` gates who may *tell* the player a Fact, not when the player may learn it (ADR-0005): `qa:story` warns on a `grantFact` to the player that can fire earlier, and the prover lists each Fact it finds the player learning early, from a document or a Rule, as EARLY with its path. Each EARLY line is either a deliberate early clue, said so in the score, or a leak. The list is a net, not a proof: the search stops once every goal is found.
 
 ## The golden scenario
 
-`scripts/qa-<story>.ts`, one scenario per act, added to `qa:all`. It drives the real engine the way `scripts/qa-stress.ts` drives the stress fixture: a `Run` holding State and the Event log, turns issued with `resolveTurn` and explicit Selections, idle time with `tick`, randomness pinned with `fixedRng`. The selection model is not in the loop. A golden proves that a given Selection produces the scored world; whether a player's words produce that Selection is the verb-coverage pre-check and the playtest.
+`scripts/qa-<story>.ts`, one scenario per act, added to `qa:all`. It drives the real engine the way `scripts/qa-stress.ts` drives the stress fixture: a `Run` holding State and the Event log, opened with `startInvestigation` (the opening turn, as the server plays it), turns issued with `resolveTurn` and explicit Selections, idle time with `tick`, randomness pinned with `fixedRng`. The selection model is not in the loop. A golden proves that a given Selection produces the scored world; whether a player's words produce that Selection is the verb-coverage pre-check and the playtest.
 
 - Transcribe the score, don't improvise: each step asserts the flags, presence, visibility, askability (`candidates(...).topics`) and Rules fired that the score's row promises.
 - Assert **negatives** too: not present before, not askable before, examine does not satisfy open, a `once` Rule does not fire twice, the other branch's flag is unset. The bug classes live in the negatives.
@@ -112,7 +112,7 @@ The worked example is Act 0's score (`docs/act0-mechanical-score.md`). Its colum
 - End each scenario with an exact replay check (`replay(story, log, seed)` equals the final State), as `qa-stress.ts` does.
 - Goldens run in `qa:all` forever. A later engine change that breaks an act's timeline should fail loudly.
 
-**The prover is the complement, not a substitute.** `packages/engine/prover.ts` searches the real engine breadth-first (clock bucketed by period, every eligible tick Rule branched) and reports every act, Clue and ending as REACHABLE with its shortest path, or UNREACHABLE. It proves a path exists; it does not prove a player would find it, or that a beat lands when the score says. Record the goals an act adds in the score, confirm they are UNREACHABLE before implementing, and REACHABLE with the search uncapped after. Until a Story under `stories/` is wired into `qa:prove` (which covers the fixtures today), run it directly:
+**The prover is the complement, not a substitute.** `packages/engine/prover.ts` searches the real engine breadth-first (clock bucketed by period, every eligible tick Rule branched) and reports every act, Clue and ending as REACHABLE with its shortest path, or UNREACHABLE. It tries only Selections the turn endpoint would accept against that moment's Candidate Set, starts from the opening turn, and can always wait to the next period: a step "wait until X" stands for as many waits as it takes. It proves a path exists; it does not prove a player would find it, or that a beat lands when the score says. Record the goals an act adds in the score, confirm they are UNREACHABLE before implementing, and REACHABLE with the search uncapped after. Until a Story under `stories/` is wired into `qa:prove` (which covers the fixtures today), run it directly:
 
 ```bash
 npx tsx -e "import { Story } from './packages/schema/index.ts'; import { loadStoryDir } from './packages/schema/load.ts'; import { prove, formatProof } from './packages/engine/prover.ts'; console.log(formatProof(prove(Story.parse(loadStoryDir(process.argv[1])))))" stories/<id>
@@ -126,8 +126,8 @@ The pre-rebuild engine had three systems for things that happen: story events (a
 |---|---|
 | Story event on a resolved action | `action` Rule (or `combine`, `deduction`) with `when` conditions and a `playBeat` among its Effects |
 | World event at a clock time | `clock` Rule (`atMinutes`, optionally `act`) with `playBeat` and `asQuote: true` |
-| Rumor hop | `disclosed` or `flag` Rule with `grantFact` and `delayPeriods` |
-| Arrival or departure | `summonPerson` / `movePerson` / `dismissPerson` in the Rule that motivates it, or a schedule entry |
+| Rumor hop | `disclosed` or `flag` Rule with `grantFact` and `delayPeriods`. It matures after that many period boundaries, or on entering any act, whichever comes first |
+| Arrival or departure | `summonPerson` / `movePerson` / `dismissPerson` in the Rule that motivates it, or a schedule entry. A scene on meeting someone is a `proximity` Rule: it fires on the arrival, whoever moved |
 | Ambient life | `tick` Rule with a `weight`; the engine draws one among the eligible and records the draw |
 
 Author each Rule that carries a scene as a compact contract in the score:
@@ -144,7 +144,11 @@ Read bare: the beats joined still read as prose (the gate's fallback)
 
 How the engine runs them, which the contract must account for:
 
-- **Every eligible Rule fires**, in the order the Story lists them. There is no "at most one main event per action": two Rules on the same action both fire unless their conditions exclude each other. Use `flagsNone` on a flag the first one sets.
+- **Every eligible Rule fires.** There is no "at most one main event per action": two Rules on the same action both fire unless their conditions exclude each other. Use `flagsNone` on a flag the first one sets.
+- **Firing order** is the action, then `leave`, then `enter`, then arrivals (`proximity`), then the Firings those Rules' Effects raise, depth by depth. The order the Story lists Rules applies only among the Rules of one Firing (ADR-0005).
+- **What each trigger's `when` sees.** Every trigger sees the world after the action: on `action: take x`, `hasItems: [x]` already holds; on `enter`, `location` is the room entered. The exception is `leave`, which is judged from the room being left, with the player still there, so `location` and `personsPresent` name that room.
+- **`proximity` fires on arrival**, once per arrival: when the player walks in on someone, when a Rule, a schedule or an act entry brings someone to the player, or at the opening. It does not fire again on the turns they stay together, even with `once: false`. Ambient chatter while someone stays present is a `tick` Rule with `personsPresent`. A `proximity` Rule whose `when` comes true only while they stay together (`flagsAll`, `factsKnown`, `hasItems`) stays silent until they part and meet again: put that scene on the Trigger that makes the condition true. An arrival is one link in a cascade, so it counts towards the depth of 8.
+- **`clock` Rules** fire when the clock passes their time during their act. A time exactly at the act's start never fires on entry; `qa:story` fails it on a Rule restricted to that act and warns on an unrestricted one. Use an `enter` Rule on the anchor. A time earlier in the day than the act's start fires once the clock runs past midnight, which is right for an evening act's midnight bells and is warned on when it would mean a wait of more than twelve hours.
 - **Rules cascade.** Effects become Events, and a `FlagSet`, `FactDisclosed`, move, act entry or combine can trigger further Rules in the same turn, to a depth of 8. A chain longer than that is cut silently; keep chains short and assert the last link in the golden.
 - **`once` is required on every Rule**, so a puzzle that should fire once is never left repeating by accident.
 - **A queued Beat makes the turn `full`** (160 words), or `opening` (220) on the first turn. Budgets are in `packages/engine/projections.ts`; the mode is chosen in `server/turn.ts`. The budget is shared: a Rule that fires on `enter` shares it with the location's beats, one that fires on `examine` with the Object's. A reveal that needs more than the budget has left must be cut down or moved to its own turn; the narrator treats the budget as a ceiling.

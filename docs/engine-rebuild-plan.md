@@ -116,7 +116,7 @@ Triggers (closed union):
 | `tick` | An idle or WAIT turn, subject to conditions and weight |
 | `combine` | Two named Items are used together |
 | `disclosed` | A Fact is told by or to a person |
-| `proximity` | The player and a person are in the same location at the start of a turn |
+| `proximity` | The player and a person come to share a location (an arrival; ADR-0005) |
 | `deduction` | The player names a set of Facts or a suspect |
 
 Effects (closed union): `setFlag`, `revealObject`, `hideObject`, `moveObject`, `giveItem`, `takeItem`, `lockExit`, `unlockExit`, `movePerson`, `summonPerson`, `dismissPerson`, `grantFact(person, fact, delay?)`, `setDisposition`, `playBeat`, `cue(audio)`, `advanceAct`, `endGame(ending)`.

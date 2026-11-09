@@ -87,8 +87,13 @@ export type Person = z.infer<typeof Person>;
 export const Fact = z.object({
   id: Id,
   statement: z.string().min(1),
+  /** Who knows it at the start. 'player' means the player starts knowing it (and finds its Clue on the opening turn). */
   knownBy: z.array(Id),
-  /** Earliest act in which any person may surface this Fact. */
+  /**
+   * Earliest act in which a person may tell the player this Fact. It does not
+   * stop the player learning it earlier from a document or a Rule; the prover
+   * reports any path that does (ADR-0005).
+   */
   visibleFromAct: z.number().int().min(0),
   /** Phrases the player might use to ask about it. */
   topics: z.array(z.string().min(1)).min(1),

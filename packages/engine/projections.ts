@@ -4,6 +4,7 @@
 //   act/clock/location   from State and the Story
 //   personsPresent       label = introduced ? name : alias ?? name; beats = person.beats
 //   objectsVisible       visibleObjects(here) + inventory, by name
+//   personsNamed         persons a turnEvent names (person, suspect, from, to) who are not present, labelled as above
 //   events               turnEvents verbatim
 //   beats                flattened from s.beats (BeatQueued this turn), plus Location.beats on Moved/Looked,
 //                        Object.beats on Examined, Object.document on Read, Ending.beats on GameEnded
@@ -49,6 +50,14 @@ export function buildNarrationContext(story: Story, s: State, turnEvents: EventP
     else if (e.kind === 'FactDisclosed' && e.to === 'player') add(e.fact, e.from === 'player' ? undefined : e.from);
   }
 
+  const label = (id: Id) => { const p = story.persons.find(x => x.id === id)!; return s.persons[id].introduced ? p.name : p.alias ?? p.name; };
+  // Without a label, an absent person reaches the narrator as a bare id, which is often their real name.
+  const named = new Set<Id>();
+  for (const e of turnEvents) {
+    const ids = 'person' in e ? [e.person] : e.kind === 'Deduced' ? [e.suspect] : e.kind === 'FactDisclosed' ? [e.from, e.to] : [];
+    for (const id of ids) if (id && story.persons.some(p => p.id === id) && !present.includes(id)) named.add(id);
+  }
+
   const stmts = (ids: Id[]) => ids.map(id => fact(id)?.statement).filter((x): x is string => !!x);
   const subjects = new Set<Id>([s.location, ...present, ...visible]);
   return {
@@ -59,11 +68,9 @@ export function buildNarrationContext(story: Story, s: State, turnEvents: EventP
     act: { id: act.id, name: act.name, dateLabel: act.dateLabel },
     clock: { minutes: s.clock, period: currentPeriod(story, s), weather: story.weathers.find(w => w.id === act.weather)?.name ?? act.weather },
     location: { id: loc.id, name: loc.name, beats: loc.beats },
-    personsPresent: present.map(id => {
-      const p = story.persons.find(x => x.id === id)!;
-      return { id, label: s.persons[id].introduced ? p.name : p.alias ?? p.name, disposition: s.persons[id].disposition, beats: p.beats };
-    }),
+    personsPresent: present.map(id => ({ id, label: label(id), disposition: s.persons[id].disposition, beats: story.persons.find(x => x.id === id)!.beats })),
     objectsVisible: visible.map(id => ({ id, name: obj(id)!.name })),
+    personsNamed: story.persons.filter(p => named.has(p.id)).map(p => ({ id: p.id, label: label(p.id) })),
     events: turnEvents,
     beats,
     facts,

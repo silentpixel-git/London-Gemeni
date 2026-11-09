@@ -50,7 +50,7 @@ _Avoid_: time period, time of day
 A named weather state a Story declares. Acts and conditions refer to it by id.
 
 **Candidate Set**:
-Everything the player could mean right now: Objects here and carried, people present, exits, topics the addressed person can speak to. The parser must choose from it or decline.
+Everything the player could mean right now: Objects here and carried, people present, exits, topics the addressed person can speak to, and everyone met, whom a deduction may accuse. The parser must choose from it or decline.
 
 ### Rules
 
@@ -59,7 +59,7 @@ An authored "when this, then that": a Trigger paired with Effects. The only way 
 _Avoid_: story event, world event, custom event, scripted line
 
 **Trigger**:
-The condition under which a Rule fires: an action on an Object, a flag becoming true, entering a location, a clock time, a Tick, combining Items, a person coming near.
+The condition under which a Rule fires: an action on an Object, a flag becoming true, entering or leaving a location, a clock time, a Tick, combining Items, a Fact being told, the player and a person coming together, a deduction. Pinned semantics are in ADR-0005.
 
 **Effect**:
 A change a Rule makes when it fires: set a flag, reveal or hide an Object, lock or unlock an exit, move or summon a person, give or take an Item, grant a Fact to a person, play a Beat, advance the act.

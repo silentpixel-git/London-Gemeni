@@ -38,7 +38,6 @@ export function feedOf(story: Story, events: EventPayload[]): FeedItem[] {
 
 export function playerView(story: Story, events: EventPayload[]): PlayerView {
   const diary: Diary = { acts: [], clues: [], persons: [], documents: [] };
-  const met = new Set<Id>();
   // What the player has tried, for the client's "Try" chips: examined or read Objects,
   // people spoken to (per location, as "person@location"), locations visited.
   const examined = new Set<Id>();
@@ -61,8 +60,6 @@ export function playerView(story: Story, events: EventPayload[]): PlayerView {
     } else if (e.kind === 'Read' && !diary.documents.some(d => d.id === e.object)) {
       const o = story.objects.find(x => x.id === e.object)!;
       if (o.document) diary.documents.push({ id: o.id, name: o.name, text: o.document });
-    } else if (e.kind === 'Narrated') {
-      for (const p of personsPresent(story, s)) met.add(p);
     }
   }
 
@@ -71,7 +68,8 @@ export function playerView(story: Story, events: EventPayload[]): PlayerView {
     return s.persons[id].introduced ? p.name : p.alias ?? p.name;
   };
   const statement = (id: Id) => story.facts.find(f => f.id === id)!.statement;
-  diary.persons = [...met].map(id => ({ id, name: label(id), told: (s.ledger[id]?.told ?? []).map(statement) }));
+  // The people met are exactly the suspects a deduction may name (state.met, ADR-0005).
+  diary.persons = Object.keys(s.met).map(id => ({ id, name: label(id), told: (s.ledger[id]?.told ?? []).map(statement) }));
 
   const objName = (id: Id) => story.objects.find(o => o.id === id)!.name;
   const loc = story.locations.find(l => l.id === s.location)!;
