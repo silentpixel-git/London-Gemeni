@@ -265,6 +265,20 @@ check('gate rejects twice: falls back to the Beats alone, no Observations',
   always.done?.narrated.text === fallbackBeats.join(' ') && fallbackBeats.length > 0 && always.done?.observations.length === 0,
   always.done?.narrated.text);
 
+{
+  // A turn with no Beats (a plain take) used to fall back to the Beats alone, which is nothing: silence.
+  const s = memoryStore();
+  const strict: TurnDeps['gate'] = (_ctx, result) =>
+    /bright|look again/i.test(result.prose) ? { ok: false, inventions: [{ kind: 'name' as const, token: INVENTED }] } : { ok: true, inventions: [] };
+  const st = await post({ start: { storyId: 'toy', name: 'QA beatless' } }, { store: s, gate: strict });
+  const invId = st.events?.investigationId as string;
+  await post({ investigationId: invId, text: 'open the clock' }, { store: s, gate: strict });
+  const took = await post({ investigationId: invId, text: 'take the key' }, { store: s, gate: strict });
+  check('gate rejects twice on a turn with no Beats: the narrator\'s sentences that pass, not silence',
+    took.done?.narrated.text === 'You take the brass key.' && (took.done?.narrated.beats as string[]).length === 0 && took.done?.observations.length === 0
+    && JSON.stringify((took.done?.feed as FeedItem[]).map(f => f.kind)) === '["player","prose"]', took.done?.narrated.text);
+}
+
 // ── A quiet Tick ────────────────────────────────────────────────────────────
 
 {

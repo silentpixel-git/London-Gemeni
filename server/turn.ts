@@ -107,7 +107,7 @@ export async function handleTurn(request: Request, deps: TurnDeps): Promise<Resp
         // Close the turn with its Beats so the Investigation is not left busy.
         if (!closed) {
           const ctx = buildNarrationContext(turn.story, turn.state, turn.events, turn.mode);
-          const { rows } = number(turn.story, turn.state, [beatsOnly(ctx)], turn.seqFrom + turn.events.length);
+          const { rows } = number(turn.story, turn.state, [fallbackNarrated(ctx)], turn.seqFrom + turn.events.length);
           await deps.store.append(turn.investigationId, rows).catch(e => console.error('api/turn close:', e));
         }
         send({ kind: 'error', message: 'narration failed' });
@@ -212,19 +212,44 @@ function closesTurn(e: EventPayload): boolean {
   return e.kind === 'Narrated' || e.kind === 'ObservationRecorded';
 }
 
-/** The turn's Beats as its whole narration: the fallback when prose cannot be had. */
-function beatsOnly(ctx: NarrationContext): EventPayload {
-  return { kind: 'Narrated', text: ctx.beats.join(' '), beats: ctx.beats };
+/** The turn's fallback narration as its closing row, when prose cannot be had at all. */
+function fallbackNarrated(ctx: NarrationContext): EventPayload {
+  return { kind: 'Narrated', text: fallbackProse(ctx), beats: ctx.beats };
 }
 
-/** Close a turn whose request died before narrating it, with the Beats it would have fallen back to. */
+/**
+ * What the player reads when the narration cannot be used. The Beats, when the
+ * turn has any: they carry its substance. A turn with none (a take, a talk, a
+ * miss) keeps the narrator's own sentences that pass the gate on their own,
+ * from the retry, then the first attempt, so it is never silent and nothing
+ * invented survives. Failing that, the engine's own words for the turn.
+ */
+function fallbackProse(ctx: NarrationContext, attempts: string[] = [], gate?: NonNullable<TurnDeps['gate']>): string {
+  if (ctx.beats.length) return ctx.beats.join(' ');
+  if (gate) {
+    for (const prose of attempts) {
+      const kept = prose.split(/\n{2,}/)
+        .map(par => par.split(/(?<=[.!?…]["”’)]*)\s+/).filter(s => s.trim() && gate(ctx, { prose: s, observations: [] }).ok).join(' '))
+        .filter(Boolean).join('\n\n');
+      if (kept) return kept;
+    }
+  }
+  const rejected = ctx.events.find(e => e.kind === 'IntentRejected');
+  if (rejected?.kind === 'IntentRejected') return `${rejected.reason[0].toUpperCase()}${rejected.reason.slice(1)}.`;
+  const name = (id: string) => ctx.objectsVisible.find(o => o.id === id)?.name ?? ctx.personsPresent.find(p => p.id === id)?.label;
+  const touched = [...new Set(ctx.events.flatMap(e => ('object' in e ? [e.object] : 'person' in e && typeof e.person === 'string' ? [e.person] : [])))]
+    .map(name).filter((x): x is string => !!x);
+  return touched.length ? `${touched.map(t => t[0].toUpperCase() + t.slice(1)).join('. ')}.` : '';
+}
+
+/** Close a turn whose request died before narrating it, with the fallback it would have used. */
 async function closeStaleTurn(story: Story, log: LogEvent[], id: string, store: InvestigationStore): Promise<LogEvent[]> {
   let from = log.length;
   while (from > 0 && !closesTurn(log[from - 1].payload)) from--;
   const open = log.slice(from).map(e => e.payload);
   const state = replay(story, log.map(e => e.payload));
   const ctx = buildNarrationContext(story, state, open, modeFor(open));
-  const { rows } = number(story, state, [beatsOnly(ctx)], log[log.length - 1].seq + 1);
+  const { rows } = number(story, state, [fallbackNarrated(ctx)], log[log.length - 1].seq + 1);
   await store.append(id, rows);
   return rows;
 }
@@ -257,7 +282,7 @@ async function narrateGated(
     : ctx;
   const second = await collect(ai.narrate(retryCtx), () => {});
   if (second.prose.trim() && gate(ctx, second).ok) return second;
-  return { prose: ctx.beats.join(' '), observations: [] };
+  return { prose: fallbackProse(ctx, [second.prose, first.prose], gate), observations: [] };
 }
 
 async function collect(chunks: AsyncIterable<{ kind: 'text'; delta: string } | { kind: 'done'; result: NarrationResult }>, onDelta: (delta: string) => void): Promise<NarrationResult> {
