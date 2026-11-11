@@ -168,8 +168,34 @@ function drawsSelectingEach(weights: number[]): number[] {
   return weights.map(w => { const lo = acc / total; acc += w; return (lo + acc / total) / 2; });
 }
 
-/** The State with the clock reduced to its period and the transcript dropped. */
+/**
+ * The Facts whose knowledge can change what is reachable: those a Clue is
+ * found by, a Rule condition (`factsKnown`) reads, a `disclosed` trigger names,
+ * or a deduction needs. Knowing any other Fact (a flavour answer, a rumour no
+ * Rule listens for) changes only what may be said, so two States that differ
+ * only in such knowledge are the same for the search. null means every Fact
+ * counts, as when some `disclosed` trigger names no Fact.
+ */
+const relevantFactsOf = new WeakMap<Story, Set<Id> | null>();
+function relevantFacts(story: Story): Set<Id> | null {
+  if (relevantFactsOf.has(story)) return relevantFactsOf.get(story)!;
+  let out: Set<Id> | null = new Set(story.clues.map(c => c.fact));
+  for (const r of story.rules) {
+    for (const f of r.when?.factsKnown ?? []) out.add(f);
+    if (r.trigger.kind === 'disclosed') {
+      if (!r.trigger.fact) { out = null; break; }
+      out.add(r.trigger.fact);
+    }
+    if (r.trigger.kind === 'deduction') for (const f of r.trigger.facts ?? []) out.add(f);
+  }
+  relevantFactsOf.set(story, out);
+  return out;
+}
+
+/** The State with the clock reduced to its period, the transcript dropped, and knowledge of irrelevant Facts left out. */
 function abstractKey(story: Story, s: State): string {
+  const relevant = relevantFacts(story);
+  const known = (f: Record<Id, true>) => Object.keys(f).filter(id => !relevant || relevant.has(id)).sort();
   const onceRules = Object.keys(s.firedRules).filter(id => story.rules.find(r => r.id === id)?.once);
   return JSON.stringify({
     act: s.act, location: s.location, period: currentPeriod(story, s), ended: s.ended,
@@ -178,7 +204,7 @@ function abstractKey(story: Story, s: State): string {
     exitLocks: s.exitLocks,
     persons: Object.entries(s.persons).map(([id, p]) => [id, p.override ?? '-', p.disposition, p.introduced]),
     met: Object.keys(s.met).sort(),
-    knows: Object.entries(s.knows).map(([who, f]) => [who, Object.keys(f).sort()]),
+    knows: Object.entries(s.knows).map(([who, f]) => [who, known(f)]),
     clues: [...s.clues].sort(),
     once: onceRules.sort(),
     pending: s.pendingGrants.map(g => `${g.person}:${g.fact}`).sort(),

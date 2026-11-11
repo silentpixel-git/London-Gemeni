@@ -68,11 +68,11 @@ All `visibleFromAct: 0`, no `spoilerTerms` (nothing later is sealed: there is no
 | `holmes_violin_stake` | Holmes has been at the violin on and off since Saturday, and he keeps his word. | R8 (Holmes) | the violin, midnight | — |
 | `holmes_monograph` | The monograph upon the ashes of the various tobaccos describes a hundred and forty varieties, with coloured plates. | R8 (Holmes) | the monograph, tobacco ash | — |
 | `holmes_soldier_grandchild` | The old man by the cab rank is waiting for a grandchild: he watches the crowd at the height of a child's head, not a man's. | R10 / R20 (Holmes) | the old man, the man by the cab rank, the soldier, the grandchild | "Admirable, Watson; every word of it. I should only add that he is waiting for a grandchild: he watches the crowd at the height of a child's head, not a man's." |
-| `holmes_actor_reading` | The clergyman outside the chemist's is an actor in costume, between the matinée and the evening performance at a West End house, in a melodrama with a clergyman in it; he is not wanted until the second act. | R11 / R16 (Holmes) | the clergyman, the curate, the man outside the chemist's, the actor, greasepaint, the script, the theatre, the second act | — (each reading Rule's beats say how Holmes puts it) |
+| `holmes_actor_reading` | The clergyman is an actor in costume between the matinée and the evening performance at a West End house, in a melodrama with a clergyman in it, not wanted until the second act. | R11 / R16 (Holmes) | the clergyman, the curate, the man outside the chemist's, the actor, greasepaint, the script, the theatre, the second act | — (each reading Rule's beats say how Holmes puts it) |
 | `holmes_watsons_service` | Holmes knew Watson for a man back from Afghanistan the day they met, seven years ago. | R24 (Holmes) | afghanistan, peshawar, india, your service | — |
 | `holmes_invisible_in_a_crowd` | We see what asks to be seen: a man who asks nothing of anybody might pass under the window every evening for a year and never once be looked at. | R35 (player and Holmes) | being noticed, what asks to be seen | — |
-| `wager_won_fact` | Watson read both men rightly and won the wager: Holmes will not touch the violin before midnight. | R29 (player) | my win | — |
-| `wager_lost_fact` | Watson took a black coat for a curate and stopped looking, and lost the wager. | R30 (player) | my loss | — |
+| `wager_won_fact` | Watson won the wager. | R29 (player) | my win | — |
+| `wager_lost_fact` | Watson lost the wager. | R30 (player) | my loss | — |
 
 **Clues** (`clues.json`):
 
@@ -107,9 +107,9 @@ Column key: **T** trigger · **W** `when` · **E** Effects in order · **N** nar
 
 R1 and R2 come **before** R4 and R5 in `rules.json`: R4/R5 set `holmes_demonstrated` during the very Firing R1/R2 would see, so listed later R1/R2 would start the wager on the same turn. R3 is listed after them (it is a flag Rule; its order does not matter). The golden asserts the negative.
 
-- D1 "Holmes read the street aloud for me: the licensed victualler by the pillar box had kept his daughter out an hour past the time her mother allowed, and would be made to pay for it; the man under the lamp had walked in from Hampstead that morning to save the fare, and had spent it since on something he already regretted."
+- D1 "Holmes read the street aloud for me: the licensed victualler by the pillar box had kept his daughter out an hour past the time her mother allowed; the man under the lamp had walked in from Hampstead that morning to save the fare, and had spent it since on something he already regretted."
 - D2 "When I said he could not know the man had walked, he raised the opera glass once more, then set it down on the mantel: the man's boots were white to the ankle with the pale dust of the Heath road. \"That is a fact. That he walked is an inference, though I should be very much surprised to be wrong. You will note the difference, Watson, because nobody else in London does.\""
-- **N** `full`; about 110 words, plus W1 or K1 (about 30) when the way in was examining the window or the crowd, plus an answer when it was an `ask`. **O** the glass now on the mantel: in the Candidate Set and the sidebar. **F** heath road, victualler, observation. **S** Hampstead, Heath road (topics); the victualler, the daughter (topic). **I** — **Q** an hour, four miles (in the Fact). **D** —
+- **N** `full`; about 105 words (D1 trimmed in phase 4: the window way in measured 160), plus W1 or K1 (about 30) when the way in was examining the window or the crowd, plus an answer when it was an `ask`. **O** the glass now on the mantel: in the Candidate Set and the sidebar. **F** heath road, victualler, observation. **S** Hampstead, Heath road (topics); the victualler, the daughter (topic). **I** — **Q** an hour, four miles (in the Fact). **D** —
 
 ### The wager
 | # | Rule | T | W | E |
@@ -120,11 +120,11 @@ R1 and R2 come **before** R4 and R5 in `rules.json`: R4/R5 set `holmes_demonstra
 
 R7 is listed **before** R1: the talk that strikes the wager must not also be prompted.
 
-- W1 "I said, with some feeling, that it was a very good parlour trick, and that any man might do it who had nothing else to do with his evening; and I knew it for a mistake as it left my mouth. Holmes turned from the window with the look of a man who has been offered a diversion and does not intend to let it go."
-- W2 (quotation) "\"Any man. Very well: a wager. Read two people in that street for me, who they are and what they are about. Read them both correctly and I shall not touch the violin before midnight. Fail, and you shall read my monograph upon the ashes of the various tobaccos, all hundred and forty varieties of it, and you shall not skip the plates.\""
+- W1 "I called it a very good parlour trick, which any man might do who had nothing else to do with his evening; and Holmes turned from the window with the look of a man who has been offered a diversion."
+- W2 (quotation) "\"Any man. Very well: a wager. Read me two people in that street, who they are and what they are about. Read both correctly and I shall not touch the violin before midnight; fail, and you shall read my monograph upon the ashes of the various tobaccos, all hundred and forty varieties, plates included.\""
 - W3 (quotation) "\"The old fellow on the kerb by the cab rank. And the clergyman outside the chemist's. When you have your man, give me your reading, and I shall hold you to it.\""
 - P1 "\"Well?\" said Holmes, without turning from the window. \"Which of them will you give me? Look at your man first, Watson, and then tell me.\""
-- **N** `full`; about 150 words (R8) alone on its turn; the Tick way in (R6) has the same budget. P1 about 25. **O** the two figures appear: the sidebar lists "the old man by the cab rank" and "the clergyman". **F** the wager, the violin, the monograph. **S** the cab rank, the chemist's: covered by the figures' topics once Holmes knows them (R10/R11), deflects before, intended (H3). **I** the figures are Objects, described by their beats. **Q** midnight, a hundred and forty (beat, Fact). **D** —
+- **N** `full`; about 125 words (R8), trimmed in phase 4 (W1, and A1 to about 17) after the golden measured 185 on the turn the lamplighter also passes, to about 140; the Tick way in (R6) has the same budget. P1 about 25. **O** the two figures appear: the sidebar lists "the old man by the cab rank" and "the clergyman". **F** the wager, the violin, the monograph. **S** the cab rank, the chemist's: covered by the figures' topics once Holmes knows them (R10/R11), deflects before, intended (H3). **I** the figures are Objects, described by their beats. **Q** midnight, a hundred and forty (beat, Fact). **D** —
 
 ### Looking at the figures
 | # | Rule | T | W | E |
@@ -163,10 +163,10 @@ Using the glass with nothing in particular as its subject ("use the glass", or o
 - SR "I gave him my reading of the old man: an infantryman by the way he stood, for cavalrymen stand otherwise; Indian service, and not lately, for the colour had gone into the skin; an old fracture of the left thigh, set in a hurry by a regimental surgeon and healed short, a walk I had watched men learn at the base hospital at Peshawar; and probably a sergeant. Holmes heard me out, and then conceded it."
 - CW1 "I gave him my reading of the clergyman: no curate at all, but a man who would like to be thought one. That was greasepaint at his hairline, and he was learning a part, not a lesson: an actor between performances who had not changed out of his costume."
 - CW2 "Holmes looked at me for so long that I began to fear some fresh error, and then said I had it exactly: a West End house, a melodrama with a clergyman in it, and he was not wanted until the second act."
-- CL1 "I gave him my reading of the clergyman: a curate from a poor country parish, by his coat, up for the holiday and not caring for it, getting tomorrow's lesson by heart."
-- CL2 "\"Ah,\" said Holmes, very gently, and bade me look again, through the glass this time: not at the coat, but at the line of the hair beside the ear, and at the book. I looked: a brownish line of greasepaint, too even to be dirt, and a thin paper script in a coloured wrapper. I felt foolish."
-- CL3 "\"You saw a black coat and a white tie, and you stopped looking, because you had your answer. Everybody does it. It is the commonest error in the world, and the most expensive.\" He was an actor, Holmes said, between the matinée and the evening performance, and not wanted until the second act."
-- **N** `full`. SR about 85 + the Fact's voice (about 40). CW about 75 + the statement. CL about 135, the act's heaviest turn; on the second reading the verdict (about 30) rides with it, about 165: **cut CL3's last sentence if the golden's word count shows it over budget** (the statement carries it). Beats state the order: Watson's reading first, then Holmes. **O** — **F** `holmes_watsons_service` (after the soldier). **S** India, Peshawar, Afghanistan (topics), West End (lexicon). **I** — **Q** none beyond §C. **D** `clue_old_soldier` or `clue_actor` (the player learns the Fact).
+- CL1 "I gave him my reading of the clergyman: a curate from a poor country parish, by his coat, up for the holiday and getting tomorrow's lesson by heart."
+- CL2 "\"Ah,\" said Holmes, very gently, and bade me look again, through the glass: a brownish line of greasepaint at the hairline, too even to be dirt, and a thin paper script in a coloured wrapper. I felt foolish."
+- CL3 "\"You saw a black coat and a white tie, and stopped looking, because you had your answer. It is the commonest error in the world, and the most expensive.\""
+- **N** `full`. SR about 85 + the Fact's voice (about 40). CW about 75 + the statement. CL about 105 + the statement (about 35), the act's heaviest turn; on the second reading the verdict (about 20) rides with it, about 160. **Cut during phase 4, as this row allowed:** the golden measured 215 words; CL1–CL3, VL, the actor Fact's statement and the outcome Facts' statements (which only repeat the verdict) were shortened, to about 145 (CL3's last sentence went: the statement carries it). Beats state the order: Watson's reading first, then Holmes. **O** — **F** `holmes_watsons_service` (after the soldier). **S** India, Peshawar, Afghanistan (topics), West End (lexicon). **I** — **Q** none beyond §C. **D** `clue_old_soldier` or `clue_actor` (the player learns the Fact).
 
 ### The verdict
 | # | Rule | T | W | E |
@@ -177,7 +177,7 @@ Using the glass with nothing in particular as its subject ("use the glass", or o
 | R30 | `wager_lost` | flag `verdict_given` | flagsNone `clergyman_read_right` | grantFact player `wager_lost_fact`; playBeat [VL] |
 
 - VW "\"Both, Watson. Both, and exactly.\" Holmes sat down rather heavily in his chair. \"I begin to think I shall have to find another occupation.\" The wager was mine."
-- VL "Holmes settled the wager: both, or nothing, those had been the terms, and the point and the wager were his."
+- VL "Both, or nothing: those had been the terms, and the wager was Holmes's."
 - **N** rides on the second reading's turn (above). **D** `clue_wager_won` or `clue_wager_lost`.
 
 ### The closing and the ending
@@ -193,10 +193,10 @@ Using the glass with nothing in particular as its subject ("use the glass", or o
 
 The ending Rules wait on `factsKnown`, which only the closing's flag Rule grants, one cascade depth after the closing's trigger: so the ending can never fire on the closing's own turn, whatever the Story order. `wait` raises no action Firing (it is a Tick), so the idle Rules cover it; `move` is always rejected here (no exits) and raises none either.
 
-- C1 "The lamps were lit along the street, and the crowd below had thickened rather than thinned. Holmes had gone back to the window, and spoke before I had well begun whatever I was about."
-- C2 "\"You did very well, Watson. But we chose those two because they were remarkable. Some hundreds of people have passed under this window since you began: describe one of them to me. Any one I did not point out.\" I tried, and could not: straw hats, a great many children, a sailor, and not one face."
+- C1 "The lamps were lit, and the crowd below had thickened. Holmes, back at the window, spoke before I had well begun whatever I was about."
+- C2 "\"You did very well, Watson. But we chose those two because they were remarkable. Some hundreds have passed under this window since you began: describe one I did not point out.\" I tried, and could not: straw hats, children, a sailor, and not one face."
 - C3 "\"Nor could I. Nor could any constable on any beat in London. We see what asks to be seen. A man who asks nothing of anybody might pass under this window every evening for a year and never once be looked at.\" He let the curtain fall."
-- **N** `full`; about 140 words. Its turn carries whatever the player did as well; C1 subordinates it. **F** `holmes_invisible_in_a_crowd` (askable for the one turn before the ending). **S** "constable" (common word, kept: owner decision 7). **Q** some hundreds (beat), a year (common). **D** `clue_what_asks`.
+- **N** `full`; about 120 words plus the thesis Fact's statement (about 27), trimmed in phase 4 after the golden measured 167. Its turn carries whatever the player did as well; C1 subordinates it. **F** `holmes_invisible_in_a_crowd` (askable for the one turn before the ending). **S** "constable" (common word, kept: owner decision 7). **Q** some hundreds (beat), a year (common). **D** `clue_what_asks`.
 - **The ending** (`GameEnded`): the ending's beats are the coda (§7); `full`, about 90 words plus the player's action.
 
 ### Ambience
@@ -206,7 +206,7 @@ The ending Rules wait on `factsKnown`, which only the closing's flag Rule grants
 | R39 | `barrel_organ` (`once: false`) | `tick`, weight 1 | flagsAll `wager_struck`, flagsNone `verdict_given` | playBeat [A2] |
 | R40 | `monograph_pages` (`once: false`) | action `read` target `tobacco_monograph` | — | cue `pages_riffle` |
 
-- A1 "Across the street the lamplighter came down the far pavement with his pole, and one by one the gas came up in the lamps."
+- A1 "The lamplighter went down the far pavement, and one by one the gas came up in the lamps."
 - A2 "Below the window a barrel-organ struck up a tune, lost it, and found it again."
 - R38 fires on whatever turn first passes 7:45 PM (the critical path reaches the verdict no earlier than about 7:52), so the closing's "the lamps were lit" always follows it. R39 is the only ambient Tick and is off once the verdict is given, so the closing's and the ending's Ticks never lose a draw to it.
 

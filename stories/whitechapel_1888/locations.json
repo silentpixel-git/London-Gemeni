@@ -1,0 +1,12 @@
+[
+  {
+    "id": "baker_street",
+    "name": "221B Baker Street",
+    "beats": [
+      "Holmes's sitting room at 221B Baker Street on a warm August evening, the late daylight going to dusk.",
+      "Both windows stand open to the street, and the noise of the bank-holiday crowd comes up from the pavement.",
+      "The chemical bench, where the afternoon's experiment went black and acrid; the mantel; the violin in its case; Holmes's monograph on tobacco ash among the papers."
+    ],
+    "exits": []
+  }
+]

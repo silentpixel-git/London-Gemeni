@@ -55,6 +55,8 @@ interface CommandInputProps {
   prefill?: { text: string; nonce: number } | null;
   /** "Try" chips — each sends its command when clicked. Empty hides the row. */
   suggestions?: string[];
+  /** Once the game has ended, the dock offers this in place of the command line. */
+  onBeginAgain?: () => void;
 }
 
 export const CommandInput: React.FC<CommandInputProps> = ({
@@ -68,6 +70,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
   dockRef,
   prefill,
   suggestions = [],
+  onBeginAgain,
 }) => {
   const reducedMotion = useReducedMotion();
   const [input, setInput] = useState('');
@@ -96,7 +99,27 @@ export const CommandInput: React.FC<CommandInputProps> = ({
   const prompts = isMobile ? PROMPTS_MOBILE : PROMPTS_DESKTOP;
   const placeholder = prompts[history.length % prompts.length];
 
-  if (isGameOver) return null;
+  // An ending closes the diary: the dock offers a new investigation instead of a command line.
+  if (isGameOver) {
+    if (!onBeginAgain) return null;
+    return (
+      <div
+        className="absolute bottom-0 inset-x-0 z-[4] pointer-events-none px-4 pt-10 pb-[calc(16px+env(safe-area-inset-bottom,0px))] desk:px-16 desk:pt-12 desk:pb-[calc(24px+env(safe-area-inset-bottom,0px))]"
+        style={{ background: 'linear-gradient(to top, rgb(var(--lb-bg)) 72%, rgb(var(--lb-bg) / 0))' }}
+      >
+        <div ref={dockRef} data-flip className="max-w-3xl mx-auto flex flex-col items-center gap-3 pointer-events-auto">
+          <p className="text-sm italic font-serif text-lb-muted">The diary is closed on this evening.</p>
+          <button
+            type="button"
+            onClick={onBeginAgain}
+            className="pressable rounded-full border border-lb-accent bg-lb-paper px-5 py-2.5 text-[15px] text-lb-accent hover:bg-lb-accent/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lb-accent"
+          >
+            Begin a new investigation
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

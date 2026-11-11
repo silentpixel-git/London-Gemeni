@@ -1,0 +1,43 @@
+[
+  {
+    "id": "clue_old_soldier",
+    "name": "The Old Soldier",
+    "fact": "holmes_soldier_grandchild",
+    "summary": "An old infantryman by the cab rank: Indian service, a thigh healed short. Holmes saw he was waiting for a grandchild."
+  },
+  {
+    "id": "clue_actor",
+    "name": "The Actor",
+    "fact": "holmes_actor_reading",
+    "summary": "The clergyman outside the chemist's was an actor in costume: greasepaint at the hairline, a script for a book."
+  },
+  {
+    "id": "clue_wager_won",
+    "name": "The Wager Won",
+    "fact": "wager_won_fact",
+    "summary": "Both men read rightly; Holmes will not touch the violin before midnight.",
+    "connections": [
+      "clue_old_soldier",
+      "clue_actor"
+    ]
+  },
+  {
+    "id": "clue_wager_lost",
+    "name": "The Wager Lost",
+    "fact": "wager_lost_fact",
+    "summary": "A black coat, and I stopped looking. The monograph, plates and all.",
+    "connections": [
+      "clue_old_soldier",
+      "clue_actor"
+    ]
+  },
+  {
+    "id": "clue_what_asks",
+    "name": "What Asks to Be Seen",
+    "fact": "holmes_invisible_in_a_crowd",
+    "summary": "We see what asks to be seen. A man who asks nothing of anybody might never once be looked at.",
+    "connections": [
+      "clue_actor"
+    ]
+  }
+]

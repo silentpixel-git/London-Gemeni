@@ -236,7 +236,8 @@ section('the other ways through the glass');
 section('idle');
 {
   const r = new Run(7);
-  check(firedAny(r.idle()).length === 0, 'before the demonstration an idle Tick is quiet');
+  const early = r.idle();
+  check(!fired(early, 'demonstration') && !fired(early, 'wager') && !fired(early, 'wager_on_idle'), 'before the demonstration an idle Tick starts nothing (it may pass the lamplighter)', firedAny(early).join());
   r.talk();
   const wager = r.idle();
   check(fired(wager, 'wager_on_idle') && fired(wager, 'wager'), 'unanswered, Holmes proposes the wager anyway');

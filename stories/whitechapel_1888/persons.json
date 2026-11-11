@@ -1,0 +1,20 @@
+[
+  {
+    "id": "holmes",
+    "name": "Sherlock Holmes",
+    "schedule": {
+      "0": {
+        "default": {
+          "kind": "at",
+          "location": "baker_street"
+        }
+      }
+    },
+    "disposition": "neutral",
+    "beats": [
+      "Sherlock Holmes: tall and lean, in his shirtsleeves for the heat, a pipe to hand; he speaks precisely and briefly.",
+      "Bored by the holiday's harmlessness until offered a diversion; then playful and competitive, and generous when beaten.",
+      "Once he has set Watson his wager, he will not hear a reading of a man Watson has not yet looked at: he tells him to look first."
+    ]
+  }
+]

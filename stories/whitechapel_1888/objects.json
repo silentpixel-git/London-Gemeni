@@ -1,0 +1,93 @@
+[
+  {
+    "id": "opera_glass",
+    "name": "the opera glass",
+    "placement": {
+      "kind": "person",
+      "person": "holmes"
+    },
+    "item": true,
+    "beats": [
+      "A small French opera glass in brass and black enamel, bought for the opera and used for everything else; it brings the far kerb to arm's length."
+    ]
+  },
+  {
+    "id": "street_soldier",
+    "name": "the old man by the cab rank",
+    "placement": {
+      "kind": "location",
+      "location": "baker_street"
+    },
+    "item": false,
+    "hidden": true,
+    "beats": [
+      "About sixty, in a decent coat too heavy for August, standing at the kerb heels together and chin up, as though told to stand there and not yet told to stop.",
+      "He leans on the stick in his left hand harder than a man of his years would wish, and when he steps aside for a perambulator the left leg swings stiff from the hip, the knee hardly bending.",
+      "His neck, below the line of a cap he no longer wears, is burned a deep brick colour that no English summer gives a man."
+    ]
+  },
+  {
+    "id": "street_clergyman",
+    "name": "the clergyman",
+    "placement": {
+      "kind": "location",
+      "location": "baker_street"
+    },
+    "item": false,
+    "hidden": true,
+    "beats": [
+      "A long black coat gone shiny at the seams, the cuffs turned, a white tie, and a good hat gone to the bad.",
+      "He reads a small book with his lips moving, and now and then looks up over the crowd as a man does who is repeating something to himself.",
+      "At this distance the book is only a small dark thing in his hand, and his face under the hat brim is lost in the failing light."
+    ]
+  },
+  {
+    "id": "open_window",
+    "name": "the open window",
+    "placement": {
+      "kind": "location",
+      "location": "baker_street"
+    },
+    "item": false,
+    "beats": [
+      "Both sashes are thrown up; below, Baker Street is thick with the holiday crowd, a cab rank along the far kerb and the chemist's window opposite."
+    ]
+  },
+  {
+    "id": "crowd",
+    "name": "the holiday crowd",
+    "placement": {
+      "kind": "location",
+      "location": "baker_street"
+    },
+    "item": false,
+    "beats": [
+      "The crowd moves along the pavement in its hundreds, straw hats and children and a sailor among them, and nobody in it looks up."
+    ]
+  },
+  {
+    "id": "holmes_violin",
+    "name": "the violin",
+    "placement": {
+      "kind": "location",
+      "location": "baker_street"
+    },
+    "item": false,
+    "beats": [
+      "Holmes's violin in its case on the chair; he has been at it, on and off, since Saturday."
+    ]
+  },
+  {
+    "id": "tobacco_monograph",
+    "name": "the monograph",
+    "placement": {
+      "kind": "location",
+      "location": "baker_street"
+    },
+    "item": false,
+    "beats": [
+      "Holmes's monograph upon the ashes of the various tobaccos: a hundred and forty varieties, with coloured plates."
+    ],
+    "document": "Upon the Distinction between the Ashes of the Various Tobaccos. By Sherlock Holmes. With coloured plates."
+  }
+]
