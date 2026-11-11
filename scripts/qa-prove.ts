@@ -5,12 +5,14 @@
  *   fixtures/unsolvable  the toy with the study key removed: act 1, clue_letter, solved and
  *                        unsolved must be UNREACHABLE; accused_wrongly must stay REACHABLE
  *   fixtures/stress      the 3-act, 6-room, 33-Rule stress Story: every goal REACHABLE, search not capped
+ *   stories/whitechapel_1888  the real Story: every Clue and ending REACHABLE, uncapped, no EARLY
  *   variants             what ADR-0005 pins for the prover: it can wait to a later period, it
  *                        proves only Selections the endpoint accepts, examine reaches people,
  *                        and early learning is reported
  *
  * Run: npx tsx scripts/qa-prove.ts     Exit 1 on any unexpected outcome.
  */
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Story } from '../packages/schema';
 import { loadStoryDir } from '../packages/schema/load';
@@ -79,6 +81,22 @@ const stressVariant = (mutate: (raw: any) => void) => { const raw = structuredCl
   const line = prove(v).lines.find(l => l.goal.id === 'clue_hands')!;
   if (line.reachable && line.path!.join() === 'examine orrin') pass('variant: a Rule on examining a person is REACHABLE (examine orrin)');
   else fail(`variant: clue_hands should be reached by examine orrin, got ${line.reachable ? line.path!.join(' → ') : 'UNREACHABLE'}`);
+}
+{
+  // The real Story (Act 0, docs/act0-mechanical-score.md §11): its goals, uncapped, with no early learning.
+  const dir = join('stories', 'whitechapel_1888');
+  if (!existsSync(join(dir, 'story.json'))) fail('whitechapel_1888: the Story is not authored yet');
+  else {
+    const r = prove(Story.parse(loadStoryDir(dir)));
+    console.log(formatProof(r));
+    const want = ['ending:wager_won', 'ending:wager_lost', 'clue:clue_old_soldier', 'clue:clue_actor', 'clue:clue_wager_won', 'clue:clue_wager_lost', 'clue:clue_what_asks'];
+    const by = Object.fromEntries(r.lines.map(l => [`${l.goal.kind}:${l.goal.id}`, l.reachable]));
+    const missing = want.filter(k => !by[k]);
+    if (r.capped) fail(`whitechapel_1888: search capped after ${r.explored} states`);
+    else if (missing.length) fail(`whitechapel_1888: UNREACHABLE ${missing.join(', ')}`);
+    else pass(`whitechapel_1888: every Clue and ending of Act 0 reachable (${r.explored} states explored)`);
+    if (r.early.length) fail(`whitechapel_1888: EARLY ${r.early.map(e => e.fact).join(', ')}`);
+  }
 }
 console.log(`\n${fails === 0 ? 'OK' : `${fails} FAILURE(S)`}`);
 process.exit(fails === 0 ? 0 : 1);

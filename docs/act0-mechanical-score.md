@@ -1,6 +1,6 @@
 # Act 0 — The Wager — mechanical score
 
-**Phase 2** of `docs/act-authoring-process.md`, for the narrative spec `docs/act0-wager-spec.md` (sign-off #1: owner, 2026-11-11). Once signed off (#2) this score is frozen: any later deviation is made here first. It replaces the Kemp-era delta rows this file held before (git history).
+**Sign-off #2: given by the owner in chat, 2026-11-11. Frozen.** **Phase 2** of `docs/act-authoring-process.md`, for the narrative spec `docs/act0-wager-spec.md` (sign-off #1: owner, 2026-11-11). Once signed off (#2) this score is frozen: any later deviation is made here first. It replaces the Kemp-era delta rows this file held before (git history).
 
 Engine semantics this score relies on: `docs/adr/0005-pinned-rule-semantics.md`. Vocabulary: `GLOSSARY.md`. Canonical facts: spec §C (cited, not restated, below).
 
