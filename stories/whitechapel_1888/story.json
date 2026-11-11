@@ -67,7 +67,7 @@
     ],
     "voice": [
       "First person, past tense: Dr John Watson writing up the evening in his diary afterwards (\"I observed\", \"Holmes remarked\"). Never present tense.",
-      "Watson is a retired army surgeon: he notices bearing, gait, old injuries and complexion, and names them correctly.",
+      "Watson is a retired army surgeon: he notices bearing, gait, old injuries and complexion, and names them correctly. He never says where he himself was wounded.",
       "Measured and dry, fond of Holmes and exasperated by him; emotionally present but controlled, never breathless or overwrought.",
       "August 1888, high summer: a warm evening, late light failing to dusk, gas lamps lit at dusk. No fog, no cold.",
       "No modern idiom and nothing later than 1888. No lists or inventories: objects and people are woven into the prose.",
@@ -84,7 +84,8 @@
     "English",
     "Indian",
     "Afghan",
-    "French"
+    "French",
+    "sixth"
   ],
   "endings": [
     {
@@ -99,7 +100,7 @@
       "id": "wager_lost",
       "name": "The Wager Lost",
       "beats": [
-        "Holmes took down the monograph upon the ashes of the various tobaccos and laid it in my lap with great tenderness, and I read it, plates and all, until the street was quiet.",
+        "Holmes took up the monograph upon the ashes of the various tobaccos and laid it in my lap with great tenderness, and I read it, plates and all, until the street was quiet.",
         "The windows stood open until past midnight, and the noise of the holiday went on below them, warm and foolish and entirely harmless, and neither of us thought to close them. It was, I believe, the last evening of that summer on which it did not occur to me to do so."
       ]
     }

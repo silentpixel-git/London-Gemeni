@@ -9,7 +9,8 @@
     "topics": [
       "the holiday",
       "bank holiday",
-      "boredom"
+      "boredom",
+      "wickedness"
     ]
   },
   {
@@ -38,7 +39,7 @@
   },
   {
     "id": "holmes_victualler_deduction",
-    "statement": "The victualler's coat is good cloth kept rather than replaced, a tradesman's economy, and the girl beside him walks with a daughter's easy step: clothes and bearing together, nothing more.",
+    "statement": "The victualler's coat is good cloth kept rather than replaced, a tradesman's economy; the girl beside him walks with a daughter's easy step, and keeps glancing at the clock over the chemist's, as a daughter does who was due home an hour ago.",
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [
@@ -72,7 +73,7 @@
   },
   {
     "id": "holmes_violin_stake",
-    "statement": "Holmes has been at the violin on and off since Saturday, and he keeps his word.",
+    "statement": "Holmes has been at the violin on and off since Saturday; if Watson wins he will not touch it before midnight, and he keeps his word.",
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [
@@ -107,7 +108,7 @@
   },
   {
     "id": "holmes_actor_reading",
-    "statement": "The clergyman is an actor in costume between the matinée and the evening performance at a West End house, in a melodrama with a clergyman in it, not wanted until the second act.",
+    "statement": "The clergyman is an actor in costume, greasepaint at his hairline and a script in his hand, between the matinée and the evening performance at a West End house, in a melodrama with a clergyman in it, not wanted until the second act.",
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [
@@ -123,7 +124,7 @@
   },
   {
     "id": "holmes_watsons_service",
-    "statement": "Holmes knew Watson for a man back from Afghanistan the day they met, seven years ago.",
+    "statement": "Holmes knew Watson for a man back from Afghanistan the day they met, seven years ago: he had served with his regiment in India, and been sent home from the base hospital at Peshawar.",
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [
@@ -135,7 +136,7 @@
   },
   {
     "id": "holmes_invisible_in_a_crowd",
-    "statement": "We see what asks to be seen: a man who asks nothing of anybody might pass under the window every evening for a year and never once be looked at.",
+    "statement": "\"We see what asks to be seen. A man who asks nothing of anybody might pass under this window every evening for a year and never once be looked at.\"",
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [

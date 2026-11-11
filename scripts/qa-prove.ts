@@ -98,5 +98,49 @@ const stressVariant = (mutate: (raw: any) => void) => { const raw = structuredCl
     if (r.early.length) fail(`whitechapel_1888: EARLY ${r.early.map(e => e.fact).join(', ')}`);
   }
 }
+{
+  // The prover offers every move a player can make that a Rule listens for, including the ones that
+  // name no subject: an ask with no topic, a look, an inventory (engine review of 2f7a0c7).
+  const tiny = (extra: Record<string, unknown>) => Story.parse({
+    id: 'tiny', title: 'Tiny', periods: [{ id: 'day', name: 'day', startMinutes: 360 }, { id: 'dark', name: 'dark', startMinutes: 1200 }],
+    weathers: [{ id: 'dry', name: 'Dry' }],
+    acts: [{ id: 0, name: 'One', anchorLocation: 'room', startClockMinutes: 600, dateLabel: 'A day', weather: 'dry' },
+      { id: 1, name: 'Two', anchorLocation: 'room', startClockMinutes: 700, dateLabel: 'Later', weather: 'dry' }],
+    opening: { act: 0, location: 'room', beats: ['A room.'] },
+    locations: [{ id: 'room', name: 'The Room', beats: ['Bare boards.'], exits: [] }],
+    objects: [], persons: [], facts: [], clues: [], rules: [], endings: [{ id: 'done', name: 'Done', beats: ['Done.'] }],
+    ...extra,
+  });
+  const askStory = tiny({
+    persons: [{ id: 'stranger', name: 'Mr. Quill', schedule: { '0': { default: { kind: 'at', location: 'room' } } }, disposition: 'neutral', beats: ['A thin man.'] }],
+    facts: [{ id: 'quill_secret', statement: 'Quill saw the boat leave.', knownBy: [], visibleFromAct: 0, topics: ['the boat'] }],
+    clues: [{ id: 'clue_boat', name: 'The Boat', fact: 'quill_secret', summary: 'Quill saw the boat leave.' }],
+    rules: [
+      { id: 'quill_opens_up', trigger: { kind: 'action', verb: ['ask'], person: ['stranger'] }, once: true, effects: [{ kind: 'grantFact', person: 'player', fact: 'quill_secret' }, { kind: 'endGame', ending: 'done' }] },
+      { id: 'to_two', trigger: { kind: 'clock', atMinutes: 650, act: [0] }, once: true, effects: [{ kind: 'advanceAct', act: 1 }] },
+    ],
+  });
+  const ask = prove(askStory).lines.find(l => l.goal.id === 'done')!;
+  if (ask.reachable && ask.path!.join() === 'ask stranger') pass('variant: an ask with no topic, which an ask Rule listens for, is offered (ask stranger)');
+  else fail(`variant: the topic-less ask should reach the ending, got ${ask.reachable ? ask.path!.join(' → ') : 'UNREACHABLE'}`);
+  const lookStory = tiny({ rules: [
+    { id: 'look_around', trigger: { kind: 'action', verb: ['look'] }, once: true, effects: [{ kind: 'endGame', ending: 'done' }] },
+    { id: 'to_two', trigger: { kind: 'clock', atMinutes: 650, act: [0] }, once: true, effects: [{ kind: 'advanceAct', act: 1 }] },
+  ] });
+  const look = prove(lookStory).lines.find(l => l.goal.id === 'done')!;
+  if (look.reachable && look.path!.join() === 'look') pass('variant: a look Rule is reachable by looking');
+  else fail(`variant: a look Rule should be reachable, got ${look.reachable ? look.path!.join(' → ') : 'UNREACHABLE'}`);
+  const earlyStory = tiny({
+    objects: [{ id: 'diary', name: 'diary', beats: ['A diary.'], placement: { kind: 'location', location: 'room' }, item: false, document: 'He did it.', fact: 'who_did_it' }],
+    facts: [{ id: 'who_did_it', statement: 'He did it.', knownBy: [], visibleFromAct: 1, topics: ['who did it'] }],
+    rules: [
+      { id: 'to_two', trigger: { kind: 'clock', atMinutes: 650, act: [0] }, once: true, effects: [{ kind: 'advanceAct', act: 1 }] },
+      { id: 'the_end', trigger: { kind: 'clock', atMinutes: 720, act: [1] }, once: true, effects: [{ kind: 'endGame', ending: 'done' }] },
+    ],
+  });
+  const earlyFacts = prove(earlyStory).early.map(e => e.fact).join();
+  if (earlyFacts === 'who_did_it') pass('variant: EARLY sees a Fact no Clue or Rule reads, learned before its act');
+  else fail(`variant: EARLY should report who_did_it, got "${earlyFacts}"`);
+}
 console.log(`\n${fails === 0 ? 'OK' : `${fails} FAILURE(S)`}`);
 process.exit(fails === 0 ? 0 : 1);

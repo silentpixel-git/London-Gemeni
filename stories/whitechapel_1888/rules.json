@@ -22,7 +22,7 @@
       {
         "kind": "playBeat",
         "beats": [
-          "\"Well?\" said Holmes, without turning from the window. \"Which of them will you give me? Look at your man first, Watson, and then tell me.\""
+          "\"Well?\" said Holmes, turning back to the window. \"Which of them will you give me? Look at your man first, Watson, and then tell me.\""
         ]
       }
     ],
@@ -170,8 +170,8 @@
       {
         "kind": "playBeat",
         "beats": [
-          "Holmes read the street aloud for me: the licensed victualler by the pillar box had kept his daughter out an hour past the time her mother allowed; the man under the lamp had walked in from Hampstead that morning to save the fare, and had spent it since on something he already regretted.",
-          "When I said he could not know the man had walked, he raised the opera glass once more, then set it down on the mantel: the man's boots were white to the ankle with the pale dust of the Heath road. \"That is a fact. That he walked is an inference, though I should be very much surprised to be wrong. You will note the difference, Watson, because nobody else in London does.\""
+          "Holmes read the street aloud for me: the licensed victualler by the pillar box had kept his daughter out an hour past the time her mother allowed; the man under the lamp had walked in from Hampstead that morning to save the fare.",
+          "When I said he could not know the man had walked, he raised the opera glass once more, then set it down on the mantel: the man's boots were white to the ankle with the pale dust of the Heath road. \"That is a fact. That he walked is an inference. You will note the difference, Watson, because nobody else in London does.\""
         ]
       }
     ],
@@ -237,8 +237,8 @@
       {
         "kind": "playBeat",
         "beats": [
-          "I called it a very good parlour trick, which any man might do who had nothing else to do with his evening; and Holmes turned from the window with the look of a man who has been offered a diversion.",
-          "\"Any man. Very well: a wager. Read me two people in that street, who they are and what they are about. Read both correctly and I shall not touch the violin before midnight; fail, and you shall read my monograph upon the ashes of the various tobaccos, all hundred and forty varieties, plates included.\"",
+          "I called it a parlour trick any man might do who had nothing better to do with his evening, and Holmes turned from the window with the look of a man offered a diversion.",
+          "\"Any man. Very well: a wager. Read me two people in that street. Read both correctly and I shall not touch the violin before midnight; fail, and you shall read my monograph upon the ashes of the various tobaccos, all hundred and forty varieties, plates included.\"",
           "\"The old fellow on the kerb by the cab rank. And the clergyman outside the chemist's. When you have your man, give me your reading, and I shall hold you to it.\""
         ]
       }
@@ -534,7 +534,7 @@
       {
         "kind": "playBeat",
         "beats": [
-          "Through the glass, the old man's coat: among its plain buttons, one brass regimental button, worn smooth, of a pattern I knew. It told me nothing my eye had not told me already."
+          "Through the glass, the old man's coat: among its plain buttons, one brass button of an infantry pattern I knew from India, worn smooth. It told me nothing my eye had not told me already."
         ]
       }
     ],
@@ -625,6 +625,80 @@
         "kind": "playBeat",
         "beats": [
           "I turned the glass on the room, which at four paces is absurd, and lowered it again."
+        ]
+      }
+    ],
+    "once": false
+  },
+  {
+    "id": "clergyman_through_glass_after_reading",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "use",
+        "combine"
+      ],
+      "target": [
+        "opera_glass"
+      ],
+      "secondary": [
+        "street_clergyman"
+      ]
+    },
+    "when": {
+      "flagsAll": [
+        "clergyman_read"
+      ],
+      "flagsNone": [
+        "verdict_given"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "giveItem",
+        "object": "opera_glass"
+      },
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Through the glass, now that I knew where to look, the line of greasepaint at his hairline was plain enough."
+        ]
+      }
+    ],
+    "once": false
+  },
+  {
+    "id": "clergyman_through_glass_after_reading_reversed",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "use",
+        "combine"
+      ],
+      "target": [
+        "street_clergyman"
+      ],
+      "secondary": [
+        "opera_glass"
+      ]
+    },
+    "when": {
+      "flagsAll": [
+        "clergyman_read"
+      ],
+      "flagsNone": [
+        "verdict_given"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "giveItem",
+        "object": "opera_glass"
+      },
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Through the glass, now that I knew where to look, the line of greasepaint at his hairline was plain enough."
         ]
       }
     ],
@@ -1016,9 +1090,9 @@
       {
         "kind": "playBeat",
         "beats": [
-          "The lamps were lit, and the crowd below had thickened. Holmes, back at the window, spoke before I had well begun whatever I was about.",
-          "\"You did very well, Watson. But we chose those two because they were remarkable. Some hundreds have passed under this window since you began: describe one I did not point out.\" I tried, and could not: straw hats, children, a sailor, and not one face.",
-          "\"Nor could I. Nor could any constable on any beat in London. We see what asks to be seen. A man who asks nothing of anybody might pass under this window every evening for a year and never once be looked at.\" He let the curtain fall."
+          "The lamps were lit; Holmes, at the window, spoke before I had well begun.",
+          "\"Describe one of the hundreds who have passed under this window, Watson: one I did not point out.\" I could not; not one face.",
+          "\"Nor could I. Nor could any constable on any beat in London.\" He let the curtain fall."
         ]
       }
     ],
@@ -1041,7 +1115,7 @@
       {
         "kind": "playBeat",
         "beats": [
-          "The lamplighter went down the far pavement, and one by one the gas came up in the lamps."
+          "The lamplighter came by, and the gas came up in the lamps."
         ]
       }
     ],

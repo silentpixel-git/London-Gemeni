@@ -164,13 +164,21 @@ export function useInvestigation({ userId }: { userId: string | null }) {
   }, [open]);
 
   const start = useCallback(async (investigationName: string) => {
+    // Kept so a failed start can put back what was on screen (an ended game stays ended, not a blank feed with a command line).
+    const prevFeed = feed;
+    const prevView = view;
     setFeed([]);
     setView(null);
     idleTicks.current = 0;
     const ok = await run({ start: { storyId: DEFAULT_STORY, name: investigationName } });
+    if (!ok && idRef.current) {
+      setFeed(prevFeed);
+      setView(prevView);
+      if (prevView?.ended) idleTicks.current = MAX_IDLE_TICKS;
+    }
     void refreshList();
     return ok;
-  }, [run, refreshList]);
+  }, [run, refreshList, feed, view]);
 
   const send = useCallback(async (text: string) => {
     if (!idRef.current) return;

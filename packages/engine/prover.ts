@@ -43,6 +43,15 @@ export function prove(story: Story, opts: { maxStates?: number } = {}): ProofRep
   let explored = 0;
   let capped = false;
 
+  // Goals are checked on states the search keeps; early learning on every state it reaches, since the
+  // key leaves out knowledge no Rule reads, which is exactly the knowledge EARLY looks for.
+  const checkEarly = (s: State, path: string[]) => {
+    for (const f of story.facts) {
+      if (s.knows.player?.[f.id] && f.visibleFromAct > s.act && !early.has(f.id)) {
+        early.set(f.id, { fact: f.id, act: s.act, visibleFromAct: f.visibleFromAct, path });
+      }
+    }
+  };
   const check = (s: State, path: string[]) => {
     for (const g of goals) {
       const k = goalKey(g);
@@ -52,13 +61,9 @@ export function prove(story: Story, opts: { maxStates?: number } = {}): ProofRep
         : s.ended === g.id;
       if (hit) found.set(k, path);
     }
-    for (const f of story.facts) {
-      if (s.knows.player?.[f.id] && f.visibleFromAct > s.act && !early.has(f.id)) {
-        early.set(f.id, { fact: f.id, act: s.act, visibleFromAct: f.visibleFromAct, path });
-      }
-    }
   };
   check(start, []);
+  checkEarly(start, []);
 
   while (queue.length > 0 && found.size < goals.length) {
     if (explored >= maxStates) { capped = true; break; }
@@ -68,10 +73,11 @@ export function prove(story: Story, opts: { maxStates?: number } = {}): ProofRep
     for (const a of actionsFrom(story, s)) {
       let next: State;
       try { next = a.run(s); } catch { continue; }
+      const p = [...path, a.label];
+      checkEarly(next, p);
       const key = abstractKey(story, next);
       if (seen.has(key)) continue;
       seen.add(key);
-      const p = [...path, a.label];
       check(next, p);
       queue.push({ s: next, path: p });
     }
@@ -120,6 +126,10 @@ function actionsFrom(story: Story, s: State): Action[] {
   if (listens('drop')) for (const id of carried) offer(`drop ${id}`, { verb: 'drop', target: id });
   for (const t of c.topics) offer(`ask ${t.person} about ${t.fact}`, { verb: 'ask', person: t.person, topic: t.fact });
   if (listens('talk')) for (const p of c.persons) offer(`talk ${p.id}`, { verb: 'talk', person: p.id });
+  // An ask with no subject is a Selection the model returns and the endpoint accepts; an action Rule on ask fires on it.
+  if (listens('ask')) for (const p of c.persons) offer(`ask ${p.id}`, { verb: 'ask', person: p.id });
+  if (listens('look')) offer('look', { verb: 'look' });
+  if (listens('inventory')) offer('inventory', { verb: 'inventory' });
   if (listens('examine')) for (const p of c.persons) offer(`examine ${p.id}`, { verb: 'examine', target: p.id });
   for (const id of carried) {
     if (!obj(id).fact && !listens('show') && !listens('give')) continue;

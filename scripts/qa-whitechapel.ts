@@ -264,5 +264,46 @@ section('the demonstration by the window');
   check(fired(r.examine('crowd'), 'wager_on_street'), 'examining the street again strikes the wager');
 }
 
+// ── 5. Phase 4 amendments (score §12) ────────────────────────────────────────
+section('beat order on a look through the glass');
+{
+  const r = new Run(9); r.talk(); r.talk();
+  r.go('take the glass', { verb: 'take', target: 'opera_glass' });
+  r.examine('street_clergyman');
+  const beats = buildNarrationContext(story, r.s, r.last, 'full').beats;
+  const own = beats.findIndex(b => b.startsWith('At this distance'));
+  const glass = beats.findIndex(b => b.startsWith('Through the glass the clergyman'));
+  check(own >= 0 && glass > own, 'the clergyman as the eye sees him comes first, then what the glass shows', beats.map(b => b.slice(0, 30)).join(' | '));
+}
+section('the glass after the clergyman\'s reading');
+{
+  const r = new Run(10); r.talk(); r.talk();
+  r.examine('street_clergyman'); r.ask('holmes_actor_reading');
+  const es = r.use('opera_glass', 'street_clergyman');
+  check(fired(es, 'clergyman_through_glass_after_reading') && r.carried('opera_glass'), 'the glass on the clergyman after a wrong reading has a line, and is picked up');
+  check(!fired(es, 'greasepaint') && !r.s.flags.greasepaint_seen, '…and does not undo the reading');
+}
+section('budgets on the routes the review measured');
+{
+  // The closing on a look, and on examining a figure (score §12 allows 180 for the latter).
+  const toVerdict = (seed: number) => { const r = new Run(seed); r.talk(); r.talk(); r.examine('street_soldier'); r.ask('holmes_soldier_grandchild'); r.examine('street_clergyman'); r.ask('holmes_actor_reading'); return r; };
+  const a = toVerdict(11); a.look();
+  check(fired(a.last, 'closing'), 'setup: a look closes'); withinBudget(a, 'the closing on a look');
+  const b = toVerdict(12); b.examine('street_soldier');
+  const bb = b.budget();
+  check(fired(b.last, 'closing') && bb.words <= 190, `budget: the closing on examining a figure carries ${bb.words} words (score §12 allows 190)`, String(bb.words));
+  // The lamplighter (7:45 PM) on the same turn as the demonstration, then as the wager.
+  const c = new Run(13);
+  for (let i = 0; i < 4; i++) c.examine('holmes_violin');
+  c.examine('open_window');
+  check(fired(c.last, 'demonstration') && fired(c.last, 'lamplighter'), 'setup: the demonstration and the lamplighter on one turn');
+  withinBudget(c, 'the demonstration with the lamplighter');
+  const d = new Run(14); d.talk();
+  for (let i = 0; i < 3; i++) d.examine('holmes_violin');
+  d.examine('open_window');
+  check(fired(d.last, 'wager') && fired(d.last, 'lamplighter'), 'setup: the wager and the lamplighter on one turn');
+  withinBudget(d, 'the wager with the lamplighter');
+}
+
 console.log(`\n${fails === 0 ? 'OK' : `${fails} FAILURE(S)`}`);
 process.exit(fails === 0 ? 0 : 1);

@@ -76,5 +76,7 @@ const remembered = { ...ctx, transcript: [{ person: 'housekeeper', lines: [{ spe
 check(caught(remembered, 'The housekeeper glances at Lestrade, who says nothing.').includes('Lestrade'), 'the narrator\'s own earlier prose licenses nothing, so a slip does not become a licence');
 check(gateNarration({ ...ctx, lexicon: [...ctx.lexicon, 'George'] }, { prose: 'A portrait of George III hangs by the stairs.', observations: [] }).ok, 'a Roman numeral in capitals is not a name');
 
+check(caught({ ...ctx, storyTitle: 'London Bleeds: The Whitechapel Diaries' }, 'He turned his face towards Whitechapel.').includes('Whitechapel'), 'the Story\'s title licenses nothing (it may name what an act must not)');
+
 console.log(`\n${fails === 0 ? 'OK' : `${fails} FAILURE(S)`}`);
 process.exit(fails === 0 ? 0 : 1);

@@ -84,7 +84,8 @@ const tokens = (text: string) => text.toLowerCase().match(/\p{L}+|\d+/gu) ?? [];
  */
 export function contextWords(ctx: NarrationContext): Set<string> {
   const parts: string[] = [
-    ctx.storyTitle, ctx.act.name, ctx.act.dateLabel, ctx.clock.period, ctx.clock.weather,
+    // Not the Story's title: it is the game's chrome, not the world, and may name what an act must not.
+    ctx.act.name, ctx.act.dateLabel, ctx.clock.period, ctx.clock.weather,
     ctx.location.name, ...ctx.location.beats,
     ...ctx.personsPresent.flatMap(p => [p.label, p.disposition, ...p.beats]),
     ...ctx.personsNamed.map(p => p.label),
