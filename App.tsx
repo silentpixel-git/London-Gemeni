@@ -293,6 +293,7 @@ const AppContent: React.FC = () => {
         <CommandInput
           isLoading={inv.isBusy || !inv.investigationId}
           isGameOver={!!view?.ended}
+          onBeginAgain={openInvestigations}
           history={history}
           onAction={inv.send}
           dockRef={dockRef}

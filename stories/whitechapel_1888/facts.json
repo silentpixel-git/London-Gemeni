@@ -1,0 +1,162 @@
+[
+  {
+    "id": "holmes_holiday_dull",
+    "statement": "London has taken a holiday from wickedness, and nothing in the street below requires the smallest explanation.",
+    "knownBy": [
+      "holmes"
+    ],
+    "visibleFromAct": 0,
+    "topics": [
+      "the holiday",
+      "bank holiday",
+      "boredom",
+      "wickedness"
+    ]
+  },
+  {
+    "id": "holmes_opera_glass",
+    "statement": "The opera glass is French, bought for the opera and used for everything else; the eye is the instrument, and the glass merely brings the street nearer.",
+    "knownBy": [
+      "holmes"
+    ],
+    "visibleFromAct": 0,
+    "topics": [
+      "the opera glass",
+      "your glass"
+    ]
+  },
+  {
+    "id": "holmes_heath_road_dust",
+    "statement": "The pale sandy dust of the Heath road, white to the ankle, is what four miles of walking in from Hampstead presses into a boot; that is why Holmes named Hampstead and not merely somewhere north.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "heath road",
+      "hampstead",
+      "the dust",
+      "the man from hampstead"
+    ]
+  },
+  {
+    "id": "holmes_victualler_deduction",
+    "statement": "The victualler's coat is good cloth kept rather than replaced, a tradesman's economy; the girl beside him walks with a daughter's easy step, and keeps glancing at the clock over the chemist's, as a daughter does who was due home an hour ago.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "the victualler",
+      "the publican",
+      "his daughter"
+    ]
+  },
+  {
+    "id": "holmes_observation_vs_inference",
+    "statement": "The dust on a boot is observed, and Watson could have named it himself; that the man walked from Hampstead is inferred, and wants practice before it wants confidence.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "observation",
+      "inference",
+      "the difference",
+      "your method"
+    ]
+  },
+  {
+    "id": "holmes_the_wager",
+    "statement": "Two readings, both correct: Holmes will not touch the violin before midnight; one wrong, and Watson reads the monograph on tobacco ash, plates and all.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "the wager",
+      "the bet",
+      "the terms"
+    ]
+  },
+  {
+    "id": "holmes_violin_stake",
+    "statement": "Holmes has been at the violin on and off since Saturday; if Watson wins he will not touch it before midnight, and he keeps his word.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "the violin",
+      "midnight"
+    ]
+  },
+  {
+    "id": "holmes_monograph",
+    "statement": "The monograph upon the ashes of the various tobaccos describes a hundred and forty varieties, with coloured plates.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "the monograph",
+      "tobacco ash"
+    ]
+  },
+  {
+    "id": "holmes_soldier_grandchild",
+    "statement": "The old man by the cab rank is waiting for a grandchild: he watches the crowd at the height of a child's head, not a man's.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "the old man",
+      "the man by the cab rank",
+      "the soldier",
+      "the grandchild"
+    ]
+  },
+  {
+    "id": "holmes_actor_reading",
+    "statement": "The clergyman is an actor in costume, greasepaint at his hairline and a script in his hand, between the matinée and the evening performance at a West End house, in a melodrama with a clergyman in it, not wanted until the second act.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "the clergyman",
+      "the curate",
+      "the man outside the chemist's",
+      "the actor",
+      "greasepaint",
+      "the script",
+      "the theatre",
+      "the second act"
+    ]
+  },
+  {
+    "id": "holmes_watsons_service",
+    "statement": "Holmes knew Watson for a man back from Afghanistan the day they met, seven years ago: he had served with his regiment in India, and been sent home from the base hospital at Peshawar.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "afghanistan",
+      "peshawar",
+      "india",
+      "your service"
+    ]
+  },
+  {
+    "id": "holmes_invisible_in_a_crowd",
+    "statement": "We see what asks to be seen.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "being noticed",
+      "what asks to be seen"
+    ]
+  },
+  {
+    "id": "wager_won_fact",
+    "statement": "Watson won the wager.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "my win"
+    ]
+  },
+  {
+    "id": "wager_lost_fact",
+    "statement": "Watson lost the wager.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "my loss"
+    ]
+  }
+]

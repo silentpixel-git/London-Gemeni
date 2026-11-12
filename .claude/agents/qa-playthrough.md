@@ -66,7 +66,7 @@ Script the lines from the prover's path to the solving ending, phrased as a play
 
 If every turn prints `ERROR narration failed` or `the turn could not be resolved`, read stderr for the provider's error (an invalid key, a 402 for depleted credits, a blocked host) and report it as an environment blocker, not a game bug.
 
-A turn whose prose equals its beats joined is the gate's fallback: the narrator invented a name or number twice. Count them; each is a finding.
+A turn whose prose equals its beats joined, or on a turn with no beats reads as a few clipped sentences, is the gate's fallback: the narrator invented a name or number twice. Count them; each is a finding.
 
 Evaluate the transcript against:
 

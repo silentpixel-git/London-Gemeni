@@ -1,0 +1,109 @@
+{
+  "id": "whitechapel_1888",
+  "title": "London Bleeds: The Whitechapel Diaries",
+  "periods": [
+    {
+      "id": "dawn",
+      "name": "dawn",
+      "startMinutes": 300
+    },
+    {
+      "id": "morning",
+      "name": "morning",
+      "startMinutes": 420
+    },
+    {
+      "id": "afternoon",
+      "name": "afternoon",
+      "startMinutes": 720
+    },
+    {
+      "id": "evening",
+      "name": "evening",
+      "startMinutes": 1020
+    },
+    {
+      "id": "night",
+      "name": "night",
+      "startMinutes": 1200
+    },
+    {
+      "id": "small_hours",
+      "name": "the small hours",
+      "startMinutes": 1380
+    }
+  ],
+  "weathers": [
+    {
+      "id": "clear_warm",
+      "name": "Warm, clear"
+    }
+  ],
+  "acts": [
+    {
+      "id": 0,
+      "name": "The Wager",
+      "anchorLocation": "baker_street",
+      "startClockMinutes": 1170,
+      "dateLabel": "Monday, 6 August 1888",
+      "weather": "clear_warm"
+    }
+  ],
+  "opening": {
+    "act": 0,
+    "location": "baker_street",
+    "beats": [
+      "The August Bank Holiday, Monday the sixth: a close and airless day that had emptied London of everyone who could afford to leave it. By half past seven both windows of our sitting room stood open to Baker Street, and the holiday came up off the pavement in waves: barrel-organs, a brass band somewhere towards the Park, and under it the long murmur of a hundred thousand people with nowhere they were obliged to be.",
+      "Holmes had spent the afternoon in a chemical silence that ended a little after seven, when something on his bench went black and stank. Since then he had stood at the window with his hands behind him and a little opera glass in one of them, looking down on the crowd as a naturalist looks into a pond in which nothing of interest has bred.",
+      "\"London has taken a holiday from wickedness, Watson,\" he said, without turning. \"I find I resent it more than I can easily express.\""
+    ]
+  },
+  "narrator": {
+    "name": "Watson",
+    "aliases": [
+      "Dr Watson",
+      "John Watson",
+      "John H. Watson"
+    ],
+    "voice": [
+      "First person, past tense: Dr John Watson writing up the evening in his diary afterwards (\"I observed\", \"Holmes remarked\"). Never present tense.",
+      "Watson is a retired army surgeon: he notices bearing, gait, old injuries and complexion, and names them correctly. He never says where he himself was wounded.",
+      "Measured and dry, fond of Holmes and exasperated by him; emotionally present but controlled, never breathless or overwrought.",
+      "August 1888, high summer: a warm evening, late light failing to dusk, gas lamps lit at dusk. No fog, no cold.",
+      "No modern idiom and nothing later than 1888. No lists or inventories: objects and people are woven into the prose.",
+      "Holmes speaks precisely and briefly; he explains only when he chooses to, and never volunteers what he has not been asked."
+    ]
+  },
+  "lexicon": [
+    "London",
+    "Bank Holiday",
+    "Baker Street",
+    "West End",
+    "Park",
+    "England",
+    "English",
+    "India",
+    "Indian",
+    "Afghan",
+    "French",
+    "sixth"
+  ],
+  "endings": [
+    {
+      "id": "wager_won",
+      "name": "The Wager Won",
+      "beats": [
+        "Holmes took up the violin from its case, looked at it, and put it down again; and he kept his word until midnight, which was more than I had dared to expect.",
+        "The windows stood open until past midnight, and the noise of the holiday went on below them, warm and foolish and entirely harmless, and neither of us thought to close them. It was, I believe, the last evening of that summer on which it did not occur to me to do so."
+      ]
+    },
+    {
+      "id": "wager_lost",
+      "name": "The Wager Lost",
+      "beats": [
+        "Holmes took up the monograph upon the ashes of the various tobaccos and laid it in my lap with great tenderness, and I read it, plates and all, until the street was quiet.",
+        "The windows stood open until past midnight, and the noise of the holiday went on below them, warm and foolish and entirely harmless, and neither of us thought to close them. It was, I believe, the last evening of that summer on which it did not occur to me to do so."
+      ]
+    }
+  ]
+}

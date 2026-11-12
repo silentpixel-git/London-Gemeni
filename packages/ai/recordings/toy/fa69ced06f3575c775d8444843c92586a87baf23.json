@@ -1,0 +1,8 @@
+{
+  "kind": "narrate",
+  "summary": "narrate full at hall: TurnReceived,IntentSelected,Spoke,FactDisclosed,ClueDiscovered,ClockAdvanced",
+  "result": {
+    "prose": "She hesitates, then tells you: the master kept the study key inside the long-case clock.",
+    "observations": []
+  }
+}

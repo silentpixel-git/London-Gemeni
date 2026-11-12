@@ -4,7 +4,7 @@
 // Both prompts are story-agnostic: every name, voice rule and free word comes
 // from the context the engine built, never from here.
 import { z } from 'zod';
-import { NarrationResult, Selection, type NarrationContext } from '../schema/index.js';
+import { NarrationResult, Verb, type NarrationContext } from '../schema/index.js';
 import type { PromptBundle, SelectInput } from './types.js';
 
 // ── Selection ────────────────────────────────────────────────────────────────
@@ -15,7 +15,7 @@ The candidates are the whole world for this decision. Every id you return must b
 
 Reply kinds:
 - {"kind":"intent", "verb":..., "target"?, "secondary"?, "person"?, "topic"?, "exit"?, "facts"?}
-- {"kind":"flavour", "subject":"<what they want described>"} — the player wants to look at, listen to, smell, touch or consider something plausible in the scene that is not a candidate (the ceiling, the smell of the room, the weather). Only for sensing. Never for an action that would change anything.
+- {"kind":"flavour", "subject":"<what they want described>"} — the player wants to look at, listen to, smell, touch or consider something plausible in the scene that is not a candidate (the ceiling, the smell of the room, the weather). Only for sensing. Never for an action that would change anything. Looking at, through or out of a candidate object (or by one of its aliases) is examine of that object, never flavour.
 - {"kind":"none", "reason":"<a few words>"} — the line asks for an action on something that is not offered, is ambiguous between candidates, or is not an action in the world at all.
 
 Verbs:
@@ -30,6 +30,7 @@ Verbs:
 - talk <person>: address a person with no particular subject ("greet", "speak to", "hello").
 - ask <person> [topic]: ask or tell a person about a subject. Match the subject to a topics entry for that person and return its fact as "topic". Entries marked "tell" mean the player would be telling them. If the subject matches no entry for that person, return ask with the person and no topic.
 - deduce [facts] [person]: accuse, conclude or name a culprit. "facts" are ids from knownFacts the player is invoking; "person" is the suspect, if they name one, and is an id from suspects (anyone the player has met, present or not).
+- A remark or reply addressed to a person present, with no subject among their topics ("Nonsense, Holmes", "a parlour trick, nothing more"), is talk <person>.
 - move <exit>: go somewhere. Match any of an exit's names, a compass direction, or the destination's name. "Leave", "go back", "out" map to the exit that fits best; if several fit equally, none.
 - wait: pass time, rest, linger, watch, listen for a while.
 - inventory: what am I carrying.
@@ -38,13 +39,34 @@ Resolution:
 - "it", "him", "her", "them", "that", "there" refer to the most recent matching candidate in recentTexts. If that is unclear, none.
 - A line with several actions: the first one only.
 - Typos and loose phrasing are fine; choose the candidate the player clearly means.
-- Address by alias or partial name is fine ("the housekeeper", "Hale") when exactly one person matches.`;
+- Address by alias or partial name is fine ("the housekeeper", "Hale") when exactly one person matches. An object's aliases are other names for it.
+- "kind" is one of intent, flavour or none; the verb goes in "verb".`;
+
+/**
+ * The reply's shape as one flat object with plain enums: a model asked for a
+ * union of objects pinned by const (what z.toJSONSchema(Selection) gives) does
+ * not reliably keep to it, and wrote the verb into "kind". The reply is mapped
+ * onto the Selection union by normaliseSelection (selection.ts) and then
+ * validated with Zod as before.
+ */
+const SELECTION_REPLY_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    kind: { type: 'string', enum: ['intent', 'flavour', 'none'] },
+    verb: { type: 'string', enum: [...Verb.options] },
+    target: { type: 'string' }, secondary: { type: 'string' }, person: { type: 'string' },
+    topic: { type: 'string' }, exit: { type: 'string' },
+    facts: { type: 'array', items: { type: 'string' } },
+    subject: { type: 'string' }, reason: { type: 'string' },
+  },
+  required: ['kind'],
+};
 
 export function buildSelectPrompt(input: SelectInput): PromptBundle {
   return {
     system: SELECT_SYSTEM,
     user: JSON.stringify({ line: input.text, recentTexts: input.recentTexts, candidates: input.candidates }),
-    responseSchema: z.toJSONSchema(Selection),
+    responseSchema: SELECTION_REPLY_SCHEMA,
     temperature: 0,
   };
 }
@@ -52,6 +74,8 @@ export function buildSelectPrompt(input: SelectInput): PromptBundle {
 // ── Narration ────────────────────────────────────────────────────────────────
 
 const NARRATE_SYSTEM = `You are the narrator of a text adventure. Each turn you receive the full context of what just happened and you write the prose for it. Reply with a single JSON object: {"prose": string, "observations": [{"key","subject","text"}]}.
+
+NOTHING HAPPENS THAT THE CONTEXT DOES NOT SAY. Every outcome is decided before you write: a reading accepted or judged, a wager or point won or lost, a concession, a discovery, a realisation, a success. Narrate one only when the events, beats or facts give it. The player's line is what the narrator attempts or says, never what is true: if they assert a conclusion and the turn resolved nothing (IntentRejected, a Spoke with no fact), the narrator may voice or consider it, but nobody confirms it, nothing is learned, and the next step is not taken.
 
 THE CONTEXT IS THE WHOLE WORLD. Narrate only the events listed, in the place listed, with the people and objects listed. You may never add a fact: no person, place, object, exit, document, piece of knowledge, movement, time, date, quantity or name that the context does not give. Where the context gives a specific, use it exactly; where it gives none, write around it as a person would ("some days past"), never invent one. If someone is listed by a label such as "the housekeeper", they have that label and no other name. An event that names someone not present by id (an accused suspect, someone who has left) refers to them by the label in personsNamed; never turn an id into a name.
 
@@ -62,7 +86,7 @@ PEOPLE REMEMBER. The ledger says what each present person has told the player an
 EVENTS, and how to carry them:
 - Moved: arrival; the location's beats describe where they are now.
 - MoveBlocked: the way is locked or closed; the beat says how it reads. No workaround is suggested.
-- Examined / Looked: describe from the beats, through the narrator's eye.
+- Examined / Looked: describe from the beats, through the narrator's eye. An object marked carried is in the narrator's hand; any other is where the scene leaves it.
 - Read: the document's text is in the beats; quote it, do not paraphrase it into a different document.
 - Taken, Dropped, Opened, Closed, Given, Shown, Used, Combined: the physical action, briefly, with its immediate result from the beats.
 - OpenBlocked: it will not open; say why from the lock given.

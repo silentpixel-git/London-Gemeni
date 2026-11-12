@@ -21,7 +21,7 @@ The engine decides, the AI narrates (ADR-0002, ADR-0003).
 
 - `select` returns a `Selection` drawn from the Candidate Set. It is validated with Zod and against the set in the adapter, and again in `server/turn.ts` before `resolveTurn`. Removing either check is a **[VIOLATION]**.
 - `narrate` returns `NarrationResult` = prose + Observations. The server appends `Narrated` and one `ObservationRecorded` per Observation, and nothing else from the model. Any model output that reaches a Condition, a flag, a placement, the Ledger or the Candidate Set is a **[VIOLATION]**.
-- Every narration passes `gateNarration` (`packages/ai/gate.ts`); on a second rejection the beats alone are used. A path that streams un-gated prose into the log is a **[VIOLATION]**. (Deltas stream before the gate runs; `done.feed` replaces them, so the client must render the feed, not the deltas, as the record.)
+- Every narration passes `gateNarration` (`packages/ai/gate.ts`); on a second rejection the fallback is `fallbackProse` in `server/turn.ts`: the Beats when the turn has any; on a turn with none, the Facts it told the player (in the speaker's voice), else the narrator's sentences that pass the gate on their own from an attempt that invented no name, else a fixed miss line for a rejected intent or the names of what the turn touched. Nothing a model wrote that failed the gate, and nothing the selection model wrote, reaches the log. Text from the selection model (a miss reason) or from the player reaching the gate's context or the log is a **[VIOLATION]**. A path that streams un-gated prose into the log is a **[VIOLATION]**. (Deltas stream before the gate runs; `done.feed` replaces them, so the client must render the feed, not the deltas, as the record.)
 - Prompts live only in `packages/ai/prompts.ts` and stay story-agnostic: every name, voice line and free word comes from the NarrationContext (`Story.narrator`, `Story.lexicon`, beats). Adapters (`gemini.ts`, `recorded.ts`) add no instructions.
 - `packages/engine` never imports `packages/ai`.
 
@@ -29,7 +29,7 @@ The engine decides, the AI narrates (ADR-0002, ADR-0003).
 
 `server/turn.ts` is the only writer of an Investigation's Event log (`server/investigationStore.ts`).
 
-- One turn at a time: an open turn answers 409 unless stale (`STALE_TURN_MS`); a `SeqConflict` restarts from the load, at most three times. Every failure path after engine Events are appended still closes the turn with a beats-only `Narrated`.
+- One turn at a time: an open turn answers 409 unless stale (`STALE_TURN_MS`); a `SeqConflict` restarts from the load, at most three times. Every failure path after engine Events are appended still closes the turn with a fallback `Narrated` (`fallbackProse` in `server/turn.ts`).
 - Events are appended with consecutive `seq` in one insert; `investigations.last_event_seq` follows. Nothing updates or deletes an `events` row (corrections are compensating Events, ADR-0001).
 - NDJSON order is `events`, `text`*, `done` (or a single `resume`), with errors as a final `error` line. `qa:turn` asserts this; a change here needs it green.
 - `api/turn.ts` runs as native Node ESM, file by file: every relative import reachable from it is `.js`-suffixed or type-only. `npm run qa:lambda-imports` is the only check that sees this.

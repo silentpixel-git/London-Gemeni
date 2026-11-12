@@ -139,7 +139,7 @@ Persistence: two tables, `investigations (id, owner_id nullable for guests, stor
 
 ### 2.6 Narration and the Fact/Flavour boundary
 
-`narrate(ctx)` returns `{ prose, observations: Observation[] }` where an Observation is `{ key, subject: objectId | personId | locationId, text }`. The invention gate (today's `findInventions`, run server side) rejects prose containing a proper noun or numeric specific present in neither `ctx` nor the Investigation's Observations; one regeneration is attempted, then the engine falls back to the Beats alone. An unknown target that the selection model answered `none` for is resolved as a `Flavour` intent: the narrator may describe it, subject to the gate, and the result is an Observation, never an Object.
+`narrate(ctx)` returns `{ prose, observations: Observation[] }` where an Observation is `{ key, subject: objectId | personId | locationId, text }`. The invention gate (today's `findInventions`, run server side) rejects prose containing a proper noun or numeric specific present in neither `ctx` nor the Investigation's Observations; one regeneration is attempted, then the engine falls back to the Beats, or on a turn with none to the narrator's sentences that pass on their own. An unknown target that the selection model answered `none` for is resolved as a `Flavour` intent: the narrator may describe it, subject to the gate, and the result is an Observation, never an Object.
 
 ### 2.7 Validator and prover (build-blocking)
 

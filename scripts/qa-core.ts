@@ -10,7 +10,7 @@
 import { join } from 'node:path';
 import { Story, type EventPayload, type Selection } from '../packages/schema';
 import { loadStoryDir } from '../packages/schema/load';
-import { candidates, initialState, playerView, replay, resolveTurn, startInvestigation, tick, type State } from '../packages/engine';
+import { buildNarrationContext, candidates, initialState, playerView, replay, resolveTurn, startInvestigation, tick, type State } from '../packages/engine';
 import { suggestionsFor } from '../services/viewFormat';
 import { fixedRng } from '../packages/engine/rng';
 
@@ -97,6 +97,9 @@ section('ask / disclosed / ledger');
   check(has(es, e => e.kind === 'ClueDiscovered' && e.clue === 'clue_key'), 'the Clue for that fact is discovered');
   check(fired(es, 'housekeeper_tells_key') && s.flags.knows_key_location === true, 'disclosed trigger fired and set its flag');
   check(fired(es, 'housekeeper_remembers_overnight') && s.pendingGrants.length === 1, 'flag trigger cascaded within the same turn; delayed grant scheduled');
+  const told = buildNarrationContext(story, s, es, 'full').events.map(e => e.kind);
+  check(!told.some(k => k === 'RuleFired' || k === 'FlagSet' || k === 'GrantScheduled' || k === 'BeatQueued') && told.includes('FactDisclosed'),
+    'the narrator sees what the player witnessed (the disclosure), not the engine\'s bookkeeping (Rules, flags, a grant in flight)', told.join(','));
   check(s.ledger.housekeeper?.told.includes('key_in_clock'), 'ledger: she has told the player');
   check(s.knows.player.key_in_clock === true, 'player knows the fact');
   check(s.persons.housekeeper.introduced, 'self-introducing person is named after first exchange');

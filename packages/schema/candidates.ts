@@ -8,6 +8,8 @@ export const CandidateSet = z.object({
   objects: z.array(z.object({
     id: Id,
     name: z.string(),
+    /** Other names the Story gives it, so a player's word for it reaches the selection model. */
+    aliases: z.array(z.string()).optional(),
     where: z.enum(['here', 'carried', 'inContainer', 'onPerson']),
   })),
   persons: z.array(z.object({ id: Id, name: z.string() })),

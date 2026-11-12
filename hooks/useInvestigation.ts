@@ -22,8 +22,8 @@ import { InvestigationRepository, type InvestigationSummary } from '../services/
 import { postTurn, TurnRefused, type TurnBody, type TurnLine } from '../services/turnClient';
 import type { GameHistoryItem } from '../types';
 
-/** The Story a new Investigation starts on. The stress fixture until a real Story is authored for the new engine. */
-export const DEFAULT_STORY: string = import.meta.env.VITE_DEFAULT_STORY || 'stress';
+/** The Story a new Investigation starts on: the Whitechapel Story, which opens on Act 0. */
+export const DEFAULT_STORY: string = import.meta.env.VITE_DEFAULT_STORY || 'whitechapel_1888';
 export const IDLE_TICK_MS = 120_000;
 const MAX_IDLE_TICKS = 3;
 const IDLE_POLL_MS = 5_000;
@@ -164,13 +164,21 @@ export function useInvestigation({ userId }: { userId: string | null }) {
   }, [open]);
 
   const start = useCallback(async (investigationName: string) => {
+    // Kept so a failed start can put back what was on screen (an ended game stays ended, not a blank feed with a command line).
+    const prevFeed = feed;
+    const prevView = view;
     setFeed([]);
     setView(null);
     idleTicks.current = 0;
     const ok = await run({ start: { storyId: DEFAULT_STORY, name: investigationName } });
+    if (!ok && idRef.current) {
+      setFeed(prevFeed);
+      setView(prevView);
+      if (prevView?.ended) idleTicks.current = MAX_IDLE_TICKS;
+    }
     void refreshList();
     return ok;
-  }, [run, refreshList]);
+  }, [run, refreshList, feed, view]);
 
   const send = useCallback(async (text: string) => {
     if (!idRef.current) return;

@@ -265,6 +265,29 @@ check('gate rejects twice: falls back to the Beats alone, no Observations',
   always.done?.narrated.text === fallbackBeats.join(' ') && fallbackBeats.length > 0 && always.done?.observations.length === 0,
   always.done?.narrated.text);
 
+{
+  // A turn with no Beats (a plain take, an ask) used to fall back to the Beats alone, which is nothing: silence.
+  const rejecting = (pattern: RegExp, kind: 'name' | 'number'): TurnDeps['gate'] => (_ctx, result) =>
+    pattern.test(result.prose) ? { ok: false, inventions: [{ kind, token: INVENTED }] } : { ok: true, inventions: [] };
+  const playTo = async (gate: TurnDeps['gate'], last: string) => {
+    const s = memoryStore();
+    const st = await post({ start: { storyId: 'toy', name: 'QA beatless' } }, { store: s, gate });
+    const invId = st.events?.investigationId as string;
+    if (last === 'take the key') await post({ investigationId: invId, text: 'open the clock' }, { store: s, gate });
+    return post({ investigationId: invId, text: last }, { store: s, gate });
+  };
+  const numbers = await playTo(rejecting(/bright|look again/i, 'number'), 'take the key');
+  check('gate rejects twice on a turn with no Beats: the narrator\'s sentences that pass, not silence',
+    numbers.done?.narrated.text === 'You take the brass key.' && (numbers.done?.narrated.beats as string[]).length === 0 && numbers.done?.observations.length === 0
+    && JSON.stringify((numbers.done?.feed as FeedItem[]).map(f => f.kind)) === '["player","prose"]', numbers.done?.narrated.text);
+  const names = await playTo(rejecting(/bright|look again/i, 'name'), 'take the key');
+  check('…but not from an attempt that invented a name (its other sentences may be about that person): the thing taken instead',
+    names.done?.narrated.text === 'The brass key.', names.done?.narrated.text);
+  const fact = story.facts.find(f => f.id === 'key_in_clock')!;
+  const asked = await playTo(rejecting(/hesitates|look again/i, 'name'), 'ask the housekeeper about the key');
+  check('…and an ask keeps its substance: the Fact told, in the speaker\'s voice',
+    asked.done?.narrated.text === (fact.voices?.housekeeper ?? fact.statement), asked.done?.narrated.text);
+}
 // ── A quiet Tick ────────────────────────────────────────────────────────────
 
 {
@@ -337,6 +360,36 @@ async function startWith(s: InvestigationStore, extra: Partial<TurnDeps> = {}) {
 }
 const kindsIn = async (s: InvestigationStore, invId: string) => (await logOf(s, invId)).map(e => e.payload.kind);
 const isError = (r: { status: number; kinds: string[] }, status: number) => r.status === status && r.kinds.join() === 'error';
+
+{
+  // The fallback's salvaged sentences and every kept Observation pass the strict check: no first word escapes.
+  const s = memoryStore();
+  const fixed = (result: NarrationResult): Ai => ({ select: async input => SELECTIONS[input.text] ?? { kind: 'none' }, async *narrate() { yield { kind: 'done', result }; } });
+  const st = await post({ start: { storyId: 'toy', name: 'QA strict' } }, { store: s, ai: fixed(QUIET), gate: passGate });
+  const invId = st.events?.investigationId as string;
+  await post({ investigationId: invId, text: 'open the clock' }, { store: s, ai: fixed(QUIET), gate: passGate });
+  const took = await post({ investigationId: invId, text: 'take the key' }, { store: s, ai: fixed({ prose: 'You take the brass key. Pemberton nods to you from the door. He counts 40 coins.', observations: [] }) });
+  check('a salvaged sentence that opens with an invented name is dropped too',
+    took.done?.narrated.text === 'You take the brass key.', took.done?.narrated.text);
+  const obs = await post({ investigationId: invId, text: 'look' }, { store: s, ai: fixed({ prose: 'The hall is as it was.', observations: [
+    { key: 'clock_maker', subject: 'hall_clock', text: 'Thwaites made the case.' }, { key: 'clock_grain', subject: 'hall_clock', text: 'The walnut is worn pale.' }] }) });
+  check('an Observation whose first word is an invented name is dropped; the prose and the clean Observation stand',
+    obs.done?.narrated.text === 'The hall is as it was.' && JSON.stringify((obs.done?.observations as Array<{ key: string }>).map(o => o.key)) === '["clock_grain"]', JSON.stringify(obs.done?.observations));
+}
+{
+  // A selection model's miss reason is free text: it must neither crash the fallback (an empty one did) nor reach the player.
+  for (const reason of ['', 'Mary Kelly is not here, the player is confused']) {
+    const s = memoryStore();
+    const inventive: Ai = { select: async () => ({ kind: 'none', reason }), async *narrate() { yield { kind: 'done', result: { prose: 'You see Lestrade by the door.', observations: [] } }; } };
+    const st = await post({ start: { storyId: 'toy', name: 'QA miss' } }, { store: s, gate: passGate });
+    const invId = st.events?.investigationId as string;
+    const miss = await post({ investigationId: invId, text: 'fly away' }, { store: s, ai: inventive });
+    const next = await post({ investigationId: invId, text: 'look' }, { store: s, ai: stubAi(), gate: passGate });
+    check(`a miss with reason ${JSON.stringify(reason)} and a narrator that invents twice: a fixed miss line, and play goes on`,
+      miss.status === 200 && wellOrdered(miss.kinds) && miss.done?.narrated.text === 'Nothing of the kind to hand.' && next.status === 200,
+      `${miss.status} ${miss.kinds.join(',')} ${miss.done?.narrated.text} / next ${next.status}`);
+  }
+}
 
 {
   const s = memoryStore();

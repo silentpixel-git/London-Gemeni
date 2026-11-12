@@ -13,8 +13,8 @@ import {
   apply, buildNarrationContext, candidates, exactSelection, feedOf, initialState, personsPresent, playerView,
   replay, resolveTurn, startInvestigation, tick, type State,
 } from '../packages/engine/index.js';
-import { gateNarration, type GateVerdict } from '../packages/ai/gate.js';
-import { confineSelection } from '../packages/ai/selection.js';
+import { findInventions, gateNarration, type GateVerdict } from '../packages/ai/gate.js';
+import { confineSelection, confineTopic, resolveFlavour } from '../packages/ai/selection.js';
 import type { Ai } from '../packages/ai/types.js';
 import { SeqConflict, type InvestigationStore } from './investigationStore.js';
 
@@ -107,7 +107,7 @@ export async function handleTurn(request: Request, deps: TurnDeps): Promise<Resp
         // Close the turn with its Beats so the Investigation is not left busy.
         if (!closed) {
           const ctx = buildNarrationContext(turn.story, turn.state, turn.events, turn.mode);
-          const { rows } = number(turn.story, turn.state, [beatsOnly(ctx)], turn.seqFrom + turn.events.length);
+          const { rows } = number(turn.story, turn.state, [fallbackNarrated(ctx)], turn.seqFrom + turn.events.length);
           await deps.store.append(turn.investigationId, rows).catch(e => console.error('api/turn close:', e));
         }
         send({ kind: 'error', message: 'narration failed' });
@@ -182,7 +182,7 @@ async function prepareOnce(body: TurnBody, deps: TurnDeps): Promise<Prepared | R
     const recentTexts = prior.flatMap(e => (e.kind === 'TurnReceived' ? [e.text] : [])).slice(-RECENT_TEXTS);
     // Exact commands skip the model (ADR-0003). The adapter confines too; the endpoint does not trust that it did.
     const chosen = exactSelection(body.text, set) ?? (await deps.ai.select({ text: body.text, candidates: set, recentTexts }));
-    const selection = confineSelection(chosen, set);
+    const selection = confineTopic(resolveFlavour(confineSelection(chosen, set), set), set, body.text);
     events = resolveTurn(story, before, { text: body.text, selection }).events;
   }
 
@@ -212,19 +212,72 @@ function closesTurn(e: EventPayload): boolean {
   return e.kind === 'Narrated' || e.kind === 'ObservationRecorded';
 }
 
-/** The turn's Beats as its whole narration: the fallback when prose cannot be had. */
-function beatsOnly(ctx: NarrationContext): EventPayload {
-  return { kind: 'Narrated', text: ctx.beats.join(' '), beats: ctx.beats };
+/** The turn's fallback narration as its closing row, when prose cannot be had at all. */
+function fallbackNarrated(ctx: NarrationContext): EventPayload {
+  return { kind: 'Narrated', text: fallbackProse(ctx), beats: ctx.beats };
 }
 
-/** Close a turn whose request died before narrating it, with the Beats it would have fallen back to. */
+/**
+ * An Observation is canon from the moment it is kept, and licenses its words on
+ * later turns, so it must pass the strict check (its first word too). One that
+ * does not is dropped; the prose around it stands.
+ */
+function canonObservations(ctx: NarrationContext, result: NarrationResult): NarrationResult {
+  return { ...result, observations: result.observations.filter(o => findInventions(o.text, ctx, { strict: true }).length === 0) };
+}
+
+/** A sentence kept with no narration around it: it passes the gate, and the strict check, on its own. */
+const standsAlone = (ctx: NarrationContext, sentence: string, gate: NonNullable<TurnDeps['gate']>) =>
+  gate(ctx, { prose: sentence, observations: [] }).ok && findInventions(sentence, ctx, { strict: true }).length === 0;
+
+/** The miss line when nothing better can be said. Tense- and person-neutral, and never the selection model's own reason. */
+const NOTHING_TO_HAND = 'Nothing of the kind to hand.';
+
+/** A rejected narration attempt, with whether the gate found an invented name in it. */
+interface Attempt { prose: string; inventedName: boolean }
+
+/**
+ * What the player reads when the narration cannot be used, in order:
+ *   the turn's Beats, which carry its substance;
+ *   on a turn with none, the Facts it told the player, in the speaker's voice;
+ *   the narrator's sentences that pass the gate on their own, from an attempt
+ *     that invented no name (a sentence about an invented person would
+ *     survive without them: "He nods to you.");
+ *   a fixed miss line for a rejected intent;
+ *   the names of what the turn touched.
+ * Nothing written by the selection model, and nothing that failed the gate,
+ * reaches the log.
+ */
+function fallbackProse(ctx: NarrationContext, attempts: Attempt[] = [], gate?: NonNullable<TurnDeps['gate']>): string {
+  if (ctx.beats.length) return ctx.beats.join(' ');
+  if (ctx.facts.length) return ctx.facts.map(f => f.voice ?? f.statement).join(' ');
+  if (gate) {
+    for (const a of attempts) {
+      if (a.inventedName) continue;
+      const kept = a.prose.split(/\n{2,}/)
+        .map(par => par.replace(/\b(Mr|Mrs|Ms|Dr|St|Rev|[A-HJ-Z])\.\s+/g, '$1.\u0001').split(/(?<=[.!?…]["”’')]*)\s+/).map(x => x.replace(/\u0001/g, ' ')).filter(s => s.trim() && standsAlone(ctx, s, gate)).join(' '))
+        .filter(Boolean).join('\n\n');
+      if (kept) return kept;
+    }
+  }
+  if (ctx.events.some(e => e.kind === 'IntentRejected')) return NOTHING_TO_HAND;
+  const name = (id: string) => {
+    const object = ctx.objectsVisible.find(o => o.id === id)?.name;
+    return object ? `the ${object}` : ctx.personsPresent.find(p => p.id === id)?.label ?? ctx.personsNamed.find(p => p.id === id)?.label;
+  };
+  const touched = [...new Set(ctx.events.flatMap(e => ('object' in e ? [e.object] : 'person' in e && typeof e.person === 'string' ? [e.person] : [])))]
+    .map(name).filter((x): x is string => !!x);
+  return touched.map(t => `${t[0].toUpperCase()}${t.slice(1)}.`).join(' ');
+}
+
+/** Close a turn whose request died before narrating it, with the fallback it would have used. */
 async function closeStaleTurn(story: Story, log: LogEvent[], id: string, store: InvestigationStore): Promise<LogEvent[]> {
   let from = log.length;
   while (from > 0 && !closesTurn(log[from - 1].payload)) from--;
   const open = log.slice(from).map(e => e.payload);
   const state = replay(story, log.map(e => e.payload));
   const ctx = buildNarrationContext(story, state, open, modeFor(open));
-  const { rows } = number(story, state, [beatsOnly(ctx)], log[log.length - 1].seq + 1);
+  const { rows } = number(story, state, [fallbackNarrated(ctx)], log[log.length - 1].seq + 1);
   await store.append(id, rows);
   return rows;
 }
@@ -251,13 +304,16 @@ async function narrateGated(
 ): Promise<NarrationResult> {
   const first = await collect(ai.narrate(ctx), onDelta);
   const verdict = first.prose.trim() ? gate(ctx, first) : { ok: false, inventions: [] };
-  if (verdict.ok) return first;
+  if (verdict.ok) return canonObservations(ctx, first);
   const retryCtx: NarrationContext = verdict.inventions.length
     ? { ...ctx, beats: [`Rejected inventions, not in this context: ${verdict.inventions.map(i => i.token).join(', ')}.`, ...ctx.beats] }
     : ctx;
   const second = await collect(ai.narrate(retryCtx), () => {});
-  if (second.prose.trim() && gate(ctx, second).ok) return second;
-  return { prose: ctx.beats.join(' '), observations: [] };
+  const again = second.prose.trim() ? gate(ctx, second) : { ok: false, inventions: [] };
+  if (again.ok) return canonObservations(ctx, second);
+  const named = (v: GateVerdict) => v.inventions.some(i => i.kind === 'name');
+  const attempts = [{ prose: second.prose, inventedName: named(again) }, { prose: first.prose, inventedName: named(verdict) }];
+  return { prose: fallbackProse(ctx, attempts, gate), observations: [] };
 }
 
 async function collect(chunks: AsyncIterable<{ kind: 'text'; delta: string } | { kind: 'done'; result: NarrationResult }>, onDelta: (delta: string) => void): Promise<NarrationResult> {

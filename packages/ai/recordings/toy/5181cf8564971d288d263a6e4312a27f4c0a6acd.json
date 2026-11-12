@@ -1,0 +1,8 @@
+{
+  "kind": "narrate",
+  "summary": "narrate full at hall: TurnReceived,IntentSelected,Opened,ClockAdvanced",
+  "result": {
+    "prose": "The little door below the face swings open. Exactly where she said it would be.",
+    "observations": []
+  }
+}

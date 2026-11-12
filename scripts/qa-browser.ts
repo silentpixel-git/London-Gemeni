@@ -5,8 +5,9 @@
  *
  * Everything real except the network edges: the Vite dev server serves the
  * actual app, Chromium runs the actual client, and every POST /api/turn is
- * answered by the actual server/turn.ts handleTurn (memory store, stress
- * fixture). Only these are stood in for, in-process:
+ * answered by the actual server/turn.ts handleTurn (memory store; the stress
+ * fixture, then the default Story's Act 0 played to an ending on a second dev
+ * server with no Story pinned). Only these are stood in for, in-process:
  *   - Supabase auth and REST (a fake guest session; the investigations list)
  *   - the AI: a scripted selection per typed line (exact commands take the
  *     engine's own fast path) and a narrator that speaks the turn's Beats
@@ -54,6 +55,12 @@ const SELECTIONS: Record<string, Selection> = {
   'open the tackle chest': { kind: 'intent', verb: 'open', target: 'tackle_chest' },
   'take the store key': { kind: 'intent', verb: 'take', target: 'store_key' },
   'read the oil cask': { kind: 'intent', verb: 'read', target: 'oil_cask' },
+  // The Whitechapel Story's Act 0 (the app's default Story), the lost wager.
+  'talk to holmes': { kind: 'intent', verb: 'talk', person: 'holmes' },
+  'examine the old man': { kind: 'intent', verb: 'examine', target: 'street_soldier' },
+  'ask holmes about the old man': { kind: 'intent', verb: 'ask', person: 'holmes', topic: 'holmes_soldier_grandchild' },
+  'examine the clergyman': { kind: 'intent', verb: 'examine', target: 'street_clergyman' },
+  'ask holmes about the clergyman': { kind: 'intent', verb: 'ask', person: 'holmes', topic: 'holmes_actor_reading' },
 };
 const ai: Ai = {
   async select(input) {
@@ -158,25 +165,33 @@ async function shot(page: Page, name: string) {
 
 // ── Run ─────────────────────────────────────────────────────────────────────
 
-const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
-  env: { ...process.env, VITE_SUPABASE_URL: SUPABASE, VITE_SUPABASE_ANON_KEY: 'qa-anon', VITE_DEFAULT_STORY: 'stress' },
-  stdio: ['ignore', 'pipe', 'pipe'],
-  // Its own process group, so stopping it also stops the vite under npx.
-  detached: true,
-});
-// Drain the pipes (a full pipe stalls the server); keep the tail for a failure report.
-let viteLog = '';
-const keepLog = (d: Buffer) => { viteLog = (viteLog + d.toString()).slice(-8000); };
-vite.stdout.on('data', keepLog);
-vite.stderr.on('data', keepLog);
-vite.on('exit', code => { if (code !== null && code !== 0) console.error(`vite exited ${code}\n${viteLog}`); });
-const stop = () => { try { process.kill(-vite.pid!, 'SIGTERM'); } catch { /* gone */ } };
-process.on('exit', stop);
-for (let i = 0; ; i++) {
-  try { if ((await fetch(ORIGIN)).ok) break; } catch { /* not up yet */ }
-  if (i > 120) { console.error('vite did not start'); process.exit(1); }
-  await new Promise(r => setTimeout(r, 500));
+/** A Vite dev server on `port`; `defaultStory` pins VITE_DEFAULT_STORY, or leaves the app's own default when undefined. */
+async function startVite(port: number, defaultStory: string | undefined): Promise<() => void> {
+  const env: Record<string, string | undefined> = { ...process.env, VITE_SUPABASE_URL: SUPABASE, VITE_SUPABASE_ANON_KEY: 'qa-anon', VITE_DEFAULT_STORY: defaultStory };
+  if (defaultStory === undefined) delete env.VITE_DEFAULT_STORY;
+  const vite = spawn('npx', ['vite', '--port', String(port), '--strictPort'], {
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    // Its own process group, so stopping it also stops the vite under npx.
+    detached: true,
+  });
+  // Drain the pipes (a full pipe stalls the server); keep the tail for a failure report.
+  let viteLog = '';
+  const keepLog = (d: Buffer) => { viteLog = (viteLog + d.toString()).slice(-8000); };
+  vite.stdout.on('data', keepLog);
+  vite.stderr.on('data', keepLog);
+  vite.on('exit', code => { if (code !== null && code !== 0) console.error(`vite exited ${code}\n${viteLog}`); });
+  const stopIt = () => { try { process.kill(-vite.pid!, 'SIGTERM'); } catch { /* gone */ } };
+  process.on('exit', stopIt);
+  for (let i = 0; ; i++) {
+    try { if ((await fetch(`http://localhost:${port}`)).ok) break; } catch { /* not up yet */ }
+    if (i > 120) { console.error('vite did not start'); process.exit(1); }
+    await new Promise(r => setTimeout(r, 500));
+  }
+  return stopIt;
 }
+const stop = await startVite(PORT, 'stress');
+let stopAct0 = () => {};
 
 const browser = await chromium.launch();
 try {
@@ -276,9 +291,39 @@ try {
   }
   const ticksAfter = (await store.load(id))!.events.filter(e => e.payload.kind === 'TickResolved').length;
   check('two idle minutes with no input send one Tick', ticksAfter === ticksBefore + 1, `${ticksBefore} → ${ticksAfter}`);
+
+  // ── The default Story: Act 0 played to an ending (no Story pinned) ──
+  const PORT2 = PORT + 1;
+  stopAct0 = await startVite(PORT2, undefined);
+  const c = await browser.newContext({ viewport: { width: 1280, height: 860 }, reducedMotion: 'reduce' });
+  await wire(c);
+  const pageC = await c.newPage();
+  const errorsC: string[] = [];
+  pageC.on('pageerror', e => errorsC.push(String(e)));
+  await pageC.goto(`http://localhost:${PORT2}`);
+  const modalC = pageC.getByRole('dialog').filter({ hasText: 'Investigations' });
+  await modalC.waitFor({ timeout: 15000 });
+  await modalC.locator('input').fill('Act 0 run');
+  await modalC.getByRole('button', { name: /begin/i }).click();
+  await pageC.getByText('The August Bank Holiday').first().waitFor({ timeout: 15000 });
+  await settle(pageC);
+  check('the default Story is the Whitechapel Story: a new game opens on Act 0 in Baker Street',
+    listed[0].story_id === 'whitechapel_1888' && /221B Baker Street/.test(await sidebarText(pageC)) && /Sherlock Holmes/.test(await sidebarText(pageC)), listed[0].story_id);
+  for (const line of ['talk to holmes', 'talk to holmes', 'examine the old man', 'ask holmes about the old man', 'examine the clergyman', 'ask holmes about the clergyman', 'look', 'look']) await say(pageC, line);
+  check('Act 0 played through the lost wager ends the game: the ending is in the feed', (await feedText(pageC)).includes('The Wager Lost'), (await feedText(pageC)).slice(-300));
+  check('the ended game has no command line', (await pageC.locator('form input[type="text"]').count()) === 0);
+  const again = pageC.getByRole('button', { name: 'Begin a new investigation' });
+  check('…but the closed diary, and a button to begin a new investigation, which has the focus',
+    await pageC.getByText('The diary is closed.').isVisible() && await again.isVisible()
+    && await pageC.evaluate(() => document.activeElement?.textContent?.trim()) === 'Begin a new investigation');
+  await shot(pageC, '5-act0-ended');
+  await again.click();
+  check('the button opens the investigations list', await modalC.isVisible());
+  check('no page errors in Act 0', errorsC.length === 0, errorsC.join('\n'));
 } finally {
   await browser.close();
   stop();
+  stopAct0();
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

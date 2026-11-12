@@ -14,9 +14,10 @@
     "qa:stress": "npx tsx scripts/qa-stress.ts",
     "qa:gate": "npx tsx scripts/qa-gate.ts",
     "qa:turn": "npx tsx scripts/qa-turn.ts",
+    "qa:whitechapel": "npx tsx scripts/qa-whitechapel.ts",
     "qa:browser": "npx tsx scripts/qa-browser.ts",
     "qa:lambda-imports": "npx tsx scripts/qa-lambda-imports.ts",
-    "qa:all": "npm run lint && npm run qa:lambda-imports && npm run qa:story && npm run qa:core && npm run qa:prove && npm run qa:stress && npm run qa:gate && npm run qa:turn"
+    "qa:all": "npm run lint && npm run qa:lambda-imports && npm run qa:story && npm run qa:core && npm run qa:prove && npm run qa:stress && npm run qa:gate && npm run qa:turn && npm run qa:whitechapel"
   },
   "dependencies": {
     "@google/genai": "^1.33.0",

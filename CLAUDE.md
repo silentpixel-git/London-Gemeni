@@ -17,7 +17,7 @@ Bias toward caution over speed; use judgment on trivial tasks.
 
 **London Bleeds: The Whitechapel Diaries** — a text adventure set in 1888 London during the Jack the Ripper murders. React + TypeScript SPA (Vite), Gemini for narration, Supabase for auth and storage, Vercel for hosting.
 
-The engine is mid-rebuild (`docs/engine-rebuild-plan.md`). Phases 0–4 are done: a story-agnostic engine runs on the server and the UI renders what it says. The Whitechapel story is not yet authored for it (Phase 6), so new games start on the stress fixture, "The Saltmarsh Light". The last commit with the old engine and the Whitechapel story as TypeScript is on the `archive/pre-phase4-engine` branch; Phase 6 reads its source material from there.
+The engine is mid-rebuild (`docs/engine-rebuild-plan.md`). Phases 0–4 are done: a story-agnostic engine runs on the server and the UI renders what it says. Phase 6 is under way, one act at a time: the Whitechapel Story (`stories/whitechapel_1888/`) holds Act 0, "The Wager" (spec `docs/act0-wager-spec.md`, score `docs/act0-mechanical-score.md`), and new games start on it. The owner has scoped work to Act 0; later acts are not specced. The last commit with the old engine and the Whitechapel story as TypeScript is on the `archive/pre-phase4-engine` branch; Phase 6 reads its source material from there.
 
 Read before touching `packages/`, `server/` or `api/`, in this order: `GLOSSARY.md` (the vocabulary: Story, Fact, Flavour, Rule, Event, Investigation, Candidate Set), the plan, `docs/adr/0001`–`0005` (0005 pins the Rule semantics every act is authored against), `server/TURN.md` (the turn endpoint's contract), `packages/schema/README.md`.
 
@@ -42,6 +42,7 @@ There is no unit-test framework; correctness is `tsc` plus scripted `qa:*` harne
 | `qa:stress` | The story-neutral stress fixture: behaviour the toy cannot reach (companion, closed periods, delayed rumor, rule-unlocked paths, timing) |
 | `qa:gate` | The invention gate (`packages/ai/gate.ts`) |
 | `qa:turn` | `server/turn.ts` in-process with the memory store and recorded AI: NDJSON order, seq, view and feed, resume, quiet Ticks, the fast path, one-turn-at-a-time. Recordings are keyed by a hash of the AI's input, so any engine, projection or schema change needs `npx tsx scripts/qa-turn.ts --author` and the rewritten recordings committed |
+| `qa:whitechapel` | The Whitechapel Story's golden scenario: Act 0 transcribed from its frozen score, negatives, narration budgets, exact replay. Change it only through the score |
 | `qa:lambda-imports` | `api/turn.ts` runs as native Node ESM, file by file: every relative import reachable from it must be `.js`-suffixed or type-only, or the function dies at load. Nothing else catches this |
 | `qa:browser` | Phase 4 acceptance: the real app in Chromium plays Acts 0–I of the stress fixture through the real `handleTurn`; a second browser and a reload must render an identical feed and sidebar. Supabase and the AI are stood in for in-process. Needs Playwright + Chromium; not in `qa:all` |
 | `scripts/smoke-gemini.ts` | One live select and narrate against Gemini. Needs `GEMINI_API_KEY`; in a cloud session run it with `NODE_USE_ENV_PROXY=1` |

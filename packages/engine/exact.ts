@@ -25,7 +25,7 @@ export function exactSelection(text: string, set: CandidateSet): Selection | nul
   const word = ABBREVIATIONS[bare] ?? bare;
   const same = (name: string) => name.toLowerCase() === word;
   // A bare word that also names something here is ambiguous: the model decides.
-  if (set.objects.some(o => same(o.name)) || set.persons.some(p => same(p.name))) return null;
+  if (set.objects.some(o => same(o.name) || (o.aliases ?? []).some(same)) || set.persons.some(p => same(p.name))) return null;
   const exits = set.exits.filter(x => x.names.some(same));
   return exits.length === 1 && set.verbs.includes('move') ? { kind: 'intent', verb: 'move', exit: exits[0].id } : null;
 }

@@ -43,7 +43,8 @@ export function resolveTurn(story: Story, state: State, input: TurnInput, rng: R
 
   switch (input.selection.kind) {
     case 'none':
-      t.emit({ kind: 'IntentRejected', reason: input.selection.reason ?? 'nothing in reach matched' });
+      // The selection model's own reason is free text it wrote: it stays out of the log, which holds only engine words.
+      t.emit({ kind: 'IntentRejected', reason: 'nothing in reach matched' });
       return t.result();
     case 'flavour':
       t.emit({ kind: 'FlavourRequested', subject: input.selection.subject });

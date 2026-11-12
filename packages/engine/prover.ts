@@ -43,6 +43,15 @@ export function prove(story: Story, opts: { maxStates?: number } = {}): ProofRep
   let explored = 0;
   let capped = false;
 
+  // Goals are checked on states the search keeps; early learning on every state it reaches, since the
+  // key leaves out knowledge no Rule reads, which is exactly the knowledge EARLY looks for.
+  const checkEarly = (s: State, path: string[]) => {
+    for (const f of story.facts) {
+      if (s.knows.player?.[f.id] && f.visibleFromAct > s.act && !early.has(f.id)) {
+        early.set(f.id, { fact: f.id, act: s.act, visibleFromAct: f.visibleFromAct, path });
+      }
+    }
+  };
   const check = (s: State, path: string[]) => {
     for (const g of goals) {
       const k = goalKey(g);
@@ -52,13 +61,9 @@ export function prove(story: Story, opts: { maxStates?: number } = {}): ProofRep
         : s.ended === g.id;
       if (hit) found.set(k, path);
     }
-    for (const f of story.facts) {
-      if (s.knows.player?.[f.id] && f.visibleFromAct > s.act && !early.has(f.id)) {
-        early.set(f.id, { fact: f.id, act: s.act, visibleFromAct: f.visibleFromAct, path });
-      }
-    }
   };
   check(start, []);
+  checkEarly(start, []);
 
   while (queue.length > 0 && found.size < goals.length) {
     if (explored >= maxStates) { capped = true; break; }
@@ -68,10 +73,11 @@ export function prove(story: Story, opts: { maxStates?: number } = {}): ProofRep
     for (const a of actionsFrom(story, s)) {
       let next: State;
       try { next = a.run(s); } catch { continue; }
+      const p = [...path, a.label];
+      checkEarly(next, p);
       const key = abstractKey(story, next);
       if (seen.has(key)) continue;
       seen.add(key);
-      const p = [...path, a.label];
       check(next, p);
       queue.push({ s: next, path: p });
     }
@@ -106,7 +112,7 @@ function actionsFrom(story: Story, s: State): Action[] {
     const o = s.objects[id];
     if (o.container && o.container.state !== 'open') offer(`open ${id}`, { verb: 'open', target: id });
     if (o.container && o.container.state === 'open' && listens('close')) offer(`close ${id}`, { verb: 'close', target: id });
-    if (obj(id).document || obj(id).fact) offer(`read ${id}`, { verb: 'read', target: id });
+    if (obj(id).document || obj(id).fact || listens('read')) offer(`read ${id}`, { verb: 'read', target: id });
     if (listens('examine')) offer(`examine ${id}`, { verb: 'examine', target: id });
     if (listens('use')) offer(`use ${id}`, { verb: 'use', target: id });
   }
@@ -120,6 +126,10 @@ function actionsFrom(story: Story, s: State): Action[] {
   if (listens('drop')) for (const id of carried) offer(`drop ${id}`, { verb: 'drop', target: id });
   for (const t of c.topics) offer(`ask ${t.person} about ${t.fact}`, { verb: 'ask', person: t.person, topic: t.fact });
   if (listens('talk')) for (const p of c.persons) offer(`talk ${p.id}`, { verb: 'talk', person: p.id });
+  // An ask with no subject is a Selection the model returns and the endpoint accepts; an action Rule on ask fires on it.
+  if (listens('ask')) for (const p of c.persons) offer(`ask ${p.id}`, { verb: 'ask', person: p.id });
+  if (listens('look')) offer('look', { verb: 'look' });
+  if (listens('inventory')) offer('inventory', { verb: 'inventory' });
   if (listens('examine')) for (const p of c.persons) offer(`examine ${p.id}`, { verb: 'examine', target: p.id });
   for (const id of carried) {
     if (!obj(id).fact && !listens('show') && !listens('give')) continue;
@@ -132,6 +142,15 @@ function actionsFrom(story: Story, s: State): Action[] {
     if (r.trigger.kind === 'combine') {
       const [a, b] = r.trigger.items;
       if (reachable.includes(a) && reachable.includes(b)) offer(`combine ${a} ${b}`, { verb: 'combine', target: a, secondary: b });
+    }
+    // An action Rule may name combine or deduce as plain verbs: offer what it could match.
+    if (r.trigger.kind === 'action' && r.trigger.verb.includes('combine')) {
+      for (const a of r.trigger.target ?? reachable) for (const b of r.trigger.secondary ?? reachable) {
+        if (a !== b && reachable.includes(a) && reachable.includes(b)) offer(`combine ${a} ${b}`, { verb: 'combine', target: a, secondary: b });
+      }
+    }
+    if (r.trigger.kind === 'action' && r.trigger.verb.includes('deduce')) {
+      for (const p of r.trigger.person ?? [undefined]) offer(`deduce${p ? ` ${p}` : ''}`, { verb: 'deduce', facts: [], ...(p ? { person: p } : {}) });
     }
     if (r.trigger.kind === 'deduction') {
       const facts = r.trigger.facts ?? [];
@@ -168,8 +187,34 @@ function drawsSelectingEach(weights: number[]): number[] {
   return weights.map(w => { const lo = acc / total; acc += w; return (lo + acc / total) / 2; });
 }
 
-/** The State with the clock reduced to its period and the transcript dropped. */
+/**
+ * The Facts whose knowledge can change what is reachable: those a Clue is
+ * found by, a Rule condition (`factsKnown`) reads, a `disclosed` trigger names,
+ * or a deduction needs. Knowing any other Fact (a flavour answer, a rumour no
+ * Rule listens for) changes only what may be said, so two States that differ
+ * only in such knowledge are the same for the search. null means every Fact
+ * counts, as when some `disclosed` trigger names no Fact.
+ */
+const relevantFactsOf = new WeakMap<Story, Set<Id> | null>();
+function relevantFacts(story: Story): Set<Id> | null {
+  if (relevantFactsOf.has(story)) return relevantFactsOf.get(story)!;
+  let out: Set<Id> | null = new Set(story.clues.map(c => c.fact));
+  for (const r of story.rules) {
+    for (const f of r.when?.factsKnown ?? []) out.add(f);
+    if (r.trigger.kind === 'disclosed') {
+      if (!r.trigger.fact) { out = null; break; }
+      out.add(r.trigger.fact);
+    }
+    if (r.trigger.kind === 'deduction') for (const f of r.trigger.facts ?? []) out.add(f);
+  }
+  relevantFactsOf.set(story, out);
+  return out;
+}
+
+/** The State with the clock reduced to its period, the transcript dropped, and knowledge of irrelevant Facts left out. */
 function abstractKey(story: Story, s: State): string {
+  const relevant = relevantFacts(story);
+  const known = (f: Record<Id, true>) => Object.keys(f).filter(id => !relevant || relevant.has(id)).sort();
   const onceRules = Object.keys(s.firedRules).filter(id => story.rules.find(r => r.id === id)?.once);
   return JSON.stringify({
     act: s.act, location: s.location, period: currentPeriod(story, s), ended: s.ended,
@@ -178,7 +223,7 @@ function abstractKey(story: Story, s: State): string {
     exitLocks: s.exitLocks,
     persons: Object.entries(s.persons).map(([id, p]) => [id, p.override ?? '-', p.disposition, p.introduced]),
     met: Object.keys(s.met).sort(),
-    knows: Object.entries(s.knows).map(([who, f]) => [who, Object.keys(f).sort()]),
+    knows: Object.entries(s.knows).map(([who, f]) => [who, known(f)]),
     clues: [...s.clues].sort(),
     once: onceRules.sort(),
     pending: s.pendingGrants.map(g => `${g.person}:${g.fact}`).sort(),
