@@ -76,10 +76,6 @@ export default defineConfig(({ mode }) => {
           plugins: [tailwindcss, autoprefixer],
         },
       },
-      define: {
-        'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
-        'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
-      },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),

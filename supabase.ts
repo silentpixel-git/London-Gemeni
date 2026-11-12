@@ -13,7 +13,7 @@ if (!isSupabaseConfigured) {
 // Supabase JS v2 uses the browser Web Locks API (navigator.locks) to serialize
 // auth operations across tabs. In a single-tab game this causes
 // NavigatorLockAcquireTimeoutError when several Supabase calls fire concurrently
-// at startup (getSession, getProfile, getActiveInvestigation, etc.).
+// at startup (getSession, getProfile, etc.).
 // Replacing it with a simple in-memory sequential queue eliminates all lock
 // contention while remaining safe for a single-user, single-tab application.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
