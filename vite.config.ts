@@ -52,7 +52,7 @@ function apiDevGateway(env: Record<string, string>): Plugin {
             }
             res.end();
           })().catch(err => {
-            console.error(`[ai-dev-gateway ${route}]`, err);
+            console.error(`[api-dev-gateway ${route}]`, err);
             if (!res.headersSent) res.statusCode = 500;
             res.end(JSON.stringify({ error: 'AI gateway failed.' }));
           });

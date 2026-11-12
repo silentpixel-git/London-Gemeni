@@ -7,7 +7,6 @@ export default {
     './index.html',
     './components/**/*.{ts,tsx}',
     './hooks/**/*.{ts,tsx}',
-    './engine/**/*.{ts,tsx}',
     './services/**/*.{ts,tsx}',
     './*.{ts,tsx}',
   ],

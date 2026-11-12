@@ -9,7 +9,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Feather, Lightbulb, Send, Eye, Search, Glasses, Compass, Brain, Microscope, BookOpen, type LucideIcon } from 'lucide-react';
+import { Send, Eye, Search, Glasses, Compass, Brain, Microscope, type LucideIcon } from 'lucide-react';
 import { GameHistoryItem } from '../types';
 import { zoomFade } from './motionTokens';
 import { Tooltip } from './Tooltip';
@@ -43,12 +43,8 @@ const PROMPTS_MOBILE = [
 interface CommandInputProps {
   isLoading: boolean;
   isGameOver: boolean;
-  isConsultingHolmes?: boolean;
-  isAdvancingAct?: boolean;
   history: GameHistoryItem[];
   onAction: (userAction: string) => Promise<void>;
-  /** The hint button; hidden when absent. */
-  onConsultHolmes?: () => void;
   /** Lets the feed keep typed text clear of the dock (chips + input). */
   dockRef?: React.Ref<HTMLDivElement>;
   /** A command placed in the input from the sidebar; the nonce re-applies a repeat. */
@@ -60,11 +56,8 @@ interface CommandInputProps {
 export const CommandInput: React.FC<CommandInputProps> = ({
   isLoading,
   isGameOver,
-  isConsultingHolmes = false,
-  isAdvancingAct = false,
   history,
   onAction,
-  onConsultHolmes,
   dockRef,
   prefill,
   suggestions = [],
@@ -108,10 +101,9 @@ export const CommandInput: React.FC<CommandInputProps> = ({
 
   const isStreaming =
     isLoading &&
-    (isConsultingHolmes ||
-      (history.length > 0 &&
-        history[history.length - 1].role === 'assistant' &&
-        history[history.length - 1].text === ''));
+    history.length > 0 &&
+    history[history.length - 1].role === 'assistant' &&
+    history[history.length - 1].text === '';
 
   return (
     <div
@@ -142,17 +134,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
         <AnimatePresence>
         {isStreaming && (
           <motion.div {...zoomFade(reducedMotion)} className="absolute bottom-full left-4 mb-2 flex items-center gap-2 text-lb-accent origin-bottom-left z-20">
-            {isConsultingHolmes ? (
-              <>
-                <Feather size={14} className="lb-wait-icon shrink-0" />
-                <span className="text-sm italic font-serif lb-ink-mask lb-wait-txt">Watson is contemplating...</span>
-              </>
-            ) : isAdvancingAct ? (
-              <>
-                <BookOpen size={14} className="lb-wait-icon shrink-0" />
-                <span className="text-sm italic font-serif lb-ink-mask lb-wait-txt">Turning the page to a new act...</span>
-              </>
-            ) : reducedMotion ? (
+            {reducedMotion ? (
               <>
                 <loadingVariant.icon size={14} className="shrink-0" />
                 <span className="text-sm italic font-serif">{loadingVariant.text}</span>
@@ -189,19 +171,6 @@ export const CommandInput: React.FC<CommandInputProps> = ({
             autoFocus
           />
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 z-20">
-            {onConsultHolmes && (
-            <Tooltip label="Gather your thoughts" side="top">
-              <button
-                type="button"
-                onClick={onConsultHolmes}
-                disabled={isLoading}
-                className="w-10 h-10 grid place-items-center rounded-full text-lb-muted hover:text-lb-accent hover:bg-lb-accent/[0.08] pressable pressable-icon disabled:opacity-50"
-                aria-label="Gather your thoughts"
-              >
-                <Lightbulb size={20} />
-              </button>
-            </Tooltip>
-            )}
             <Tooltip label="Send" side="top">
               <button
                 type="submit"

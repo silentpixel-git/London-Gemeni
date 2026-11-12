@@ -6,7 +6,7 @@
 import { join } from 'node:path';
 import { Story } from '../packages/schema';
 import { loadStoryDir } from '../packages/schema/load';
-import { buildNarrationContext, initialState, resolveTurn } from '../packages/engine';
+import { buildNarrationContext, initialState, resolveTurn, tick } from '../packages/engine';
 import { fixedRng } from '../packages/engine/rng';
 import { gateNarration } from '../packages/ai/gate';
 
@@ -30,6 +30,16 @@ check(!verdict('It had rained for nine days and the clock said 4 o\'clock.').ok,
 check(verdict('She said it twice, and I believed both times.').ok, 'small counts pass');
 check(!verdict('Fine.', [{ key: 'clock_maker', subject: 'hall_clock', text: 'A brass plate reads Thwaites of Clerkenwell.' }]).ok, 'an invention inside an Observation is caught');
 check(verdict('Fine.', [{ key: 'clock_grain', subject: 'hall_clock', text: 'The walnut is worn pale where hands have rested.' }]).ok, 'flavour without names passes');
+
+// A Tick's Events carry the engine's own numbers (the draw, the minutes); they license nothing.
+{
+  const t = tick(story, s0, 15, fixedRng([0.7312958]));
+  const tctx = buildNarrationContext(story, t.state, t.events, 'compact');
+  const v = gateNarration(tctx, { prose: 'The carrier said 29 barrels came in, at 12 past the hour, some 15 minutes ago.', observations: [] });
+  check(['29', '12', '15'].every(n => v.inventions.some(i => i.token === n)), 'numbers are not licensed by a Tick\'s draw or minutes', JSON.stringify(v.inventions));
+  const part = gateNarration({ ...tctx, beats: ['The ledger shows 1290 sacks.'] }, { prose: 'The ledger shows 1290 sacks; 29 were spoiled.', observations: [] });
+  check(part.inventions.length === 1 && part.inventions[0].token === '29', 'a number is matched whole, not as part of a longer one', JSON.stringify(part.inventions));
+}
 
 console.log(`\n${fails === 0 ? 'OK' : `${fails} FAILURE(S)`}`);
 process.exit(fails === 0 ? 0 : 1);

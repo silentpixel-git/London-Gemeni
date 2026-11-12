@@ -6,14 +6,14 @@
 ```json
 { "investigationId": "uuid", "text": "look at the clock" }      // a player turn
 { "investigationId": "uuid", "tick": true }                       // an idle Tick from the UI (TICK_MINUTES)
-{ "start": { "storyId": "locked_study", "name": "My first game" } } // creates an Investigation, returns its id and the opening narration
+{ "start": { "storyId": "stress", "name": "My first game" } }   // creates an Investigation, returns its id and the opening narration; storyId is the Story's directory name
 { "investigationId": "uuid", "resume": true }                     // reads only: the whole feed and the current view
 ```
 Auth: the client's Supabase JWT in `Authorization: Bearer …` (anonymous users included). The server builds a Supabase client with that token so RLS applies; no service role key.
 
 ## Response
 NDJSON stream, one object per line, in this order:
-1. `{ "kind": "events", "events": [...EventPayload], "seqFrom": n }` — everything the engine appended for this turn, before narration.
+1. `{ "kind": "events", "events": [...EventPayload], "seqFrom": n, "investigationId": "uuid" }` — everything the engine appended for this turn, before narration. `investigationId` is how a `start` request learns the id it created.
 2. `{ "kind": "text", "delta": "..." }` repeated while prose streams.
 3. `{ "kind": "done", "narrated": { ...Narrated event }, "observations": [...], "view": PlayerView, "feed": FeedItem[] }` — `view` is the sidebar and diary (names and labels only, `packages/schema/view.ts`); `feed` is this turn's feed blocks, which replace whatever streamed. The client never holds the Story or the State: both would show it the solution.
 

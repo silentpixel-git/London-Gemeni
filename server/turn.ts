@@ -87,7 +87,6 @@ export async function handleTurn(request: Request, deps: TurnDeps): Promise<Resp
       const send = (line: object) => controller.enqueue(encoder.encode(JSON.stringify(line) + '\n'));
       let closed = false;
       try {
-        // investigationId is not in TURN.md's line shape; a start request needs it back somewhere.
         send({ kind: 'events', events: turn.events, seqFrom: turn.seqFrom, investigationId: turn.investigationId });
         const ctx = buildNarrationContext(turn.story, turn.state, turn.events, turn.mode);
         // A quiet Tick costs nothing: no narration call, and an empty Narrated closes it.

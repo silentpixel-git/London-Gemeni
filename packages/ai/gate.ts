@@ -14,13 +14,19 @@ const GENERIC = new Set([
   'mr', 'mrs', 'miss', 'ms', 'dr', 'doctor', 'sir', 'madam', 'lord', 'lady', 'master', 'mistress',
   'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
   'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december',
-  'god', 'heaven', 'lord',
+  'god', 'heaven',
 ]);
 const SMALL_COUNTS = new Set(['one', 'two', 'a', 'an', 'single', 'both', 'half', 'first', 'second']);
 const SPELLED = /\b(three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|hundred|thousand)\b/gi;
 
 export interface Invention { kind: 'name' | 'number'; token: string }
 export interface GateVerdict { ok: boolean; inventions: Invention[] }
+
+/**
+ * The engine's own numbers, which are not the world's: a Tick's random draw holds
+ * most one- and two-digit runs, and the rest are minutes, seeds and counters.
+ */
+const ENGINE_NUMBERS = new Set(['draw', 'minutes', 'seed', 'maturesAtBoundary']);
 
 /** Everything the narrator was told this turn, flattened. */
 export function contextHaystack(ctx: NarrationContext): string {
@@ -37,7 +43,7 @@ export function contextHaystack(ctx: NarrationContext): string {
     ...ctx.transcript.flatMap(t => t.lines.map(l => l.text)),
     ...ctx.lexicon,
     ...(ctx.narrator ? [ctx.narrator.name, ...ctx.narrator.aliases, ...ctx.narrator.voice] : []),
-    JSON.stringify(ctx.events),
+    JSON.stringify(ctx.events, (key, value) => (ENGINE_NUMBERS.has(key) ? undefined : value)),
   ];
   return parts.join(' \n ').toLowerCase();
 }
@@ -60,8 +66,10 @@ export function findInventions(prose: string, ctx: NarrationContext): Invention[
       found.set(`name:${lower}`, { kind: 'name', token: m[1] });
     }
   }
+  // Whole numbers only: "29" is not earned by a context that says "1290".
+  const numbers = new Set(hay.match(/\d+/g) ?? []);
   for (const m of text.matchAll(/\b(\d+)\b/g)) {
-    if (!hay.includes(m[1])) found.set(`num:${m[1]}`, { kind: 'number', token: m[1] });
+    if (!numbers.has(m[1])) found.set(`num:${m[1]}`, { kind: 'number', token: m[1] });
   }
   for (const m of text.matchAll(SPELLED)) {
     const lower = m[1].toLowerCase();
