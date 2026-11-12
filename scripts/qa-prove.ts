@@ -26,7 +26,8 @@ const stressVariant = (mutate: (raw: any) => void) => { const raw = structuredCl
 {
   const r = prove(load('toy'));
   console.log(formatProof(r));
-  if (r.ok) pass('toy: every act, clue and ending reachable'); else fail('toy: something unreachable or search capped');
+  if (r.ok) pass('toy: every act, clue and ending reachable'); else fail('toy: something unreachable, search capped or engine error');
+  if (r.errors.length === 0) pass('toy: the engine threw on no action'); else fail('toy: engine threw');
 }
 {
   const r = prove(load('unsolvable'));
@@ -45,6 +46,19 @@ const stressVariant = (mutate: (raw: any) => void) => { const raw = structuredCl
   if (r.capped) fail(`stress: search capped after ${r.explored} states`);
   else if (unreachable.length) fail(`stress: UNREACHABLE ${unreachable.join(', ')}`);
   else pass(`stress: every act, clue and ending reachable (${r.explored} states explored)`);
+  if (r.errors.length === 0) pass('stress: the engine threw on no action'); else fail(`stress: engine threw — ${r.errors.map(e => `${e.action}: ${e.message}`).join('; ')}`);
+}
+{
+  // An engine exception must surface: it fails the proof and prints as an ERROR line.
+  const r = prove(load('toy'));
+  const bad = { ...r, errors: [{ action: 'take x', path: ['move y'], message: 'boom' }], ok: false };
+  if (formatProof(bad).includes('ERROR       "take x" threw after move y: boom')) pass('formatProof prints an ERROR line');
+  else fail('formatProof should print an ERROR line');
+}
+{
+  // quietWeight adds "nothing happens" as a branch; every goal stays reachable.
+  const r = prove(stressVariant(raw => { raw.quietWeight = 5; }));
+  if (r.ok) pass(`stress with quietWeight: every goal still reachable (${r.explored} states explored)`); else fail('stress with quietWeight: something unreachable, capped or errored');
 }
 {
   const r = prove(load('stress'));

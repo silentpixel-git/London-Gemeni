@@ -2,7 +2,7 @@
  * hooks/useAudio.ts
  *
  * Thin bridge between what the player can see and the AudioManager singleton:
- * the one-time autoplay unlock, the ambient bed for the current location, and
+ * the one-time autoplay unlock, the ambient bed and weather layer the Story names, and
  * one-shot sounds for the latest turn's Events. Story-agnostic: a Story asks
  * for a sound with a Rule's `cue` Effect (a CuePlayed Event); a cue id is the
  * SFX id with underscores (`pages_riffle` → `pages-riffle`), and an id with no
@@ -15,9 +15,9 @@ import { audioManager } from '../services/AudioManager';
 import { SFX_FILES, type SfxId } from '../services/audioManifest';
 
 interface UseAudioArgs {
-  location: string;
-  weatherCondition: string | undefined;
-  currentAct: number;
+  /** PlayerView.ambience: the sound ids the Story names. */
+  bed: string | null;
+  weather: string | null;
   /** The engine Events of the latest turn (empty after a resume, so nothing replays). */
   events: EventPayload[];
   soundEffects: boolean;
@@ -43,7 +43,7 @@ function soundsFor(events: EventPayload[]): SfxId[] {
   return [...ids];
 }
 
-export function useAudio({ location, weatherCondition, currentAct, events, soundEffects, ambientAudio }: UseAudioArgs): void {
+export function useAudio({ bed, weather, events, soundEffects, ambientAudio }: UseAudioArgs): void {
   // Unlock the audio context on the first user gesture (autoplay policy).
   useEffect(() => {
     const onGesture = () => audioManager.unlock();
@@ -56,11 +56,11 @@ export function useAudio({ location, weatherCondition, currentAct, events, sound
   }, []);
 
   // Push settings + the current ambient scene. setEnabled runs first so that
-  // toggling ambient on immediately starts the bed for the current location.
+  // toggling ambient on immediately starts the current bed.
   useEffect(() => {
     audioManager.setEnabled({ sfx: soundEffects, ambient: ambientAudio });
-    audioManager.setAmbient(location, weatherCondition, currentAct);
-  }, [soundEffects, ambientAudio, location, weatherCondition, currentAct]);
+    audioManager.setAmbient(bed, weather);
+  }, [soundEffects, ambientAudio, bed, weather]);
 
   // One-shots for the turn just played, staggered so two never land together.
   useEffect(() => {

@@ -95,7 +95,10 @@ export function validateStory(raw: unknown): ValidationResult {
   const needWeather = (id: Id, at: string) => { if (!weathers.has(id)) fail(at, `unknown weather "${id}"`); };
 
   // ── Acts and opening ─────────────────────────────────────────────────────
-  for (const act of story.acts) { needLocation(act.anchorLocation, `acts/${act.id}/anchorLocation`); needWeather(act.weather, `acts/${act.id}/weather`); }
+  for (const act of story.acts) {
+    needLocation(act.anchorLocation, `acts/${act.id}/anchorLocation`); needWeather(act.weather, `acts/${act.id}/weather`);
+    for (const l of Object.keys(act.ambience ?? {})) needLocation(l, `acts/${act.id}/ambience`);
+  }
   needAct(story.opening.act, 'opening/act');
   needLocation(story.opening.location, 'opening/location');
   const firstAct = Math.min(...story.acts.map(a => a.id));

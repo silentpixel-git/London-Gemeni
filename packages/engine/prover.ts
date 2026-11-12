@@ -22,7 +22,9 @@ export interface ProofGoal { kind: 'act' | 'clue' | 'ending'; id: string }
 export interface ProofLine { goal: ProofGoal; reachable: boolean; path?: string[] }
 /** The player came to know a Fact in an act before the one it is visible from. A warning, not a failure. */
 export interface EarlyFact { fact: Id; act: number; visibleFromAct: number; path: string[] }
-export interface ProofReport { lines: ProofLine[]; early: EarlyFact[]; explored: number; capped: boolean; ok: boolean }
+/** The engine threw on an action the search offered: the first time per action label, with the path that led there. An engine fault, never a Story result. */
+export interface ProofError { action: string; path: string[]; message: string }
+export interface ProofReport { lines: ProofLine[]; early: EarlyFact[]; errors: ProofError[]; explored: number; capped: boolean; ok: boolean }
 
 type Action = { label: string; run: (s: State) => State };
 
@@ -36,6 +38,7 @@ export function prove(story: Story, opts: { maxStates?: number } = {}): ProofRep
   const found = new Map<string, string[]>();
   const goalKey = (g: ProofGoal) => `${g.kind}:${g.id}`;
   const early = new Map<Id, EarlyFact>();
+  const errors = new Map<string, ProofError>();
 
   const start = startInvestigation(story, 1).state;
   const seen = new Set<string>([abstractKey(story, start)]);
@@ -67,7 +70,10 @@ export function prove(story: Story, opts: { maxStates?: number } = {}): ProofRep
     if (s.ended) continue;
     for (const a of actionsFrom(story, s)) {
       let next: State;
-      try { next = a.run(s); } catch { continue; }
+      try { next = a.run(s); } catch (err) {
+        if (!errors.has(a.label)) errors.set(a.label, { action: a.label, path, message: err instanceof Error ? err.message : String(err) });
+        continue;
+      }
       const key = abstractKey(story, next);
       if (seen.has(key)) continue;
       seen.add(key);
@@ -81,7 +87,7 @@ export function prove(story: Story, opts: { maxStates?: number } = {}): ProofRep
     const path = found.get(goalKey(g));
     return { goal: g, reachable: !!path, path };
   });
-  return { lines, early: [...early.values()], explored, capped, ok: lines.every(l => l.reachable) && !capped };
+  return { lines, early: [...early.values()], errors: [...errors.values()], explored, capped, ok: lines.every(l => l.reachable) && !capped && errors.size === 0 };
 }
 
 /** Everything the player could do here that could matter for reachability. */
@@ -152,16 +158,18 @@ function actionsFrom(story: Story, s: State): Action[] {
     waits.push({ label: `wait until ${r.trigger.atMinutes}`, minutes: minutesUntil(s.clock, r.trigger.atMinutes) });
   }
   waits.push({ label: `wait until ${nextPeriod.id}`, minutes: until(nextPeriod) });
+  // With quietWeight set, "nothing happens" is one more outcome of the draw.
   const eligible = eligibleTickRules(story, s);
-  const draws = eligible.length === 0 ? [0] : drawsSelectingEach(eligible.map(r => r.weight ?? 1));
+  const quiet = story.quietWeight ?? 0;
+  const draws = eligible.length === 0 ? [0] : drawsSelectingEach([...eligible.map(r => r.weight ?? 1), ...(quiet ? [quiet] : [])]);
   for (const w of waits) for (const [i, d] of draws.entries()) {
-    const label = eligible.length ? `${w.label} (${eligible[i].id})` : w.label;
+    const label = eligible.length ? `${w.label} (${eligible[i]?.id ?? 'quiet'})` : w.label;
     acts.push({ label, run: st => tick(story, st, w.minutes, fixedRng([d])).state });
   }
   return acts;
 }
 
-/** One draw in [0,1) that makes chooseByWeight pick each index in turn. */
+/** One draw in [0,1) that makes chooseByWeight pick each index in turn (an index past the Rules is the quiet share). */
 function drawsSelectingEach(weights: number[]): number[] {
   const total = weights.reduce((a, b) => a + b, 0);
   let acc = 0;
@@ -190,5 +198,6 @@ export function formatProof(r: ProofReport): string {
     ? `  REACHABLE   ${l.goal.kind} ${l.goal.id}  (${l.path!.length} moves): ${l.path!.join(' → ') || '(start)'}`
     : `  UNREACHABLE ${l.goal.kind} ${l.goal.id}`);
   const early = r.early.map(e => `  EARLY       fact ${e.fact} known in act ${e.act}, visible from act ${e.visibleFromAct} (${e.path.length} moves): ${e.path.join(' → ') || '(start)'}`);
-  return [`explored ${r.explored} states${r.capped ? ' (CAPPED — result incomplete)' : ''}`, ...lines, ...early].join('\n');
+  const errors = r.errors.map(e => `  ERROR       "${e.action}" threw after ${e.path.join(' → ') || '(start)'}: ${e.message}`);
+  return [`explored ${r.explored} states${r.capped ? ' (CAPPED — result incomplete)' : ''}`, ...lines, ...early, ...errors].join('\n');
 }

@@ -98,6 +98,10 @@ export function playerView(story: Story, events: EventPayload[]): PlayerView {
     }),
     exits: loc.exits.map(x => ({ id: x.id, name: x.names[0], to: story.locations.find(l => l.id === x.to)!.name, ...(visited.has(x.to) ? { visited: true as const } : {}) })),
     ended: ending ? { id: ending.id, name: ending.name } : null,
+    ambience: {
+      bed: act.ambience?.[loc.id] ?? loc.ambience ?? null,
+      weather: story.weathers.find(w => w.id === act.weather)?.ambience ?? null,
+    },
     diary,
   };
 }

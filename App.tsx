@@ -89,9 +89,8 @@ const AppContent: React.FC = () => {
 
   // Ambient bed from what the player can see; one-shots from the latest turn's Events.
   useAudio({
-    location: view?.location.id ?? '',
-    weatherCondition: view?.weather.id,
-    currentAct: view?.act.id ?? 0,
+    bed: view?.ambience.bed ?? null,
+    weather: view?.ambience.weather ?? null,
     events: inv.lastEvents,
     soundEffects: appearance.soundEffects,
     ambientAudio: appearance.ambientAudio,

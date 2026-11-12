@@ -105,13 +105,17 @@ export function eligibleTickRules(story: Story, s: State): Rule[] {
   return story.rules.filter(r => r.trigger.kind === 'tick' && ruleEligible(story, s, r, { kind: 'tick' }));
 }
 
-/** Weighted choice; the draw in [0,1) is what the Event records. Returns null for an empty list. */
-export function chooseByWeight(rules: Rule[], draw: number): Rule | null {
-  const total = rules.reduce((n, r) => n + (r.weight ?? 1), 0);
+/**
+ * Weighted choice; the draw in [0,1) is what the Event records. `quiet` is the
+ * weight of "nothing happens": it takes the last share of the draw. Null for
+ * an empty list, or when the draw lands in the quiet share.
+ */
+export function chooseByWeight(rules: Rule[], draw: number, quiet = 0): Rule | null {
+  const total = rules.reduce((n, r) => n + (r.weight ?? 1), 0) + quiet;
   if (total === 0) return null;
   let acc = 0;
   for (const r of rules) { acc += (r.weight ?? 1) / total; if (draw < acc) return r; }
-  return rules[rules.length - 1] ?? null;
+  return quiet > 0 ? null : rules[rules.length - 1] ?? null;
 }
 
 /** Translate one Effect into Events against the current State. */
