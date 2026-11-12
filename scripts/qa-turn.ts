@@ -486,6 +486,8 @@ const isError = (r: { status: number; kinds: string[] }, status: number) => r.st
   console.log(`       example fallback lines: ${JSON.stringify([rejected.done?.narrated.text, blocked.done?.narrated.text, deflected.done?.narrated.text])}`);
   check('a blocked exit and a rejected command also fall back to a line, never an empty one',
     blocked.done?.narrated.text.includes('It is locked.') && deflected.done?.narrated.text.length > 0, JSON.stringify([blocked.done?.narrated.text, deflected.done?.narrated.text]));
+  check('…and a command that matched nothing names no mechanism (no "selection", no "candidate set")',
+    deflected.done?.narrated.text === 'There is nothing of the kind to hand.', String(deflected.done?.narrated.text));
 }
 
 // ── A client that disconnects does not cost the turn its prose ─────────────
