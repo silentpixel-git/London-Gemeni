@@ -80,3 +80,47 @@ export function buildNarrationContext(story: Story, s: State, turnEvents: EventP
     wordBudget: BUDGET[mode],
   };
 }
+
+/**
+ * The prose a turn falls back to when narration cannot be had: its authored
+ * Beats first, then one plain second-person line per Event of substance. Only
+ * names the player already holds (Object and location names, the context's
+ * person labels, never a real name before introduction) and generic verbs, so
+ * it would pass the invention gate. A quiet Tick has no such Event: empty.
+ */
+export function fallbackProse(story: Story, ctx: NarrationContext): string {
+  const obj = (id: Id) => `the ${story.objects.find(o => o.id === id)?.name ?? 'thing'}`;
+  const who = (id: Id) => [...ctx.personsPresent, ...ctx.personsNamed].find(p => p.id === id)?.label ?? 'someone';
+  const sentence = (s: string) => { const t = s.trim(); return t ? `${t[0].toUpperCase()}${t.slice(1)}${/[.!?]$/.test(t) ? '' : '.'}` : ''; };
+  const lines: string[] = [];
+  for (const e of ctx.events) {
+    switch (e.kind) {
+      case 'Taken': lines.push(`You take ${obj(e.object)}.`); break;
+      case 'Dropped': lines.push(`You drop ${obj(e.object)}.`); break;
+      case 'Opened': lines.push(`You open ${obj(e.object)}.`); break;
+      case 'Closed': lines.push(`You close ${obj(e.object)}.`); break;
+      case 'Examined': lines.push(`You examine ${obj(e.object)}.`); break;
+      case 'Read': lines.push(`You read ${obj(e.object)}.`); break;
+      case 'Given': lines.push(`You give ${obj(e.object)} to ${who(e.person)}.`); break;
+      case 'Shown': lines.push(`You show ${obj(e.object)} to ${who(e.person)}.`); break;
+      case 'Used': lines.push(`You use ${obj(e.object)}${e.on ? ` on ${obj(e.on)}` : ''}.`); break;
+      case 'Combined': lines.push(`You combine ${obj(e.items[0])} and ${obj(e.items[1])}.`); break;
+      case 'Moved': lines.push(`You go to ${(story.locations.find(l => l.id === e.to)?.name ?? 'the next place').replace(/^The /, 'the ')}.`); break;
+      case 'MoveBlocked': lines.push(`It is ${e.reason}.`); break;
+      case 'OpenBlocked': lines.push('It is locked.'); break;
+      case 'Spoke': if (!e.fact) lines.push(`${who(e.person)} has nothing to add.`); break;
+      // What a person told the player is the substance of an ask; the context already holds it.
+      case 'FactDisclosed': {
+        const f = e.to === 'player' && e.from !== 'player' ? ctx.facts.find(x => x.id === e.fact) : undefined;
+        if (f) lines.push(`${who(e.from)} tells you: "${f.voice ?? f.statement}"`);
+        break;
+      }
+      case 'IntentRejected': lines.push(sentence(e.reason)); break;
+      case 'Looked': lines.push('You look around.'); break;
+      case 'InventoryChecked': lines.push('You check what you are carrying.'); break;
+      case 'Deduced': lines.push(`You lay out your reasoning${e.suspect ? `, naming ${who(e.suspect)}` : ''}.`); break;
+      case 'FlavourRequested': lines.push(`You look more closely at ${e.subject}.`); break;
+    }
+  }
+  return [...ctx.beats, ...lines].join(' ');
+}

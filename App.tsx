@@ -87,11 +87,11 @@ const AppContent: React.FC = () => {
   const appearance = useAppearance({ user, userProfile, currentTimePeriod: themePeriod(view?.clock) });
   const { connectionStatus, checkConnections } = useConnections({ isAuthReady, setNotification });
 
-  // Ambient bed from what the player can see; one-shots from the latest turn's Events.
+  // Ambient bed from what the player can see; one-shots from the latest turn's cues.
   useAudio({
     bed: view?.ambience.bed ?? null,
     weather: view?.ambience.weather ?? null,
-    events: inv.lastEvents,
+    cues: inv.cues,
     soundEffects: appearance.soundEffects,
     ambientAudio: appearance.ambientAudio,
   });
@@ -124,14 +124,14 @@ const AppContent: React.FC = () => {
     setDiarySeen(inv.view ? diaryTabTotals(inv.view.diary) : null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inv.investigationId]);
-  // "Noted in the diary": the latest turn found a Clue or read a document.
+  // "Noted in the diary": the server said the latest turn added a Clue or a document.
   useEffect(() => {
-    if (isDiaryOpen || !inv.lastEvents.some(e => e.kind === 'ClueDiscovered' || e.kind === 'Read')) return;
+    if (isDiaryOpen || !inv.diaryNoted) return;
     setIsDiaryToastShown(true);
     const t = window.setTimeout(() => setIsDiaryToastShown(false), 2400);
     return () => window.clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inv.lastEvents]);
+  }, [inv.diaryNoted]);
 
   const dockRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);

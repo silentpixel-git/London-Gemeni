@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { EventPayload, FeedItem, PlayerView } from '../packages/schema/index.js';
+import type { FeedItem, PlayerView } from '../packages/schema/index.js';
 import { InvestigationRepository, type InvestigationSummary } from '../services/InvestigationRepository';
 import { postTurn, TurnRefused, type TurnBody, type TurnLine } from '../services/turnClient';
 import type { GameHistoryItem } from '../types';
@@ -66,8 +66,10 @@ export function useInvestigation({ userId }: { userId: string | null }) {
   const [isReady, setIsReady] = useState(false);
   /** Whether POST /api/turn answered the last request: the header's Engine dot. null before the first. */
   const [engineOk, setEngineOk] = useState<boolean | null>(null);
-  /** The engine Events of the latest turn, for presentation cues (audio). */
-  const [lastEvents, setLastEvents] = useState<EventPayload[]>([]);
+  /** Sound ids the server named for the latest turn (empty after a resume, so nothing replays). */
+  const [cues, setCues] = useState<string[]>([]);
+  /** Counts the turns that added to the diary, so each one can raise its toast. */
+  const [diaryNoted, setDiaryNoted] = useState(0);
 
   const busy = useRef(false);
   const idRef = useRef<string | null>(null);
@@ -97,9 +99,10 @@ export function useInvestigation({ userId }: { userId: string | null }) {
     let resync = false;
     let ok = true;
     const onLine = (line: TurnLine) => {
-      if (line.kind === 'events') {
+      if (line.kind === 'turn') {
         if ('start' in body) open(line.investigationId, body.start.name);
-        setLastEvents(line.events);
+        setCues(line.cues);
+        if (line.diary) setDiaryNoted(n => n + 1);
       } else if (line.kind === 'text') {
         setPending(p => ({ player: p?.player, text: (p?.text ?? '') + line.delta }));
       } else if (line.kind === 'done') {
@@ -149,7 +152,7 @@ export function useInvestigation({ userId }: { userId: string | null }) {
       setFeed(line.feed);
       setView(line.view);
       setPending(null);
-      setLastEvents([]);
+      setCues([]);
       idleTicks.current = 0;
       lastActivity.current = Date.now();
       return true;
@@ -233,7 +236,7 @@ export function useInvestigation({ userId }: { userId: string | null }) {
   useEffect(() => { if (view?.ended) idleTicks.current = MAX_IDLE_TICKS; }, [view?.ended]);
 
   return {
-    investigationId, name, feed, pending, view, isBusy, investigations, error, isReady, lastEvents, engineOk,
+    investigationId, name, feed, pending, view, isBusy, investigations, error, isReady, cues, diaryNoted, engineOk,
     history: historyFrom(feed, pending),
     start, send, resume, remove, refreshList, clearError: () => setError(null),
   };

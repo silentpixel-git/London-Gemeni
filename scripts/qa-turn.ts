@@ -21,8 +21,8 @@ import type { CandidateSet, EventPayload, FeedItem, NarrationContext, NarrationR
 import { candidates, exactSelection, initialState, replay } from '../packages/engine/index.js';
 import { recorded, recording } from '../packages/ai/recorded.js';
 import type { Ai } from '../packages/ai/types.js';
-import { memoryStore, type InvestigationStore } from '../server/investigationStore.js';
-import { fileStoryLoader, handleTurn, STALE_TURN_MS, type TurnDeps } from '../server/turn.js';
+import { memoryStore, SeqConflict, type InvestigationStore } from '../server/investigationStore.js';
+import { clientCues, fileStoryLoader, handleTurn, STALE_TURN_MS, type TurnDeps } from '../server/turn.js';
 
 const RECORDINGS = join('packages', 'ai', 'recordings', 'toy');
 const AUTHOR = process.argv.includes('--author');
@@ -96,20 +96,34 @@ function check(name: string, ok: boolean, detail = '') {
 type Line = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 async function post(body: unknown, deps: Partial<TurnDeps> & { store: InvestigationStore }) {
+  const known = (body as { investigationId?: string }).investigationId;
+  const before = known ? (await deps.store.load(known))?.events.length ?? 0 : 0;
   const res = await handleTurn(
     new Request('http://localhost/api/turn', { method: 'POST', body: JSON.stringify(body) }),
     { ai, loadStory, newSeed: () => 42, ...deps },
   );
   const lines: Line[] = (await res.text()).split('\n').filter(Boolean).map(l => JSON.parse(l));
-  const events = lines.find(l => l.kind === 'events');
+  const turn = lines.find(l => l.kind === 'turn');
   const done = lines.find(l => l.kind === 'done');
   const texts = lines.filter(l => l.kind === 'text').map(l => l.delta as string);
-  return { status: res.status, lines, events, done, streamed: texts.join(''), kinds: lines.map(l => l.kind as string) };
+  // The client is not told the engine's Events, so QA reads them from the stored log: the rows this request added, minus the Narrated that closes them.
+  let engine: { events: EventPayload[]; seqFrom: number } | undefined;
+  const id = (turn?.investigationId ?? (body as { investigationId?: string }).investigationId) as string | undefined;
+  if (res.status === 200 && id && !('resume' in (body as object))) {
+    const rows = (await deps.store.load(id))?.events ?? [];
+    const from = Math.max(0, before);
+    const open = rows.findIndex((r, i) => i >= from && r.payload.kind !== 'Narrated' && r.payload.kind !== 'ObservationRecorded');
+    if (open >= 0) {
+      const end = rows.findIndex((r, i) => i > open && r.payload.kind === 'Narrated');
+      engine = { events: rows.slice(open, end < 0 ? undefined : end).map(r => r.payload), seqFrom: rows[open].seq };
+    }
+  }
+  return { status: res.status, lines, turn, engine, done, streamed: texts.join(''), kinds: lines.map(l => l.kind as string) };
 }
 
-/** events, then text*, then done: nothing else, nothing out of order. */
+/** turn, then text*, then done: nothing else, nothing out of order. */
 function wellOrdered(kinds: string[]): boolean {
-  return /^events(,text)*,done$/.test(kinds.join(','));
+  return /^turn(,text)*,done$/.test(kinds.join(','));
 }
 
 const ids = (xs: Array<{ id: string }> | undefined) => JSON.stringify((xs ?? []).map(x => x.id));
@@ -125,20 +139,20 @@ function consecutive(seqs: number[]): boolean {
   return seqs.every((s, i) => s === i);
 }
 
-const eventKinds = (r: { events?: Line }) => ((r.events?.events ?? []) as EventPayload[]).map(e => e.kind);
+const eventKinds = (r: { engine?: { events: EventPayload[] } }) => (r.engine?.events ?? []).map(e => e.kind);
 
 // ── The playthrough ─────────────────────────────────────────────────────────
 
 const store = memoryStore();
 
 const start = keep(await post({ start: { storyId: 'toy', name: 'QA' } }, { store }));
-const id = start.events?.investigationId as string;
-check('start: 200 and NDJSON in order events → text → done', start.status === 200 && wellOrdered(start.kinds), start.kinds.join(','));
-check('start: the events line opens with InvestigationStarted(locked_study) at seq 0 and names the new id',
-  start.events?.seqFrom === 0 && eventKinds(start)[0] === 'InvestigationStarted'
-  && start.events?.events[0].story === 'locked_study' && typeof id === 'string');
+const id = start.turn?.investigationId as string;
+check('start: 200 and NDJSON in order turn → text → done', start.status === 200 && wellOrdered(start.kinds), start.kinds.join(','));
+check('start: the stored log opens with InvestigationStarted(locked_study) at seq 0, and the turn line names the new id',
+  start.engine?.seqFrom === 0 && eventKinds(start)[0] === 'InvestigationStarted'
+  && (start.engine?.events[0] as { story?: string } | undefined)?.story === 'locked_study' && typeof id === 'string');
 check('start: the opening is a turn, so the greeting Rule fires on it (ADR-0005)',
-  ((start.events?.events ?? []) as EventPayload[]).some(e => e.kind === 'RuleFired' && e.rule === 'greet_housekeeper')
+  (start.engine?.events ?? []).some(e => e.kind === 'RuleFired' && e.rule === 'greet_housekeeper')
   && (start.done?.narrated.beats as string[]).some(b => b.startsWith('The housekeeper says the master')), eventKinds(start).join(','));
 // The authoring stub sends no text chunks; only replay streams.
 if (!AUTHOR) check('start: streamed text is the narrated text', start.streamed === start.done?.narrated.text && start.streamed === PROSE.opening);
@@ -166,9 +180,9 @@ check('look: the feed is the player line, then prose headed by the location only
   JSON.stringify((look.done?.feed as FeedItem[]).map(f => f.kind === 'prose' ? [f.kind, f.location ?? null, f.actHeading ?? null] : [f.kind, 'text' in f ? f.text : ''])) === JSON.stringify([['player', 'look around'], ['prose', 'The Hall', null]]),
   JSON.stringify(look.done?.feed));
 check('look: an exact command never reaches the selection model', selectCalls === callsBeforeLook);
-check('look: NDJSON in order, events before any text', look.status === 200 && wellOrdered(look.kinds), look.kinds.join(','));
-const startRows = (start.events?.events.length ?? 0) + 1 + (start.done?.observations.length ?? 0);
-check(`look: seqFrom continues the log after start (${startRows} rows)`, look.events?.seqFrom === startRows, String(look.events?.seqFrom));
+check('look: NDJSON in order, the turn line before any text', look.status === 200 && wellOrdered(look.kinds), look.kinds.join(','));
+const startRows = (start.engine?.events.length ?? 0) + 1 + (start.done?.observations.length ?? 0);
+check(`look: seqFrom continues the log after start (${startRows} rows)`, look.engine?.seqFrom === startRows, String(look.engine?.seqFrom));
 check('look: resolved as Looked, and the greeting does not repeat',
   eventKinds(look).includes('Looked') && !eventKinds(look).includes('RuleFired'), eventKinds(look).join(','));
 check('look: Narrated carries the turn\'s Beats (the hall\'s own)',
@@ -182,8 +196,13 @@ check('ask: the diary gains the Clue, and the housekeeper by name with what she 
 check('ask: prose with no scene header (nobody moved or looked)',
   (ask.done?.feed as FeedItem[]).some(f => f.kind === 'prose' && f.location === undefined));
 check('ask: the housekeeper discloses key_in_clock to the player',
-  ((ask.events?.events ?? []) as EventPayload[]).some(e => e.kind === 'FactDisclosed' && e.fact === 'key_in_clock' && e.to === 'player'));
+  (ask.engine?.events ?? []).some(e => e.kind === 'FactDisclosed' && e.fact === 'key_in_clock' && e.to === 'player'));
 
+check('the turn line carries no Event payloads, only investigationId, cues and diary',
+  [ask, look, start].every(r => Object.keys(r.turn ?? {}).sort().join() === 'cues,diary,investigationId,kind')
+  && !JSON.stringify(ask.lines[0]).includes('RuleFired') && !JSON.stringify(start.lines[0]).includes('greet_housekeeper'), JSON.stringify(ask.lines[0]));
+check('ask (a Clue): cues name the clue sound and the diary flag is set', ask.turn?.cues.join() === 'clue-discovered' && ask.turn?.diary === true, JSON.stringify(ask.turn));
+check('look (a plain turn): no cues, no diary', look.turn?.cues.length === 0 && look.turn?.diary === false, JSON.stringify(look.turn));
 const open = keep(await post({ investigationId: id, text: 'open the clock' }, { store }));
 check('open: the clock opens, with the authored Beat',
   eventKinds(open).includes('Opened') && eventKinds(open).includes('BeatQueued'), eventKinds(open).join(','));
@@ -196,6 +215,16 @@ check('take: replayed from the log, the key is now carried',
 check('take: the clock advanced across requests', (take.done?.view as PlayerView).clock > clockBeforeTake && clockBeforeTake > 1230,
   `${clockBeforeTake} → ${(take.done?.view as PlayerView).clock}`);
 
+check('take: cues name the pickup sound, and no diary entry', take.turn?.cues.join() === 'item-pickup' && take.turn?.diary === false, JSON.stringify(take.turn));
+{
+  // A Read adds to the diary only for an Object that has a document; a cue id is the Rule's sound with hyphens.
+  const doc = story.objects.find(o => o.document)!;
+  const plain = story.objects.find(o => !o.document)!;
+  const got = (events: EventPayload[]) => JSON.stringify(clientCues(story, events));
+  check('clientCues: Read of a document is a diary entry, Read of anything else is not, CuePlayed becomes a hyphenated id, ActEntered a bell',
+    got([{ kind: 'Read', object: doc.id }]) === '{"cues":[],"diary":true}' && got([{ kind: 'Read', object: plain.id }]) === '{"cues":[],"diary":false}'
+    && got([{ kind: 'CuePlayed', sound: 'pages_riffle' }, { kind: 'ActEntered', act: 1 }]) === '{"cues":["pages-riffle","act-bell"],"diary":false}', got([{ kind: 'Read', object: doc.id }]));
+}
 const tick = keep(await post({ investigationId: id, tick: true }, { store }));
 check('tick: NDJSON in order and the turn is a TickResolved', wellOrdered(tick.kinds) && eventKinds(tick)[0] === 'TickResolved',
   eventKinds(tick).join(','));
@@ -250,7 +279,7 @@ check('unknown story: 404 and a single error line', noStory.status === 404 && no
 async function lookWithGate(gate: TurnDeps['gate']) {
   const s = memoryStore();
   const st = await post({ start: { storyId: 'toy', name: 'QA gate' } }, { store: s, gate });
-  return post({ investigationId: st.events?.investigationId, text: 'look around' }, { store: s, gate });
+  return post({ investigationId: st.turn?.investigationId, text: 'look around' }, { store: s, gate });
 }
 
 const once = await lookWithGate((_ctx, result) =>
@@ -261,8 +290,8 @@ if (!AUTHOR) check('gate rejects once: only the first attempt streamed', once.st
 const always = await lookWithGate(ctx =>
   ctx.events.some(e => e.kind === 'Looked') ? { ok: false, inventions: [{ kind: 'name' as const, token: INVENTED }] } : { ok: true, inventions: [] });
 const fallbackBeats = always.done?.narrated.beats as string[];
-check('gate rejects twice: falls back to the Beats alone, no Observations',
-  always.done?.narrated.text === fallbackBeats.join(' ') && fallbackBeats.length > 0 && always.done?.observations.length === 0,
+check('gate rejects twice: falls back to the Beats then the engine line, no Observations',
+  always.done?.narrated.text === `${fallbackBeats.join(' ')} You look around.` && fallbackBeats.length > 0 && always.done?.observations.length === 0,
   always.done?.narrated.text);
 
 // ── A quiet Tick ────────────────────────────────────────────────────────────
@@ -278,11 +307,11 @@ check('gate rejects twice: falls back to the Beats alone, no Observations',
   const counting: Ai = { select: async () => ({ kind: 'none' }), async *narrate() { narrations++; yield { kind: 'done', result: { prose: 'Quiet.', observations: [] } }; } };
   const st = await post({ start: { storyId: 'toy', name: 'QA quiet' } }, { store: s, ai: counting, loadStory: loadQuiet, gate: () => ({ ok: true, inventions: [] }) });
   // The first Tick is not quiet: the quarter chimes. (The greeting fired on the opening turn.)
-  const greeted = await post({ investigationId: st.events?.investigationId, tick: true }, { store: s, ai: counting, loadStory: loadQuiet, gate: () => ({ ok: true, inventions: [] }) });
+  const greeted = await post({ investigationId: st.turn?.investigationId, tick: true }, { store: s, ai: counting, loadStory: loadQuiet, gate: () => ({ ok: true, inventions: [] }) });
   check('quiet-story Tick with a Beat (a clock Rule) is still narrated', eventKinds(greeted).includes('BeatQueued') && greeted.done?.narrated.text === 'Quiet.', eventKinds(greeted).join(','));
   const before = narrations;
-  const quiet = await post({ investigationId: st.events?.investigationId, tick: true }, { store: s, ai: counting, loadStory: loadQuiet });
-  const qlog = await logOf(s, st.events?.investigationId);
+  const quiet = await post({ investigationId: st.turn?.investigationId, tick: true }, { store: s, ai: counting, loadStory: loadQuiet });
+  const qlog = await logOf(s, st.turn?.investigationId);
   check('quiet Tick: no narration call, empty prose, empty feed, closed by an empty Narrated',
     quiet.status === 200 && wellOrdered(quiet.kinds) && narrations === before && quiet.done?.narrated.text === ''
     && (quiet.done?.feed as FeedItem[]).length === 0 && qlog.at(-1)?.payload.kind === 'Narrated'
@@ -333,7 +362,7 @@ function stubAi(hooks: { beforeSelect?: () => Promise<void>; narrate?: () => Pro
 
 async function startWith(s: InvestigationStore, extra: Partial<TurnDeps> = {}) {
   const st = await post({ start: { storyId: 'toy', name: 'QA turns' } }, { store: s, ai: stubAi(), gate: passGate, ...extra });
-  return st.events?.investigationId as string;
+  return st.turn?.investigationId as string;
 }
 const kindsIn = async (s: InvestigationStore, invId: string) => (await logOf(s, invId)).map(e => e.payload.kind);
 const isError = (r: { status: number; kinds: string[] }, status: number) => r.status === status && r.kinds.join() === 'error';
@@ -344,7 +373,7 @@ const isError = (r: { status: number; kinds: string[] }, status: number) => r.st
   const north = await post({ investigationId: invId, text: 'N' }, { store: s, ai: stubAi({ noSelect: true }), gate: passGate });
   check('fast path through the endpoint: "N" tries the locked study door with no select call',
     north.status === 200 && wellOrdered(north.kinds) && eventKinds(north).includes('MoveBlocked')
-    && north.events?.events.some((e: EventPayload) => e.kind === 'IntentSelected' && e.exit === 'study_door'),
+    && north.engine?.events.some(e => e.kind === 'IntentSelected' && e.exit === 'study_door'),
     `${north.status} ${eventKinds(north).join(',')}`);
 }
 
@@ -397,7 +426,7 @@ const isError = (r: { status: number; kinds: string[] }, status: number) => r.st
   const broken = await post({ investigationId: invId, text: 'look around' }, { store: s, ai: failing, gate: passGate });
   const kinds = await kindsIn(s, invId);
   check('narration fails: an error line after events, and the turn is closed with its Beats',
-    broken.kinds.join() === 'events,error' && kinds.at(-1) === 'Narrated'
+    broken.kinds.join() === 'turn,error' && kinds.at(-1) === 'Narrated'
     && ((await logOf(s, invId)).at(-1)?.payload as { text: string }).text.includes('A cold tiled hall'), `${broken.kinds.join(',')} / ${kinds.join(',')}`);
   const next = await post({ investigationId: invId, text: 'open the clock' }, { store: s, ai: stubAi(), gate: passGate });
   check('…so the next turn is not refused', next.status === 200 && eventKinds(next).includes('Opened'), `${next.status}`);
@@ -419,8 +448,103 @@ const isError = (r: { status: number; kinds: string[] }, status: number) => r.st
   const nextTurn = log.findIndex((e, i) => i > lookAt && e.payload.kind === 'TurnReceived');
   check('a turn whose request died: 409 while fresh, then closed with its Beats by the next request after the stale limit',
     isError(early, 409) && late.status === 200 && eventKinds(late).includes('Opened') && consecutive(log.map(e => e.seq))
-    && log[nextTurn - 1]?.payload.kind === 'Narrated' && late.events?.seqFrom === nextTurn,
+    && log[nextTurn - 1]?.payload.kind === 'Narrated' && late.engine?.seqFrom === nextTurn,
     `${early.status} ${late.status} ${log.map(e => e.payload.kind).join(',')}`);
+}
+
+// ── A turn is never silent ──────────────────────────────────────────────────
+
+{
+  // 'take the key' after opening the clock carries no authored Beat, so nothing but the engine's own line can be its prose.
+  const setup = async (s: InvestigationStore) => {
+    const invId = await startWith(s);
+    await post({ investigationId: invId, text: 'open the clock' }, { store: s, ai: stubAi(), gate: passGate });
+    return invId;
+  };
+  const proseItem = (feed: FeedItem[] | undefined) => (feed ?? []).find(f => f.kind === 'prose') as { text: string } | undefined;
+
+  const s1 = memoryStore();
+  const id1 = await setup(s1);
+  const rejected = await post({ investigationId: id1, text: 'take the key' }, { store: s1, ai: stubAi(), gate: () => ({ ok: false, inventions: [] }) });
+  check('gate rejects twice on a beat-less turn: the prose is the engine\'s own line, and it is a prose feed item',
+    rejected.done?.narrated.beats.length === 0 && rejected.done?.narrated.text === 'You take the brass key.' && proseItem(rejected.done?.feed)?.text === 'You take the brass key.',
+    JSON.stringify(rejected.done?.narrated));
+
+  const s2 = memoryStore();
+  const id2 = await setup(s2);
+  const failing = stubAi({ narrate: async () => { throw new Error('provider down'); } });
+  const threw = await post({ investigationId: id2, text: 'take the key' }, { store: s2, ai: failing, gate: passGate });
+  const resumedFeed = (await post({ investigationId: id2, resume: true }, { store: s2 })).lines[0].feed as FeedItem[];
+  check('narration throws on a beat-less turn: the closed turn holds the engine line, and a resume shows it as prose',
+    threw.kinds.join() === 'turn,error' && ((await logOf(s2, id2)).at(-1)?.payload as { text: string }).text === 'You take the brass key.'
+    && resumedFeed.some(f => f.kind === 'prose' && f.text === 'You take the brass key.'), JSON.stringify(resumedFeed.slice(-2)));
+
+  const s3 = memoryStore();
+  const id3 = await setup(s3);
+  const blocked = await post({ investigationId: id3, text: 'N' }, { store: s3, ai: stubAi({ noSelect: true }), gate: () => ({ ok: false, inventions: [] }) });
+  const deflected = await post({ investigationId: id3, text: 'light the lamp' }, { store: s3, ai: stubAi(), gate: () => ({ ok: false, inventions: [] }) });
+  console.log(`       example fallback lines: ${JSON.stringify([rejected.done?.narrated.text, blocked.done?.narrated.text, deflected.done?.narrated.text])}`);
+  check('a blocked exit and a rejected command also fall back to a line, never an empty one',
+    blocked.done?.narrated.text.includes('It is locked.') && deflected.done?.narrated.text.length > 0, JSON.stringify([blocked.done?.narrated.text, deflected.done?.narrated.text]));
+}
+
+// ── A client that disconnects does not cost the turn its prose ─────────────
+
+{
+  const s = memoryStore();
+  const invId = await startWith(s);
+  const FULL = 'Cold tiles, the mat, the clock. The housekeeper watches you from the stairs.';
+  const release = deferred();
+  const slow: Ai = {
+    select: async () => ({ kind: 'none' }),
+    async *narrate() {
+      yield { kind: 'text', delta: 'Cold tiles, ' };
+      await release.promise;
+      yield { kind: 'done', result: { prose: FULL, observations: [{ key: 'tiles_cold', subject: 'hall', text: 'The tiles are cold.' }] } };
+    },
+  };
+  const res = await handleTurn(new Request('http://localhost/api/turn', { method: 'POST', body: JSON.stringify({ investigationId: invId, text: 'look around' }) }),
+    { ai: slow, loadStory, gate: passGate, store: s });
+  const reader = res.body!.getReader();
+  let seen = '';
+  while (!seen.includes('"kind":"text"')) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    seen += new TextDecoder().decode(value);
+  }
+  await reader.cancel();
+  release.resolve();
+  for (let i = 0; i < 100 && (await logOf(s, invId)).at(-1)?.payload.kind !== 'ObservationRecorded'; i++) await new Promise(r => setTimeout(r, 10));
+  const rows = await logOf(s, invId);
+  const narrated = rows.filter(e => e.payload.kind === 'Narrated').at(-1)?.payload as { text: string } | undefined;
+  check('the client cancels after the first text delta: the stored Narrated is the narrator\'s full prose, with its Observation, not the fallback',
+    narrated?.text === FULL && rows.at(-1)?.payload.kind === 'ObservationRecorded' && consecutive(rows.map(e => e.seq)), `${narrated?.text} / ${rows.map(e => e.payload.kind).join(',')}`);
+  const again = await post({ investigationId: invId, resume: true }, { store: s });
+  check('…and a resume shows that prose', (again.lines[0].feed as FeedItem[]).some(f => f.kind === 'prose' && f.text === FULL));
+}
+
+// ── A failed start leaves no orphan; a lost race says so ───────────────────
+
+{
+  const inner = memoryStore();
+  const made: string[] = [];
+  const failing: InvestigationStore = {
+    ...inner,
+    async create(...a) { const r = await inner.create(...a); made.push(r.id); return r; },
+    async append() { throw new Error('disk full'); },
+  };
+  const r = await post({ start: { storyId: 'toy', name: 'QA orphan' } }, { store: failing, gate: passGate });
+  check('a start whose opening append fails: 500, and the Investigation it created is gone',
+    isError(r, 500) && made.length === 1 && (await inner.load(made[0])) === null, `${r.status} made ${made.length}`);
+}
+
+{
+  const s = memoryStore();
+  const invId = await startWith(s);
+  const racing: InvestigationStore = { ...s, async append(i, rows) { throw new SeqConflict(i, rows[0].seq); } };
+  const r = await post({ investigationId: invId, text: 'open the clock' }, { store: racing, ai: stubAi(), gate: passGate });
+  check('three lost races: 409 with its own message, not the "still being narrated" one',
+    isError(r, 409) && r.lines[0].message.includes('got there first') && !r.lines[0].message.includes('narrated'), JSON.stringify(r.lines[0]));
 }
 
 console.log(`\n${pass} passed, ${fail} failed${AUTHOR ? ` (recordings rewritten in ${RECORDINGS})` : ''}`);
