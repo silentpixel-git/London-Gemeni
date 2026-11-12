@@ -112,7 +112,7 @@ function actionsFrom(story: Story, s: State): Action[] {
     const o = s.objects[id];
     if (o.container && o.container.state !== 'open') offer(`open ${id}`, { verb: 'open', target: id });
     if (o.container && o.container.state === 'open' && listens('close')) offer(`close ${id}`, { verb: 'close', target: id });
-    if (obj(id).document || obj(id).fact) offer(`read ${id}`, { verb: 'read', target: id });
+    if (obj(id).document || obj(id).fact || listens('read')) offer(`read ${id}`, { verb: 'read', target: id });
     if (listens('examine')) offer(`examine ${id}`, { verb: 'examine', target: id });
     if (listens('use')) offer(`use ${id}`, { verb: 'use', target: id });
   }
@@ -142,6 +142,15 @@ function actionsFrom(story: Story, s: State): Action[] {
     if (r.trigger.kind === 'combine') {
       const [a, b] = r.trigger.items;
       if (reachable.includes(a) && reachable.includes(b)) offer(`combine ${a} ${b}`, { verb: 'combine', target: a, secondary: b });
+    }
+    // An action Rule may name combine or deduce as plain verbs: offer what it could match.
+    if (r.trigger.kind === 'action' && r.trigger.verb.includes('combine')) {
+      for (const a of r.trigger.target ?? reachable) for (const b of r.trigger.secondary ?? reachable) {
+        if (a !== b && reachable.includes(a) && reachable.includes(b)) offer(`combine ${a} ${b}`, { verb: 'combine', target: a, secondary: b });
+      }
+    }
+    if (r.trigger.kind === 'action' && r.trigger.verb.includes('deduce')) {
+      for (const p of r.trigger.person ?? [undefined]) offer(`deduce${p ? ` ${p}` : ''}`, { verb: 'deduce', facts: [], ...(p ? { person: p } : {}) });
     }
     if (r.trigger.kind === 'deduction') {
       const facts = r.trigger.facts ?? [];

@@ -41,7 +41,7 @@ const SPELLED = new Set([...ONES.slice(3), ...TENS.slice(2), ...ORDINALS, 'hundr
 const NUMBER_WORDS = new Set([...SPELLED, ...ONES.slice(1)]);
 /** Abbreviations and initials whose full stop does not end a sentence, so "Mr. Lestrade" and "J. Lestrade" are checked. */
 const TITLE = /\b(Mr|Mrs|Ms|Dr|St|Rev|Capt|Col|Sgt|Insp|Prof|Messrs)\./gi;
-const INITIAL = /\b([A-Z])\./g;
+const INITIAL = /\b([A-HJ-Z])\./g; // not "I.": the pronoun ends sentences ("Nor could I.")
 /** A number the clock licenses is a time only beside one of these: "gone eight", "a quarter to nine", "fifteen minutes". */
 const BEFORE_TIME = new Set(['past', 'to', 'after', 'gone', 'at', 'till', 'until', 'struck', 'strike', 'strikes', 'chimed', 'chimes', 'half', 'quarter']);
 const AFTER_TIME = new Set(["o'clock", 'oclock', 'minutes', 'minute', 'hours', 'hour', 'past', 'to']);
@@ -84,7 +84,6 @@ const tokens = (text: string) => text.toLowerCase().match(/\p{L}+|\d+/gu) ?? [];
  */
 export function contextWords(ctx: NarrationContext): Set<string> {
   const parts: string[] = [
-    // Not the Story's title: it is the game's chrome, not the world, and may name what an act must not.
     ctx.act.name, ctx.act.dateLabel, ctx.clock.period, ctx.clock.weather,
     ctx.location.name, ...ctx.location.beats,
     ...ctx.personsPresent.flatMap(p => [p.label, p.disposition, ...p.beats]),

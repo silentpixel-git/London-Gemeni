@@ -3,7 +3,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { NarrationResult, Selection, type NarrationContext } from '../schema/index.js';
 import { buildNarratePrompt, buildSelectPrompt } from './prompts.js';
-import { confineObservations, confineSelection } from './selection.js';
+import { confineObservations, confineSelection, normaliseSelection } from './selection.js';
 import type { Ai, JobConfig, NarrationChunk, PromptBundle, SelectInput } from './types.js';
 
 export function gemini(select: JobConfig, narrate: JobConfig, apiKey: string): Ai {
@@ -24,8 +24,15 @@ export function gemini(select: JobConfig, narrate: JobConfig, apiKey: string): A
     async select(input: SelectInput): Promise<Selection> {
       const req = request(select.model, buildSelectPrompt(input));
       for (let attempt = 0; attempt < 2; attempt++) {
-        const res = await client.models.generateContent(req);
-        const parsed = Selection.safeParse(parseJson(res.text ?? ''));
+        let text: string;
+        try {
+          text = (await client.models.generateContent(req)).text ?? '';
+        } catch (err) {
+          // A transport or upstream error (a 502) is retried once like a malformed reply; a second one is the endpoint's to report.
+          if (attempt === 1) throw err;
+          continue;
+        }
+        const parsed = Selection.safeParse(normaliseSelection(parseJson(text)));
         if (parsed.success) return confineSelection(parsed.data, input.candidates);
       }
       return { kind: 'none', reason: 'unparseable' };

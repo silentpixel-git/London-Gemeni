@@ -4,7 +4,7 @@
 // CONTRACT (Phase 1):
 //   verbs      all Verbs (the set is fixed; the model chooses)
 //   objects    visibleObjects(here) as 'here' (an object inside an open visible container is still 'here'),
-//              inventory as 'carried'. Never hidden objects. name = story name.
+//              inventory as 'carried'. Never hidden objects. name = story name; aliases = story aliases, when any.
 //   persons    personsPresent, name = introduced ? name : alias ?? name
 //   exits      this location's exits (locked ones included: trying them is a valid intent)
 //   topics     for each present person P and each Fact F:
@@ -17,6 +17,7 @@ import { canTell, inventory, personsPresent, visibleObjects, type State } from '
 
 export function candidates(story: Story, s: State): CandidateSet {
   const objName = (id: Id) => story.objects.find(o => o.id === id)!.name;
+  const aliasesOf = (id: Id) => { const a = story.objects.find(o => o.id === id)!.aliases; return a?.length ? { aliases: a } : {}; };
   const carried = inventory(s);
   const persons = personsPresent(story, s);
   const loc = story.locations.find(l => l.id === s.location)!;
@@ -34,8 +35,8 @@ export function candidates(story: Story, s: State): CandidateSet {
   return {
     verbs: [...Verb.options],
     objects: [
-      ...visibleObjects(s, s.location).map(id => ({ id, name: objName(id), where: 'here' as const })),
-      ...carried.map(id => ({ id, name: objName(id), where: 'carried' as const })),
+      ...visibleObjects(s, s.location).map(id => ({ id, name: objName(id), ...aliasesOf(id), where: 'here' as const })),
+      ...carried.map(id => ({ id, name: objName(id), ...aliasesOf(id), where: 'carried' as const })),
     ],
     persons: persons.map(id => ({ id, name: label(id) })),
     exits: loc.exits.map(x => ({ id: x.id, names: x.names })),

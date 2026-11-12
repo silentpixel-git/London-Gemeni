@@ -101,10 +101,7 @@
       "the man by the cab rank",
       "the soldier",
       "the grandchild"
-    ],
-    "voices": {
-      "holmes": "\"Admirable, Watson; every word of it. I should only add that he is waiting for a grandchild: he watches the crowd at the height of a child's head, not a man's.\""
-    }
+    ]
   },
   {
     "id": "holmes_actor_reading",
@@ -136,7 +133,7 @@
   },
   {
     "id": "holmes_invisible_in_a_crowd",
-    "statement": "\"We see what asks to be seen. A man who asks nothing of anybody might pass under this window every evening for a year and never once be looked at.\"",
+    "statement": "We see what asks to be seen.",
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [

@@ -57,6 +57,15 @@ const FIXTURES = join('packages', 'schema', 'fixtures');
   if (r.ok) fail('broken story must not validate');
 }
 
+// 3b. An action trigger on "wait" can never fire (a wait is a Tick): the validator fails it.
+{
+  const raw = structuredClone(loadStoryDir(join(FIXTURES, 'toy'))) as { rules: unknown[] };
+  raw.rules.push({ id: 'on_wait', trigger: { kind: 'action', verb: ['wait'] }, once: true, effects: [{ kind: 'cue', sound: 'x' }] });
+  const r = validateStory(raw);
+  if (!r.ok && r.issues.some(i => i.level === 'fail' && i.at === 'rules/on_wait/trigger/verb')) pass('a "wait" in an action trigger fails validation');
+  else { fail('a "wait" in an action trigger should fail validation'); show(r.issues); }
+}
+
 // 4. Every real Story.
 if (existsSync('stories')) {
   for (const dir of readdirSync('stories', { withFileTypes: true }).filter(d => d.isDirectory())) {

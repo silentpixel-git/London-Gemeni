@@ -14,7 +14,7 @@ import {
   replay, resolveTurn, startInvestigation, tick, type State,
 } from '../packages/engine/index.js';
 import { findInventions, gateNarration, type GateVerdict } from '../packages/ai/gate.js';
-import { confineSelection } from '../packages/ai/selection.js';
+import { confineSelection, confineTopic, resolveFlavour } from '../packages/ai/selection.js';
 import type { Ai } from '../packages/ai/types.js';
 import { SeqConflict, type InvestigationStore } from './investigationStore.js';
 
@@ -182,7 +182,7 @@ async function prepareOnce(body: TurnBody, deps: TurnDeps): Promise<Prepared | R
     const recentTexts = prior.flatMap(e => (e.kind === 'TurnReceived' ? [e.text] : [])).slice(-RECENT_TEXTS);
     // Exact commands skip the model (ADR-0003). The adapter confines too; the endpoint does not trust that it did.
     const chosen = exactSelection(body.text, set) ?? (await deps.ai.select({ text: body.text, candidates: set, recentTexts }));
-    const selection = confineSelection(chosen, set);
+    const selection = confineTopic(resolveFlavour(confineSelection(chosen, set), set), set, body.text);
     events = resolveTurn(story, before, { text: body.text, selection }).events;
   }
 
@@ -255,7 +255,7 @@ function fallbackProse(ctx: NarrationContext, attempts: Attempt[] = [], gate?: N
     for (const a of attempts) {
       if (a.inventedName) continue;
       const kept = a.prose.split(/\n{2,}/)
-        .map(par => par.replace(/\b(Mr|Mrs|Ms|Dr|St|Rev|[A-Z])\.\s+/g, '$1.\u0001').split(/(?<=[.!?…]["”’')]*)\s+/).map(x => x.replace(/\u0001/g, ' ')).filter(s => s.trim() && standsAlone(ctx, s, gate)).join(' '))
+        .map(par => par.replace(/\b(Mr|Mrs|Ms|Dr|St|Rev|[A-HJ-Z])\.\s+/g, '$1.\u0001').split(/(?<=[.!?…]["”’')]*)\s+/).map(x => x.replace(/\u0001/g, ' ')).filter(s => s.trim() && standsAlone(ctx, s, gate)).join(' '))
         .filter(Boolean).join('\n\n');
       if (kept) return kept;
     }

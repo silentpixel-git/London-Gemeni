@@ -239,7 +239,7 @@
         "beats": [
           "I called it a parlour trick any man might do who had nothing better to do with his evening, and Holmes turned from the window with the look of a man offered a diversion.",
           "\"Any man. Very well: a wager. Read me two people in that street. Read both correctly and I shall not touch the violin before midnight; fail, and you shall read my monograph upon the ashes of the various tobaccos, all hundred and forty varieties, plates included.\"",
-          "\"The old fellow on the kerb by the cab rank. And the clergyman outside the chemist's. When you have your man, give me your reading, and I shall hold you to it.\""
+          "\"The old fellow on the kerb by the cab rank. And the clergyman outside the chemist's. Look at your man, then tell me what you make of him, and I shall hold you to it.\""
         ]
       }
     ],
@@ -730,7 +730,7 @@
       {
         "kind": "playBeat",
         "beats": [
-          "I gave him my reading of the old man: an infantryman by the way he stood, for cavalrymen stand otherwise; Indian service, and not lately, for the colour had gone into the skin; an old fracture of the left thigh, set in a hurry by a regimental surgeon and healed short, a walk I had watched men learn at the base hospital at Peshawar; and probably a sergeant. Holmes heard me out, and then conceded it."
+          "I gave him my reading of the old man: an infantryman by the way he stood, for cavalrymen stand otherwise; Indian service, and not lately, for the colour had gone into the skin; an old fracture of the left thigh, set in a hurry by a regimental surgeon and healed short, a walk I had watched men learn at the base hospital at Peshawar; and probably a sergeant. Holmes heard me out and conceded every word of it; then he added the one thing I had missed: the old man was waiting for a grandchild."
         ]
       }
     ],
@@ -907,7 +907,6 @@
         "ask",
         "deduce",
         "move",
-        "wait",
         "inventory"
       ]
     },
@@ -947,7 +946,6 @@
         "ask",
         "deduce",
         "move",
-        "wait",
         "inventory"
       ]
     },
@@ -1092,11 +1090,30 @@
         "beats": [
           "The lamps were lit; Holmes, at the window, spoke before I had well begun.",
           "\"Describe one of the hundreds who have passed under this window, Watson: one I did not point out.\" I could not; not one face.",
-          "\"Nor could I. Nor could any constable on any beat in London.\" He let the curtain fall."
+          "\"Nor could I. Nor could any constable on any beat in London. We see what asks to be seen. A man who asks nothing of anybody might pass under this window every evening for a year and never once be looked at.\" He let the curtain fall."
         ]
       }
     ],
     "once": true
+  },
+  {
+    "id": "demonstration_on_idle",
+    "trigger": {
+      "kind": "tick"
+    },
+    "when": {
+      "flagsNone": [
+        "holmes_demonstrated"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "setFlag",
+        "flag": "holmes_demonstrated"
+      }
+    ],
+    "once": true,
+    "weight": 10
   },
   {
     "id": "lamplighter",
@@ -1142,7 +1159,7 @@
         ]
       }
     ],
-    "once": false,
+    "once": true,
     "weight": 1
   },
   {

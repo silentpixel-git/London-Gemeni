@@ -9,6 +9,7 @@ import { loadStoryDir } from '../packages/schema/load';
 import { buildNarrationContext, initialState, resolveTurn } from '../packages/engine';
 import { fixedRng } from '../packages/engine/rng';
 import { findInventions, gateNarration } from '../packages/ai/gate';
+import { confineTopic, normaliseSelection, resolveFlavour } from '../packages/ai/selection';
 
 const raw = loadStoryDir(join('packages', 'schema', 'fixtures', 'toy')) as Record<string, unknown>;
 raw.narrator = { name: 'Inspector Marsh', aliases: ['the inspector'], voice: ['first person, past tense'] };
@@ -76,7 +77,30 @@ const remembered = { ...ctx, transcript: [{ person: 'housekeeper', lines: [{ spe
 check(caught(remembered, 'The housekeeper glances at Lestrade, who says nothing.').includes('Lestrade'), 'the narrator\'s own earlier prose licenses nothing, so a slip does not become a licence');
 check(gateNarration({ ...ctx, lexicon: [...ctx.lexicon, 'George'] }, { prose: 'A portrait of George III hangs by the stairs.', observations: [] }).ok, 'a Roman numeral in capitals is not a name');
 
-check(caught({ ...ctx, storyTitle: 'London Bleeds: The Whitechapel Diaries' }, 'He turned his face towards Whitechapel.').includes('Whitechapel'), 'the Story\'s title licenses nothing (it may name what an act must not)');
+// The selection reply, normalised before Zod (packages/ai/selection.ts).
+check(JSON.stringify(normaliseSelection({ kind: 'ask', verb: 'ask', person: 'holmes', topic: 'x', reason: '' })) === '{"kind":"intent","verb":"ask","person":"holmes","topic":"x"}', 'a verb written into "kind" is read as an intent with that verb');
+check(JSON.stringify(normaliseSelection({ kind: 'none', reason: 'no', verb: 'look', subject: '' })) === '{"kind":"none","reason":"no"}', 'a reply keeps only the fields of its kind, empty values dropped');
+{
+  const set = { verbs: ['examine', 'look'], objects: [{ id: 'open_window', name: 'the open window', aliases: ['the street', 'the window'], where: 'here' }], persons: [], exits: [], topics: [], knownFacts: [], suspects: [] } as unknown as Parameters<typeof resolveFlavour>[1];
+  check(JSON.stringify(resolveFlavour({ kind: 'flavour', subject: 'the view from the window' }, set)) === '{"kind":"intent","verb":"examine","target":"open_window"}'
+    && JSON.stringify(resolveFlavour({ kind: 'flavour', subject: 'the street' }, set)) === '{"kind":"intent","verb":"examine","target":"open_window"}',
+    'a flavour request naming a candidate Object (or an alias) is that Object examined');
+  check(resolveFlavour({ kind: 'flavour', subject: 'the smell of the room' }, set).kind === 'flavour', '…and anything else stays flavour');
+  const asked = {
+    verbs: ['ask'], persons: [], exits: [], knownFacts: [], suspects: [],
+    objects: [{ id: 'figure_a', name: 'the old man', aliases: ['the old fellow'], where: 'here' }, { id: 'figure_b', name: 'the clergyman', aliases: ['the parson'], where: 'here' }],
+    topics: [{ person: 'holmes', fact: 'reading_a', phrase: 'the old man', direction: 'ask' }, { person: 'holmes', fact: 'reading_a', phrase: 'the soldier', direction: 'ask' }],
+  } as unknown as Parameters<typeof confineTopic>[1];
+  const askA = { kind: 'intent', verb: 'ask', person: 'holmes', topic: 'reading_a' } as const;
+  check(JSON.stringify(confineTopic(askA, asked, 'ask Holmes about the clergyman')) === '{"kind":"intent","verb":"ask","person":"holmes"}'
+    && JSON.stringify(confineTopic(askA, asked, 'tell Holmes the parson is a curate')) === '{"kind":"intent","verb":"ask","person":"holmes"}',
+    'an ask naming another Object, and none of its topic\'s words, loses the topic');
+  check(confineTopic(askA, asked, 'tell Holmes the old fellow is a soldier').kind === 'intent' && (confineTopic(askA, asked, 'what about the old fellow, Holmes?') as { topic?: string }).topic === 'reading_a'
+    && (confineTopic(askA, asked, 'ask Holmes what he makes of the veteran') as { topic?: string }).topic === 'reading_a',
+    '…but keeps it when the words name the topic\'s own Object by any alias, or name no Object at all');
+}
+check(!('storyTitle' in ctx), 'the narrator is not given the Story\'s title (it may name what an act must not)');
+check(verdict('"Nor could I. Patience was never his virtue," she said.').ok, 'the pronoun "I." ends a sentence; it is not an initial');
 
 console.log(`\n${fails === 0 ? 'OK' : `${fails} FAILURE(S)`}`);
 process.exit(fails === 0 ? 0 : 1);

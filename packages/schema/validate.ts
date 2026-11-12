@@ -215,6 +215,8 @@ export function validateStory(raw: unknown): ValidationResult {
   const checkTrigger = (t: Trigger, at: string) => {
     switch (t.kind) {
       case 'action':
+        // A wait is a Tick: it raises no action Firing, so an action Rule on it can never fire. Use a tick Rule.
+        if (t.verb.includes('wait')) fail(`${at}/verb`, '"wait" never fires an action trigger (a wait is a Tick); use a tick Rule');
         for (const o of t.target ?? []) needObject(o, `${at}/target`);
         for (const o of t.secondary ?? []) needObject(o, `${at}/secondary`);
         for (const p of t.person ?? []) needPerson(p, `${at}/person`);

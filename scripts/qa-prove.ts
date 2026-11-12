@@ -138,6 +138,15 @@ const stressVariant = (mutate: (raw: any) => void) => { const raw = structuredCl
       { id: 'the_end', trigger: { kind: 'clock', atMinutes: 720, act: [1] }, once: true, effects: [{ kind: 'endGame', ending: 'done' }] },
     ],
   });
+  const plain = (rule: Record<string, unknown>, objects: unknown[] = []) => prove(tiny({ objects, rules: [rule,
+    { id: 'to_two', trigger: { kind: 'clock', atMinutes: 650, act: [0] }, once: true, effects: [{ kind: 'advanceAct', act: 1 }] }] })).lines.find(l => l.goal.id === 'done')!;
+  const sign = { id: 'sign', name: 'sign', beats: ['A painted sign.'], placement: { kind: 'location', location: 'room' }, item: false };
+  const cup = { id: 'cup', name: 'cup', beats: ['A cup.'], placement: { kind: 'location', location: 'room' }, item: true };
+  const readSign = plain({ id: 'r', trigger: { kind: 'action', verb: ['read'], target: ['sign'] }, once: true, effects: [{ kind: 'endGame', ending: 'done' }] }, [sign]);
+  const combineAction = plain({ id: 'c', trigger: { kind: 'action', verb: ['combine'], target: ['cup'], secondary: ['sign'] }, once: true, effects: [{ kind: 'endGame', ending: 'done' }] }, [sign, cup]);
+  const deduceAction = plain({ id: 'd', trigger: { kind: 'action', verb: ['deduce'] }, once: true, effects: [{ kind: 'endGame', ending: 'done' }] });
+  if (readSign.reachable && combineAction.reachable && deduceAction.reachable) pass('variant: read of a plain Object, and combine or deduce named in an action Rule, are offered');
+  else fail(`variant: read ${readSign.reachable}, combine ${combineAction.reachable}, deduce ${deduceAction.reachable} should all be REACHABLE`);
   const earlyFacts = prove(earlyStory).early.map(e => e.fact).join();
   if (earlyFacts === 'who_did_it') pass('variant: EARLY sees a Fact no Clue or Rule reads, learned before its act');
   else fail(`variant: EARLY should report who_did_it, got "${earlyFacts}"`);

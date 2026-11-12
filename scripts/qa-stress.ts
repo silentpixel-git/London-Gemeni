@@ -473,7 +473,7 @@ section('pinned 4: leave Rules judge from the room being left');
 {
   const v = load(variant(r2 => {
     r2.rules.unshift({ id: 'enter_kitchen_listed_first', trigger: { kind: 'enter', location: 'kitchen' }, once: false, effects: [{ kind: 'cue', sound: 'door' }] });
-    r2.rules.push({ id: 'orrin_calls_after', trigger: { kind: 'leave', location: 'jetty' }, when: { location: ['jetty'], personsPresent: ['orrin'] }, once: false, effects: [{ kind: 'cue', sound: 'shout' }] });
+    r2.rules.push({ id: 'orrin_calls_after', trigger: { kind: 'leave', location: 'jetty' }, when: { location: ['jetty'], personsPresent: ['orrin'] }, once: false, effects: [{ kind: 'cue', sound: 'shout' }, { kind: 'playBeat', beats: ['Orrin calls something after you.'] }] });
   }));
   const r = new Run('leave', 47, v);
   const out = r.move('to_kitchen');
@@ -482,6 +482,9 @@ section('pinned 4: leave Rules judge from the room being left');
   check(order.indexOf('jetty_foghorn') < order.indexOf('orrin_calls_after') && order.indexOf('orrin_calls_after') < order.indexOf('enter_kitchen_listed_first')
     && order.indexOf('enter_kitchen_listed_first') < order.indexOf('maud_greets'),
     'firing order is leave, then enter, then arrivals; Story order holds only within each', order.join(','));
+  const beats = buildNarrationContext(v, r.s, out, 'full').beats;
+  check(beats[0] === 'Orrin calls something after you.' && beats.indexOf('Orrin calls something after you.') < beats.findIndex(b => v.locations.find(l => l.id === 'kitchen')!.beats.includes(b)),
+    'a leave Rule\'s beat is narrated on the way out, before the next room', beats.map(b => b.slice(0, 25)).join(' | '));
   check(r.replays(), 'replays exactly');
 }
 section('pinned 5: a player can accuse anyone met; examine and use reach people');

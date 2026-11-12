@@ -10,7 +10,6 @@ export type NarrationMode = z.infer<typeof NarrationMode>;
 
 export const NarrationContext = z.object({
   mode: NarrationMode,
-  storyTitle: z.string(),
   narrator: z.object({ name: z.string(), aliases: z.array(z.string()), voice: z.array(z.string()) }).optional(),
   lexicon: z.array(z.string()),
   act: z.object({ id: z.number().int(), name: z.string(), dateLabel: z.string() }),
@@ -23,7 +22,8 @@ export const NarrationContext = z.object({
     disposition: Disposition,
     beats: z.array(z.string()),
   })),
-  objectsVisible: z.array(z.object({ id: Id, name: z.string() })),
+  /** Objects here, and those the player carries (`carried: true`). */
+  objectsVisible: z.array(z.object({ id: Id, name: z.string(), carried: z.literal(true).optional() })),
   /** People this turn's Events name who are not present (an accused suspect, someone dismissed), by the label the player knows them by. */
   personsNamed: z.array(z.object({ id: Id, label: z.string() })),
   /** Places the narrator may name: where this location's exits lead (the sidebar shows them) and any location a Moved Event names. */

@@ -2,6 +2,11 @@
   {
     "id": "opera_glass",
     "name": "the opera glass",
+    "aliases": [
+      "the glass",
+      "the opera glasses",
+      "the field glass"
+    ],
     "placement": {
       "kind": "person",
       "person": "holmes"
@@ -14,6 +19,11 @@
   {
     "id": "street_soldier",
     "name": "the old man by the cab rank",
+    "aliases": [
+      "the old fellow",
+      "the soldier",
+      "the old man"
+    ],
     "placement": {
       "kind": "location",
       "location": "baker_street"
@@ -29,6 +39,11 @@
   {
     "id": "street_clergyman",
     "name": "the clergyman",
+    "aliases": [
+      "the curate",
+      "the parson",
+      "the man outside the chemist's"
+    ],
     "placement": {
       "kind": "location",
       "location": "baker_street"
@@ -38,12 +53,16 @@
     "beats": [
       "A long black coat gone shiny at the seams, the cuffs turned, a white tie, and a good hat gone to the bad.",
       "He reads a small book with his lips moving, and now and then looks up over the crowd as a man does who is repeating something to himself.",
-      "At this distance the book is only a small dark thing in his hand, and his face under the hat brim is too far off to make out."
+      "To the naked eye, at this distance, the book is only a small dark thing in his hand, and his face under the hat brim is too far off to make out."
     ]
   },
   {
     "id": "open_window",
     "name": "the open window",
+    "aliases": [
+      "the street",
+      "the window"
+    ],
     "placement": {
       "kind": "location",
       "location": "baker_street"
@@ -56,6 +75,10 @@
   {
     "id": "crowd",
     "name": "the holiday crowd",
+    "aliases": [
+      "the people",
+      "the passers-by"
+    ],
     "placement": {
       "kind": "location",
       "location": "baker_street"
@@ -68,6 +91,9 @@
   {
     "id": "holmes_violin",
     "name": "the violin",
+    "aliases": [
+      "the fiddle"
+    ],
     "placement": {
       "kind": "location",
       "location": "baker_street"
@@ -80,6 +106,9 @@
   {
     "id": "tobacco_monograph",
     "name": "the monograph",
+    "aliases": [
+      "the tobacco monograph"
+    ],
     "placement": {
       "kind": "location",
       "location": "baker_street"

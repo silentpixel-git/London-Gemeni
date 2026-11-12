@@ -236,18 +236,19 @@ section('the other ways through the glass');
 section('idle');
 {
   const r = new Run(7);
-  const early = r.idle();
-  check(!fired(early, 'demonstration') && !fired(early, 'wager') && !fired(early, 'wager_on_idle'), 'before the demonstration an idle Tick starts nothing (it may pass the lamplighter)', firedAny(early).join());
-  r.talk();
+  const demo = r.idle();
+  check(fired(demo, 'demonstration_on_idle') && fired(demo, 'demonstration') && !fired(demo, 'wager'), 'unprompted, Holmes gives his demonstration anyway (score §13), and not the wager', firedAny(demo).join());
   const wager = r.idle();
   check(fired(wager, 'wager_on_idle') && fired(wager, 'wager'), 'unanswered, Holmes proposes the wager anyway');
   check(fired(r.idle(), 'barrel_organ'), 'during the wager an idle Tick draws the barrel-organ');
+  check(!fired(r.idle(), 'barrel_organ'), '…once (score §13)');
   check(fired(r.go('deduce', { verb: 'deduce', facts: [] }), 'reading_as_deduction'), 'a reading typed as a conclusion gets Holmes\'s prompt');
   r.examine('street_soldier'); r.ask('holmes_soldier_grandchild');
   r.examine('street_clergyman'); r.ask('holmes_actor_reading');
   check(r.s.flags.verdict_given === true, 'the verdict is given');
   const close = r.idle();
   check(fired(close, 'closing_on_idle') && fired(close, 'closing') && !fired(close, 'barrel_organ'), 'an idle Tick after the verdict closes, and never draws the barrel-organ');
+  check(buildNarrationContext(story, r.s, close, 'full').beats.some(b => b.includes('We see what asks to be seen')), 'the thesis is a beat of the closing, on a Tick as on an action (score §13)');
   const end = r.idle();
   check(fired(end, 'ending_lost_on_idle') && r.s.ended === 'wager_lost', 'the next idle Tick ends it');
   check(r.log.filter(e => e.kind === 'RuleFired' && e.rule === 'lamplighter').length === 1, 'the lamplighter passed exactly once on the way');
@@ -264,6 +265,20 @@ section('the demonstration by the window');
   check(fired(r.examine('crowd'), 'wager_on_street'), 'examining the street again strikes the wager');
 }
 
+// ── 6. Phase 7 amendments (score §13) ────────────────────────────────────────
+section('aliases and the soldier\'s reading');
+{
+  const r = new Run(15); r.talk(); r.talk();
+  const soldier = r.cand().objects.find(o => o.id === 'street_soldier');
+  check(!!soldier?.aliases?.includes('the soldier') && r.cand().objects.find(o => o.id === 'open_window')?.aliases?.includes('the street') === true,
+    'the selection model sees the Objects\' aliases ("the soldier", "the street")');
+  r.examine('street_soldier');
+  const es = r.ask('holmes_soldier_grandchild');
+  const ctx = buildNarrationContext(story, r.s, es, 'full');
+  check(ctx.facts.every(f => !f.voice) && ctx.beats.some(b => b.startsWith('I gave him my reading of the old man') && b.includes('grandchild')),
+    'the soldier\'s reading carries Holmes\'s concession after Watson\'s words, with no separate voice to narrate first');
+}
+
 // ── 5. Phase 4 amendments (score §12) ────────────────────────────────────────
 section('beat order on a look through the glass');
 {
@@ -271,7 +286,7 @@ section('beat order on a look through the glass');
   r.go('take the glass', { verb: 'take', target: 'opera_glass' });
   r.examine('street_clergyman');
   const beats = buildNarrationContext(story, r.s, r.last, 'full').beats;
-  const own = beats.findIndex(b => b.startsWith('At this distance'));
+  const own = beats.findIndex(b => b.startsWith('To the naked eye'));
   const glass = beats.findIndex(b => b.startsWith('Through the glass the clergyman'));
   check(own >= 0 && glass > own, 'the clergyman as the eye sees him comes first, then what the glass shows', beats.map(b => b.slice(0, 30)).join(' | '));
 }
