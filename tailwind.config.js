@@ -31,7 +31,7 @@ export default {
         serif:    ['"Playfair Display"', 'serif'],
         playfair: ['"Playfair"', 'serif'],
       },
-      // Motion vocabulary — see plans/002 for the full rationale.
+      // Motion vocabulary (tokens: components/motionTokens.ts).
       //   hover/controls: duration-150 ease-out
       //   dropdowns/toasts/chips: duration-200 ease-out
       //   panels/modals/sheets: duration-300 ease-out (slides may use ease-out-expo)
