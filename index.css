@@ -86,9 +86,6 @@
 /* ── Waiting indicator — "developing ink" (CommandInput) ─────────────────
    The message text surfaces left→right under a soft gradient mask while the
    icon keeps a slow breathing pulse; messages exit with a quick blur-fade.
-   Two modes:
-     .lb-wait-*  one-shot entrance for single fixed messages (Holmes consult,
-                 act transition)
      .lb-rot-*   rotating loop for the loading messages: 6 messages × 3.1s
                  slots = an 18.6s cycle. Keyframe percentages are slices of
                  that cycle (enter 0.7s ≈ 3.8%, hold to 15.3%, exit 0.26s to
@@ -106,21 +103,6 @@
   mask-size: 300% 100%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
-}
-
-.lb-wait-icon {
-  animation: lb-wait-icon-in 0.3s ease-out both, lb-breathe 1.4s ease-in-out infinite;
-}
-@keyframes lb-wait-icon-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-.lb-wait-txt {
-  animation: lb-wait-sweep 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-@keyframes lb-wait-sweep {
-  from { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
-  to { -webkit-mask-position: 0 0; mask-position: 0 0; }
 }
 
 .lb-rot-line {
@@ -157,9 +139,7 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse,
   .animate-bounce,
-  .animate-in,
-  .lb-wait-icon,
-  .lb-wait-txt {
+  .animate-in {
     animation: none !important;
   }
 }

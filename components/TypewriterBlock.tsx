@@ -4,14 +4,6 @@ import { StoryRenderer } from './StoryRenderer';
 
 interface TypewriterBlockProps {
   text: string;
-  onComplete?: () => void;
-  /** Wrapper class — lets callers (e.g. the diary) impose their own text styling. */
-  className?: string;
-  /** Cursor class — defaults to the accent caret used by narration. */
-  cursorClassName?: string;
-  /** When false, suppresses onComplete so a still-streaming text does not
-      fire completion side-effects early. Defaults to true. */
-  isComplete?: boolean;
   /** Called after each reveal step, once the new text is laid out (the feed follows the caret with it). */
   onProgress?: () => void;
 }
@@ -22,10 +14,6 @@ const prefersReducedMotion = () =>
 
 export const TypewriterBlock: React.FC<TypewriterBlockProps> = ({
   text = "",
-  onComplete,
-  className = "relative min-h-[1.8em]",
-  cursorClassName = "inline-block w-1.5 h-[1.1em] bg-lb-accent opacity-70 animate-pulse ml-0.5 align-text-bottom translate-y-[-0.1em]",
-  isComplete = true,
   onProgress,
 }) => {
   const [displayedText, setDisplayedText] = useState('');
@@ -34,7 +22,6 @@ export const TypewriterBlock: React.FC<TypewriterBlockProps> = ({
   useEffect(() => {
     if (displayedText.length === text.length) {
       setIsTyping(false);
-      if (isComplete) onComplete?.();
       return;
     }
 
@@ -55,8 +42,7 @@ export const TypewriterBlock: React.FC<TypewriterBlockProps> = ({
     }, 12);
 
     return () => clearTimeout(timeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, displayedText, isComplete]);
+  }, [text, displayedText]);
 
   useLayoutEffect(() => {
     onProgress?.();
@@ -75,11 +61,10 @@ export const TypewriterBlock: React.FC<TypewriterBlockProps> = ({
   };
 
   return (
-    <div className={className} onClick={handleSkip}>
+    <div className="relative min-h-[1.8em]" onClick={handleSkip}>
       <StoryRenderer
         text={displayedText}
-        animate={true}
-        caret={isTyping ? <span data-caret className={cursorClassName} /> : undefined}
+        caret={isTyping ? <span data-caret className="inline-block w-1.5 h-[1.1em] bg-lb-accent opacity-70 animate-pulse ml-0.5 align-text-bottom translate-y-[-0.1em]" /> : undefined}
       />
     </div>
   );

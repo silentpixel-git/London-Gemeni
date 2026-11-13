@@ -18,8 +18,8 @@ import { Effect, Story, Trigger, inCandidateSet, validateStory, type EventPayloa
 import { gateNarration } from '../packages/ai/gate';
 import { loadStoryDir } from '../packages/schema/load';
 import {
-  buildNarrationContext, candidates, currentPeriod, exitLock, personLocation, personsPresent,
-  playerView, replay, resolveTurn, startInvestigation, tick, type State,
+  buildNarrationContext, candidates, eligibleTickRules, chooseByWeight, currentPeriod, exitLock, personLocation, personsPresent,
+  apply, playerView, replay, resolveTurn, startInvestigation, tick, type State,
 } from '../packages/engine';
 import { fixedRng } from '../packages/engine/rng';
 
@@ -524,6 +524,62 @@ section('pinned 6 and 7: visibleFromAct gates speech; knownBy player is honoured
   early.go('read the log', { verb: 'read', target: 'keeper_log' });
   check(early.s.act === 0 && early.s.knows.player.crane_found_at_lamp === true, 'reading a document teaches its Fact before the Fact\'s visibleFromAct (the prover reports it as EARLY)');
   check(!ASKABLE(early, 'maud', 'crane_found_at_lamp', 'ask'), 'but nobody tells the player that Fact before its act');
+}
+
+// ── Transcript: only those a turn involved ───────────────────────────────────
+section('transcript holds only turns that involve the person');
+{
+  const r = new Run('transcript', 51);
+  r.move('to_kitchen');
+  check(r.present().includes('maud') && r.present().includes('ines'), 'Maud and Ines share the kitchen');
+  r.ask('maud', 'cargo_was_barrels');
+  const after = apply(story, r.s, { kind: 'Narrated', text: 'Maud wipes her hands.', beats: [] });
+  check(isDeepStrictEqual(after.transcript.maud?.map(l => `${l.speaker}:${l.text}`), ['player:ask maud about cargo_was_barrels', 'person:Maud wipes her hands.']), 'the person addressed gets the player\'s line, then the prose', JSON.stringify(after.transcript.maud));
+  check(!after.transcript.ines, 'a person present but not addressed gets nothing');
+  const look = r.look();
+  const looked = apply(story, r.s, { kind: 'Narrated', text: 'The kitchen is warm.', beats: [] });
+  check(has(look, e => e.kind === 'Looked') && isDeepStrictEqual(looked.transcript, r.s.transcript), 'a turn that addresses nobody leaves every transcript alone');
+  const idle = r.idle(15);
+  check(has(idle, e => e.kind === 'TickResolved') && isDeepStrictEqual(apply(story, r.s, { kind: 'Narrated', text: 'Steam rises.', beats: [] }).transcript, r.s.transcript), 'a Tick addresses nobody either');
+  check(r.replays(), 'replays exactly');
+}
+
+// ── Ambience in the view ─────────────────────────────────────────────────────
+section('ambience: the view names sounds from Story data');
+{
+  const log = (s: Story) => startInvestigation(s, 53).events;
+  check(isDeepStrictEqual(playerView(story, log(story)).ambience, { bed: null, weather: null }), 'a Story with no ambience: both null');
+  const base = (raw: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    raw.locations.find((l: { id: string }) => l.id === 'jetty').ambience = 'jetty_bed';
+    raw.weathers.find((w: { id: string }) => w.id === 'calm').ambience = 'still_air';
+  };
+  const plain = load(variant(base));
+  check(isDeepStrictEqual(playerView(plain, log(plain)).ambience, { bed: 'jetty_bed', weather: 'still_air' }), 'the location\'s bed and the act\'s weather layer');
+  const over = load(variant(raw => { base(raw); raw.acts[0].ambience = { jetty: 'jetty_act0' }; }));
+  check(playerView(over, log(over)).ambience.bed === 'jetty_act0', 'an act\'s override beats the location\'s bed');
+  const bad = validateStory(variant(raw => { raw.acts[0].ambience = { nowhere: 'x' }; }));
+  check(!bad.ok && bad.issues.some(i => i.level === 'fail' && i.at === 'acts/0/ambience'), 'an act override for an unknown location fails validation');
+}
+
+// ── quietWeight ──────────────────────────────────────────────────────────────
+section('quietWeight: "nothing happens" competes in the tick draw');
+{
+  const total = (rs: { weight?: number }[]) => rs.reduce((n, x) => n + (x.weight ?? 1), 0);
+  const eligible = eligibleTickRules(story, new Run('quiet_probe', 52).s);
+  const q = load(variant(raw => { raw.quietWeight = total(eligible); })); // a half share
+  const base = new Run('quiet', 52, q);
+  const rules = eligibleTickRules(q, base.s);
+  check(rules.length > 0 && rules.length === eligible.length, 'the jetty has eligible tick Rules', String(rules.length));
+  const inRule = tick(q, base.s, 15, fixedRng([0]));
+  check(inRule.events.some(e => e.kind === 'TickResolved' && e.rule === rules[0].id) && fired(inRule.events, rules[0].id), 'a draw in the first Rule\'s share fires that Rule');
+  const inQuiet = tick(q, base.s, 15, fixedRng([0.75]));
+  check(inQuiet.events.some(e => e.kind === 'TickResolved' && e.rule === null) && !inQuiet.events.some(e => e.kind === 'RuleFired'), 'a draw in the quiet share fires nothing (rule null)');
+  check(inQuiet.state.clock === base.s.clock + 15, 'the quiet Tick still passes its time');
+  const waited = resolveTurn(q, base.s, { text: 'wait', selection: { kind: 'intent', verb: 'wait' } }, fixedRng([0.75]));
+  check(waited.events.some(e => e.kind === 'TickResolved' && e.rule === null) && !waited.events.some(e => e.kind === 'RuleFired'), 'the explicit wait verb uses the same draw');
+  check(chooseByWeight(rules, 0.999, q.quietWeight) === null && chooseByWeight(rules, 0.999) === rules[rules.length - 1], 'without a quiet weight the last Rule takes the top of the draw (as before)');
+  const none = tick(story, base.s, 15, fixedRng([0.999]));
+  check(none.events.some(e => e.kind === 'TickResolved' && e.rule !== null), 'no quietWeight: some Rule always fires while one is eligible');
 }
 
 // ── 5. Coverage ──────────────────────────────────────────────────────────────

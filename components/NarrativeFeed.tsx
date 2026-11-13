@@ -71,7 +71,7 @@ export function NarrativeFeed({
   return (
   <div
     ref={scrollRef}
-    className="flex-1 overflow-y-auto px-4 desk:px-16 scrollbar-thin scrollbar-thumb-lb-accent/20 scrollbar-track-transparent"
+    className="flex-1 overflow-y-auto px-4 desk:px-16"
   >
     {/* Title lockup */}
     <div className="max-w-3xl mx-auto pt-8 desk:pt-14 mb-12 flex flex-col gap-1.5" data-flip>

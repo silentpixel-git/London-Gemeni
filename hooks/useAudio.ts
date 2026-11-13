@@ -2,48 +2,26 @@
  * hooks/useAudio.ts
  *
  * Thin bridge between what the player can see and the AudioManager singleton:
- * the one-time autoplay unlock, the ambient bed for the current location, and
- * one-shot sounds for the latest turn's Events. Story-agnostic: a Story asks
- * for a sound with a Rule's `cue` Effect (a CuePlayed Event); a cue id is the
- * SFX id with underscores (`pages_riffle` → `pages-riffle`), and an id with no
- * file is silent. A few generic Events have their own sound.
+ * the one-time autoplay unlock, the ambient bed and weather layer the Story names, and
+ * one-shot sounds for the latest turn. The server names the sound ids (a cue
+ * id is the SFX id with hyphens, `pages-riffle`); an id with no file is silent.
  */
 
 import { useEffect } from 'react';
-import type { EventPayload } from '../packages/schema/index.js';
 import { audioManager } from '../services/AudioManager';
 import { SFX_FILES, type SfxId } from '../services/audioManifest';
 
 interface UseAudioArgs {
-  location: string;
-  weatherCondition: string | undefined;
-  currentAct: number;
-  /** The engine Events of the latest turn (empty after a resume, so nothing replays). */
-  events: EventPayload[];
+  /** PlayerView.ambience: the sound ids the Story names. */
+  bed: string | null;
+  weather: string | null;
+  /** The sound ids of the latest turn (empty after a resume, so nothing replays). */
+  cues: string[];
   soundEffects: boolean;
   ambientAudio: boolean;
 }
 
-const EVENT_SOUNDS: Partial<Record<EventPayload['kind'], SfxId>> = {
-  ClueDiscovered: 'clue-discovered',
-  Taken: 'item-pickup',
-  ActEntered: 'act-bell',
-};
-
-function soundsFor(events: EventPayload[]): SfxId[] {
-  const ids = new Set<SfxId>();
-  for (const e of events) {
-    const generic = EVENT_SOUNDS[e.kind];
-    if (generic) ids.add(generic);
-    if (e.kind === 'CuePlayed') {
-      const id = e.sound.replace(/_/g, '-');
-      if (id in SFX_FILES) ids.add(id as SfxId);
-    }
-  }
-  return [...ids];
-}
-
-export function useAudio({ location, weatherCondition, currentAct, events, soundEffects, ambientAudio }: UseAudioArgs): void {
+export function useAudio({ bed, weather, cues, soundEffects, ambientAudio }: UseAudioArgs): void {
   // Unlock the audio context on the first user gesture (autoplay policy).
   useEffect(() => {
     const onGesture = () => audioManager.unlock();
@@ -56,14 +34,14 @@ export function useAudio({ location, weatherCondition, currentAct, events, sound
   }, []);
 
   // Push settings + the current ambient scene. setEnabled runs first so that
-  // toggling ambient on immediately starts the bed for the current location.
+  // toggling ambient on immediately starts the current bed.
   useEffect(() => {
     audioManager.setEnabled({ sfx: soundEffects, ambient: ambientAudio });
-    audioManager.setAmbient(location, weatherCondition, currentAct);
-  }, [soundEffects, ambientAudio, location, weatherCondition, currentAct]);
+    audioManager.setAmbient(bed, weather);
+  }, [soundEffects, ambientAudio, bed, weather]);
 
   // One-shots for the turn just played, staggered so two never land together.
   useEffect(() => {
-    soundsFor(events).forEach((id, i) => audioManager.playSfx(id, i * 400));
-  }, [events]);
+    cues.filter((id): id is SfxId => id in SFX_FILES).forEach((id, i) => audioManager.playSfx(id, i * 400));
+  }, [cues]);
 }

@@ -1,7 +1,8 @@
 {
   "functions": {
     "api/turn.ts": {
-      "includeFiles": "{stories,packages/schema/fixtures}/**"
+      "maxDuration": 60,
+      "includeFiles": "{stories/**,packages/schema/fixtures/{stress,toy}/**}"
     }
   }
 }

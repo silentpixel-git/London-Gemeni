@@ -12,7 +12,7 @@
  */
 
 import { Howl, Howler } from 'howler';
-import { AMBIENT_BEDS, ACT_BEDS, WEATHER_LAYERS, SFX_FILES, SFX_TRIM, SfxId } from './audioManifest';
+import { AMBIENT_BEDS, WEATHER_LAYERS, SFX_FILES, SFX_TRIM, SfxId } from './audioManifest';
 
 const FADE_MS = 1200;
 // The Act 0 prototype's mix: beds well under the prose, one-shots at about half
@@ -61,17 +61,17 @@ class AudioManager {
     howl.play();
   }
 
-  /** Cross-fade to the bed + weather layer for the current location/weather (and act). */
-  setAmbient(locationId: string, weatherCondition: string | undefined, act?: number): void {
+  /** Cross-fade to the bed and weather layer the Story names (PlayerView.ambience). An unknown or null id is silent. */
+  setAmbient(bed: string | null, weather: string | null): void {
     if (!this.ambientEnabled) return;
-    this.setBed(locationId, act);
-    this.setWeather(weatherCondition);
+    this.setBed(bed);
+    this.setWeather(weather);
   }
 
   // ── Internals ──────────────────────────────────────────────────────────────
 
-  private setBed(locationId: string, act?: number): void {
-    const file = (act !== undefined ? ACT_BEDS[`${act}:${locationId}`] : undefined) ?? AMBIENT_BEDS[locationId];
+  private setBed(bed: string | null): void {
+    const file = bed ? AMBIENT_BEDS[bed] : undefined;
     if (!file) { this.fadeOut(this.bed); this.bed = null; this.bedKey = null; return; }
     if (this.bedKey === file && this.bed) {
       // Same bed: restore its level after a dip or a curtain fade.
@@ -83,10 +83,10 @@ class AudioManager {
     this.bedKey = file;
   }
 
-  private setWeather(condition: string | undefined): void {
-    const layer = condition ? WEATHER_LAYERS[condition] : undefined;
+  private setWeather(id: string | null): void {
+    const layer = id ? WEATHER_LAYERS[id] : undefined;
     if (!layer) { this.fadeOut(this.weather); this.weather = null; this.weatherKey = null; return; }
-    const key = `${condition}:${layer.volume}`;
+    const key = `${id}:${layer.volume}`;
     if (this.weatherKey === key && this.weather) {
       if (this.weather.volume() < layer.volume) this.weather.fade(this.weather.volume(), layer.volume, FADE_MS);
       return;

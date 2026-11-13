@@ -1,6 +1,6 @@
 # Engine Rebuild Plan
 
-Decided 2026-11-07 in a grilling session. Vocabulary is in [`GLOSSARY.md`](../GLOSSARY.md); the four load-bearing decisions are recorded in [`docs/adr/`](./adr/). This plan supersedes Parts 2 and 4 of *London Bleeds — Rebuild-from-Scratch Brainstorm & Improvement Backlog* (most of whose HIGH items have since shipped; what remains is the rest of this document).
+Decided 2026-11-07 in a grilling session. Vocabulary is in [`GLOSSARY.md`](../GLOSSARY.md); the four load-bearing decisions are recorded in [`docs/adr/`](./adr/). This plan supersedes the October 2026 rebuild brainstorm (in git history; the ideas it left open are in [`docs/ideas.md`](./ideas.md)).
 
 **Verdict first.** The engine's founding idea is right and stays: a deterministic engine decides, the AI narrates. Six structural choices around that idea are wrong for the stated goals, and each one maps directly onto a bug class the owner has had to find by playtesting. They cannot be fixed incrementally because they are the shape of the engine, not defects in it. The engine is rebuilt as a new package in this repository; the React UI, Supabase auth and audio are kept.
 
@@ -34,7 +34,7 @@ Decided 2026-11-07 in a grilling session. Vocabulary is in [`GLOSSARY.md`](../GL
 
 ### 1.3 Why not fix in place
 
-Items 1, 3 and 6 are each a different answer to "where does a turn happen and what is the state". Items 2, 4 and 5 are each a different answer to "what is the story made of". Changing any one of them touches the same files as the others. The brainstorm's strangler-fig plan was right when the UI and server gateway still had to be built; those are done, and what remains is the core. There is no live audience, so there is nothing to protect.
+Items 1, 3 and 6 are each a different answer to "where does a turn happen and what is the state". Items 2, 4 and 5 are each a different answer to "what is the story made of". Changing any one of them touches the same files as the others. The earlier brainstorm's strangler-fig plan was right when the UI and server gateway still had to be built; those are done, and what remains is the core. There is no live audience, so there is nothing to protect.
 
 ---
 
@@ -212,6 +212,6 @@ Phases 0–2 have no UI and no AI and can be verified entirely by scripts. Phase
 ## 6. Explicitly unchanged
 
 - The six-act, authored-mystery structure; dynamism goes into texture, never plot generation.
-- The UI restraint principles in `docs/game-design.md` and the `game-direction` skill: no minimaps, no progress bars, no system voice.
+- The UI restraint principles in the `game-direction` skill: no minimaps, no progress bars, no system voice.
 - Pure text. Audio stays cue-driven; cues become Rule Effects so they are data.
 - Supabase for auth and storage; Vercel for hosting.

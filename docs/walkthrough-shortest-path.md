@@ -1,5 +1,7 @@
 # London Bleeds — Shortest-Path Walkthrough (Developer/QA Reference)
 
+> **Out of date.** Written for the pre-rebuild engine: the flag names in it and the QA script it cites (`scripts/qa-engine.ts`) no longer exist. Kept only as porting reference for Phase 6. Delete it once the reachability prover produces the walkthrough from the real Story.
+
 > **SPOILER WARNING — this file names the killer.** It is a developer/QA
 > reference for verifying the critical path, not player-facing material.
 > The canonical source of truth is the `runWinningPath` scenario in

@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LogEvent } from '../packages/schema/index.js';
+import { EventPayload } from '../packages/schema/event.js';
 
 export interface StoredInvestigation {
   storyId: string;
@@ -27,6 +28,8 @@ export interface InvestigationStore {
   load(id: string): Promise<StoredInvestigation | null>;
   /** Events carry consecutive seq values continuing the log; a clash throws SeqConflict, a gap any other error. */
   append(id: string, events: LogEvent[]): Promise<void>;
+  /** Deletes the Investigation and its log; a missing one is not an error. */
+  remove(id: string): Promise<void>;
 }
 
 /** `now` lets QA age the log to exercise stale-turn recovery. */
@@ -53,10 +56,11 @@ export function memoryStore(now: () => number = Date.now): InvestigationStore {
       row.events.push(...events);
       if (events.length) row.headAt = now();
     },
+    async remove(id) {
+      rows.delete(id);
+    },
   };
 }
-
-const PAGE = 1000; // PostgREST's default row cap
 
 export function supabaseStore(client: SupabaseClient): InvestigationStore {
   return {
@@ -70,39 +74,31 @@ export function supabaseStore(client: SupabaseClient): InvestigationStore {
       return { id: data.id as string };
     },
     async load(id) {
-      const inv = await client.from('investigations').select('story_id, name').eq('id', id).maybeSingle();
+      // One call returns story, name and the whole log as a single jsonb (migration 011), so no row cap applies.
+      const { data, error } = await client.rpc('load_investigation', { p_id: id });
       // 22P02: not a uuid at all, which is a miss to the caller, not a server fault.
-      if (inv.error?.code === '22P02') return null;
-      if (inv.error) throw inv.error;
-      if (!inv.data) return null;
-      const events: LogEvent[] = [];
-      let headAt: number | null = null;
-      for (let from = 0; ; from += PAGE) {
-        const { data, error } = await client
-          .from('events')
-          .select('seq, turn, payload, created_at')
-          .eq('investigation_id', id)
-          .order('seq', { ascending: true })
-          .range(from, from + PAGE - 1);
-        if (error) throw error;
-        for (const r of data) events.push({ seq: r.seq, turn: r.turn, payload: r.payload });
-        if (data.length) headAt = Date.parse(data[data.length - 1].created_at as string);
-        if (data.length < PAGE) break;
-      }
-      return { storyId: inv.data.story_id as string, name: inv.data.name as string, events, headAt };
+      if (error?.code === '22P02') return null;
+      if (error) throw error;
+      if (!data) return null;
+      const events: LogEvent[] = data.events.map((r: { seq: number; turn: number; payload: unknown }) => {
+        const p = EventPayload.safeParse(r.payload);
+        if (!p.success) throw new Error(`investigation ${id}: event seq ${r.seq} is corrupt: ${p.error.message}`);
+        return { seq: r.seq, turn: r.turn, payload: p.data };
+      });
+      return { storyId: data.story_id as string, name: data.name as string, events, headAt: data.head_at ? Date.parse(data.head_at as string) : null };
     },
     async append(id, events) {
       if (events.length === 0) return;
-      const { error } = await client
-        .from('events')
-        .insert(events.map(e => ({ investigation_id: id, seq: e.seq, turn: e.turn, payload: e.payload })));
+      // Insert and last_event_seq / updated_at (the list's last-played order) in one call (migration 011).
+      const { error } = await client.rpc('append_events', { p_id: id, p_events: events });
       // 23505: unique_violation on the (investigation_id, seq) primary key.
       if (error?.code === '23505') throw new SeqConflict(id, events[0].seq);
       if (error) throw error;
-      const last = events[events.length - 1].seq;
-      // updated_at orders the player's investigations list (last played first).
-      const upd = await client.from('investigations').update({ last_event_seq: last, updated_at: new Date().toISOString() }).eq('id', id);
-      if (upd.error) throw upd.error;
+    },
+    async remove(id) {
+      // The events go with it (on delete cascade).
+      const { error } = await client.from('investigations').delete().eq('id', id);
+      if (error) throw error;
     },
   };
 }

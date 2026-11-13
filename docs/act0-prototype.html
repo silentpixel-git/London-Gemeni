@@ -563,16 +563,20 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
 <script>
 (() => {
   // ───────────────────────── Audio core ─────────────────────────
-  const AUDIO = "act0-prototype-audio/";
+  // The game's own files (public/audio); the prototype's ids map onto them.
+  const AUDIO = "../public/audio/";
   // Mix rule: the street bed leads; every one-shot sits at half its level,
   // so effects read as quieter than the ambience, never on top of it.
   const BED_LEVEL = 0.35, BED_DIP = 0.2, SFX_RATIO = 0.5;
   // Per-file trim for takes mastered louder or softer than the rest (1 = as is).
   const SFX_TRIM = { lamplighter: 0.8 };
-  const SFX_FILE = { lamplighter: "lamplighter.wav" };
+  const SFX_FILE = {
+    lamplighter: "sfx/lamplighter.wav", bell: "sfx/act-bell.mp3", pickup: "sfx/item-pickup.mp3",
+    "violin-pluck": "sfx/clue-discovered.mp3", "glass-down": "sfx/glass-down.mp3", "pages-riffle": "sfx/pages-riffle.mp3",
+  };
   let soundOn = false;
   const sfxLog = [];
-  const bed = new Audio(AUDIO + "holiday-street.mp3");
+  const bed = new Audio(AUDIO + "ambient/holiday-street.mp3");
   bed.loop = true; bed.volume = 0; bed.preload = "none";
   let fadeTimer = null;
   function bedTo(target, ms) {
@@ -587,7 +591,7 @@ button:focus-visible, input:focus-visible, .side-item:focus-visible, .chip:focus
   }
   function playSfx(id) {
     if (!soundOn) return;
-    const a = new Audio(AUDIO + (SFX_FILE[id] || id + ".mp3"));
+    const a = new Audio(AUDIO + (SFX_FILE[id] || "sfx/" + id + ".mp3"));
     a.volume = BED_LEVEL * SFX_RATIO * (SFX_TRIM[id] ?? 1);
     sfxLog.push({ id, volume: a.volume });
     a.play().catch(() => {});

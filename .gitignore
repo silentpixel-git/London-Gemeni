@@ -32,8 +32,5 @@ dist-ssr
 # Brainstorming visual companion mockups
 .superpowers/
 
-# Generated QA report (produced by scripts/qa-narration.ts)
-qa-narration-report.md
-
 # agent worktrees
 .claude/worktrees/

@@ -1,7 +1,7 @@
 
 import React from 'react';
 
-const parseInlineMarkdown = (text: string, animate: boolean = false) => {
+const parseInlineMarkdown = (text: string) => {
   const parts = text.split(/(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*|_.*?_)/g);
 
   return parts.map((part, j) => {
@@ -9,10 +9,7 @@ const parseInlineMarkdown = (text: string, animate: boolean = false) => {
       return <span key={j} className="font-bold italic text-lb-accent">{part.slice(3, -3)}</span>;
     }
     if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
-      const content = part.slice(2, -2);
-      const isSystemLabel = content.startsWith('Objects of interest') || content.startsWith('Possible exits');
-      const textColor = isSystemLabel ? 'text-lb-primary' : 'text-lb-accent';
-      return <span key={j} className={`font-bold ${textColor}`}>{content}</span>;
+      return <span key={j} className="font-bold text-lb-accent">{part.slice(2, -2)}</span>;
     }
     if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
       return <span key={j} className="italic">{part.slice(1, -1)}</span>;
@@ -34,13 +31,12 @@ const normalizeInlineBlockquotes = (text: string): string =>
 
 interface StoryRendererProps {
   text: string;
-  animate?: boolean;
   /** Typewriter caret. Rendered inside the final block so it sits against the
       last character rather than dropping onto its own line beneath the prose. */
   caret?: React.ReactNode;
 }
 
-export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate = false, caret }) => {
+export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", caret }) => {
   const safeText = normalizeInlineBlockquotes(text || "");
   const lines = safeText.split('\n');
 
@@ -84,7 +80,7 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
           return (
             <div key={i} className="pl-6 border-l-[3px] border-lb-accent my-6 py-1">
               <p className="italic text-lb-primary font-playfair text-[20px] desk:text-[24px] leading-relaxed opacity-90">
-                {parseInlineMarkdown(line.replace(/>\s*/, ''), animate)}
+                {parseInlineMarkdown(line.replace(/>\s*/, ''))}
                 {tail}
               </p>
             </div>
@@ -96,17 +92,14 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
           return (
             <div key={i} className="flex items-start gap-3 ml-2 my-2">
               <div className="mt-2.5 w-1.5 min-w-[6px] h-1.5 rounded-full bg-lb-accent opacity-90" />
-              <div>{parseInlineMarkdown(content, animate)}{tail}</div>
+              <div>{parseInlineMarkdown(content)}{tail}</div>
             </div>
           );
         }
 
-        const isSystemSummary = trimmed.startsWith('**Objects of interest') || trimmed.startsWith('**Possible exits');
-        const spacingClass = (isSystemSummary && trimmed.length > 25) ? '-mt-3' : 'm-0';
-
         return (
-          <p key={i} className={`${spacingClass} p-0`}>
-            {parseInlineMarkdown(line, animate)}
+          <p key={i} className="m-0 p-0">
+            {parseInlineMarkdown(line)}
             {tail}
           </p>
         );
@@ -114,5 +107,3 @@ export const StoryRenderer: React.FC<StoryRendererProps> = ({ text = "", animate
     </div>
   );
 };
-
-export { parseInlineMarkdown };

@@ -52,7 +52,7 @@ function apiDevGateway(env: Record<string, string>): Plugin {
             }
             res.end();
           })().catch(err => {
-            console.error(`[ai-dev-gateway ${route}]`, err);
+            console.error(`[api-dev-gateway ${route}]`, err);
             if (!res.headersSent) res.statusCode = 500;
             res.end(JSON.stringify({ error: 'AI gateway failed.' }));
           });
@@ -75,10 +75,6 @@ export default defineConfig(({ mode }) => {
         postcss: {
           plugins: [tailwindcss, autoprefixer],
         },
-      },
-      define: {
-        'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
-        'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
       },
       resolve: {
         alias: {

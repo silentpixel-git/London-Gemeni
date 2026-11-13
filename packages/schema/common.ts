@@ -21,7 +21,12 @@ export const Period = z.object({ id: Id, name: z.string().min(1), startMinutes: 
 export type Period = z.infer<typeof Period>;
 
 /** A named weather state the Story declares; acts and conditions refer to it by id. */
-export const WeatherState = z.object({ id: Id, name: z.string().min(1) }).strict();
+export const WeatherState = z.object({
+  id: Id,
+  name: z.string().min(1),
+  /** Sound id of the weather layer the client plays; the client's table decides what, if anything, that is. */
+  ambience: Id.optional(),
+}).strict();
 export type WeatherState = z.infer<typeof WeatherState>;
 
 export const Disposition = z.enum(['hostile', 'wary', 'neutral', 'warm', 'trusting']);

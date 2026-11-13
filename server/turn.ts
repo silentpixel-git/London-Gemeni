@@ -10,7 +10,7 @@ import {
 } from '../packages/schema/index.js';
 import { loadStoryDir } from '../packages/schema/load.js';
 import {
-  apply, buildNarrationContext, candidates, exactSelection, feedOf, initialState, personsPresent, playerView,
+  apply, buildNarrationContext, candidates, exactSelection, fallbackProse, feedOf, initialState, personsPresent, playerView,
   replay, resolveTurn, startInvestigation, tick, type State,
 } from '../packages/engine/index.js';
 import { gateNarration, type GateVerdict } from '../packages/ai/gate.js';
@@ -48,8 +48,12 @@ const RECENT_TEXTS = 4;
  * not slip in between. A request that finds a turn open is refused with 409.
  */
 const BUSY = 'another turn on this investigation is still being narrated';
-/** A turn still open after this long belongs to a request that died mid-narration; the next request closes it. */
-export const STALE_TURN_MS = 120_000;
+const LOST_RACE = 'another request got there first; try again';
+/**
+ * A turn still open after this long belongs to a request that died mid-narration; the next request closes it.
+ * Just above the function's maxDuration (vercel.json, 60 s): a live request can never be judged dead.
+ */
+export const STALE_TURN_MS = 75_000;
 /** Attempts at a turn when another request takes the next seq first. */
 const PREPARE_ATTEMPTS = 3;
 
@@ -82,18 +86,25 @@ export async function handleTurn(request: Request, deps: TurnDeps): Promise<Resp
   }
 
   const encoder = new TextEncoder();
+  let cancelled = () => {};
   const stream = new ReadableStream<Uint8Array>({
+    cancel() { cancelled(); },
     async start(controller) {
-      const send = (line: object) => controller.enqueue(encoder.encode(JSON.stringify(line) + '\n'));
+      // A client that has gone must not cost the turn its prose: stop sending, keep working, and the resume has it.
+      let gone = false;
+      const send = (line: object) => {
+        if (gone) return;
+        try { controller.enqueue(encoder.encode(JSON.stringify(line) + '\n')); } catch { gone = true; }
+      };
+      cancelled = () => { gone = true; };
       let closed = false;
       try {
-        // investigationId is not in TURN.md's line shape; a start request needs it back somewhere.
-        send({ kind: 'events', events: turn.events, seqFrom: turn.seqFrom, investigationId: turn.investigationId });
+        send({ kind: 'turn', investigationId: turn.investigationId, ...clientCues(turn.story, turn.events) });
         const ctx = buildNarrationContext(turn.story, turn.state, turn.events, turn.mode);
         // A quiet Tick costs nothing: no narration call, and an empty Narrated closes it.
         const result = turn.quiet
           ? { prose: '', observations: [] }
-          : await narrateGated(ctx, deps.ai, deps.gate ?? gateNarration, delta => send({ kind: 'text', delta }));
+          : await narrateGated(turn.story, ctx, deps.ai, deps.gate ?? gateNarration, delta => send({ kind: 'text', delta }));
         const narrated: EventPayload = { kind: 'Narrated', text: result.prose, beats: turn.quiet ? [] : ctx.beats };
         const tail: EventPayload[] = [narrated, ...result.observations.map(observation => ({ kind: 'ObservationRecorded' as const, observation }))];
         const { rows } = number(turn.story, turn.state, tail, turn.seqFrom + turn.events.length);
@@ -104,15 +115,15 @@ export async function handleTurn(request: Request, deps: TurnDeps): Promise<Resp
         send({ kind: 'done', narrated, observations: result.observations, view: playerView(turn.story, log), feed });
       } catch (err) {
         console.error('api/turn stream:', err);
-        // Close the turn with its Beats so the Investigation is not left busy.
+        // Close the turn with its fallback line so the Investigation is not left busy.
         if (!closed) {
           const ctx = buildNarrationContext(turn.story, turn.state, turn.events, turn.mode);
-          const { rows } = number(turn.story, turn.state, [beatsOnly(ctx)], turn.seqFrom + turn.events.length);
+          const { rows } = number(turn.story, turn.state, [fallbackNarrated(turn.story, ctx)], turn.seqFrom + turn.events.length);
           await deps.store.append(turn.investigationId, rows).catch(e => console.error('api/turn close:', e));
         }
         send({ kind: 'error', message: 'narration failed' });
       }
-      controller.close();
+      try { controller.close(); } catch { /* the client cancelled */ }
     },
   });
   return new Response(stream, { headers: NDJSON });
@@ -143,7 +154,7 @@ async function prepare(body: TurnBody, deps: TurnDeps): Promise<Prepared | Refus
       return await prepareOnce(body, deps);
     } catch (err) {
       if (!(err instanceof SeqConflict)) throw err;
-      if (attempt === PREPARE_ATTEMPTS) return { status: 409, message: BUSY };
+      if (attempt === PREPARE_ATTEMPTS) return { status: 409, message: LOST_RACE };
     }
   }
 }
@@ -157,7 +168,13 @@ async function prepareOnce(body: TurnBody, deps: TurnDeps): Promise<Prepared | R
     // The opening is a turn: InvestigationStarted, then the Rules it sets off (ADR-0005).
     const { events } = startInvestigation(story, seed);
     const { rows, state } = number(story, initialState(story, seed), events, 0);
-    await deps.store.append(id, rows);
+    // No orphan: a start that cannot write its opening leaves nothing behind.
+    try {
+      await deps.store.append(id, rows);
+    } catch (err) {
+      await deps.store.remove(id).catch(e => console.error('api/turn start cleanup:', e));
+      throw err;
+    }
     return { investigationId: id, story, state, events, prior: [], seqFrom: 0, mode: 'opening', quiet: false };
   }
 
@@ -212,19 +229,37 @@ function closesTurn(e: EventPayload): boolean {
   return e.kind === 'Narrated' || e.kind === 'ObservationRecorded';
 }
 
-/** The turn's Beats as its whole narration: the fallback when prose cannot be had. */
-function beatsOnly(ctx: NarrationContext): EventPayload {
-  return { kind: 'Narrated', text: ctx.beats.join(' '), beats: ctx.beats };
+/** The turn's Beats and an engine-built line per Event as its whole narration: the fallback when prose cannot be had. */
+function fallbackNarrated(story: Story, ctx: NarrationContext): EventPayload {
+  return { kind: 'Narrated', text: fallbackProse(story, ctx), beats: ctx.beats };
 }
 
-/** Close a turn whose request died before narrating it, with the Beats it would have fallen back to. */
+/**
+ * All the client learns of the engine's Events (TURN.md): the sound ids to play
+ * and whether the diary gained something. Generic ids; the client plays the
+ * ones it has a file for. Nothing about Rules, flags or who knows what.
+ */
+export function clientCues(story: Story, events: EventPayload[]): { cues: string[]; diary: boolean } {
+  const cues = new Set<string>();
+  let diary = false;
+  for (const e of events) {
+    if (e.kind === 'ClueDiscovered') { cues.add('clue-discovered'); diary = true; }
+    else if (e.kind === 'Taken') cues.add('item-pickup');
+    else if (e.kind === 'ActEntered') cues.add('act-bell');
+    else if (e.kind === 'CuePlayed') cues.add(e.sound.replace(/_/g, '-'));
+    else if (e.kind === 'Read' && story.objects.find(o => o.id === e.object)?.document) diary = true;
+  }
+  return { cues: [...cues], diary };
+}
+
+/** Close a turn whose request died before narrating it, with the fallback it would have used. */
 async function closeStaleTurn(story: Story, log: LogEvent[], id: string, store: InvestigationStore): Promise<LogEvent[]> {
   let from = log.length;
   while (from > 0 && !closesTurn(log[from - 1].payload)) from--;
   const open = log.slice(from).map(e => e.payload);
   const state = replay(story, log.map(e => e.payload));
   const ctx = buildNarrationContext(story, state, open, modeFor(open));
-  const { rows } = number(story, state, [beatsOnly(ctx)], log[log.length - 1].seq + 1);
+  const { rows } = number(story, state, [fallbackNarrated(story, ctx)], log[log.length - 1].seq + 1);
   await store.append(id, rows);
   return rows;
 }
@@ -240,14 +275,14 @@ function modeFor(events: EventPayload[]): NarrationMode {
 }
 
 /**
- * Step 5. Only the first attempt streams: a retry or the Beats fallback is
+ * Step 5. Only the first attempt streams: a retry or the fallback line is
  * sent whole in `done.narrated.text`, which is the canonical prose for the
  * turn and replaces whatever streamed. The gate always judges against the
  * original context, since the retry's extra line names the very inventions
  * it rejected and would otherwise license them.
  */
 async function narrateGated(
-  ctx: NarrationContext, ai: Ai, gate: NonNullable<TurnDeps['gate']>, onDelta: (delta: string) => void,
+  story: Story, ctx: NarrationContext, ai: Ai, gate: NonNullable<TurnDeps['gate']>, onDelta: (delta: string) => void,
 ): Promise<NarrationResult> {
   const first = await collect(ai.narrate(ctx), onDelta);
   const verdict = first.prose.trim() ? gate(ctx, first) : { ok: false, inventions: [] };
@@ -257,7 +292,7 @@ async function narrateGated(
     : ctx;
   const second = await collect(ai.narrate(retryCtx), () => {});
   if (second.prose.trim() && gate(ctx, second).ok) return second;
-  return { prose: ctx.beats.join(' '), observations: [] };
+  return { prose: fallbackProse(story, ctx), observations: [] };
 }
 
 async function collect(chunks: AsyncIterable<{ kind: 'text'; delta: string } | { kind: 'done'; result: NarrationResult }>, onDelta: (delta: string) => void): Promise<NarrationResult> {

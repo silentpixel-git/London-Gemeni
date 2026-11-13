@@ -13,7 +13,7 @@ You review whether a Story works as interactive detective fiction. Data cross-re
 npx tsx -e "import { Story } from './packages/schema/index.ts'; import { loadStoryDir } from './packages/schema/load.ts'; import { prove, formatProof } from './packages/engine/prover.ts'; console.log(formatProof(prove(Story.parse(loadStoryDir(process.argv[1])))))" stories/<id>
 ```
 
-**If you are reviewing a spec before data exists** (the `act-authoring` process, sign-off #1): read the spec, `docs/game-design.md`, and for Whitechapel the source material on the `archive/pre-phase4-engine` branch (`git show archive/pre-phase4-engine:<path>`), treating it as source, not as the approved design.
+**If you are reviewing a spec before data exists** (the `act-authoring` process, sign-off #1): read the spec, `docs/game-design.md`, for Whitechapel the approved story structure in `docs/chronological-rework-bible.md` (it wins where the two differ), and the source material on the `archive/pre-phase4-engine` branch (`git show archive/pre-phase4-engine:<path>`), treating it as source, not as the approved design.
 
 Work out the solution from the data, not from memory: the endings, and the `deduction` Rules that reach them (which Facts and which suspect each needs), are the case's answer key. For Whitechapel, platform and story direction is in the `game-direction` skill and period fact in `historian`.
 
