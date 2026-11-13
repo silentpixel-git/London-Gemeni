@@ -4,12 +4,8 @@ Ideas that are neither built nor rejected. Nothing here is scheduled. Each entry
 
 ## Engine and AI
 
-- **Per-user rate limiting on the turn endpoint.** Every turn costs one select call and one narrate call, and a guest can start unlimited Investigations. Worth doing before the game has any audience beyond the owner.
 - **Real per-turn token and cost logging.** Read actual usage from the provider instead of estimating. It would show what a turn costs and whether the Story-prefix cache the plan calls for is paying off.
 - **A fallback model chain.** `AI_NARRATE_MODEL` and `AI_SELECT_MODEL` can be swapped, but nothing falls through to a second model when the first is unavailable or a preview is withdrawn. A fallback would come before the beats-only close.
-- **A director that picks among authored options.** A low-frequency model call chooses which ambient Rule or presence beat to play, for pacing and replay variety. It must be recorded in the log, as Tick draws are, or replay stops being exact.
-- **Different model or temperature per voice.** Watson's prose and a person's speech might want different settings. Only worth testing if the narrator's voice feels uniform in play.
-- **Embedding-based fact retrieval.** Pick the most relevant Facts for a question by similarity instead of passing every allowed Fact. Not needed until a Story is large enough for the context to hurt.
 
 ## Tooling and QA
 
@@ -32,3 +28,5 @@ Ideas that are neither built nor rejected. Nothing here is scheduled. Each entry
 ## Story content
 
 - **A closing scene at 221B after the asylum.** The pre-rebuild story never authored its final Watson and Holmes exchange; the arc ended on the diary entry. The bible's Act 0 now opens with Mrs. Kemp's pawn ticket for her missing sister, a mistake the story spends seven acts paying for, and it has no closing beat that returns to it. A short fireside scene could pay that off and give the true ending its last exchange. A Phase 6 decision, through `act-authoring`.
+- **Four clues the bible's table does not place.** The Hands (small hands, found at Bond's desk), The Respectable Stranger (how the killer approached, at Buck's Row), The Eleven Weeks (the span of the campaign) and The Murders Stop (the asylum records showing the killings ended with Edmund's commitment). The bible says no clue is cut, so each needs an act and a place in its section 7, or an explicit decision to cut it. `docs/game-design.md` lists where each was found before the rebuild.
+- **Two character notes the bible does not carry.** Diemschutz, who found Stride, "saw nothing unusual": the point of his testimony is that the killer was calm, and the bible uses him only for the cart that interrupts. The Asylum Superintendent is the keeper of Edmund's records and has no counterpart in the bible's cast.

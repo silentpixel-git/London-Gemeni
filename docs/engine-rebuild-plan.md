@@ -212,6 +212,6 @@ Phases 0–2 have no UI and no AI and can be verified entirely by scripts. Phase
 ## 6. Explicitly unchanged
 
 - The six-act, authored-mystery structure; dynamism goes into texture, never plot generation.
-- The UI restraint principles in `docs/game-design.md` and the `game-direction` skill: no minimaps, no progress bars, no system voice.
+- The UI restraint principles in the `game-direction` skill: no minimaps, no progress bars, no system voice.
 - Pure text. Audio stays cue-driven; cues become Rule Effects so they are data.
 - Supabase for auth and storage; Vercel for hosting.

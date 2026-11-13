@@ -77,6 +77,8 @@ The player needs at least four clues before a theory is accepted. How the rebuil
 2. Edmund's forensic note carries the same idiosyncratic misspelling, in his own hand.
 3. Put together, the two documents are the spine of the correct deduction. The name stays unspoken until the player does that (the bible makes it a USE of the note WITH the letter, at Baker Street).
 
+> **Constraint for authoring:** the note is found before the convergence, so it must give his hand and not his name. It is unsigned and listed without his name ("the clerk's forensic note"), and he remains "the clerk" wherever the player sees him until the note is used with the letter. That use is what introduces him.
+
 The misspelling is deliberate. A well-meaning typo fix would break the mystery.
 
 ---
@@ -91,19 +93,6 @@ The misspelling is deliberate. A well-meaning typo fix would break the mystery.
 | Anyone else | No | Generic cold-case ending |
 
 A wrong-but-plausible accusation gets a specific Holmes response rather than the generic ending.
-
----
-
-## UI restraint
-
-These principles come from the `game-direction` skill and are carried unchanged by `engine-rebuild-plan.md`.
-
-- No minimaps, no progress bars, no clue checklist. The sidebar shows only what Watson would know.
-- No system voice. Blocked actions, help and labels speak in the narrator's voice or in plain period language, never "ERROR" or "INVALID INPUT".
-- Mechanics work silently: no tutorials, no popups, no "are you sure?" on an action with story consequences.
-- The diary is Watson's private record, not a tracker. The clock is visible but not prominent, and never a pressure mechanic.
-
-`game-direction` marks one point as under review: a puzzle-richer game may want evidence surfaces (a diary as evidence board, visible documents). Until the owner decides, do not add or remove player-facing evidence or progress UI on the strength of the rule above.
 
 ---
 
