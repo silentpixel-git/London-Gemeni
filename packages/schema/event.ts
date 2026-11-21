@@ -36,7 +36,8 @@ export const EventPayload = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('Combined'), items: z.array(Id).length(2) }),
   z.object({ kind: z.literal('Shown'), object: Id, person: Id }),
   z.object({ kind: z.literal('Given'), object: Id, person: Id }),
-  z.object({ kind: z.literal('Spoke'), person: Id, fact: Id.optional() }),
+  /** `greeting`: the player addressed them with no subject (talk), as against an ask that found nothing to say. */
+  z.object({ kind: z.literal('Spoke'), person: Id, fact: Id.optional(), greeting: z.literal(true).optional() }),
   /** A Fact passed in conversation: the only Event the Disclosure Ledger reads. */
   z.object({ kind: z.literal('FactDisclosed'), from: PersonOrPlayer, to: PersonOrPlayer, fact: Id }),
   /** Someone now knows a Fact by any other route: reading, a Rule, a matured rumor. */

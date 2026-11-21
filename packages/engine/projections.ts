@@ -113,7 +113,7 @@ export function fallbackProse(story: Story, ctx: NarrationContext): string {
       case 'Moved': lines.push(`You go to ${(story.locations.find(l => l.id === e.to)?.name ?? 'the next place').replace(/^The /, 'the ')}.`); break;
       case 'MoveBlocked': lines.push(`It is ${e.reason}.`); break;
       case 'OpenBlocked': lines.push('It is locked.'); break;
-      case 'Spoke': if (!e.fact) lines.push(sentence(`${who(e.person)} has nothing to add.`)); break;
+      case 'Spoke': if (!e.fact) lines.push(sentence(e.greeting ? `${who(e.person)} waits for you to ask something in particular.` : `${who(e.person)} has nothing to add.`)); break;
       // What a person told the player is the substance of an ask; the context already holds it.
       case 'FactDisclosed': {
         const f = e.to === 'player' && e.from !== 'player' ? ctx.facts.find(x => x.id === e.fact) : undefined;

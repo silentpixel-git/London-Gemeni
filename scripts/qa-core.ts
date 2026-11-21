@@ -104,7 +104,7 @@ section('ask / disclosed / ledger');
   check(!fired(again, 'housekeeper_tells_key'), 'asking again does not refire the once rule');
   check(s.ledger.housekeeper.told.filter(f => f === 'key_in_clock').length === 1, 'ledger does not duplicate');
   const gated = go('ask about the gardener', { verb: 'ask', person: 'housekeeper', topic: 'gardener_fled' });
-  check(has(gated, e => e.kind === 'Spoke' && e.fact === undefined) && !has(gated, e => e.kind === 'FactDisclosed'), 'act-gated fact: deflection, no disclosure');
+  check(has(gated, e => e.kind === 'Spoke' && e.fact === undefined && !e.greeting) && !has(gated, e => e.kind === 'FactDisclosed'), 'act-gated fact: deflection (not a greeting), no disclosure');
   check(!s.knows.housekeeper.master_was_afraid, 'delayed grant has not matured yet');
 }
 
@@ -195,7 +195,7 @@ section('show / give');
   go('take candle', { verb: 'take', target: 'candle' }); // candle was carried already; harmless rejection or no-op, exercises path
   const gv = go('give her the candle', { verb: 'give', target: 'candle', person: 'housekeeper' });
   check(has(gv, e => e.kind === 'Given') && where('candle').kind === 'person', 'give → Given, object on the person');
-  check(has(go('talk to her', { verb: 'talk', person: 'housekeeper' }), e => e.kind === 'Spoke' && e.fact === undefined), 'talk → Spoke without a fact');
+  check(has(go('talk to her', { verb: 'talk', person: 'housekeeper' }), e => e.kind === 'Spoke' && e.fact === undefined && e.greeting === true), 'talk → Spoke as a greeting, without a fact');
 }
 
 // ── 11. clock rule ───────────────────────────────────────────────────────────

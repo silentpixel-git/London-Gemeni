@@ -18,7 +18,7 @@
 //   combine T S → Combined{[T,S]}; both carried or visible here; no self-combine
 //   show T to P → Shown{T,P}; T carried; P present; then if T.fact and the player knows it and P does not already → FactDisclosed{player→P}
 //   give T to P → Given{T,P}; same conditions; same disclosure
-//   talk P      → Spoke{P}; P present
+//   talk P      → Spoke{P, greeting}; P present
 //   ask P topic → P present; topic a fact id:
 //                 canTell(P, fact) → Spoke{P, fact}, FactDisclosed{P→player}
 //                 else player knows fact and P does not → Spoke{P, fact}, FactDisclosed{player→P}
@@ -96,7 +96,7 @@ export function resolveVerb(story: Story, s: State, intent: Intent): EventPayloa
       return [intent.verb === 'show' ? { kind: 'Shown', object: t, person: p } : { kind: 'Given', object: t, person: p }, ...disclose];
     }
     case 'talk':
-      return isHere(p) ? [{ kind: 'Spoke', person: p }] : reject(NO_ONE);
+      return isHere(p) ? [{ kind: 'Spoke', person: p, greeting: true }] : reject(NO_ONE);
     case 'ask': {
       if (!isHere(p)) return reject(NO_ONE);
       const fact = intent.topic;

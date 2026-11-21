@@ -67,6 +67,7 @@ EVENTS, and how to carry them:
 - Taken, Dropped, Opened, Closed, Given, Shown, Used, Combined: the physical action, briefly, with its immediate result from the beats.
 - OpenBlocked: it will not open; say why from the lock given.
 - Spoke with a fact / FactDisclosed: the person says the fact in their own words; where a "voice" is given, that is how they put it.
+- Spoke with greeting: the player addressed them with no subject. They answer in character, briefly, and turn it back to the player: they want to know what in particular the player is asking about. They volunteer no fact and suggest no subject of their own.
 - Deduced then GameEnded: the ending's beats are the close; land them.
 - TickResolved / ClockAdvanced with beats: the world moving on its own; keep it short and do not have the narrator act.
 - IntentRejected: an in-character miss ("there was nothing of the kind to hand"), one or two sentences, no mechanism named.
