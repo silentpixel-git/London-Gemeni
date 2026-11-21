@@ -4,6 +4,13 @@ A generation brief for every audio file the game can play. Hand each prompt to y
 audio generator (or a sound designer), then drop the resulting file at the path shown.
 The code references these exact paths; a missing file is silently skipped — never an error.
 
+**How a sound is chosen.** The client knows no Story. A Story names sounds by id: `ambience` on a
+Location (its bed), on a WeatherState (its layer), and on an Act (a map of location id → bed that
+overrides the Location's during that act). The server puts the result in `PlayerView.ambience`, and
+`services/audioManifest.ts` maps each sound id to a file (beds by snake_case id such as
+`baker_street`; weather layers with a volume: `rain_light`, `rain_heavy`, `fog_wind`, `fog_wind_low`,
+`still_air`). An id with no entry is silent. A new file needs one line in that table.
+
 ## Shared specifications
 
 **Ambient beds** (location + weather loops)
@@ -150,7 +157,7 @@ These are the takes the owner picked for the prototype. They are copied into `pu
 
 | File | Plays when | Status |
 |---|---|---|
-| `ambient/holiday-street.mp3` | Baker Street during the Prologue only (`ACT_BEDS['0:baker_street']`). Later acts keep `baker-street.mp3`. | live |
+| `ambient/holiday-street.mp3` | Baker Street during the Prologue only (sound id `holiday_street`, which a Story's act 0 `ambience` map gives Baker Street). Later acts keep `baker-street.mp3`. | live |
 | `sfx/lamplighter.wav` | Once, after the second command of the Prologue at Baker Street. It is the street below, heard through the window. Trim 0.8. | live |
 | `sfx/glass-down.mp3` | Holmes sets the opera glass on the mantel. | registered; wire it when The Wager is built |
 | `sfx/pages-riffle.mp3` | Watson opens the monograph (the losing branch). | registered; wire it when The Wager is built |

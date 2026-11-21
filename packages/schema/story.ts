@@ -25,6 +25,8 @@ export const Location = z.object({
   /** Closed outside these periods; absent means always open. */
   openPeriods: z.array(Id).min(1).optional(),
   closedBeat: z.string().optional(),
+  /** Sound id of the ambient bed played here (the client's table maps it to a file). */
+  ambience: Id.optional(),
 }).strict();
 export type Location = z.infer<typeof Location>;
 
@@ -122,6 +124,8 @@ export const Act = z.object({
   /** Free text shown in the sidebar, e.g. "9 November 1888". */
   dateLabel: z.string().min(1),
   weather: Id,
+  /** Location id → sound id: overrides that location's own bed during this act. */
+  ambience: z.record(Id, Id).optional(),
 }).strict();
 export type Act = z.infer<typeof Act>;
 
@@ -155,6 +159,8 @@ export const Story = z.object({
   acts: z.array(Act).min(1),
   opening: Opening,
   narrator: Narrator.optional(),
+  /** Weight of "nothing happens" in an idle Tick's draw, against the eligible tick Rules' weights. Absent: some Rule fires whenever one is eligible. */
+  quietWeight: z.number().int().min(1).optional(),
   /** Words the narrator may use freely although no turn context names them (a city, a nationality, a deity). */
   lexicon: z.array(z.string().min(1)).optional(),
   locations: z.array(Location).min(1),

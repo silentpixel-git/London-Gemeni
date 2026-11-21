@@ -36,6 +36,22 @@ const FIXTURES = join('packages', 'schema', 'fixtures');
   show(r.issues);
 }
 
+// 1c. An action Rule may name a person where the engine accepts one: examine <person>, use <object> on <person>.
+{
+  const raw = loadStoryDir(join(FIXTURES, 'stress')) as { rules: unknown[] };
+  const beat = [{ kind: 'playBeat', beats: ['He looks tired.'] }];
+  raw.rules.push(
+    { id: 'qa_examine_person', trigger: { kind: 'action', verb: ['examine'], target: ['orrin'] }, once: true, effects: beat },
+    { id: 'qa_use_on_person', trigger: { kind: 'action', verb: ['use'], target: ['tackle_chest'], secondary: ['orrin'] }, once: true, effects: beat },
+    { id: 'qa_take_person', trigger: { kind: 'action', verb: ['take'], target: ['orrin'] }, once: true, effects: beat },
+  );
+  const about = (id: string) => validateStory(raw).issues.filter(i => i.at.startsWith(`rules/${id}/`));
+  if (about('qa_examine_person').length === 0 && about('qa_use_on_person').length === 0) pass('examine <person> and use <object> on <person> Rules validate');
+  else { fail('a person as examine target or use secondary must validate'); show([...about('qa_examine_person'), ...about('qa_use_on_person')]); }
+  if (about('qa_take_person').some(i => i.level === 'fail')) pass('a person as the target of any other verb is still rejected');
+  else fail('take <person> must not validate');
+}
+
 // 2. An empty Story does not.
 {
   const r = validateStory(loadStoryDir(join(FIXTURES, 'empty')));

@@ -7,8 +7,8 @@ match. Deliberate departures from history are collected in the
 it's an error, not a choice.
 
 This document supersedes the "reweave calendar" (8–22 November 1888, retrospective
-structure) described in `engine/stories/whitechapel-1888/acts.ts` and
-`docs/reweave-act-walkthrough.md`. Once this rework ships, `.claude/skills/game-direction`
+structure) of the pre-rebuild story (the `archive/pre-phase4-engine` branch; its
+walkthrough and spec are in git history). Once this rework ships, `.claude/skills/game-direction`
 (Part 2) and `.claude/skills/historian` (the "game's events" note) must be updated to match.
 
 ---

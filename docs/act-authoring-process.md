@@ -86,7 +86,7 @@ Plus, once per act:
 - **The gate**: which Rule's `advanceAct` ends the act, and every condition it needs.
 - **The choice**: each branch, the flag it sets, and every downstream Rule or condition that reads that flag.
 - **Schedule rows**: one per person on stage, act × period → `at` / `follows` / `offstage`.
-- **Act fields**: `anchorLocation`, `startClockMinutes`, `dateLabel`, `weather`. Entering the act moves the player to the anchor, which counts as entering that location for `enter` Rules and as an arrival for everyone there; sets the clock to `startClockMinutes`; delivers every delayed `grantFact` still in flight; and clears every person moved by an Effect back to the new act's schedule. The opening behaves the same way for the opening act and location (ADR-0005).
+- **Act fields**: `anchorLocation`, `startClockMinutes`, `dateLabel`, `weather`, and optionally `ambience` (location id → sound id, overriding that location's bed during the act; Locations and weathers carry their own `ambience` sound id too, see `docs/audio-prompts.md`). Entering the act moves the player to the anchor, which counts as entering that location for `enter` Rules and as an arrival for everyone there; sets the clock to `startClockMinutes`; delivers every delayed `grantFact` still in flight; and clears every person moved by an Effect back to the new act's schedule. The opening behaves the same way for the opening act and location (ADR-0005).
 
 The worked example is Act 0's score (`docs/act0-mechanical-score.md`). Its columns name the pre-rebuild mechanisms (resolver flag grammar, story events); the dimensions it pins are the same ones this score pins, which is why the score survived the rebuild and the code did not.
 
@@ -128,7 +128,7 @@ The pre-rebuild engine had three systems for things that happen: story events (a
 | World event at a clock time | `clock` Rule (`atMinutes`, optionally `act`) with `playBeat` and `asQuote: true` |
 | Rumor hop | `disclosed` or `flag` Rule with `grantFact` and `delayPeriods`. It matures after that many period boundaries, or on entering any act, whichever comes first |
 | Arrival or departure | `summonPerson` / `movePerson` / `dismissPerson` in the Rule that motivates it, or a schedule entry. A scene on meeting someone is a `proximity` Rule: it fires on the arrival, whoever moved |
-| Ambient life | `tick` Rule with a `weight`; the engine draws one among the eligible and records the draw |
+| Ambient life | `tick` Rule with a `weight`; the engine draws one among the eligible and records the draw. The Story's optional `quietWeight` is "nothing happens" in that same draw: a draw landing in its share fires no Rule, so quiet stretches need no filler Rule. Absent, some Rule fires whenever one is eligible |
 
 Author each Rule that carries a scene as a compact contract in the score:
 

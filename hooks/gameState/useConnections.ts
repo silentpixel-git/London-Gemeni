@@ -39,7 +39,7 @@ export function useConnections(deps: ConnectionsDeps) {
     const supabaseOk = await pingSupabase();
     setConnectionStatus(prev => ({ ...prev, supabase: supabaseOk }));
     if (!supabaseOk) {
-      setNotification({ message: 'Cloud unavailable — progress will save locally.', type: 'error' });
+      setNotification({ message: 'Cloud unavailable — the investigation cannot continue until it returns.', type: 'error' });
     }
   }, [pingSupabase]);
 

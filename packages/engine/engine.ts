@@ -88,7 +88,7 @@ function tickInto(t: Emitter, minutes: number, rng: Rng) {
   const present = personsPresent(t.story, t.state);
   const eligible = eligibleTickRules(t.story, t.state);
   const draw = rng.next();
-  const chosen = chooseByWeight(eligible, draw);
+  const chosen = chooseByWeight(eligible, draw, t.story.quietWeight);
   t.emit({ kind: 'TickResolved', minutes, draw, rule: chosen?.id ?? null });
   const fired = chosen ? t.absorb(fireRule(t.story, t.state, chosen)) : [];
   t.absorb(cascade(t.story, t.state, firingsFrom(t.story, fired), present));

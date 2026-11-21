@@ -28,7 +28,6 @@ const opening = startInvestigation(story, 42);
 let s: State = opening.state;
 const log: EventPayload[] = [...opening.events];
 const verbsUsed = new Set<string>();
-const kinds = (es: EventPayload[]) => es.map(e => e.kind).join(',');
 const has = (es: EventPayload[], pred: (e: EventPayload) => boolean) => es.some(pred);
 const fired = (es: EventPayload[], rule: string) => has(es, e => e.kind === 'RuleFired' && e.rule === rule);
 

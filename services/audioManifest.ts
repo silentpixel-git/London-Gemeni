@@ -1,7 +1,7 @@
 /**
  * services/audioManifest.ts
  *
- * Declarative map of game state → audio file. The AudioManager reads this; it
+ * Declarative map of sound id → audio file. The AudioManager reads this; it
  * holds no logic. Files live under /public/audio and are user-supplied — a
  * missing entry simply means "silent here", never an error.
  *
@@ -31,42 +31,28 @@ export const SFX_TRIM: Partial<Record<SfxId, number>> = {
   lamplighter: 0.8,
 };
 
-// ── Per-location ambient beds ────────────────────────────────────────────────
-// All 15 locations are mapped; a file that isn't present yet is silently skipped.
+// ── Ambient beds, keyed by the sound id a Story names (Location / Act `ambience`) ──
+// Only files that exist. An id with no entry is silent; the client knows no Story.
 export const AMBIENT_BEDS: Record<string, string> = {
-  baker_street:         `${BASE}/ambient/baker-street.mp3`,
-  dorset_street:        `${BASE}/ambient/dorset-street.mp3`,
-  millers_court:        `${BASE}/ambient/millers-court.mp3`,
-  whitechapel_mortuary: `${BASE}/ambient/mortuary.mp3`,
-  h_division_station:   `${BASE}/ambient/h-division.mp3`,
-  whitechapel_pub:      `${BASE}/ambient/ten-bells.mp3`,
-  lusk_office:          `${BASE}/ambient/lusk-office.mp3`,
-  bond_office:          `${BASE}/ambient/bond-office.mp3`,
-  private_asylum:       `${BASE}/ambient/private-asylum.mp3`,
-  bucks_row:            `${BASE}/ambient/bucks-row.mp3`,
-  hanbury_street:       `${BASE}/ambient/hanbury-street.mp3`,
-  dutfields_yard:       `${BASE}/ambient/dutfields-yard.mp3`,
-  working_mens_club:    `${BASE}/ambient/working-mens-club.mp3`,
-  mitre_square:         `${BASE}/ambient/mitre-square.mp3`,
-  goulston_street:      `${BASE}/ambient/goulston-street.mp3`,
+  baker_street:    `${BASE}/ambient/baker-street.mp3`,
+  holiday_street:  `${BASE}/ambient/holiday-street.mp3`,
+  dorset_street:   `${BASE}/ambient/dorset-street.mp3`,
+  millers_court:   `${BASE}/ambient/millers-court.mp3`,
+  mortuary:        `${BASE}/ambient/mortuary.mp3`,
+  lusk_office:     `${BASE}/ambient/lusk-office.mp3`,
+  bond_office:     `${BASE}/ambient/bond-office.mp3`,
+  bucks_row:       `${BASE}/ambient/bucks-row.mp3`,
+  hanbury_street:  `${BASE}/ambient/hanbury-street.mp3`,
+  goulston_street: `${BASE}/ambient/goulston-street.mp3`,
 };
 
-// Act-scoped beds, keyed "act:location", checked before AMBIENT_BEDS. Baker
-// Street on the bank-holiday evening of the Prologue is the holiday crowd
-// through the open windows, not the later acts' November street.
-export const ACT_BEDS: Record<string, string> = {
-  '0:baker_street': `${BASE}/ambient/holiday-street.mp3`,
-};
-
-// ── Weather layers, keyed by WeatherCondition string ─────────────────────────
-// `volume` lets one rain bed serve both drizzle and a heavier downpour.
+// ── Weather layers, keyed by the sound id a WeatherState names ───────────────
+// `volume` lets one file serve several intensities.
 export const WEATHER_LAYERS: Record<string, { file: string; volume: number }> = {
-  drizzle:  { file: `${BASE}/weather/rain.mp3`,     volume: 0.25 },
-  pouring:  { file: `${BASE}/weather/rain.mp3`,     volume: 0.55 },
-  foggy:    { file: `${BASE}/weather/fog-wind.mp3`, volume: 0.30 },
-  overcast: { file: `${BASE}/weather/fog-wind.mp3`, volume: 0.15 },
-  // 'close' is still air — barely a bed at all, just enough not to feel muted.
-  close:    { file: `${BASE}/weather/fog-wind.mp3`, volume: 0.08 },
-  // 'clear-warm' gets no layer: a warm clear night is carried by the location
-  // ambience alone, and a wind bed would contradict it.
+  rain_light:   { file: `${BASE}/weather/rain.mp3`,     volume: 0.25 },
+  rain_heavy:   { file: `${BASE}/weather/rain.mp3`,     volume: 0.55 },
+  fog_wind:     { file: `${BASE}/weather/fog-wind.mp3`, volume: 0.30 },
+  fog_wind_low: { file: `${BASE}/weather/fog-wind.mp3`, volume: 0.15 },
+  // Still air is barely a bed at all, just enough not to feel muted.
+  still_air:    { file: `${BASE}/weather/fog-wind.mp3`, volume: 0.08 },
 };

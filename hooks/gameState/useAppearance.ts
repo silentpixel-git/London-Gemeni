@@ -12,15 +12,11 @@ export interface AppearanceDeps {
 export function useAppearance(deps: AppearanceDeps) {
   const { user, userProfile, currentTimePeriod } = deps;
 
-  // Single appearance choice — defaults to light. Reads the new key first, then
-  // falls back to the legacy lb-theme / lb-atmospheric-theme pair so existing
-  // players keep their setting (atmospheric → 'auto', dark → 'dark').
+  // Single appearance choice — defaults to light.
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
     try {
       const stored = localStorage.getItem('lb-theme-mode');
       if (stored === 'light' || stored === 'dark' || stored === 'auto') return stored;
-      if (localStorage.getItem('lb-atmospheric-theme') === 'on') return 'auto';
-      if (localStorage.getItem('lb-theme') === 'dark') return 'dark';
     } catch {}
     return 'light';
   });

@@ -24,6 +24,8 @@ export interface PlayerView {
   /** `name` is the exit's first authored name (a command word); `to` the destination's name; `visited`: the player has been there. */
   exits: Array<{ id: Id; name: string; to: string; visited?: true }>;
   ended: Named | null;
+  /** Sound ids for the client's ambience: the bed for this location in this act, the layer for this act's weather. Null: silence. */
+  ambience: { bed: Id | null; weather: Id | null };
   diary: Diary;
 }
 

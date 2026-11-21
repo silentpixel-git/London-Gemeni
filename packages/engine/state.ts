@@ -50,6 +50,8 @@ export interface State {
   turnText: string;
   /** Queued beats this turn, consumed by the narration context. Cleared on TurnReceived/TickResolved. */
   beats: Array<{ beats: string[]; asQuote: boolean }>;
+  /** Who this turn involved (Spoke, Shown, Given, FactDisclosed): only they hear its prose. Cleared like `beats`. */
+  involved: Id[];
 }
 
 export function initialState(story: Story, seed: number): State {
@@ -91,6 +93,7 @@ export function initialState(story: Story, seed: number): State {
     ended: null,
     turnText: '',
     beats: [],
+    involved: [],
   };
   return withMet(story, s);
 }
@@ -107,12 +110,13 @@ const TRANSCRIPT_WINDOW = 12;
 export function apply(story: Story, s: State, e: EventPayload): State {
   switch (e.kind) {
     case 'InvestigationStarted': return initialState(story, e.seed);
-    case 'TurnReceived': return { ...s, turn: s.turn + 1, turnText: e.text, beats: [] };
-    case 'TickResolved': return { ...s, turn: s.turn + 1, turnText: '', beats: [] };
+    case 'TurnReceived': return { ...s, turn: s.turn + 1, turnText: e.text, beats: [], involved: [] };
+    case 'TickResolved': return { ...s, turn: s.turn + 1, turnText: '', beats: [], involved: [] };
     case 'IntentSelected': case 'IntentRejected': case 'FlavourRequested':
     case 'Looked': case 'InventoryChecked': case 'MoveBlocked': case 'OpenBlocked':
-    case 'Used': case 'Combined': case 'Shown': case 'Deduced': case 'CuePlayed':
+    case 'Used': case 'Combined': case 'Deduced': case 'CuePlayed':
       return s;
+    case 'Shown': return involve(s, e.person);
     case 'RuleFired': return { ...s, firedRules: { ...s.firedRules, [e.rule]: (s.firedRules[e.rule] ?? 0) + 1 } };
     case 'Moved': return withMet(story, { ...s, location: e.to });
     case 'Examined': return { ...s, examined: { ...s.examined, [e.object]: true } };
@@ -128,7 +132,7 @@ export function apply(story: Story, s: State, e: EventPayload): State {
     }
     case 'Taken': return place(s, e.object, { kind: 'inventory' });
     case 'Dropped': return place(s, e.object, { kind: 'location', location: s.location });
-    case 'Given': return place(s, e.object, { kind: 'person', person: e.person });
+    case 'Given': return involve(place(s, e.object, { kind: 'person', person: e.person }), e.person);
     case 'Opened': return container(s, e.object, 'open');
     case 'Closed': return container(s, e.object, 'closed');
     case 'ObjectPlaced': {
@@ -141,16 +145,12 @@ export function apply(story: Story, s: State, e: EventPayload): State {
     case 'Spoke': {
       const p = story.persons.find(x => x.id === e.person);
       const introduced = s.persons[e.person].introduced || p?.introduction?.kind === 'self';
-      const lines = [...(s.transcript[e.person] ?? []), { speaker: 'player' as const, text: s.turnText }].slice(-TRANSCRIPT_WINDOW);
-      return {
-        ...s,
-        persons: { ...s.persons, [e.person]: { ...s.persons[e.person], introduced } },
-        transcript: { ...s.transcript, [e.person]: lines },
-      };
+      return involve({ ...s, persons: { ...s.persons, [e.person]: { ...s.persons[e.person], introduced } } }, e.person);
     }
     case 'FactDisclosed': {
       const knows = learn(s.knows, e.to, e.fact);
       const person = e.from === 'player' ? e.to : e.from;
+      s = involve(involve(s, e.from), e.to);
       if (person === 'player') return { ...s, knows };
       const entry = s.ledger[person] ?? { told: [], heard: [] };
       const next = e.from === 'player'
@@ -179,7 +179,7 @@ export function apply(story: Story, s: State, e: EventPayload): State {
     case 'Narrated': {
       if (!e.text.trim()) return s; // a quiet Tick's closing row: nothing was said
       const transcript = { ...s.transcript };
-      for (const id of personsPresent(story, s)) {
+      for (const id of s.involved) {
         transcript[id] = [...(transcript[id] ?? []), { speaker: 'person' as const, text: e.text }].slice(-TRANSCRIPT_WINDOW);
       }
       return { ...s, transcript };
@@ -192,6 +192,12 @@ export function apply(story: Story, s: State, e: EventPayload): State {
   }
 }
 
+/** The turn involves this person: they get the player's line once (a Tick has none) and will hear the prose. */
+function involve(s: State, who: PersonOrPlayer): State {
+  if (who === 'player' || s.involved.includes(who)) return s;
+  const heard = s.turnText ? [...(s.transcript[who] ?? []), { speaker: 'player' as const, text: s.turnText }].slice(-TRANSCRIPT_WINDOW) : s.transcript[who];
+  return { ...s, involved: [...s.involved, who], transcript: heard ? { ...s.transcript, [who]: heard } : s.transcript };
+}
 function place(s: State, object: Id, placement: Placement): State {
   return { ...s, objects: { ...s.objects, [object]: { ...s.objects[object], placement, hidden: false } } };
 }

@@ -1,5 +1,5 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { X, AlertCircle } from 'lucide-react';
+import { Component, ErrorInfo, ReactNode } from 'react';
+import { AlertCircle } from 'lucide-react';
 import { ModalBackdrop } from './ModalBackdrop';
 
 interface ErrorBoundaryProps {
@@ -27,20 +27,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   render() {
     if (this.state.hasError) {
-      let errorMessage = 'An unexpected error occurred.';
-      let isCloudSyncError = false;
-
-      try {
-        if (this.state.error?.message) {
-          const parsed = JSON.parse(this.state.error.message);
-          if (parsed.error && parsed.operationType) {
-            errorMessage = `Investigation Interrupted: ${parsed.error}`;
-            isCloudSyncError = true;
-          }
-        }
-      } catch (e) {
-        errorMessage = this.state.error?.message || errorMessage;
-      }
+      const errorMessage = this.state.error?.message || 'An unexpected error occurred.';
 
       return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
@@ -71,12 +58,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 Dismiss
               </button>
             </div>
-
-            {isCloudSyncError && (
-              <p className="mt-6 text-[10px] uppercase tracking-widest text-lb-muted text-center">
-                Cloud Sync Error Detected
-              </p>
-            )}
           </div>
         </div>
       );

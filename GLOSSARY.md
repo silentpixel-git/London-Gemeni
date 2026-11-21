@@ -75,7 +75,7 @@ _Also called_: Ledger
 _Avoid_: NPC memory, memory summary
 
 **Transcript**:
-The verbatim recent exchanges between the player and one person, kept alongside their Disclosure Ledger so the narrator can match tone and refer back to actual words.
+The verbatim recent exchanges between the player and one person, kept alongside their Disclosure Ledger so the narrator can match tone and refer back to actual words. Only turns that involved the person (spoke to, showed or gave them something, told or asked them a Fact) enter it; being in the room does not.
 
 ### State
 

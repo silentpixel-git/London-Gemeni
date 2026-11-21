@@ -1,6 +1,6 @@
 // Story validation: the Zod shape check followed by the referential-integrity
-// checks that need no engine. The reachability prover (plan §2.7) is Phase 1
-// and will be added here as a further pass.
+// checks that need no engine. Reachability is the prover's job
+// (packages/engine/prover.ts, qa:prove).
 //
 // FAIL = the Story cannot be built. WARN = suspicious, review by hand.
 import { Conditions, Id, Lock, Placement } from './common.js';
@@ -45,7 +45,6 @@ export function validateStory(raw: unknown): ValidationResult {
   const facts = new Map(story.facts.map(f => [f.id, f]));
   const clues = new Map(story.clues.map(c => [c.id, c]));
   const endings = new Set(story.endings.map(e => e.id));
-  const rules = new Map(story.rules.map(r => [r.id, r]));
 
   const dup = <T extends { id: string | number }>(items: T[], at: string) => {
     const seen = new Set<string | number>();
@@ -96,7 +95,10 @@ export function validateStory(raw: unknown): ValidationResult {
   const needWeather = (id: Id, at: string) => { if (!weathers.has(id)) fail(at, `unknown weather "${id}"`); };
 
   // ── Acts and opening ─────────────────────────────────────────────────────
-  for (const act of story.acts) { needLocation(act.anchorLocation, `acts/${act.id}/anchorLocation`); needWeather(act.weather, `acts/${act.id}/weather`); }
+  for (const act of story.acts) {
+    needLocation(act.anchorLocation, `acts/${act.id}/anchorLocation`); needWeather(act.weather, `acts/${act.id}/weather`);
+    for (const l of Object.keys(act.ambience ?? {})) needLocation(l, `acts/${act.id}/ambience`);
+  }
   needAct(story.opening.act, 'opening/act');
   needLocation(story.opening.location, 'opening/location');
   const firstAct = Math.min(...story.acts.map(a => a.id));
@@ -215,8 +217,9 @@ export function validateStory(raw: unknown): ValidationResult {
   const checkTrigger = (t: Trigger, at: string) => {
     switch (t.kind) {
       case 'action':
-        for (const o of t.target ?? []) needObject(o, `${at}/target`);
-        for (const o of t.secondary ?? []) needObject(o, `${at}/secondary`);
+        // As inCandidateSet allows: examine may target a person, use may be applied to one.
+        for (const o of t.target ?? []) if (!(t.verb.includes('examine') && persons.has(o))) needObject(o, `${at}/target`);
+        for (const o of t.secondary ?? []) if (!(t.verb.includes('use') && persons.has(o))) needObject(o, `${at}/secondary`);
         for (const p of t.person ?? []) needPerson(p, `${at}/person`);
         break;
       case 'flag': flagsRead.add(t.flag); break;
@@ -328,6 +331,5 @@ export function validateStory(raw: unknown): ValidationResult {
     }
   }
 
-  void rules;
   return { ok: !issues.some(i => i.level === 'fail'), story, issues };
 }
