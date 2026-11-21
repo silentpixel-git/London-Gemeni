@@ -10,7 +10,7 @@
 import { join } from 'node:path';
 import { Story, type EventPayload, type Selection } from '../packages/schema';
 import { loadStoryDir } from '../packages/schema/load';
-import { candidates, initialState, playerView, replay, resolveTurn, startInvestigation, tick, type State } from '../packages/engine';
+import { buildNarrationContext, candidates, fallbackProse, initialState, playerView, replay, resolveTurn, startInvestigation, tick, type State } from '../packages/engine';
 import { suggestionsFor } from '../services/viewFormat';
 import { fixedRng } from '../packages/engine/rng';
 
@@ -195,7 +195,13 @@ section('show / give');
   go('take candle', { verb: 'take', target: 'candle' }); // candle was carried already; harmless rejection or no-op, exercises path
   const gv = go('give her the candle', { verb: 'give', target: 'candle', person: 'housekeeper' });
   check(has(gv, e => e.kind === 'Given') && where('candle').kind === 'person', 'give → Given, object on the person');
-  check(has(go('talk to her', { verb: 'talk', person: 'housekeeper' }), e => e.kind === 'Spoke' && e.fact === undefined && e.greeting === true), 'talk → Spoke as a greeting, without a fact');
+  const talked = go('talk to her', { verb: 'talk', person: 'housekeeper' });
+  check(has(talked, e => e.kind === 'Spoke' && e.fact === undefined && e.greeting === true), 'talk → Spoke as a greeting, without a fact');
+  const greetCtx = buildNarrationContext(story, s, talked, 'compact');
+  const greetLine = fallbackProse(story, greetCtx);
+  check(greetLine.includes('waits for you to ask something in particular'), 'talk fallback invites a particular question', greetLine);
+  const beatLine = fallbackProse(story, { ...greetCtx, beats: ['She says the clock has stopped.'] });
+  check(!beatLine.includes('waits for you to ask'), 'a greeting with a beat this turn lets the beat speak, without the invitation', beatLine);
 }
 
 // ── 11. clock rule ───────────────────────────────────────────────────────────

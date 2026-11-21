@@ -27,7 +27,7 @@ Verbs:
 - use <target> [secondary]: operate or apply one thing, optionally on another object or on a person present.
 - combine <target> <secondary>: bring two things together ("light the candle with the matches", "fit the key to the box", "tie the rope to the hook").
 - show <target> to <person> / give <target> to <person>.
-- talk <person>: address a person with no particular subject ("greet", "speak to", "hello").
+- talk <person>: address a person with no particular subject ("greet", "speak to", "hello", a bare "ask her" that names no subject).
 - ask <person> [topic]: ask or tell a person about a subject. Match the subject to a topics entry for that person and return its fact as "topic". Entries marked "tell" mean the player would be telling them. If the subject matches no entry for that person, return ask with the person and no topic.
 - deduce [facts] [person]: accuse, conclude or name a culprit. "facts" are ids from knownFacts the player is invoking; "person" is the suspect, if they name one, and is an id from suspects (anyone the player has met, present or not).
 - move <exit>: go somewhere. Match any of an exit's names, a compass direction, or the destination's name. "Leave", "go back", "out" map to the exit that fits best; if several fit equally, none.
@@ -67,7 +67,7 @@ EVENTS, and how to carry them:
 - Taken, Dropped, Opened, Closed, Given, Shown, Used, Combined: the physical action, briefly, with its immediate result from the beats.
 - OpenBlocked: it will not open; say why from the lock given.
 - Spoke with a fact / FactDisclosed: the person says the fact in their own words; where a "voice" is given, that is how they put it.
-- Spoke with greeting: the player addressed them with no subject. They answer in character, briefly, and turn it back to the player: they want to know what in particular the player is asking about. They volunteer no fact and suggest no subject of their own.
+- Spoke with greeting: the player addressed them with no subject. They answer in character, briefly, and turn it back to the player: they want to know what in particular the player is asking about. They volunteer no fact and suggest no subject of their own. If this turn's beats or facts give them something to say, they say that instead and need not ask.
 - Deduced then GameEnded: the ending's beats are the close; land them.
 - TickResolved / ClockAdvanced with beats: the world moving on its own; keep it short and do not have the narrator act.
 - IntentRejected: an in-character miss ("there was nothing of the kind to hand"), one or two sentences, no mechanism named.
