@@ -124,7 +124,8 @@ export function fallbackProse(story: Story, ctx: NarrationContext): string {
         if (f) lines.push(sentence(`${who(e.from)} tells you: "${f.voice ?? f.statement}"`));
         break;
       }
-      case 'IntentRejected': lines.push(selected ? sentence(e.reason) : 'There is nothing of the kind to hand.'); break;
+      // A miss never denies that something exists: the player may be acting on a thing the prose described.
+      case 'IntentRejected': lines.push(selected ? sentence(e.reason) : 'Nothing comes of it.'); break;
       case 'Looked': lines.push('You look around.'); break;
       case 'InventoryChecked': lines.push('You check what you are carrying.'); break;
       case 'Deduced': lines.push(`You lay out your reasoning${e.suspect ? `, naming ${who(e.suspect)}` : ''}.`); break;

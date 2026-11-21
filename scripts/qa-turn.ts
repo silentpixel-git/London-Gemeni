@@ -333,7 +333,7 @@ check('fast path: an exit by any authored name, an abbreviation, or after "go"/"
 check('fast path: declines an undeclared direction and anything that is not an exact command',
   ['south', 'open the clock', 'look at the clock', 'go'].every(t => exact(t) === 'null'));
 check('fast path: declines a word that is also an Object\'s name, or that two exits share',
-  exact('study', { ...opening, objects: [...opening.objects, { id: 'study_sign', name: 'Study', where: 'here' }] }) === 'null'
+  exact('study', { ...opening, objects: [...opening.objects, { id: 'study_sign', name: 'Study', where: 'here', description: [] }] }) === 'null'
   && exact('north', { ...opening, exits: [...opening.exits, { id: 'trapdoor', names: ['north'] }] }) === 'null');
 
 // ── One turn at a time ──────────────────────────────────────────────────────
@@ -487,7 +487,7 @@ const isError = (r: { status: number; kinds: string[] }, status: number) => r.st
   check('a blocked exit and a rejected command also fall back to a line, never an empty one',
     blocked.done?.narrated.text.includes('It is locked.') && deflected.done?.narrated.text.length > 0, JSON.stringify([blocked.done?.narrated.text, deflected.done?.narrated.text]));
   check('…and a command that matched nothing names no mechanism (no "selection", no "candidate set")',
-    deflected.done?.narrated.text === 'There is nothing of the kind to hand.', String(deflected.done?.narrated.text));
+    deflected.done?.narrated.text === 'Nothing comes of it.', String(deflected.done?.narrated.text));
 }
 
 // ── A client that disconnects does not cost the turn its prose ─────────────

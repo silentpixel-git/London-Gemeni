@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { Effect, Story, Trigger, inCandidateSet, validateStory, type EventPayload, type Selection } from '../packages/schema';
 import { gateNarration } from '../packages/ai/gate';
+import { confineSelection } from '../packages/ai/selection';
 import { loadStoryDir } from '../packages/schema/load';
 import {
   buildNarrationContext, candidates, eligibleTickRules, chooseByWeight, currentPeriod, exitLock, personLocation, personsPresent,
@@ -497,6 +498,14 @@ section('pinned 5: a player can accuse anyone met; examine and use reach people'
   check(inCandidateSet({ kind: 'intent', verb: 'use', target: 'tackle_chest', secondary: 'orrin' }, r.cand()), 'use … on accepts a person present');
   check(!inCandidateSet({ kind: 'intent', verb: 'take', target: 'orrin' }, r.cand()) && !inCandidateSet({ kind: 'intent', verb: 'examine', target: 'maud' }, r.cand()),
     'but only for those verbs, and only someone present');
+  // What the prose says a thing or person is, the parser can resolve to it: the latch is on the chest.
+  const jettyCands = r.cand();
+  check(jettyCands.objects.find(o => o.id === 'tackle_chest')?.description.some(b => b.includes('latch')) === true
+    && jettyCands.location.description.some(b => b.includes('tackle chest')) && jettyCands.persons.every(p => p.description.length > 0),
+    'candidates carry the beats the narrator describes the location, objects and persons from');
+  check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'open', target: 'tackle_chest', secondary: 'latch' }, jettyCands))
+    === '{"kind":"intent","verb":"open","target":"tackle_chest"}', 'a field the verb does not read is dropped, not fatal: "break the latch" stays open the chest');
+  check(confineSelection({ kind: 'intent', verb: 'open', target: 'latch' }, jettyCands).kind === 'none', 'a field the verb reads is still confined to the set');
   const accused = r.go('it was the woman in oilskins', { verb: 'deduce', facts: [], person: 'ines' });
   const ctx = buildNarrationContext(story, r.s, accused, 'compact');
   check(!fired(accused, 'deduce_cook') && JSON.stringify(ctx.personsNamed) === '[{"id":"ines","label":"the woman in oilskins"}]',
