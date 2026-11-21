@@ -188,6 +188,9 @@ export const CommandInput: React.FC<CommandInputProps> = ({
             className="w-full bg-lb-paper border border-lb-border rounded-full py-4 pl-6 pr-[104px] text-[18px] leading-normal font-sans text-lb-primary placeholder:text-lb-muted placeholder:italic focus:outline-none focus:border-lb-accent transition-colors duration-150 shadow-[0_1px_2px_rgb(var(--lb-primary)/0.06)] relative z-10"
             autoFocus
           />
+          {/* A sidebar click lands here: a brief accent ring says where its command went.
+              Keyed by the nonce so a repeat click replays it. */}
+          {prefill && <span key={prefill.nonce} aria-hidden className="lb-landed" />}
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 z-20">
             {onConsultHolmes && (
             <Tooltip label="Gather your thoughts" side="top">

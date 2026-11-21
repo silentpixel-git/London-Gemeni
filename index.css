@@ -200,6 +200,15 @@
 .lb-tab-ind.lb-instant { transition: none; }
 .lb-arrive { animation: lb-arrive .24s cubic-bezier(.23,1,.32,1); }
 @keyframes lb-arrive { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+/* CommandInput: a sidebar row's command arrived in the line. The ring is a fixed
+   box-shadow on its own layer; only opacity animates. Fast in, slower out. */
+.lb-landed {
+  position: absolute; inset: 0; z-index: 15; pointer-events: none; border-radius: 9999px;
+  box-shadow: 0 0 0 4px rgb(var(--lb-accent) / 0.25);
+  opacity: 0;
+  animation: lb-landed .5s cubic-bezier(.23,1,.32,1);
+}
+@keyframes lb-landed { 0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; } }
 
 /* Reduced motion: no movement or blur, but short fades stay so changes are still explained. */
 @media (prefers-reduced-motion: reduce) {
