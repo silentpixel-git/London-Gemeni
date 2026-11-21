@@ -13,10 +13,10 @@ const SELECT_SYSTEM = `You are the parser of a text adventure. The player typed 
 
 The candidates are the whole world for this decision. Every id you return must be copied from them. If no candidate fits, say so; a confident wrong answer is worse than an honest miss.
 
-The location, each object and each person come with a description: what the narrator describes them from, so it is what the player has read. A part or feature an object's description mentions (a latch, a lid, a handle, a drawer, a seal) means that object: "break the latch" acts on the thing the latch is on. A role or trait a person's description gives ("the cook", "the boatman") means that person. Something the location's description mentions that is no candidate is flavour to look at, and none to act on.
+The location, each object and each person come with a description: what the narrator describes them from. A part or feature an object's description mentions (a clasp, a hasp, a knob) means that object, as target or as secondary: "snap the clasp" acts on the thing the clasp is on. A role or trait a person's description gives ("the landlady", "the constable") means that person. Something the location's description mentions that is no candidate is flavour to look at, and none to act on.
 
 Reply kinds:
-- {"kind":"intent", "verb":..., "target"?, "secondary"?, "person"?, "topic"?, "exit"?, "facts"?} — only the fields the verb below takes; a part of an object is never a secondary.
+- {"kind":"intent", "verb":..., "target"?, "secondary"?, "person"?, "topic"?, "exit"?, "facts"?} — only the fields the verb below takes, each holding an id.
 - {"kind":"flavour", "subject":"<what they want described>"} — the player wants to look at, listen to, smell, touch or consider something plausible in the scene that is not a candidate (the ceiling, the smell of the room, the weather). Only for sensing. Never for an action that would change anything.
 - {"kind":"none", "reason":"<a few words>"} — the line asks for an action on something that is not offered, is ambiguous between candidates, or is not an action in the world at all.
 
@@ -25,7 +25,7 @@ Verbs:
 - examine <target>: study one object or person closely ("look at", "inspect", "check", "search"). target is an objects id, or a persons id for a person.
 - read <target>: read words on a document.
 - take <target> / drop <target>.
-- open <target> / close <target>: containers and the like. Forcing something open is open: "break the latch", "force the lid", "prise it open", "try the lock".
+- open <target> / close <target>: containers and the like. Forcing a container open by hand is open on it ("snap the clasp", "prise the casket open"); forcing it with a tool is use <tool> on it; trying a locked door or way is move.
 - use <target> [secondary]: operate or apply one thing, optionally on another object or on a person present.
 - combine <target> <secondary>: bring two things together ("light the candle with the matches", "fit the key to the box", "tie the rope to the hook").
 - show <target> to <person> / give <target> to <person>.
@@ -72,7 +72,7 @@ EVENTS, and how to carry them:
 - Spoke with greeting: the player addressed them with no subject. They answer in character, briefly, and turn it back to the player: they want to know what in particular the player is asking about. They volunteer no fact and suggest no subject of their own. If this turn's beats or facts give them something to say, they say that instead and need not ask.
 - Deduced then GameEnded: the ending's beats are the close; land them.
 - TickResolved / ClockAdvanced with beats: the world moving on its own; keep it short and do not have the narrator act.
-- IntentRejected: an in-character miss, one or two sentences, no mechanism named: the attempt comes to nothing. Never deny that something exists which the context or the scene's prose describes; a stubborn latch is still there when the player fails to break it.
+- IntentRejected: an in-character miss, one or two sentences, no mechanism named: the attempt comes to nothing. Never deny that something exists which the context or the scene's prose describes; a clasp the player fails to snap is still there.
 - FlavourRequested: describe the subject as flavour and nothing more. Say nothing about whether it can be used, taken or examined.
 - ClueDiscovered: give the moment weight without announcing a "clue".
 - BeatQueued beats are mandatory: every beat's substance appears, in order, in your own words unless it is a quotation.

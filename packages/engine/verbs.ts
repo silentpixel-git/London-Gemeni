@@ -10,7 +10,7 @@
 //   inventory   → InventoryChecked
 //   examine T   → Examined{T}; T must be visible here or carried; a person may be examined (Examined{person id})
 //   read T      → Read{T}; T visible or carried; if T.fact and the player does not know it → FactLearned{player, fact}
-//   take T      → Taken{T}; T an item, visible here (incl. inside an open visible container), not carried
+//   take T      → Taken{T}; T an item, visible here (incl. inside an open visible container); already carried → 'you already have it'
 //   drop T      → Dropped{T}; T carried
 //   open T      → T a container visible here or carried: closed → Opened; locked → lockOpen(lock) ? Opened : OpenBlocked{lock}; open → IntentRejected
 //   close T     → T an open container visible or carried → Closed
@@ -67,7 +67,8 @@ export function resolveVerb(story: Story, s: State, intent: Intent): EventPayloa
       return [{ kind: 'Read', object: t }, ...(fact && !s.knows.player[fact] ? [{ kind: 'FactLearned', person: 'player', fact } as EventPayload] : [])];
     }
     case 'take':
-      if (!t || !here.includes(t) || carried.includes(t)) return reject(NO_THING);
+      if (t && carried.includes(t)) return reject('you already have it');
+      if (!t || !here.includes(t)) return reject(NO_THING);
       return obj(t)?.item ? [{ kind: 'Taken', object: t }] : reject('it cannot be carried');
     case 'drop':
       return t && carried.includes(t) ? [{ kind: 'Dropped', object: t }] : reject('you are not carrying that');

@@ -60,15 +60,35 @@ export const VERB_FIELDS: Record<Verb, readonly IntentField[]> = {
 };
 
 /**
- * The Selection with only the fields its verb reads. A model filling the reply
- * schema sometimes puts a word from the line in an unused slot ("break the
- * latch" → open the chest, secondary "latch"); that slot must not sink a right
- * reading. Fields the verb does read are left for inCandidateSet to judge.
+ * The Selection with each field in the slot its verb reads. A model filling the
+ * reply schema sometimes puts a value in a slot the verb does not read:
+ *   - a stray word from the line ("break the latch" → open the chest, secondary
+ *     "latch"), which names nothing in the set: dropped;
+ *   - a real id in the wrong slot ("try the store door" → move, target the exit;
+ *     "talk to the cook" → talk, target the cook): moved to the one empty slot of
+ *     the verb that takes it. Where no slot or several would, it stays put and
+ *     inCandidateSet answers none, never a weaker intent the engine would accept.
+ * Fields the verb reads are left for inCandidateSet to judge. The prover offers
+ * only read fields holding ids from the set, so this never changes what it proves.
  */
-export function trimSelection(sel: Selection): Selection {
+export function trimSelection(sel: Selection, set: CandidateSet): Selection {
   if (sel.kind !== 'intent') return sel;
-  const keep = new Set<string>(['kind', 'verb', ...VERB_FIELDS[sel.verb]]);
-  return Object.fromEntries(Object.entries(sel).filter(([k]) => keep.has(k))) as Selection;
+  const reads: readonly string[] = VERB_FIELDS[sel.verb];
+  const ids = new Set<string>([
+    ...set.objects.map(o => o.id), ...set.persons.map(p => p.id), ...set.suspects.map(p => p.id),
+    ...set.exits.map(x => x.id), ...set.topics.map(t => t.fact), ...set.knownFacts.map(f => f.id),
+  ]);
+  const names = (v: unknown) => (Array.isArray(v) ? v : [v]).some(x => typeof x === 'string' && ids.has(x));
+  const out: Record<string, unknown> = { kind: 'intent', verb: sel.verb };
+  for (const [k, v] of Object.entries(sel)) if (reads.includes(k)) out[k] = v;
+  const fits = (slot: string, v: unknown) =>
+    Array.isArray(v) === (slot === 'facts') && inCandidateSet({ kind: 'intent', verb: sel.verb, [slot]: v } as Selection, set);
+  for (const [k, v] of Object.entries(sel)) {
+    if (k === 'kind' || k === 'verb' || reads.includes(k) || v === undefined || !names(v)) continue;
+    const slots = reads.filter(slot => out[slot] === undefined && fits(slot, v));
+    out[slots.length === 1 ? slots[0] : k] = v;
+  }
+  return out as Selection;
 }
 
 /**

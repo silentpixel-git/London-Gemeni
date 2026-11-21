@@ -192,7 +192,8 @@ section('show / give');
   check(where('letter').kind === 'person' && s.persons.housekeeper.disposition === 'trusting', 'takeItem/moveObject/setDisposition landed');
   check(s.ledger.housekeeper.heard.includes('letter_confession'), 'ledger: she has heard it from the player');
   check(has(go('ask about the gardener', { verb: 'ask', person: 'housekeeper', topic: 'gardener_fled' }), e => e.kind === 'FactDisclosed'), 'act-1 fact disclosed now');
-  go('take candle', { verb: 'take', target: 'candle' }); // candle was carried already; harmless rejection or no-op, exercises path
+  const again = go('take candle', { verb: 'take', target: 'candle' }); // the candle is carried already
+  check(has(again, e => e.kind === 'IntentRejected' && e.reason === 'you already have it'), 'take on a carried thing says so, and does not deny it exists');
   const gv = go('give her the candle', { verb: 'give', target: 'candle', person: 'housekeeper' });
   check(has(gv, e => e.kind === 'Given') && where('candle').kind === 'person', 'give → Given, object on the person');
   const talked = go('talk to her', { verb: 'talk', person: 'housekeeper' });

@@ -506,6 +506,18 @@ section('pinned 5: a player can accuse anyone met; examine and use reach people'
   check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'open', target: 'tackle_chest', secondary: 'latch' }, jettyCands))
     === '{"kind":"intent","verb":"open","target":"tackle_chest"}', 'a field the verb does not read is dropped, not fatal: "break the latch" stays open the chest');
   check(confineSelection({ kind: 'intent', verb: 'open', target: 'latch' }, jettyCands).kind === 'none', 'a field the verb reads is still confined to the set');
+  // A real id in a slot the verb does not read is a misplaced argument: moved to the one slot that takes it,
+  // never dropped into a weaker intent (talk to nobody, an accusation of nobody).
+  const moved: Array<[Selection, string]> = [
+    [{ kind: 'intent', verb: 'talk', target: 'orrin' }, '{"kind":"intent","verb":"talk","person":"orrin"}'],
+    [{ kind: 'intent', verb: 'deduce', facts: [], target: 'orrin' }, '{"kind":"intent","verb":"deduce","facts":[],"person":"orrin"}'],
+    [{ kind: 'intent', verb: 'move', target: 'to_kitchen' }, '{"kind":"intent","verb":"move","exit":"to_kitchen"}'],
+    [{ kind: 'intent', verb: 'show', target: 'tackle_chest', secondary: 'orrin' }, '{"kind":"intent","verb":"show","target":"tackle_chest","person":"orrin"}'],
+  ];
+  check(moved.every(([sel, want]) => JSON.stringify(confineSelection(sel, jettyCands)) === want),
+    'a real id in an unread field moves to the one slot that takes it', JSON.stringify(moved.map(([sel]) => confineSelection(sel, jettyCands))));
+  check(confineSelection({ kind: 'intent', verb: 'use', person: 'tackle_chest' }, jettyCands).kind === 'none',
+    'where two slots could take it (use: target or secondary), it stays none');
   const accused = r.go('it was the woman in oilskins', { verb: 'deduce', facts: [], person: 'ines' });
   const ctx = buildNarrationContext(story, r.s, accused, 'compact');
   check(!fired(accused, 'deduce_cook') && JSON.stringify(ctx.personsNamed) === '[{"id":"ines","label":"the woman in oilskins"}]',

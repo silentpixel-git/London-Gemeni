@@ -7,9 +7,9 @@ import { inCandidateSet, trimSelection, type CandidateSet, type NarrationContext
 
 export { inCandidateSet };
 
-/** The Selection trimmed to its verb's fields, or none when it names something the set does not hold. */
+/** The Selection without stray words (trimSelection), or none when it names something the set does not hold. */
 export function confineSelection(sel: Selection, set: CandidateSet): Selection {
-  const trimmed = trimSelection(sel);
+  const trimmed = trimSelection(sel, set);
   return inCandidateSet(trimmed, set) ? trimmed : { kind: 'none', reason: 'selection outside the candidate set' };
 }
 
