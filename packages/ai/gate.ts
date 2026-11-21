@@ -71,9 +71,11 @@ export function findInventions(prose: string, ctx: NarrationContext): Invention[
   for (const m of text.matchAll(/\b(\d+)\b/g)) {
     if (!numbers.has(m[1])) found.set(`num:${m[1]}`, { kind: 'number', token: m[1] });
   }
+  // Whole words: "ten" is not earned by "often" or "listen".
+  const words = new Set(hay.match(/[a-z]+/g) ?? []);
   for (const m of text.matchAll(SPELLED)) {
     const lower = m[1].toLowerCase();
-    if (SMALL_COUNTS.has(lower) || hay.includes(lower)) continue;
+    if (SMALL_COUNTS.has(lower) || words.has(lower)) continue;
     found.set(`num:${lower}`, { kind: 'number', token: m[1] });
   }
   return [...found.values()];

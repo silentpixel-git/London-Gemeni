@@ -41,5 +41,8 @@ check(verdict('Fine.', [{ key: 'clock_grain', subject: 'hall_clock', text: 'The 
   check(part.inventions.length === 1 && part.inventions[0].token === '29', 'a number is matched whole, not as part of a longer one', JSON.stringify(part.inventions));
 }
 
+check(!verdict('It had been ten days since the light failed.').ok, 'a spelled number is matched whole: "ten" is not earned by a context word that contains it',
+  JSON.stringify(verdict('It had been ten days since the light failed.')));
+
 console.log(`\n${fails === 0 ? 'OK' : `${fails} FAILURE(S)`}`);
 process.exit(fails === 0 ? 0 : 1);

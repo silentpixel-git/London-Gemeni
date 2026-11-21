@@ -287,11 +287,15 @@ async function narrateGated(
   const first = await collect(ai.narrate(ctx), onDelta);
   const verdict = first.prose.trim() ? gate(ctx, first) : { ok: false, inventions: [] };
   if (verdict.ok) return first;
+  // What the gate caught, so a run of rejections can be read from the function's logs.
+  console.warn('api/turn gate rejected:', ctx.mode, verdict.inventions.map(i => i.token).join(', ') || 'empty prose');
   const retryCtx: NarrationContext = verdict.inventions.length
     ? { ...ctx, beats: [`Rejected inventions, not in this context: ${verdict.inventions.map(i => i.token).join(', ')}.`, ...ctx.beats] }
     : ctx;
   const second = await collect(ai.narrate(retryCtx), () => {});
-  if (second.prose.trim() && gate(ctx, second).ok) return second;
+  const again = second.prose.trim() ? gate(ctx, second) : { ok: false, inventions: [] };
+  if (again.ok) return second;
+  console.warn('api/turn gate rejected the retry, falling back:', ctx.mode, again.inventions.map(i => i.token).join(', ') || 'empty prose');
   return { prose: fallbackProse(story, ctx), observations: [] };
 }
 
