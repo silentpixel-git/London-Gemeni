@@ -76,7 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, onClose, onPref
         type="button"
         onClick={() => { onPrefill(item.command); onClose(); }}
         title={`Puts “${item.command}” in the command line`}
-        className="pressable origin-left flex items-baseline gap-2.5 w-full -ml-1.5 px-1.5 py-1 rounded-md text-left text-[15px] leading-[1.4] text-lb-primary hover:bg-lb-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lb-accent"
+        className="pressable flex items-baseline gap-2.5 w-full -ml-1.5 px-1.5 py-1 rounded-md text-left text-[15px] leading-[1.4] text-lb-primary hover:bg-lb-primary/5 active:bg-lb-primary/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lb-accent"
       >
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 -translate-y-0.5 ${hollow ? 'border border-lb-accent' : 'bg-lb-accent'}`} />
         <span>
