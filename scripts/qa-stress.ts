@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { Effect, Story, Trigger, inCandidateSet, validateStory, type EventPayload, type Selection } from '../packages/schema';
 import { gateNarration } from '../packages/ai/gate';
+import { confineSelection } from '../packages/ai/selection';
 import { loadStoryDir } from '../packages/schema/load';
 import {
   buildNarrationContext, candidates, eligibleTickRules, chooseByWeight, currentPeriod, exitLock, personLocation, personsPresent,
@@ -342,6 +343,35 @@ section('key given to the cook');
   check(exitLock(story, r.s, 'kitchen', 'to_store') === null && r.move('to_store').some(e => e.kind === 'Moved'), 'unlockExit: the store opens without the key in hand');
   check(r.replays(), 'give branch replays exactly');
 }
+section('examining a document reads it');
+{
+  // The words a player uses for a log or a dipstick are "examine", "check", "look at": they read it.
+  const r = new Run('examine_document', 24);
+  const chest = r.go('examine the chest', { verb: 'examine', target: 'tackle_chest' });
+  check(has(chest, e => e.kind === 'Examined') && !has(chest, e => e.kind === 'Read'), 'examining an Object with no document is still an examine');
+  r.move('to_kitchen'); r.ask('ines', 'cargo_was_barrels');
+  const log = r.go('examine the log', { verb: 'examine', target: 'keeper_log' });
+  check(has(log, e => e.kind === 'IntentSelected' && e.verb === 'examine') && has(log, e => e.kind === 'Read' && e.object === 'keeper_log') && !has(log, e => e.kind === 'Examined'),
+    'examining the log reads it (the log keeps what was selected)');
+  check(fired(log, 'log_read_starts_storm') && r.s.act === 1, 'and fires the read Rule: the act turns as it does on read');
+  r.move('to_jetty'); r.ask('orrin', 'cargo_was_barrels');
+  r.go('open chest', { verb: 'open', target: 'tackle_chest' });
+  r.go('take key', { verb: 'take', target: 'store_key' });
+  r.move('to_kitchen'); r.move('to_store');
+  const cask = r.go('check the dipstick', { verb: 'examine', target: 'oil_cask' });
+  check(has(cask, e => e.kind === 'FactLearned' && e.person === 'player' && e.fact === 'oil_watered') && has(cask, e => e.kind === 'ClueDiscovered' && e.clue === 'clue_oil'),
+    'checking the cask\'s dipstick teaches the watered oil, as reading it does');
+  check(r.replays(), 'examine-as-read replays exactly');
+  const ctx = buildNarrationContext(story, r.s, cask, 'full');
+  const caskObj = story.objects.find(o => o.id === 'oil_cask')!;
+  check(JSON.stringify(ctx.beats) === JSON.stringify([...caskObj.beats, caskObj.document]), 'the narrator gets the cask\'s own beats, then its document', JSON.stringify(ctx.beats));
+  // Ids are unique per kind, not across kinds: a person who shares a document's id is still examined.
+  const clash = Story.parse(variant(raw => { raw.objects.push({ id: 'orrin', name: 'tide ledger', beats: ['A ledger of tides.'], placement: { kind: 'location', location: 'oil_store' }, item: false, document: 'High water at six.' }); }));
+  const c = new Run('id_clash', 25, clash);
+  const looked = c.go('examine the boatman', { verb: 'examine', target: 'orrin' });
+  check(has(looked, e => e.kind === 'Examined' && e.object === 'orrin') && !has(looked, e => e.kind === 'Read'), 'examining a person present is never turned into reading an Object out of reach');
+}
+
 section('early log read');
 {
   const r = new Run('early_log', 22);
@@ -497,6 +527,37 @@ section('pinned 5: a player can accuse anyone met; examine and use reach people'
   check(inCandidateSet({ kind: 'intent', verb: 'use', target: 'tackle_chest', secondary: 'orrin' }, r.cand()), 'use … on accepts a person present');
   check(!inCandidateSet({ kind: 'intent', verb: 'take', target: 'orrin' }, r.cand()) && !inCandidateSet({ kind: 'intent', verb: 'examine', target: 'maud' }, r.cand()),
     'but only for those verbs, and only someone present');
+  // What the prose says a thing or person is, the parser can resolve to it: the latch is on the chest.
+  const jettyCands = r.cand();
+  check(jettyCands.objects.find(o => o.id === 'tackle_chest')?.description.some(b => b.includes('latch')) === true
+    && jettyCands.location.description.some(b => b.includes('tackle chest')) && jettyCands.persons.every(p => p.description.length > 0),
+    'candidates carry the beats the narrator describes the location, objects and persons from');
+  // Flavour the narrator made canon is part of what the prose has said: a detail it invented resolves too.
+  const hinge = 'One brass hinge is green with salt.';
+  const observed = candidates(story, apply(story, r.s, { kind: 'ObservationRecorded', observation: { key: 'chest_hinge', subject: 'tackle_chest', text: hinge } }));
+  check(observed.objects.find(o => o.id === 'tackle_chest')?.description.includes(hinge) === true
+    && !observed.persons.some(p => p.description.includes(hinge)) && !observed.location.description.includes(hinge),
+    'an Observation joins its own subject\'s description, and no other');
+  check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'open', target: 'tackle_chest', secondary: 'latch' }, jettyCands))
+    === '{"kind":"intent","verb":"open","target":"tackle_chest"}', 'a field the verb does not read is dropped, not fatal: "break the latch" stays open the chest');
+  check(confineSelection({ kind: 'intent', verb: 'open', target: 'latch' }, jettyCands).kind === 'none', 'a field the verb reads is still confined to the set');
+  // A real id in a slot the verb does not read is a misplaced argument: moved to the one slot that takes it,
+  // never dropped into a weaker intent (talk to nobody, an accusation of nobody).
+  const moved: Array<[Selection, string]> = [
+    [{ kind: 'intent', verb: 'talk', target: 'orrin' }, '{"kind":"intent","verb":"talk","person":"orrin"}'],
+    [{ kind: 'intent', verb: 'deduce', facts: [], target: 'orrin' }, '{"kind":"intent","verb":"deduce","facts":[],"person":"orrin"}'],
+    [{ kind: 'intent', verb: 'move', target: 'to_kitchen' }, '{"kind":"intent","verb":"move","exit":"to_kitchen"}'],
+    [{ kind: 'intent', verb: 'show', target: 'tackle_chest', secondary: 'orrin' }, '{"kind":"intent","verb":"show","target":"tackle_chest","person":"orrin"}'],
+  ];
+  check(moved.every(([sel, want]) => JSON.stringify(confineSelection(sel, jettyCands)) === want),
+    'a real id in an unread field moves to the one slot that takes it', JSON.stringify(moved.map(([sel]) => confineSelection(sel, jettyCands))));
+  check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'ask', person: 'orrin', topic: 'whistle_at_neck' }, jettyCands)) === '{"kind":"intent","verb":"ask","person":"orrin"}',
+    'an invented topic is dropped: ask with no topic, the designed deflection');
+  check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'open', target: 'to_kitchen' }, jettyCands)) === '{"kind":"intent","verb":"move","exit":"to_kitchen"}',
+    'open with an exit as target is a move through it');
+  check(confineSelection({ kind: 'intent', verb: 'close', target: 'to_kitchen' }, jettyCands).kind === 'none', 'but closing a way is not going through it: none');
+  check(confineSelection({ kind: 'intent', verb: 'use', person: 'tackle_chest' }, jettyCands).kind === 'none',
+    'where two slots could take it (use: target or secondary), it stays none');
   const accused = r.go('it was the woman in oilskins', { verb: 'deduce', facts: [], person: 'ines' });
   const ctx = buildNarrationContext(story, r.s, accused, 'compact');
   check(!fired(accused, 'deduce_cook') && JSON.stringify(ctx.personsNamed) === '[{"id":"ines","label":"the woman in oilskins"}]',

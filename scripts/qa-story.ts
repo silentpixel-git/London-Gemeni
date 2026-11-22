@@ -52,6 +52,23 @@ const FIXTURES = join('packages', 'schema', 'fixtures');
   else fail('take <person> must not validate');
 }
 
+// 1d. Examining an Object with a document is reading it, so an examine-only trigger on one never fires.
+{
+  const raw = loadStoryDir(join(FIXTURES, 'stress')) as { rules: unknown[] };
+  const beat = [{ kind: 'playBeat', beats: ['The ink is faded.'] }];
+  raw.rules.push(
+    { id: 'qa_examine_doc', trigger: { kind: 'action', verb: ['examine'], target: ['keeper_log'] }, once: true, effects: beat },
+    { id: 'qa_examine_mixed', trigger: { kind: 'action', verb: ['examine'], target: ['keeper_log', 'tackle_chest'] }, once: true, effects: beat },
+    { id: 'qa_examine_or_read_doc', trigger: { kind: 'action', verb: ['examine', 'read'], target: ['keeper_log'] }, once: true, effects: beat },
+  );
+  const about = (id: string) => validateStory(raw).issues.filter(i => i.at.startsWith(`rules/${id}/`));
+  if (about('qa_examine_doc').some(i => i.level === 'fail' && i.message.includes('never fires'))
+    && about('qa_examine_mixed').some(i => i.level === 'warn' && i.message.includes('reads it')) && !about('qa_examine_mixed').some(i => i.level === 'fail')
+    && about('qa_examine_or_read_doc').length === 0)
+    pass('an examine-only trigger on documents only fails; on a mix it warns; one that also lists read passes');
+  else { fail('examine-only triggers on documents: dead must fail, partly dead must warn'); show([...about('qa_examine_doc'), ...about('qa_examine_mixed'), ...about('qa_examine_or_read_doc')]); }
+}
+
 // 2. An empty Story does not.
 {
   const r = validateStory(loadStoryDir(join(FIXTURES, 'empty')));

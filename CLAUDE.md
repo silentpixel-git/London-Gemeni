@@ -23,6 +23,8 @@ Read before touching `packages/`, `server/` or `api/`, in this order: `GLOSSARY.
 
 **The invariant:** the engine decides, the AI narrates. Every Fact (a clue, an exit, where a thing or person is, who knows what) is created only by the engine. The narrator may improvise Flavour, which is recorded as an Observation, and the server-side invention gate rejects names and numbers the turn's context does not hold. The engine stays general: content that does not fit asks "what general mechanism is missing?", never for a story-shaped special case.
 
+**Coherence over specificity.** What the game has shown the player, it knows: anything the prose describes resolves to the thing it belongs to, and a response the engine cannot make specific is generic rather than contradictory. A miss comes to nothing; it never denies what the player was shown.
+
 ## Commands
 
 ```bash

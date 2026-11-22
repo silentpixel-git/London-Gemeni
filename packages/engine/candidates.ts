@@ -3,9 +3,15 @@
 //
 // CONTRACT (Phase 1):
 //   verbs      all Verbs (the set is fixed; the model chooses)
+//   location   this location's name; description = its beats, then its Observations
 //   objects    visibleObjects(here) as 'here' (an object inside an open visible container is still 'here'),
-//              inventory as 'carried'. Never hidden objects. name = story name.
-//   persons    personsPresent, name = introduced ? name : alias ?? name
+//              inventory as 'carried'. Never hidden objects. name = story name; description = its beats,
+//              then its Observations.
+//   persons    personsPresent, name = introduced ? name : alias ?? name; description = their beats, then
+//              their Observations.
+//              Descriptions are what the narrator describes from plus the Flavour it has already made
+//              canon, so whatever the prose has said is on a thing or a person can be resolved to it.
+//              The Candidate Set never reaches the client.
 //   exits      this location's exits (locked ones included: trying them is a valid intent)
 //   topics     for each present person P and each Fact F:
 //                canTell(P,F) → one entry per topic phrase, direction 'ask'
@@ -17,6 +23,9 @@ import { canTell, inventory, personsPresent, visibleObjects, type State } from '
 
 export function candidates(story: Story, s: State): CandidateSet {
   const objName = (id: Id) => story.objects.find(o => o.id === id)!.name;
+  /** Authored beats, then the Observations recorded about it: everything the prose has said of it. */
+  const describe = (id: Id, beats: string[]) => [...beats, ...s.observations.filter(o => o.subject === id).map(o => o.text)];
+  const objBeats = (id: Id) => describe(id, story.objects.find(o => o.id === id)!.beats);
   const carried = inventory(s);
   const persons = personsPresent(story, s);
   const loc = story.locations.find(l => l.id === s.location)!;
@@ -33,11 +42,12 @@ export function candidates(story: Story, s: State): CandidateSet {
   };
   return {
     verbs: [...Verb.options],
+    location: { name: loc.name, description: describe(loc.id, loc.beats) },
     objects: [
-      ...visibleObjects(s, s.location).map(id => ({ id, name: objName(id), where: 'here' as const })),
-      ...carried.map(id => ({ id, name: objName(id), where: 'carried' as const })),
+      ...visibleObjects(s, s.location).map(id => ({ id, name: objName(id), where: 'here' as const, description: objBeats(id) })),
+      ...carried.map(id => ({ id, name: objName(id), where: 'carried' as const, description: objBeats(id) })),
     ],
-    persons: persons.map(id => ({ id, name: label(id) })),
+    persons: persons.map(id => ({ id, name: label(id), description: describe(id, story.persons.find(x => x.id === id)!.beats) })),
     exits: loc.exits.map(x => ({ id: x.id, names: x.names })),
     topics,
     knownFacts: story.facts.filter(f => s.knows.player[f.id]).map(f => ({ id: f.id, statement: f.statement })),

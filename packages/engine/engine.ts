@@ -5,7 +5,7 @@ import type { EventPayload, Selection, Story, Verb } from '../schema/index.js';
 import { candidates } from './candidates.js';
 import { turnRng, type Rng } from './rng.js';
 import { cascade, chooseByWeight, clueEvents, eligibleTickRules, fireRule, firingsFrom, type Firing } from './rules.js';
-import { apply, initialState, personsPresent, type State } from './state.js';
+import { apply, initialState, inventory, personsPresent, visibleObjects, type State } from './state.js';
 import { resolveVerb, type Intent } from './verbs.js';
 
 export { candidates };
@@ -50,8 +50,13 @@ export function resolveTurn(story: Story, state: State, input: TurnInput, rng: R
       advanceClock(t, MINUTES.look);
       return t.result();
     case 'intent': {
-      const { kind: _k, ...intent } = input.selection;
-      t.emit({ kind: 'IntentSelected', ...intent });
+      const { kind: _k, ...selected } = input.selection;
+      t.emit({ kind: 'IntentSelected', ...selected });
+      // Examining a document is reading it: a player who looks closely at a letter, a ledger or a
+      // gauge means to take in what it says. The turn resolves, fires Rules and costs time as a read.
+      const inReach = (id?: string) => !!id && (visibleObjects(t.state, t.state.location).includes(id) || inventory(t.state).includes(id));
+      const examinesDocument = selected.verb === 'examine' && inReach(selected.target) && !!story.objects.find(o => o.id === selected.target)?.document;
+      const intent = examinesDocument ? { ...selected, verb: 'read' as const } : selected;
       if (intent.verb === 'wait') { tickInto(t, MINUTES.wait, rng); return t.result(); }
 
       // Who is here before the verb: anyone here after it, or after the Rules it sets off, has arrived.

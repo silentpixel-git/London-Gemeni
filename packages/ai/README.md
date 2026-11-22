@@ -15,5 +15,5 @@ Rules of the seam:
 
 - `packages/engine` never imports this package.
 - Adapters never add instructions to a prompt. Prompt text lives in `prompts.ts` only.
-- Every reply is validated with the Zod schema (`Selection`, `NarrationResult`) before it leaves the adapter. A `Selection` naming an id outside the Candidate Set is replaced by `{kind:'none'}` in the adapter, and the turn endpoint validates again.
+- Every reply is validated with the Zod schema (`Selection`, `NarrationResult`) before it leaves the adapter. A `Selection` naming an id outside the Candidate Set is replaced by `{kind:'none'}` in the adapter, and the turn endpoint validates again. Before that check, `trimSelection` drops a field the verb does not read when its value names nothing in the set (a stray word), and moves a real id from such a field to the one empty slot of the verb that takes it; where no slot or several would, the Selection becomes `none`. An `open` whose target is an exit becomes a `move` through it.
 - `narrate` streams `text` deltas as they arrive and ends with one `done` chunk carrying the parsed `NarrationResult`. If the gate rejects the result, the endpoint asks once more with the inventions named; a second rejection falls back to the Beats alone.

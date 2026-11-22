@@ -8,9 +8,10 @@
 //
 //   look        → Looked
 //   inventory   → InventoryChecked
-//   examine T   → Examined{T}; T must be visible here or carried; a person may be examined (Examined{person id})
+//   examine T   → Examined{T}; T must be visible here or carried; a person may be examined (Examined{person id}).
+//                 An Object with a document never reaches here as examine: resolveTurn reads it instead.
 //   read T      → Read{T}; T visible or carried; if T.fact and the player does not know it → FactLearned{player, fact}
-//   take T      → Taken{T}; T an item, visible here (incl. inside an open visible container), not carried
+//   take T      → Taken{T}; T an item, visible here (incl. inside an open visible container); already carried → 'you already have it'
 //   drop T      → Dropped{T}; T carried
 //   open T      → T a container visible here or carried: closed → Opened; locked → lockOpen(lock) ? Opened : OpenBlocked{lock}; open → IntentRejected
 //   close T     → T an open container visible or carried → Closed
@@ -18,7 +19,7 @@
 //   combine T S → Combined{[T,S]}; both carried or visible here; no self-combine
 //   show T to P → Shown{T,P}; T carried; P present; then if T.fact and the player knows it and P does not already → FactDisclosed{player→P}
 //   give T to P → Given{T,P}; same conditions; same disclosure
-//   talk P      → Spoke{P}; P present
+//   talk P      → Spoke{P, greeting}; P present
 //   ask P topic → P present; topic a fact id:
 //                 canTell(P, fact) → Spoke{P, fact}, FactDisclosed{P→player}
 //                 else player knows fact and P does not → Spoke{P, fact}, FactDisclosed{player→P}
@@ -67,7 +68,8 @@ export function resolveVerb(story: Story, s: State, intent: Intent): EventPayloa
       return [{ kind: 'Read', object: t }, ...(fact && !s.knows.player[fact] ? [{ kind: 'FactLearned', person: 'player', fact } as EventPayload] : [])];
     }
     case 'take':
-      if (!t || !here.includes(t) || carried.includes(t)) return reject(NO_THING);
+      if (t && carried.includes(t)) return reject('you already have it');
+      if (!t || !here.includes(t)) return reject(NO_THING);
       return obj(t)?.item ? [{ kind: 'Taken', object: t }] : reject('it cannot be carried');
     case 'drop':
       return t && carried.includes(t) ? [{ kind: 'Dropped', object: t }] : reject('you are not carrying that');
@@ -96,7 +98,7 @@ export function resolveVerb(story: Story, s: State, intent: Intent): EventPayloa
       return [intent.verb === 'show' ? { kind: 'Shown', object: t, person: p } : { kind: 'Given', object: t, person: p }, ...disclose];
     }
     case 'talk':
-      return isHere(p) ? [{ kind: 'Spoke', person: p }] : reject(NO_ONE);
+      return isHere(p) ? [{ kind: 'Spoke', person: p, greeting: true }] : reject(NO_ONE);
     case 'ask': {
       if (!isHere(p)) return reject(NO_ONE);
       const fact = intent.topic;

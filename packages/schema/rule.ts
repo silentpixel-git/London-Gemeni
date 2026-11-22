@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { Conditions, Disposition, Id, Lock, PersonOrPlayer, Placement, Verb, ClockMinutes } from './common.js';
 
 export const Trigger = z.discriminatedUnion('kind', [
-  /** A built-in verb resolved on a target. Empty arrays mean "any". */
+  /** A built-in verb resolved on a target. Empty arrays mean "any". The verb is the one resolved: examining an Object with a document is a read. */
   z.object({
     kind: z.literal('action'),
     verb: z.array(Verb).min(1),

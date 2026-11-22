@@ -7,7 +7,8 @@
 //   personsNamed         persons a turnEvent names (person, suspect, from, to) who are not present, labelled as above
 //   events               turnEvents verbatim
 //   beats                flattened from s.beats (BeatQueued this turn), plus Location.beats on Moved/Looked,
-//                        Object.beats on Examined, Object.document on Read, Ending.beats on GameEnded
+//                        Object.beats on Examined, Object.document on Read (after Object.beats when the player
+//                        examined it: examining a document reads it), Ending.beats on GameEnded
 //   facts                Facts disclosed or learned by the player THIS turn (from turnEvents), with the
 //                        speaker's voice where a FactDisclosed came from a person who has one
 //   observations         s.observations whose subject is the location, a present person, or a visible/carried object
@@ -28,13 +29,14 @@ export function buildNarrationContext(story: Story, s: State, turnEvents: EventP
   const visible = [...visibleObjects(s, s.location), ...inventory(s)];
 
   const beats: string[] = [];
+  const examining = turnEvents.some(e => e.kind === 'IntentSelected' && e.verb === 'examine');
   if (mode === 'opening') beats.push(...story.opening.beats);
   for (const b of s.beats) beats.push(...b.beats);
   for (const e of turnEvents) {
     if (e.kind === 'Moved') beats.push(...(story.locations.find(l => l.id === e.to)?.beats ?? []));
     else if (e.kind === 'Looked') beats.push(...loc.beats);
     else if (e.kind === 'Examined') beats.push(...(obj(e.object)?.beats ?? []));
-    else if (e.kind === 'Read') { const d = obj(e.object)?.document; if (d) beats.push(d); }
+    else if (e.kind === 'Read') { const o = obj(e.object); if (examining) beats.push(...(o?.beats ?? [])); if (o?.document) beats.push(o.document); }
     else if (e.kind === 'GameEnded') beats.push(...(story.endings.find(x => x.id === e.ending)?.beats ?? []));
   }
 
@@ -113,14 +115,19 @@ export function fallbackProse(story: Story, ctx: NarrationContext): string {
       case 'Moved': lines.push(`You go to ${(story.locations.find(l => l.id === e.to)?.name ?? 'the next place').replace(/^The /, 'the ')}.`); break;
       case 'MoveBlocked': lines.push(`It is ${e.reason}.`); break;
       case 'OpenBlocked': lines.push('It is locked.'); break;
-      case 'Spoke': if (!e.fact) lines.push(sentence(`${who(e.person)} has nothing to add.`)); break;
+      case 'Spoke':
+        // A greeting invites a question only when nothing this turn gave them something to say.
+        if (e.greeting) { if (!ctx.beats.length && !ctx.facts.length) lines.push(sentence(`${who(e.person)} waits for you to ask something in particular.`)); }
+        else if (!e.fact) lines.push(sentence(`${who(e.person)} has nothing to add.`));
+        break;
       // What a person told the player is the substance of an ask; the context already holds it.
       case 'FactDisclosed': {
         const f = e.to === 'player' && e.from !== 'player' ? ctx.facts.find(x => x.id === e.fact) : undefined;
         if (f) lines.push(sentence(`${who(e.from)} tells you: "${f.voice ?? f.statement}"`));
         break;
       }
-      case 'IntentRejected': lines.push(selected ? sentence(e.reason) : 'There is nothing of the kind to hand.'); break;
+      // A miss never denies that something exists: the player may be acting on a thing the prose described.
+      case 'IntentRejected': lines.push(selected ? sentence(e.reason) : 'Nothing comes of it.'); break;
       case 'Looked': lines.push('You look around.'); break;
       case 'InventoryChecked': lines.push('You check what you are carrying.'); break;
       case 'Deduced': lines.push(`You lay out your reasoning${e.suspect ? `, naming ${who(e.suspect)}` : ''}.`); break;
