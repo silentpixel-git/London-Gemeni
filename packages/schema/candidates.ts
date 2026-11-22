@@ -70,18 +70,31 @@ export const VERB_FIELDS: Record<Verb, readonly IntentField[]> = {
  *     inCandidateSet answers none, never a weaker intent the engine would accept;
  *   - an ask's topic that names nothing: dropped, since ask with no topic is the
  *     designed answer to a subject the person has nothing on (an honest deflection);
- *   - open with an exit as its target ("open the cellar door"): a move through that
- *     exit, the one action the engine has on a way, so a locked one answers with its
- *     lockedBeat instead of the turn coming to nothing.
+ *   - a value that is exactly one candidate's name rather than its id ("bar" for the
+ *     exit named "bar"): that candidate's id;
+ *   - open or use on an exit, or anything used on one ("open the cellar door", "lift
+ *     the bar", "unlock the door with the key"): a move through that exit, the one
+ *     action the engine has on a way, so a locked one answers with its lockedBeat
+ *     and a carried key opens it, instead of the turn coming to nothing.
  * Other fields the verb reads are left for inCandidateSet to judge. The prover offers
  * only read fields holding ids from the set, so this never changes what it proves.
  */
 export function trimSelection(sel: Selection, set: CandidateSet): Selection {
   if (sel.kind !== 'intent') return sel;
-  if (sel.verb === 'open' && sel.target && !sel.exit && set.exits.some(x => x.id === sel.target) && !set.objects.some(o => o.id === sel.target)) {
-    const { target, ...rest } = sel;
-    return trimSelection({ ...rest, verb: 'move', exit: target }, set);
-  }
+  const named = (v: string | undefined) => {
+    if (v === undefined || [...set.objects, ...set.exits, ...set.persons].some(c => c.id === v)) return v;
+    const key = v.trim().toLowerCase().replace(/^the /, '');
+    const hits = [
+      ...set.exits.filter(x => x.names.some(n => n.toLowerCase().replace(/^the /, '') === key)).map(x => x.id),
+      ...set.objects.filter(o => o.name.toLowerCase().replace(/^the /, '') === key).map(o => o.id),
+    ];
+    return hits.length === 1 ? hits[0] : v;
+  };
+  sel = { ...sel, ...(sel.target ? { target: named(sel.target) } : {}), ...(sel.secondary ? { secondary: named(sel.secondary) } : {}) };
+  const isExit = (v?: string) => !!v && set.exits.some(x => x.id === v) && !set.objects.some(o => o.id === v);
+  const way = (sel.verb === 'open' || sel.verb === 'use') && !sel.exit
+    ? (isExit(sel.target) ? sel.target : sel.verb === 'use' && isExit(sel.secondary) ? sel.secondary : undefined) : undefined;
+  if (way) return { kind: 'intent', verb: 'move', exit: way };
   const reads: readonly string[] = VERB_FIELDS[sel.verb];
   const ids = new Set<string>([
     ...set.objects.map(o => o.id), ...set.persons.map(p => p.id), ...set.suspects.map(p => p.id),

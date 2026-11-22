@@ -37,7 +37,7 @@
     "openPeriods": [
       "afternoon"
     ],
-    "closedBeat": "The loft is padlocked until the netters come in with the afternoon tide.",
+    "closedBeat": "The loft is shut until the netters come in with the afternoon tide.",
     "exits": [
       {
         "id": "to_jetty",
@@ -71,7 +71,9 @@
         "names": [
           "store",
           "the oil store",
-          "cellar door"
+          "cellar door",
+          "store door",
+          "padlock"
         ],
         "to": "oil_store",
         "lock": {
@@ -85,14 +87,15 @@
         "names": [
           "tower",
           "the tower door",
-          "stair"
+          "stair",
+          "bar"
         ],
         "to": "tower_stair",
         "lock": {
           "kind": "flag",
           "flag": "tower_unbarred"
         },
-        "lockedBeat": "The tower door is barred from this side, and the cook has the say of it."
+        "lockedBeat": "The bar across the tower door is chained down, and the cook has the say of it."
       }
     ]
   },
@@ -146,7 +149,7 @@
     "id": "lamp_room",
     "name": "The Lamp Room",
     "beats": [
-      "A glass cage at the top of the tower, the great lens standing dark at its centre with a sheet thrown over the clockwork."
+      "A glass cage at the top of the tower, the great lens standing dark at its centre."
     ],
     "exits": [
       {

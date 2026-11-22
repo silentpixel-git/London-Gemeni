@@ -305,6 +305,11 @@ section('act 2 / combine / deduce');
   check(draw(0.1) === 'tick_fog_bell' && draw(0.9) === 'tick_lens_dull', 'weighted draw picks among the fog bell and the dull lens');
 
   check(has(r.idle(15, 0.9), e => e.kind === 'TickResolved' && e.rule === 'tick_lens_dull'), 'logged tick: the dull lens');
+  // The prose invites lighting the lamp and putting the wick in the burner: both answer, and point at the real step.
+  const light = r.go('light the lamp', { verb: 'use', target: 'lamp_lens' });
+  check(fired(light, 'lamp_wants_wick') && !r.s.flags.lamp_primed, 'light the lamp: the dry burner answers, and primes nothing');
+  const wick = r.go('put the wick in the burner', { verb: 'use', target: 'lamp_wick', secondary: 'lamp_lens' });
+  check(fired(wick, 'wick_wants_oil') && !fired(wick, 'prime_lamp'), 'the wick in the burner: soak it first, and primes nothing');
   const comb = r.go('combine wick and can', { verb: 'combine', target: 'lamp_wick', secondary: 'oil_can' });
   check(has(comb, e => e.kind === 'Combined') && fired(comb, 'prime_lamp'), 'combine → prime_lamp (item order does not matter)');
   check(r.cand().objects.some(o => o.id === 'torn_page') && !r.cand().objects.some(o => o.id === 'dust_sheet'), 'the combine revealed the page and hid the dust sheet');
@@ -370,6 +375,15 @@ section('examining a document reads it');
   const c = new Run('id_clash', 25, clash);
   const looked = c.go('examine the boatman', { verb: 'examine', target: 'orrin' });
   check(has(looked, e => e.kind === 'Examined' && e.object === 'orrin') && !has(looked, e => e.kind === 'Read'), 'examining a person present is never turned into reading an Object out of reach');
+}
+
+section('using one thing on another fires a combine Rule');
+{
+  const r = new Run('use_as_combine', 26);
+  toAct2(r);
+  const soak = r.go('soak the wick in the oil', { verb: 'use', target: 'lamp_wick', secondary: 'oil_can' });
+  check(has(soak, e => e.kind === 'Used') && fired(soak, 'prime_lamp') && r.s.flags.lamp_primed === true, 'use the wick on the oil can primes the lamp, as combining them does');
+  check(r.replays(), 'use-as-combine replays exactly');
 }
 
 section('early log read');
@@ -556,6 +570,16 @@ section('pinned 5: a player can accuse anyone met; examine and use reach people'
   check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'open', target: 'to_kitchen' }, jettyCands)) === '{"kind":"intent","verb":"move","exit":"to_kitchen"}',
     'open with an exit as target is a move through it');
   check(confineSelection({ kind: 'intent', verb: 'close', target: 'to_kitchen' }, jettyCands).kind === 'none', 'but closing a way is not going through it: none');
+  const kitchenRun = new Run('names', 27); kitchenRun.move('to_kitchen');
+  const kc = kitchenRun.cand();
+  const ways: Array<[Selection, string]> = [
+    [{ kind: 'intent', verb: 'use', target: 'bar' }, 'to_tower'],          // "lift the bar": the exit's name, not its id
+    [{ kind: 'intent', verb: 'open', target: 'padlock' }, 'to_store'],     // "unlock the padlock"
+    [{ kind: 'intent', verb: 'use', target: 'store_key', secondary: 'to_store' }, 'to_store'], // "unlock the store door with the key"
+  ];
+  check(ways.every(([sel, exit]) => JSON.stringify(confineSelection(sel, kc)) === JSON.stringify({ kind: 'intent', verb: 'move', exit })),
+    'a way named by its name, or opened, used or used on, is moved through', JSON.stringify(ways.map(([sel]) => confineSelection(sel, kc))));
+  check(confineSelection({ kind: 'intent', verb: 'examine', target: 'bar' }, kc).kind === 'none', 'examining a way is not going through it');
   check(confineSelection({ kind: 'intent', verb: 'use', person: 'tackle_chest' }, jettyCands).kind === 'none',
     'where two slots could take it (use: target or secondary), it stays none');
   const accused = r.go('it was the woman in oilskins', { verb: 'deduce', facts: [], person: 'ines' });

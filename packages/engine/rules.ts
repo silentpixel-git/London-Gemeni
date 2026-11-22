@@ -33,6 +33,8 @@ export function firingsFrom(story: Story, events: EventPayload[]): Firing[] {
       case 'ActEntered': out.push({ kind: 'enter', location: story.acts.find(a => a.id === e.act)!.anchorLocation }); break;
       case 'FlagSet': out.push({ kind: 'flag', flag: e.flag }); break;
       case 'Combined': out.push({ kind: 'combine', items: e.items }); break;
+      /** Using one Object on another is bringing the two together: "soak the wick in the oil" is a use or a combine as the parser reads it. */
+      case 'Used': if (e.on && e.on !== e.object && story.objects.some(o => o.id === e.on)) out.push({ kind: 'combine', items: [e.object, e.on] }); break;
       case 'FactDisclosed': out.push({ kind: 'disclosed', fact: e.fact, from: e.from, to: e.to }); break;
       case 'Deduced': out.push({ kind: 'deduction', facts: e.facts, suspect: e.suspect }); break;
       default: break;

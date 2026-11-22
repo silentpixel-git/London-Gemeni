@@ -6,7 +6,7 @@
       "chest"
     ],
     "beats": [
-      "A salt-stiffened sea chest with a rope handle and a stubborn latch."
+      "A salt-stiffened sea chest with a rope handle, its lid held shut by a stubborn latch."
     ],
     "placement": {
       "kind": "location",
@@ -106,7 +106,7 @@
   },
   {
     "id": "hatch_hinge",
-    "name": "hatch hinge",
+    "name": "iron hinge",
     "aliases": [
       "hinge"
     ],
@@ -157,7 +157,7 @@
       "lens"
     ],
     "beats": [
-      "Rings of glass prisms taller than a man."
+      "The great lamp: rings of glass prisms taller than a man, around a cold brass burner."
     ],
     "placement": {
       "kind": "location",
@@ -188,7 +188,7 @@
       "sheet"
     ],
     "beats": [
-      "A canvas sheet spread over the clockwork."
+      "A canvas sheet over the clockwork, its edge pinned under the burner's frame."
     ],
     "placement": {
       "kind": "location",

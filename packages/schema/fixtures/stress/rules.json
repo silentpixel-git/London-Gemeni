@@ -50,7 +50,7 @@
   { "id": "free_hatch", "trigger": { "kind": "action", "verb": ["use"], "target": ["hatch_hinge"] }, "when": { "location": ["tower_stair"], "flagsAll": ["hatch_trick_known"] }, "once": true,
     "effects": [
       { "kind": "unlockExit", "location": "tower_stair", "exit": "to_lamp_room" },
-      { "kind": "playBeat", "beats": ["A smear of tallow on the hinge, a shove, and the hatch swings free."] }
+      { "kind": "playBeat", "beats": ["You put your shoulder to the hinge, and the hatch swings free."] }
     ] },
   { "id": "lamp_room_reached", "trigger": { "kind": "enter", "location": "lamp_room" }, "when": { "act": [1] }, "once": true,
     "effects": [ { "kind": "advanceAct", "act": 2 } ] },
@@ -64,17 +64,21 @@
   { "id": "orrin_promises_wick", "trigger": { "kind": "flag", "flag": "orrin_at_loft" }, "once": true,
     "effects": [
       { "kind": "setFlag", "flag": "wick_promised" },
-      { "kind": "playBeat", "beats": ["Orrin shrugs and says the spare wick is in the lamp room drawer, if anyone ever gets up there."] }
+      { "kind": "playBeat", "beats": ["Orrin shrugs and says he left a spare wick up in the lamp room, if anyone ever gets up there."] }
     ] },
   { "id": "drawer_wick", "trigger": { "kind": "enter", "location": "lamp_room" }, "when": { "act": [2], "flagsAll": ["wick_promised"] }, "once": true,
     "effects": [
       { "kind": "giveItem", "object": "lamp_wick" },
-      { "kind": "playBeat", "beats": ["The drawer under the burner holds exactly the coil of wick Orrin promised."] }
+      { "kind": "playBeat", "beats": ["The coil of wick Orrin promised is where he left it, and you pocket it."] }
     ] },
   { "id": "lens_examined", "trigger": { "kind": "action", "verb": ["examine"], "target": ["lamp_lens"] }, "when": { "act": [2] }, "once": true,
     "effects": [ { "kind": "setFlag", "flag": "lens_inspected" } ] },
   { "id": "lens_flaw_noted", "trigger": { "kind": "flag", "flag": "lens_inspected" }, "when": { "act": [2] }, "once": true,
     "effects": [ { "kind": "grantFact", "person": "player", "fact": "lens_is_cracked" } ] },
+  { "id": "lamp_wants_wick", "trigger": { "kind": "action", "verb": ["use"], "target": ["lamp_lens"] }, "when": { "flagsNone": ["lamp_primed"] }, "once": false,
+    "effects": [ { "kind": "playBeat", "beats": ["The burner is dry and bare; it will take no flame until a wick soaked in oil is worked into it."] } ] },
+  { "id": "wick_wants_oil", "trigger": { "kind": "action", "verb": ["use"], "target": ["lamp_wick", "oil_can"], "secondary": ["lamp_lens"] }, "when": { "flagsNone": ["lamp_primed"] }, "once": false,
+    "effects": [ { "kind": "playBeat", "beats": ["The burner wants the wick and the oil together: the wick soaked first, then worked in."] } ] },
   { "id": "polish_lens", "trigger": { "kind": "action", "verb": ["use"], "target": ["soft_cloth"], "secondary": ["lamp_lens"] }, "once": true,
     "effects": [
       { "kind": "setFlag", "flag": "lens_polished" },
