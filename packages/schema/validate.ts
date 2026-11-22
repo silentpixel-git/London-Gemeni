@@ -319,6 +319,18 @@ export function validateStory(raw: unknown): ValidationResult {
   for (const e of story.endings) if (!endingsReached.has(e.id)) fail(`endings/${e.id}`, 'no endGame effect reaches this ending');
   if (story.endings.length > 0 && endingsReached.size === 0) fail('rules', 'no rule ends the game');
 
+  // ── One pair, two Rules: using one item on the other fires both ─────────────
+  for (const c of story.rules) {
+    if (c.trigger.kind !== 'combine') continue;
+    const pair = [...c.trigger.items].sort().join('|');
+    for (const u of story.rules) {
+      const t = u.trigger;
+      if (t.kind !== 'action' || !t.verb.includes('use') || !t.target?.length || !t.secondary?.length) continue;
+      if (t.target.some(a => t.secondary!.some(b => [a, b].sort().join('|') === pair)))
+        warn(`rules/${u.id}/trigger`, `using one of "${c.trigger.items.join('" and "')}" on the other also fires the combine Rule "${c.id}": both land in one turn`);
+    }
+  }
+
   // ── Spoiler scan: a Fact's terms must not appear in beats seen earlier ────
   for (const f of story.facts) {
     if (!f.spoilerTerms?.length || f.visibleFromAct <= firstAct) continue;

@@ -343,6 +343,8 @@ section('the prose\'s world, on this Story');
     'a person in the wrong slot moves to the slot talk reads');
   check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'open', target: 'study_door' }, hall)) === '{"kind":"intent","verb":"move","exit":"study_door"}',
     'opening a door that is an exit is trying the way: open the study door moves through it');
+  check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'use', target: 'brass_key', secondary: 'study door' }, hall)) === '{"kind":"intent","verb":"move","exit":"study_door"}',
+    'a key used on a door, named by its name rather than its id, is trying the way');
   const miss = resolveTurn(story, w, { text: 'draw the curtains', selection: { kind: 'none', reason: 'no candidate' } });
   check(fallbackProse(story, buildNarrationContext(story, miss.state, miss.events, 'compact')) === 'Nothing comes of it.',
     'a miss on scenery comes to nothing, and denies nothing');
@@ -351,7 +353,8 @@ section('the prose\'s world, on this Story');
   step({ verb: 'move', exit: 'study_door' });
   const desk = step({ verb: 'examine', target: 'desk' });
   check(has(desk.events, e => e.kind === 'Examined' && e.object === 'desk') && !has(desk.events, e => e.kind === 'Read'), 'examining the desk (no document) is an examine');
-  step({ verb: 'combine', target: 'candle', secondary: 'matches' }); // the flame shows the letter
+  const lit = step({ verb: 'use', target: 'matches', secondary: 'candle' }, 'light the candle with the matches');
+  check(fired(lit.events, 'light_candle') && w.objects.letter.hidden === false, 'using the matches on the candle fires this Story\'s combine Rule: the flame shows the letter');
   const letter = step({ verb: 'examine', target: 'letter' }, 'look at the letter');
   const letterObj = story.objects.find(o => o.id === 'letter')!;
   check(has(letter.events, e => e.kind === 'Read' && e.object === 'letter') && has(letter.events, e => e.kind === 'FactLearned' && e.person === 'player' && e.fact === 'letter_confession'),

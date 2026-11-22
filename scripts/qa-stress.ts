@@ -133,8 +133,13 @@ const main = new Run('main', 11);
 
   const closed = r.move('to_loft');
   check(has(closed, e => e.kind === 'MoveBlocked' && e.reason === 'closed' && e.lock === null) && r.s.location === 'jetty', 'morning: the net loft is closed → MoveBlocked{closed}');
+  const loftLine = story.locations.find(l => l.id === 'net_loft')!.closedBeat!;
+  check(buildNarrationContext(story, r.s, closed, 'compact').beats.includes(loftLine), 'the narrator gets the closed place\'s closedBeat', JSON.stringify(buildNarrationContext(story, r.s, closed, 'compact').beats));
 
   const chestShut = r.probe({ verb: 'open', target: 'tackle_chest' }).events;
+  const chestBeats = story.objects.find(o => o.id === 'tackle_chest')!.beats;
+  check(has(chestShut, e => e.kind === 'OpenBlocked') && chestBeats.every(b => buildNarrationContext(story, r.s, chestShut, 'compact').beats.includes(b)),
+    'a locked container\'s own beats reach the narrator when it will not open');
   check(has(chestShut, e => e.kind === 'OpenBlocked' && e.lock.kind === 'flag'), 'the tackle chest is flag-locked until Orrin speaks');
   check(!fired(chestShut, 'chest_creaks'), 'an action Rule on "open chest" must not fire when the open was blocked',
     'ENGINE BUG: resolveTurn raises the action Firing for every verb result except IntentRejected, so OpenBlocked / MoveBlocked still fire action Rules');
@@ -264,9 +269,11 @@ section('act 1 / companion');
   section('lockExit / unlockExit');
   check(fired(main.log, 'hatch_swells') && exitLock(story, r.s, 'tower_stair', 'to_lamp_room')?.kind === 'key', 'entering the stair locked the hatch (lockExit on an authored-open exit)');
   const stuck = r.move('to_lamp_room');
+  const hatchLine = story.locations.find(l => l.id === 'tower_stair')!.exits.find(x => x.id === 'to_lamp_room')!.lockedBeat!;
+  check(buildNarrationContext(story, r.s, stuck, 'compact').beats.includes(hatchLine), 'the narrator gets the locked exit\'s lockedBeat');
   check(has(stuck, e => e.kind === 'MoveBlocked' && e.reason === 'locked' && e.lock?.kind === 'key'), 'hatch: MoveBlocked{locked} with a key lock nobody can fetch');
   const early = r.go('grease the hinge', { verb: 'use', target: 'hatch_hinge' });
-  check(!fired(early, 'free_hatch') && exitLock(story, r.s, 'tower_stair', 'to_lamp_room') !== null, 'using the hinge before learning the trick does nothing');
+  check(!fired(early, 'free_hatch') && fired(early, 'hatch_resists') && exitLock(story, r.s, 'tower_stair', 'to_lamp_room') !== null, 'shoving the hinge before learning the knack: it resists, and the hatch stays shut');
   const trick = r.ask('dov', 'hatch_sticks');
   check(fired(trick, 'hatch_trick_learned') && r.s.flags.hatch_trick_known === true, 'learning the trick (from anyone) sets hatch_trick_known');
   const grease = r.go('grease the hinge', { verb: 'use', target: 'hatch_hinge' });
@@ -305,6 +312,11 @@ section('act 2 / combine / deduce');
   check(draw(0.1) === 'tick_fog_bell' && draw(0.9) === 'tick_lens_dull', 'weighted draw picks among the fog bell and the dull lens');
 
   check(has(r.idle(15, 0.9), e => e.kind === 'TickResolved' && e.rule === 'tick_lens_dull'), 'logged tick: the dull lens');
+  // The prose invites lighting the lamp and putting the wick in the burner: both answer, and point at the real step.
+  const light = r.go('light the lamp', { verb: 'use', target: 'lamp_lens' });
+  check(fired(light, 'lamp_wants_wick') && !r.s.flags.lamp_primed, 'light the lamp: the dry burner answers, and primes nothing');
+  const wick = r.go('put the wick in the burner', { verb: 'use', target: 'lamp_wick', secondary: 'lamp_lens' });
+  check(fired(wick, 'wick_wants_oil') && !fired(wick, 'prime_lamp'), 'the wick in the burner: soak it first, and primes nothing');
   const comb = r.go('combine wick and can', { verb: 'combine', target: 'lamp_wick', secondary: 'oil_can' });
   check(has(comb, e => e.kind === 'Combined') && fired(comb, 'prime_lamp'), 'combine → prime_lamp (item order does not matter)');
   check(r.cand().objects.some(o => o.id === 'torn_page') && !r.cand().objects.some(o => o.id === 'dust_sheet'), 'the combine revealed the page and hid the dust sheet');
@@ -370,6 +382,31 @@ section('examining a document reads it');
   const c = new Run('id_clash', 25, clash);
   const looked = c.go('examine the boatman', { verb: 'examine', target: 'orrin' });
   check(has(looked, e => e.kind === 'Examined' && e.object === 'orrin') && !has(looked, e => e.kind === 'Read'), 'examining a person present is never turned into reading an Object out of reach');
+}
+
+section('using one thing on another fires a combine Rule');
+{
+  const r = new Run('use_as_combine', 26);
+  toAct2(r);
+  const soak = r.go('soak the wick in the oil', { verb: 'use', target: 'lamp_wick', secondary: 'oil_can' });
+  check(has(soak, e => e.kind === 'Used') && fired(soak, 'prime_lamp') && r.s.flags.lamp_primed === true, 'use the wick on the oil can primes the lamp, as combining them does');
+  check(fired(r.go('light the lamp', { verb: 'use', target: 'lamp_lens' }), 'lamp_primed_waits'), 'light the lamp once primed: it waits for dusk');
+  check(r.replays(), 'use-as-combine replays exactly');
+}
+
+section('the lamp room before the loft scene');
+{
+  // Reaching the lamp room in act 1 before Orrin runs for the loft: no promise, but the wick is there.
+  const r = new Run('no_promise', 28);
+  toAct1(r);
+  r.move('to_jetty'); r.ask('orrin', 'cargo_was_barrels');
+  r.go('open chest', { verb: 'open', target: 'tackle_chest' }); r.go('take key', { verb: 'take', target: 'store_key' });
+  r.move('to_kitchen'); r.move('to_store'); r.go('read cask', { verb: 'read', target: 'oil_cask' });
+  r.move('to_kitchen'); r.ask('maud', 'oil_watered');
+  r.move('to_tower'); r.ask('dov', 'hatch_sticks'); r.go('shove the hinge', { verb: 'use', target: 'hatch_hinge' });
+  const up = r.move('to_lamp_room');
+  check(r.s.act === 2 && !r.s.flags.wick_promised && fired(up, 'wick_found') && r.where('lamp_wick').kind === 'inventory', 'act 2 without the promise: the spare wick is found by the lens');
+  check(fired(r.go('soak the wick', { verb: 'combine', target: 'lamp_wick', secondary: 'oil_can' }), 'prime_lamp'), 'and the lamp can still be primed');
 }
 
 section('early log read');
@@ -556,6 +593,22 @@ section('pinned 5: a player can accuse anyone met; examine and use reach people'
   check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'open', target: 'to_kitchen' }, jettyCands)) === '{"kind":"intent","verb":"move","exit":"to_kitchen"}',
     'open with an exit as target is a move through it');
   check(confineSelection({ kind: 'intent', verb: 'close', target: 'to_kitchen' }, jettyCands).kind === 'none', 'but closing a way is not going through it: none');
+  const kitchenRun = new Run('names', 27); kitchenRun.move('to_kitchen');
+  const kc = kitchenRun.cand();
+  const ways: Array<[Selection, string]> = [
+    [{ kind: 'intent', verb: 'use', target: 'bar' }, 'to_tower'],          // "lift the bar": the exit's name, not its id
+    [{ kind: 'intent', verb: 'open', target: 'padlock' }, 'to_store'],     // "unlock the padlock"
+    [{ kind: 'intent', verb: 'use', target: 'store_key', secondary: 'to_store' }, 'to_store'], // "unlock the store door with the key": its own key
+    [{ kind: 'intent', verb: 'open', exit: 'to_store' }, 'to_store'],      // the door in the exit slot
+  ];
+  check(ways.every(([sel, exit]) => JSON.stringify(confineSelection(sel, kc)) === JSON.stringify({ kind: 'intent', verb: 'move', exit })),
+    'a way named by its name, or opened, used or used on, is moved through', JSON.stringify(ways.map(([sel]) => confineSelection(sel, kc))));
+  check(confineSelection({ kind: 'intent', verb: 'examine', target: 'bar' }, kc).kind === 'none', 'examining a way is not going through it');
+  check(confineSelection({ kind: 'intent', verb: 'use', target: 'keeper_log', secondary: 'padlock' }, kc).kind === 'none', 'anything but the way\'s own key used on it is none, not a move');
+  const clashSet = { ...kc, persons: [...kc.persons, { id: 'to_store', name: 'the storeman', description: [] }] };
+  check(confineSelection({ kind: 'intent', verb: 'use', target: 'keeper_log', secondary: 'to_store' }, clashSet).kind === 'intent'
+    && (confineSelection({ kind: 'intent', verb: 'use', target: 'keeper_log', secondary: 'to_store' }, clashSet) as { verb: string }).verb === 'use',
+    'a person sharing an exit\'s id is a person, not a way');
   check(confineSelection({ kind: 'intent', verb: 'use', person: 'tackle_chest' }, jettyCands).kind === 'none',
     'where two slots could take it (use: target or secondary), it stays none');
   const accused = r.go('it was the woman in oilskins', { verb: 'deduce', facts: [], person: 'ines' });

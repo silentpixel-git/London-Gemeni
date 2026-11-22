@@ -137,7 +137,12 @@ function actionsFrom(story: Story, s: State): Action[] {
   for (const r of story.rules) {
     if (r.trigger.kind === 'combine') {
       const [a, b] = r.trigger.items;
-      if (reachable.includes(a) && reachable.includes(b)) offer(`combine ${a} ${b}`, { verb: 'combine', target: a, secondary: b });
+      if (reachable.includes(a) && reachable.includes(b)) {
+        offer(`combine ${a} ${b}`, { verb: 'combine', target: a, secondary: b });
+        // Using one on the other fires the combine Rule too, and any action Rule on the use (rules.ts).
+        offer(`use ${a} on ${b}`, { verb: 'use', target: a, secondary: b });
+        offer(`use ${b} on ${a}`, { verb: 'use', target: b, secondary: a });
+      }
     }
     if (r.trigger.kind === 'deduction') {
       const facts = r.trigger.facts ?? [];

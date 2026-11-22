@@ -12,14 +12,15 @@
 //              Descriptions are what the narrator describes from plus the Flavour it has already made
 //              canon, so whatever the prose has said is on a thing or a person can be resolved to it.
 //              The Candidate Set never reaches the client.
-//   exits      this location's exits (locked ones included: trying them is a valid intent)
+//   exits      this location's exits (locked ones included: trying them is a valid intent); key = the
+//              Object that opens a key lock on it now
 //   topics     for each present person P and each Fact F:
 //                canTell(P,F) → one entry per topic phrase, direction 'ask'
 //                else player knows F and P does not → one entry per phrase, direction 'tell'
 //   knownFacts facts the player knows (for deduce), with statements
 //   suspects   every person the player has met (state.met), by label, in Story order (for deduce)
 import { Verb, type CandidateSet, type Id, type Story } from '../schema/index.js';
-import { canTell, inventory, personsPresent, visibleObjects, type State } from './state.js';
+import { canTell, exitLock, inventory, personsPresent, visibleObjects, type State } from './state.js';
 
 export function candidates(story: Story, s: State): CandidateSet {
   const objName = (id: Id) => story.objects.find(o => o.id === id)!.name;
@@ -48,7 +49,10 @@ export function candidates(story: Story, s: State): CandidateSet {
       ...carried.map(id => ({ id, name: objName(id), where: 'carried' as const, description: objBeats(id) })),
     ],
     persons: persons.map(id => ({ id, name: label(id), description: describe(id, story.persons.find(x => x.id === id)!.beats) })),
-    exits: loc.exits.map(x => ({ id: x.id, names: x.names })),
+    exits: loc.exits.map(x => {
+      const lock = exitLock(story, s, loc.id, x.id);
+      return { id: x.id, names: x.names, ...(lock?.kind === 'key' ? { key: lock.object } : {}) };
+    }),
     topics,
     knownFacts: story.facts.filter(f => s.knows.player[f.id]).map(f => ({ id: f.id, statement: f.statement })),
     suspects: story.persons.filter(p => s.met[p.id]).map(p => ({ id: p.id, name: label(p.id) })),
