@@ -22,12 +22,6 @@ const SPELLED = /\b(three|four|five|six|seven|eight|nine|ten|eleven|twelve|twent
 export interface Invention { kind: 'name' | 'number'; token: string }
 export interface GateVerdict { ok: boolean; inventions: Invention[] }
 
-/**
- * The engine's own numbers, which are not the world's: a Tick's random draw holds
- * most one- and two-digit runs, and the rest are minutes, seeds and counters.
- */
-const ENGINE_NUMBERS = new Set(['draw', 'minutes', 'seed', 'maturesAtBoundary']);
-
 /** Everything the narrator was told this turn, flattened. */
 export function contextHaystack(ctx: NarrationContext): string {
   const parts: string[] = [
@@ -43,7 +37,11 @@ export function contextHaystack(ctx: NarrationContext): string {
     ...ctx.transcript.flatMap(t => t.lines.map(l => l.text)),
     ...ctx.lexicon,
     ...(ctx.narrator ? [ctx.narrator.name, ...ctx.narrator.aliases, ...ctx.narrator.voice] : []),
-    JSON.stringify(ctx.events, (key, value) => (ENGINE_NUMBERS.has(key) ? undefined : value)),
+    // From the events, only what the player typed. The rest are ids and engine numbers: a person's
+    // id is often their real name (licensing it would leak a name before its introduction), and a
+    // Tick's draw or minutes are not the world's numbers. Everything an event refers to reaches the
+    // narrator by label elsewhere in the context.
+    ...ctx.events.flatMap(e => (e.kind === 'TurnReceived' ? [e.text] : [])),
   ];
   return parts.join(' \n ').toLowerCase();
 }

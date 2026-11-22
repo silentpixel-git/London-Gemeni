@@ -199,7 +199,7 @@ async function prepareOnce(body: TurnBody, deps: TurnDeps): Promise<Prepared | R
     const recentTexts = prior.flatMap(e => (e.kind === 'TurnReceived' ? [e.text] : [])).slice(-RECENT_TEXTS);
     // Exact commands skip the model (ADR-0003). The adapter confines too; the endpoint does not trust that it did.
     const chosen = exactSelection(body.text, set) ?? (await deps.ai.select({ text: body.text, candidates: set, recentTexts }));
-    const selection = confineSelection(chosen, set);
+    const selection = confineSelection(chosen, set, body.text);
     events = resolveTurn(story, before, { text: body.text, selection }).events;
   }
 
