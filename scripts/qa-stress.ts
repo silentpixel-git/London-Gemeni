@@ -19,8 +19,8 @@ import { gateNarration } from '../packages/ai/gate';
 import { confineSelection } from '../packages/ai/selection';
 import { loadStoryDir } from '../packages/schema/load';
 import {
-  buildNarrationContext, candidates, eligibleTickRules, chooseByWeight, currentPeriod, exitLock, personLocation, personsPresent,
-  apply, playerView, replay, resolveTurn, startInvestigation, tick, type State,
+  buildNarrationContext, candidates, eligibleTickRules, unintroducedNames, chooseByWeight, currentPeriod, exitLock, personLocation, personsPresent,
+  apply, feedOf, playerView, replay, resolveTurn, startInvestigation, tick, type State,
 } from '../packages/engine';
 import { fixedRng } from '../packages/engine/rng';
 
@@ -409,6 +409,37 @@ section('the lamp room before the loft scene');
   check(fired(r.go('soak the wick', { verb: 'combine', target: 'lamp_wick', secondary: 'oil_can' }), 'prime_lamp'), 'and the lamp can still be primed');
 }
 
+section('names, people examined, mentions, short words');
+{
+  const r = new Run('names_and_words', 30);
+  check(['Ines', 'Tarrow'].every(n => unintroducedNames(story, r.s).includes(n)) && !unintroducedNames(story, r.s).includes('Maud'),
+    'the woman in oilskins\' name is withheld until her introduction; people with no alias are not');
+  const left = r.move('to_kitchen');
+  check(buildNarrationContext(story, r.s, left, 'full', 'jetty').mentions.includes('The Jetty'), 'the place just left reaches the narrator by name (mentions), not by id');
+  const looked = r.go('examine the woman in oilskins', { verb: 'examine', target: 'ines' });
+  const inesBeats = story.persons.find(p => p.id === 'ines')!.beats;
+  check(inesBeats.every(b => buildNarrationContext(story, r.s, looked, 'compact').beats.includes(b)), 'examining a person gives the narrator their beats');
+  r.go('read the log', { verb: 'read', target: 'keeper_log' });
+  check(!unintroducedNames(story, r.s).includes('Ines'), 'once the log introduces her, her name is free');
+  const k = new Run('keys', 32); toAct1(k);
+  const keySel = { kind: 'intent', verb: 'ask', person: 'maud', topic: 'store_key_in_chest' } as const;
+  check((confineSelection(keySel, k.cand(), 'ask maud where the keys are kept') as { topic?: string }).topic === 'store_key_in_chest', 'a plural matches a short topic word ("keys" for "key")');
+}
+
+section('an act that begins where the player stands');
+{
+  // Reading the log in the kitchen turns act 1, whose anchor is the kitchen: a new chapter, not an arrival.
+  const fr = new Run('feed_in_place', 29);
+  const said: EventPayload = { kind: 'Narrated', text: 'prose', beats: [] };
+  const log: EventPayload[] = [...fr.log, said];
+  log.push(...fr.move('to_kitchen'), said);
+  log.push(...fr.ask('ines', 'cargo_was_barrels'), said);
+  log.push(...fr.go('read the log', { verb: 'read', target: 'keeper_log' }), said);
+  const prose = feedOf(story, log).filter(f => f.kind === 'prose') as Array<{ location?: string; actHeading?: string }>;
+  check(fr.s.act === 1 && !!prose.at(-1)?.actHeading && prose.at(-1)?.location === undefined, 'an act begun in place gets its chapter heading and no location heading', JSON.stringify(prose.at(-1)));
+  check(prose[1]?.location === "The Keepers' Kitchen" && !prose[1]?.actHeading, 'walking into the kitchen still heads the prose with the location');
+}
+
 section('early log read');
 {
   const r = new Run('early_log', 22);
@@ -578,6 +609,12 @@ section('pinned 5: a player can accuse anyone met; examine and use reach people'
   check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'open', target: 'tackle_chest', secondary: 'latch' }, jettyCands))
     === '{"kind":"intent","verb":"open","target":"tackle_chest"}', 'a field the verb does not read is dropped, not fatal: "break the latch" stays open the chest');
   check(confineSelection({ kind: 'intent', verb: 'open', target: 'latch' }, jettyCands).kind === 'none', 'a field the verb reads is still confined to the set');
+  // A question about something else keeps no topic: no Fact is handed out unasked.
+  const barrels = { kind: 'intent', verb: 'ask', person: 'orrin', topic: 'cargo_was_barrels' } as const;
+  check(JSON.stringify(confineSelection(barrels, jettyCands, 'ask how long he has been working here')) === '{"kind":"intent","verb":"ask","person":"orrin"}',
+    'a question that shares no word with the topic\'s phrases is asked with no topic (a deflection)');
+  check(['ask him about the barrels', 'what was the cargo?', 'what about that barrel'].every(t => (confineSelection(barrels, jettyCands, t) as { topic?: string }).topic === 'cargo_was_barrels'),
+    'a question in the topic\'s words keeps it');
   // A real id in a slot the verb does not read is a misplaced argument: moved to the one slot that takes it,
   // never dropped into a weaker intent (talk to nobody, an accusation of nobody).
   const moved: Array<[Selection, string]> = [

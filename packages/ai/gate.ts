@@ -22,12 +22,6 @@ const SPELLED = /\b(three|four|five|six|seven|eight|nine|ten|eleven|twelve|twent
 export interface Invention { kind: 'name' | 'number'; token: string }
 export interface GateVerdict { ok: boolean; inventions: Invention[] }
 
-/**
- * The engine's own numbers, which are not the world's: a Tick's random draw holds
- * most one- and two-digit runs, and the rest are minutes, seeds and counters.
- */
-const ENGINE_NUMBERS = new Set(['draw', 'minutes', 'seed', 'maturesAtBoundary']);
-
 /** Everything the narrator was told this turn, flattened. */
 export function contextHaystack(ctx: NarrationContext): string {
   const parts: string[] = [
@@ -37,13 +31,18 @@ export function contextHaystack(ctx: NarrationContext): string {
     ...ctx.objectsVisible.map(o => o.name),
     ...ctx.personsNamed.map(p => p.label),
     ...ctx.beats,
+    ...ctx.mentions,
     ...ctx.facts.flatMap(f => [f.statement, f.voice ?? '']),
     ...ctx.observations.map(o => o.text),
     ...ctx.ledger.flatMap(l => [...l.told, ...l.heard]),
     ...ctx.transcript.flatMap(t => t.lines.map(l => l.text)),
     ...ctx.lexicon,
     ...(ctx.narrator ? [ctx.narrator.name, ...ctx.narrator.aliases, ...ctx.narrator.voice] : []),
-    JSON.stringify(ctx.events, (key, value) => (ENGINE_NUMBERS.has(key) ? undefined : value)),
+    // From the events, only what the player typed. The rest are ids and engine numbers: a person's
+    // id is often their real name (licensing it would leak a name before its introduction), and a
+    // Tick's draw or minutes are not the world's numbers. Everything an event refers to reaches the
+    // narrator by label elsewhere in the context.
+    ...ctx.events.flatMap(e => (e.kind === 'TurnReceived' ? [e.text] : [])),
   ];
   return parts.join(' \n ').toLowerCase();
 }
@@ -81,11 +80,20 @@ export function findInventions(prose: string, ctx: NarrationContext): Invention[
   return [...found.values()];
 }
 
-/** Prose and Observations are both checked; an Observation is canon the moment it is accepted. */
-export function gateNarration(ctx: NarrationContext, result: NarrationResult): GateVerdict {
+/**
+ * Prose and Observations are both checked; an Observation is canon the moment it is accepted.
+ * `unintroduced`: the names of people the player has not been introduced to, which the server
+ * passes and the narrator never sees. They are refused anywhere, the start of a sentence or a
+ * quotation included ("Ines," she says), unless the player typed them.
+ */
+export function gateNarration(ctx: NarrationContext, result: NarrationResult, unintroduced: string[] = []): GateVerdict {
+  const typed = ctx.events.flatMap(e => (e.kind === 'TurnReceived' ? [e.text.toLowerCase()] : []));
+  const leaks = (text: string): Invention[] => unintroduced
+    .filter(n => new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(text) && !typed.some(t => t.includes(n.toLowerCase())))
+    .map(token => ({ kind: 'name' as const, token }));
   const inventions = [
-    ...findInventions(result.prose, ctx),
-    ...result.observations.flatMap(o => findInventions(o.text, ctx)),
+    ...findInventions(result.prose, ctx), ...leaks(result.prose),
+    ...result.observations.flatMap(o => [...findInventions(o.text, ctx), ...leaks(o.text)]),
   ];
   const seen = new Set<string>();
   const unique = inventions.filter(i => { const k = `${i.kind}:${i.token.toLowerCase()}`; if (seen.has(k)) return false; seen.add(k); return true; });

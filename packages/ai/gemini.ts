@@ -26,7 +26,7 @@ export function gemini(select: JobConfig, narrate: JobConfig, apiKey: string): A
       for (let attempt = 0; attempt < 2; attempt++) {
         const res = await client.models.generateContent(req);
         const parsed = Selection.safeParse(parseJson(res.text ?? ''));
-        if (parsed.success) return confineSelection(parsed.data, input.candidates);
+        if (parsed.success) return confineSelection(parsed.data, input.candidates, input.text);
       }
       return { kind: 'none', reason: 'unparseable' };
     },

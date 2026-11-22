@@ -25,6 +25,18 @@ const verdict = (prose: string, obs: { key: string; subject: string; text: strin
 
 check(verdict('The housekeeper said the master kept the study key inside the long-case clock. I thanked her and turned to the clock.').ok, 'authored facts and context names pass');
 check(verdict('Marsh is my name, and I was born in Kent.').ok, 'narrator name and lexicon pass');
+// A person's id is often their real name. An event naming them by id must not license the name.
+{
+  const idCtx = { ...ctx, events: [...ctx.events, { kind: 'Spoke' as const, person: 'tarrow' }] };
+  const v = gateNarration(idCtx, { prose: 'She glanced at Tarrow and said nothing more.', observations: [] });
+  check(!v.ok && v.inventions.some(i => i.token === 'Tarrow'), 'a name known only as an event id is caught', JSON.stringify(v.inventions));
+  const typed = { ...idCtx, events: [...idCtx.events, { kind: 'TurnReceived' as const, text: 'ask about Tarrow' }] };
+  check(gateNarration(typed, { prose: 'She glanced at Tarrow and said nothing more.', observations: [] }).ok, 'a name the player typed is theirs to hear');
+  // A name opening a sentence or a quotation is skipped by the proper-noun scan; the unintroduced list catches it there too.
+  const opener = gateNarration(idCtx, { prose: '"Tarrow," she says. Tarrow shrugs.', observations: [] }, ['Tarrow']);
+  check(!opener.ok && opener.inventions.some(i => i.token === 'Tarrow'), 'an unintroduced name is caught at the start of a sentence or quotation', JSON.stringify(opener.inventions));
+  check(gateNarration(typed, { prose: '"Tarrow," she says.', observations: [] }, ['Tarrow']).ok, 'unless the player typed it');
+}
 check(!verdict('"Mr Pemberton will be furious," she said.').ok, 'a borrowed name is caught', JSON.stringify(verdict('"Mr Pemberton will be furious," she said.')));
 check(!verdict('It had rained for nine days and the clock said 4 o\'clock.').ok, 'numeric specifics are caught');
 check(verdict('She said it twice, and I believed both times.').ok, 'small counts pass');
