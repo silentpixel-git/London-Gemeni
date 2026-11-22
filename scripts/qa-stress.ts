@@ -562,8 +562,9 @@ section('pinned 5: a player can accuse anyone met; examine and use reach people'
   const ctx = buildNarrationContext(story, r.s, accused, 'compact');
   check(!fired(accused, 'deduce_cook') && JSON.stringify(ctx.personsNamed) === '[{"id":"ines","label":"the woman in oilskins"}]',
     'an absent suspect reaches the narrator by the label the player knows, not as a bare id', JSON.stringify(ctx.personsNamed));
-  check(!gateNarration(ctx, { prose: 'You name her. Far off in the kitchen, Tarrow would not have flinched.', observations: [] }).ok,
-    'her surname, which no id carries, is still an invention to the gate (an id like "ines" itself still licenses a first name: review finding H8)');
+  const named = gateNarration(ctx, { prose: 'You name her. Far off in the kitchen, Ines Tarrow would not have flinched.', observations: [] });
+  check(['Ines', 'Tarrow'].every(t => named.inventions.some(i => i.token === t)),
+    'her real name is an invention to the gate, the first name her id carries as much as the surname it does not', JSON.stringify(named.inventions));
   const diary = playerView(story, r.log).diary.persons.map(p => p.id).sort().join();
   check(diary === r.cand().suspects.map(p => p.id).sort().join(), 'the diary\'s people met are exactly the suspects', diary);
   check(r.replays(), 'replays exactly');

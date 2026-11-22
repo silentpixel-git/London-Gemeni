@@ -23,12 +23,12 @@ export interface Invention { kind: 'name' | 'number'; token: string }
 export interface GateVerdict { ok: boolean; inventions: Invention[] }
 
 /**
- * The engine's own numbers, which are not the world's: a Tick's random draw holds
- * most one- and two-digit runs, and the rest are minutes, seeds and counters.
+ * Every word the narrator was given this turn, flattened. Words only: an id is not
+ * a name, though it is often the real one (a person's id licensed their name before
+ * their introduction), and an Event's numbers are the engine's (a Tick's draw holds
+ * most one- and two-digit runs). Of the Events, only the player's own line counts;
+ * what they reference reaches the narrator by name through the projections.
  */
-const ENGINE_NUMBERS = new Set(['draw', 'minutes', 'seed', 'maturesAtBoundary']);
-
-/** Everything the narrator was told this turn, flattened. */
 export function contextHaystack(ctx: NarrationContext): string {
   const parts: string[] = [
     ctx.storyTitle, ctx.act.name, ctx.act.dateLabel, ctx.clock.period, ctx.clock.weather,
@@ -36,6 +36,7 @@ export function contextHaystack(ctx: NarrationContext): string {
     ...ctx.personsPresent.flatMap(p => [p.label, p.disposition, ...p.beats]),
     ...ctx.objectsVisible.map(o => o.name),
     ...ctx.personsNamed.map(p => p.label),
+    ...ctx.placesNamed.map(p => p.name),
     ...ctx.beats,
     ...ctx.facts.flatMap(f => [f.statement, f.voice ?? '']),
     ...ctx.observations.map(o => o.text),
@@ -43,18 +44,21 @@ export function contextHaystack(ctx: NarrationContext): string {
     ...ctx.transcript.flatMap(t => t.lines.map(l => l.text)),
     ...ctx.lexicon,
     ...(ctx.narrator ? [ctx.narrator.name, ...ctx.narrator.aliases, ...ctx.narrator.voice] : []),
-    JSON.stringify(ctx.events, (key, value) => (ENGINE_NUMBERS.has(key) ? undefined : value)),
+    ...ctx.events.flatMap(e => (e.kind === 'TurnReceived' ? [e.text] : [])),
   ];
   return parts.join(' \n ').toLowerCase();
 }
 
 /**
  * Proper nouns and numeric specifics in `prose` that appear nowhere in the
- * context. Sentence-initial words are skipped: capitalisation there is
- * grammar, not a name, and was the dominant false positive before.
+ * context, each matched whole. Sentence-initial words are skipped:
+ * capitalisation there is grammar, not a name, and was the dominant false
+ * positive before.
  */
 export function findInventions(prose: string, ctx: NarrationContext): Invention[] {
   const hay = contextHaystack(ctx);
+  // Whole words: "Ines" is not earned by "lines", nor "ten" by "often".
+  const words = new Set(hay.match(/[a-z]+/g) ?? []);
   const found = new Map<string, Invention>();
   const text = prose.replace(/[*_#>]/g, ' ');
 
@@ -62,7 +66,7 @@ export function findInventions(prose: string, ctx: NarrationContext): Invention[
     const body = sentence.trim().replace(/^[^\s]+\s*/, '');
     for (const m of body.matchAll(/\b([A-Z][a-z]{2,})\b/g)) {
       const lower = m[1].toLowerCase();
-      if (GENERIC.has(lower) || hay.includes(lower)) continue;
+      if (GENERIC.has(lower) || words.has(lower)) continue;
       found.set(`name:${lower}`, { kind: 'name', token: m[1] });
     }
   }
@@ -71,8 +75,6 @@ export function findInventions(prose: string, ctx: NarrationContext): Invention[
   for (const m of text.matchAll(/\b(\d+)\b/g)) {
     if (!numbers.has(m[1])) found.set(`num:${m[1]}`, { kind: 'number', token: m[1] });
   }
-  // Whole words: "ten" is not earned by "often" or "listen".
-  const words = new Set(hay.match(/[a-z]+/g) ?? []);
   for (const m of text.matchAll(SPELLED)) {
     const lower = m[1].toLowerCase();
     if (SMALL_COUNTS.has(lower) || words.has(lower)) continue;

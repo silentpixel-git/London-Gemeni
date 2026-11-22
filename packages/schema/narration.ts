@@ -26,6 +26,8 @@ export const NarrationContext = z.object({
   objectsVisible: z.array(z.object({ id: Id, name: z.string() })),
   /** People this turn's Events name who are not present (an accused suspect, someone dismissed), by the label the player knows them by. */
   personsNamed: z.array(z.object({ id: Id, label: z.string() })),
+  /** Places other than this one that this turn's Events name and the player has been shown (where they came from, where a way out of here leads), by name. */
+  placesNamed: z.array(z.object({ id: Id, name: z.string() })),
   /** What the engine resolved this turn; the narration describes exactly this. */
   events: z.array(EventPayload),
   /** Authored lines that must appear in substance this turn. */

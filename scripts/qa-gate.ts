@@ -4,9 +4,9 @@
  * the narrator's own name must pass. Run: npx tsx scripts/qa-gate.ts
  */
 import { join } from 'node:path';
-import { Story } from '../packages/schema';
+import { Story, type NarrationContext, type Selection } from '../packages/schema';
 import { loadStoryDir } from '../packages/schema/load';
-import { buildNarrationContext, initialState, resolveTurn, tick } from '../packages/engine';
+import { buildNarrationContext, initialState, resolveTurn, startInvestigation, tick, type State } from '../packages/engine';
 import { fixedRng } from '../packages/engine/rng';
 import { gateNarration } from '../packages/ai/gate';
 
@@ -43,6 +43,43 @@ check(verdict('Fine.', [{ key: 'clock_grain', subject: 'hall_clock', text: 'The 
 
 check(!verdict('It had been ten days since the light failed.').ok, 'a spelled number is matched whole: "ten" is not earned by a context word that contains it',
   JSON.stringify(verdict('It had been ten days since the light failed.')));
+
+// An id is not a name, though it is often the real one: the stress Story's "ines" is listed as the woman
+// in oilskins until her keeper's log is read. Only the context's words license a name: labels, Story text,
+// and the player's own line.
+{
+  const stress = Story.parse(loadStoryDir(join('packages', 'schema', 'fixtures', 'stress')));
+  const go = (s: State, text: string, sel: Omit<Extract<Selection, { kind: 'intent' }>, 'kind'>) =>
+    resolveTurn(stress, s, { text, selection: { kind: 'intent', ...sel } }, fixedRng([0]));
+  const gate = (c: NarrationContext, prose: string) => gateNarration(c, { prose, observations: [] });
+  const arrive = go(startInvestigation(stress, 1).state, 'go to the kitchen', { verb: 'move', exit: 'to_kitchen' });
+  const kitchen = arrive.state;
+  const talk = go(kitchen, 'talk to the woman in oilskins', { verb: 'talk', person: 'ines' });
+  const kctx = buildNarrationContext(stress, talk.state, talk.events, 'compact');
+  check(kctx.events.some(e => e.kind === 'Spoke' && e.person === 'ines') && kctx.personsPresent.some(p => p.id === 'ines' && p.label === 'the woman in oilskins'),
+    'stress kitchen: she is addressed by her id and labelled by her alias');
+  const named = gate(kctx, 'I turned to the woman in yellow oilskins, Ines, who did not look up.');
+  check(!named.ok && named.inventions.some(i => i.token === 'Ines'), "an un-introduced person's id-derived name is caught", JSON.stringify(named));
+  const lines = gate({ ...kctx, observations: [{ key: 'coiled_lines', subject: 'kitchen', text: 'Coiled lines hang by the door.' }] }, 'I turned to her, Ines, and waited.');
+  check(!lines.ok, 'a name is matched whole: "Ines" is not earned by a context word that contains it', JSON.stringify(lines));
+  check(gate(kctx, 'I turned to the woman in oilskins while Maud Pike watched us both.').ok, 'her label and a present person\'s name pass');
+  // The player may echo a name they typed, wherever they learned it: it tells them nothing they did not write.
+  const typed = go(kitchen, 'talk to Ines', { verb: 'talk', person: 'ines' });
+  check(gate(buildNarrationContext(stress, typed.state, typed.events, 'compact'), 'She looked up sharply when I said Ines.').ok, 'a name the player typed this turn passes');
+  const read = go(kitchen, 'read the log', { verb: 'read', target: 'keeper_log' });
+  const after = go(read.state, 'talk to the woman in oilskins', { verb: 'talk', person: 'ines' });
+  check(gate(buildNarrationContext(stress, after.state, after.events, 'compact'), 'I turned to Ines, who did not look up.').ok, 'once her log is read, her name passes');
+
+  // Places the player has been shown reach the narrator by name, so a name the id alone used to license still passes.
+  const back = go(kitchen, 'go back to the jetty', { verb: 'move', exit: 'to_jetty' });
+  const bctx = buildNarrationContext(stress, back.state, back.events, 'full');
+  const left = 'I left the Keepers\' Kitchen and went down to the jetty.';
+  check(gate(bctx, left).ok && !gate({ ...bctx, placesNamed: [] }, left).ok,
+    'the place just left passes by its name in placesNamed, not by its id', JSON.stringify(bctx.placesNamed));
+  const barred = go(kitchen, 'go up the tower', { verb: 'move', exit: 'to_tower' });
+  check(barred.events.some(e => e.kind === 'MoveBlocked') && gate(buildNarrationContext(stress, barred.state, barred.events, 'full'), 'The way up to the Tower Stair is barred.').ok,
+    'where a blocked way leads passes by its name');
+}
 
 console.log(`\n${fails === 0 ? 'OK' : `${fails} FAILURE(S)`}`);
 process.exit(fails === 0 ? 0 : 1);
