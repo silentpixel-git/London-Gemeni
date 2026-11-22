@@ -67,8 +67,10 @@ export const VERB_FIELDS: Record<Verb, readonly IntentField[]> = {
  *   - a real id in the wrong slot ("try the store door" → move, target the exit;
  *     "talk to the cook" → talk, target the cook): moved to the one empty slot of
  *     the verb that takes it. Where no slot or several would, it stays put and
- *     inCandidateSet answers none, never a weaker intent the engine would accept.
- * Fields the verb reads are left for inCandidateSet to judge. The prover offers
+ *     inCandidateSet answers none, never a weaker intent the engine would accept;
+ *   - an ask's topic that names nothing: dropped, since ask with no topic is the
+ *     designed answer to a subject the person has nothing on (an honest deflection).
+ * Other fields the verb reads are left for inCandidateSet to judge. The prover offers
  * only read fields holding ids from the set, so this never changes what it proves.
  */
 export function trimSelection(sel: Selection, set: CandidateSet): Selection {
@@ -80,7 +82,7 @@ export function trimSelection(sel: Selection, set: CandidateSet): Selection {
   ]);
   const names = (v: unknown) => (Array.isArray(v) ? v : [v]).some(x => typeof x === 'string' && ids.has(x));
   const out: Record<string, unknown> = { kind: 'intent', verb: sel.verb };
-  for (const [k, v] of Object.entries(sel)) if (reads.includes(k)) out[k] = v;
+  for (const [k, v] of Object.entries(sel)) if (reads.includes(k) && !(k === 'topic' && !names(v))) out[k] = v;
   const fits = (slot: string, v: unknown) =>
     Array.isArray(v) === (slot === 'facts') && inCandidateSet({ kind: 'intent', verb: sel.verb, [slot]: v } as Selection, set);
   for (const [k, v] of Object.entries(sel)) {

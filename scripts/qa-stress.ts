@@ -503,6 +503,12 @@ section('pinned 5: a player can accuse anyone met; examine and use reach people'
   check(jettyCands.objects.find(o => o.id === 'tackle_chest')?.description.some(b => b.includes('latch')) === true
     && jettyCands.location.description.some(b => b.includes('tackle chest')) && jettyCands.persons.every(p => p.description.length > 0),
     'candidates carry the beats the narrator describes the location, objects and persons from');
+  // Flavour the narrator made canon is part of what the prose has said: a detail it invented resolves too.
+  const hinge = 'One brass hinge is green with salt.';
+  const observed = candidates(story, apply(story, r.s, { kind: 'ObservationRecorded', observation: { key: 'chest_hinge', subject: 'tackle_chest', text: hinge } }));
+  check(observed.objects.find(o => o.id === 'tackle_chest')?.description.includes(hinge) === true
+    && !observed.persons.some(p => p.description.includes(hinge)) && !observed.location.description.includes(hinge),
+    'an Observation joins its own subject\'s description, and no other');
   check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'open', target: 'tackle_chest', secondary: 'latch' }, jettyCands))
     === '{"kind":"intent","verb":"open","target":"tackle_chest"}', 'a field the verb does not read is dropped, not fatal: "break the latch" stays open the chest');
   check(confineSelection({ kind: 'intent', verb: 'open', target: 'latch' }, jettyCands).kind === 'none', 'a field the verb reads is still confined to the set');
@@ -516,6 +522,8 @@ section('pinned 5: a player can accuse anyone met; examine and use reach people'
   ];
   check(moved.every(([sel, want]) => JSON.stringify(confineSelection(sel, jettyCands)) === want),
     'a real id in an unread field moves to the one slot that takes it', JSON.stringify(moved.map(([sel]) => confineSelection(sel, jettyCands))));
+  check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'ask', person: 'orrin', topic: 'whistle_at_neck' }, jettyCands)) === '{"kind":"intent","verb":"ask","person":"orrin"}',
+    'an invented topic is dropped: ask with no topic, the designed deflection');
   check(confineSelection({ kind: 'intent', verb: 'use', person: 'tackle_chest' }, jettyCands).kind === 'none',
     'where two slots could take it (use: target or secondary), it stays none');
   const accused = r.go('it was the woman in oilskins', { verb: 'deduce', facts: [], person: 'ines' });
