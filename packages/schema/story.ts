@@ -45,8 +45,8 @@ export const StoryObject = z.object({
   item: z.boolean(),
   /** Placed but not yet visible; a revealObject Effect shows it. */
   hidden: z.boolean().optional(),
-  /** READ shows this text verbatim. */
-  document: z.string().optional(),
+  /** READ shows this text verbatim; examining the Object reads it too. */
+  document: z.string().min(1).optional(),
   /** Reading this Object teaches the player this Fact; showing it tells the Fact to the person shown. */
   fact: Id.optional(),
   container: Container.optional(),

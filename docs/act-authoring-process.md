@@ -144,6 +144,7 @@ Read bare: the beats joined still read as prose (the gate's fallback)
 
 How the engine runs them, which the contract must account for:
 
+- **Examining a document is reading it.** `examine` on an Object with a `document` resolves as `read`: an `action` Rule on it must list `read` (`qa:story` fails one that lists only `examine`), and the turn narrates the Object's beats then its document.
 - **Every eligible Rule fires.** There is no "at most one main event per action": two Rules on the same action both fire unless their conditions exclude each other. Use `flagsNone` on a flag the first one sets.
 - **Firing order** is the action, then `leave`, then `enter`, then arrivals (`proximity`), then the Firings those Rules' Effects raise, depth by depth. The order the Story lists Rules applies only among the Rules of one Firing (ADR-0005).
 - **What each trigger's `when` sees.** Every trigger sees the world after the action: on `action: take x`, `hasItems: [x]` already holds; on `enter`, `location` is the room entered. The exception is `leave`, which is judged from the room being left, with the player still there, so `location` and `personsPresent` name that room.

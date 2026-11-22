@@ -219,10 +219,12 @@ export function validateStory(raw: unknown): ValidationResult {
       case 'action':
         // As inCandidateSet allows: examine may target a person, use may be applied to one.
         for (const o of t.target ?? []) if (!(t.verb.includes('examine') && persons.has(o))) needObject(o, `${at}/target`);
-        // Examining an Object with a document is reading it (engine.ts), so an examine-only trigger on one never fires.
-        if (t.verb.includes('examine') && !t.verb.includes('read'))
-          for (const o of t.target ?? []) if (objects.get(o)?.document !== undefined)
-            warn(`${at}/verb`, `examining "${o}" reads it (it has a document): list "read" too, or this never fires on it`);
+        // Examining an Object with a document is reading it (engine.ts), so an examine trigger without read never fires on one.
+        if (t.verb.includes('examine') && !t.verb.includes('read')) {
+          const docs = (t.target ?? []).filter(o => objects.get(o)?.document);
+          const dead = docs.length > 0 && docs.length === t.target!.length && t.verb.every(v => v === 'examine');
+          for (const o of docs) (dead ? fail : warn)(`${at}/verb`, `examining "${o}" reads it (it has a document): list "read" too, or this ${dead ? 'Rule never fires' : 'never fires on it'}`);
+        }
         for (const o of t.secondary ?? []) if (!(t.verb.includes('use') && persons.has(o))) needObject(o, `${at}/secondary`);
         for (const p of t.person ?? []) needPerson(p, `${at}/person`);
         break;

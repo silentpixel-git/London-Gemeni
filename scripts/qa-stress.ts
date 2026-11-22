@@ -362,6 +362,14 @@ section('examining a document reads it');
   check(has(cask, e => e.kind === 'FactLearned' && e.person === 'player' && e.fact === 'oil_watered') && has(cask, e => e.kind === 'ClueDiscovered' && e.clue === 'clue_oil'),
     'checking the cask\'s dipstick teaches the watered oil, as reading it does');
   check(r.replays(), 'examine-as-read replays exactly');
+  const ctx = buildNarrationContext(story, r.s, cask, 'full');
+  const caskObj = story.objects.find(o => o.id === 'oil_cask')!;
+  check(JSON.stringify(ctx.beats) === JSON.stringify([...caskObj.beats, caskObj.document]), 'the narrator gets the cask\'s own beats, then its document', JSON.stringify(ctx.beats));
+  // Ids are unique per kind, not across kinds: a person who shares a document's id is still examined.
+  const clash = Story.parse(variant(raw => { raw.objects.push({ id: 'orrin', name: 'tide ledger', beats: ['A ledger of tides.'], placement: { kind: 'location', location: 'oil_store' }, item: false, document: 'High water at six.' }); }));
+  const c = new Run('id_clash', 25, clash);
+  const looked = c.go('examine the boatman', { verb: 'examine', target: 'orrin' });
+  check(has(looked, e => e.kind === 'Examined' && e.object === 'orrin') && !has(looked, e => e.kind === 'Read'), 'examining a person present is never turned into reading an Object out of reach');
 }
 
 section('early log read');
