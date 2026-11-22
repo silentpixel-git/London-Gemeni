@@ -10,7 +10,7 @@ import {
 } from '../packages/schema/index.js';
 import { loadStoryDir } from '../packages/schema/load.js';
 import {
-  apply, buildNarrationContext, candidates, exactSelection, fallbackProse, feedOf, initialState, personsPresent, playerView,
+  apply, buildNarrationContext, candidates, exactSelection, fallbackProse, feedOf, initialState, personsPresent, playerView, unintroducedNames,
   replay, resolveTurn, startInvestigation, tick, type State,
 } from '../packages/engine/index.js';
 import { gateNarration, type GateVerdict } from '../packages/ai/gate.js';
@@ -24,7 +24,8 @@ export interface TurnDeps {
   loadStory: (storyId: string) => Story | null;
   /** The authenticated caller; owner of any Investigation this request starts. */
   ownerId?: string | null;
-  gate?: (ctx: NarrationContext, result: NarrationResult) => GateVerdict;
+  /** `unintroduced`: names the narrator must not use yet (unintroducedNames); the default gate refuses them anywhere. */
+  gate?: (ctx: NarrationContext, result: NarrationResult, unintroduced?: string[]) => GateVerdict;
   /** Seed for a new Investigation; QA fixes it so recordings stay stable. */
   newSeed?: () => number;
   /** The clock stale-turn recovery reads; QA moves it. */
@@ -100,11 +101,11 @@ export async function handleTurn(request: Request, deps: TurnDeps): Promise<Resp
       let closed = false;
       try {
         send({ kind: 'turn', investigationId: turn.investigationId, ...clientCues(turn.story, turn.events) });
-        const ctx = buildNarrationContext(turn.story, turn.state, turn.events, turn.mode);
+        const ctx = buildNarrationContext(turn.story, turn.state, turn.events, turn.mode, turn.from);
         // A quiet Tick costs nothing: no narration call, and an empty Narrated closes it.
         const result = turn.quiet
           ? { prose: '', observations: [] }
-          : await narrateGated(turn.story, ctx, deps.ai, deps.gate ?? gateNarration, delta => send({ kind: 'text', delta }));
+          : await narrateGated(turn.story, ctx, deps.ai, deps.gate ?? gateNarration, delta => send({ kind: 'text', delta }), unintroducedNames(turn.story, turn.state));
         const narrated: EventPayload = { kind: 'Narrated', text: result.prose, beats: turn.quiet ? [] : ctx.beats };
         const tail: EventPayload[] = [narrated, ...result.observations.map(observation => ({ kind: 'ObservationRecorded' as const, observation }))];
         const { rows } = number(turn.story, turn.state, tail, turn.seqFrom + turn.events.length);
@@ -117,7 +118,7 @@ export async function handleTurn(request: Request, deps: TurnDeps): Promise<Resp
         console.error('api/turn stream:', err);
         // Close the turn with its fallback line so the Investigation is not left busy.
         if (!closed) {
-          const ctx = buildNarrationContext(turn.story, turn.state, turn.events, turn.mode);
+          const ctx = buildNarrationContext(turn.story, turn.state, turn.events, turn.mode, turn.from);
           const { rows } = number(turn.story, turn.state, [fallbackNarrated(turn.story, ctx)], turn.seqFrom + turn.events.length);
           await deps.store.append(turn.investigationId, rows).catch(e => console.error('api/turn close:', e));
         }
@@ -141,6 +142,8 @@ interface Prepared {
   mode: NarrationMode;
   /** A Tick that changed nothing the player can see: not narrated. */
   quiet: boolean;
+  /** Where the player stood before the turn (none on a start), so an act that moves them reads as an arrival. */
+  from?: string;
 }
 
 type Refusal = { status: number; message: string };
@@ -209,7 +212,7 @@ async function prepareOnce(body: TurnBody, deps: TurnDeps): Promise<Prepared | R
   const mode = modeFor(events);
   const quiet = 'tick' in body && mode === 'compact' && state.location === before.location
     && personsPresent(story, state).join() === personsPresent(story, before).join();
-  return { investigationId: body.investigationId, story, state, events, prior, seqFrom, mode, quiet };
+  return { investigationId: body.investigationId, story, state, events, prior, seqFrom, mode, quiet, from: before.location };
 }
 
 /** The whole feed and the current view, for a page load or a second browser. Appends nothing. */
@@ -283,9 +286,10 @@ function modeFor(events: EventPayload[]): NarrationMode {
  */
 async function narrateGated(
   story: Story, ctx: NarrationContext, ai: Ai, gate: NonNullable<TurnDeps['gate']>, onDelta: (delta: string) => void,
+  unintroduced: string[] = [],
 ): Promise<NarrationResult> {
   const first = await collect(ai.narrate(ctx), onDelta);
-  const verdict = first.prose.trim() ? gate(ctx, first) : { ok: false, inventions: [] };
+  const verdict = first.prose.trim() ? gate(ctx, first, unintroduced) : { ok: false, inventions: [] };
   if (verdict.ok) return first;
   // What the gate caught, so a run of rejections can be read from the function's logs.
   console.warn('api/turn gate rejected:', ctx.mode, verdict.inventions.map(i => i.token).join(', ') || 'empty prose');
@@ -293,7 +297,7 @@ async function narrateGated(
     ? { ...ctx, beats: [`Rejected inventions, not in this context: ${verdict.inventions.map(i => i.token).join(', ')}.`, ...ctx.beats] }
     : ctx;
   const second = await collect(ai.narrate(retryCtx), () => {});
-  const again = second.prose.trim() ? gate(ctx, second) : { ok: false, inventions: [] };
+  const again = second.prose.trim() ? gate(ctx, second, unintroduced) : { ok: false, inventions: [] };
   if (again.ok) return second;
   console.warn('api/turn gate rejected the retry, falling back:', ctx.mode, again.inventions.map(i => i.token).join(', ') || 'empty prose');
   return { prose: fallbackProse(story, ctx), observations: [] };

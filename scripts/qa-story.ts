@@ -52,6 +52,15 @@ const FIXTURES = join('packages', 'schema', 'fixtures');
   else fail('take <person> must not validate');
 }
 
+// 1f. A topic phrase no question can share a word with fails.
+{
+  const raw = loadStoryDir(join(FIXTURES, 'stress')) as { facts: Array<{ topics: string[] }> };
+  raw.facts[0].topics.push('the will');
+  const issues = validateStory(raw).issues.filter(i => i.at.includes('/topics['));
+  if (issues.some(i => i.level === 'fail' && i.message.includes('"the will"'))) pass('a topic phrase of only short or common words fails');
+  else { fail('a topic phrase of only stop words must fail'); show(issues); }
+}
+
 // 1e. A combine Rule and an action Rule on using one of the same pair on the other both fire: warn.
 {
   const raw = loadStoryDir(join(FIXTURES, 'stress')) as { rules: unknown[] };

@@ -362,6 +362,10 @@ section('the prose\'s world, on this Story');
   check(fired(letter.events, 'read_letter') && w.act === 1, 'and fires this Story\'s read Rule: the garden opens, act 1 begins');
   check(JSON.stringify(buildNarrationContext(story, letter.state, letter.events, 'full').beats) === JSON.stringify([...letterObj.beats, letterObj.document]),
     'and the narrator gets the letter\'s own beats, then its text');
+  const garden = story.locations.find(l => l.id === w.location)!;
+  check(w.location !== 'study' && garden.beats.every(b => buildNarrationContext(story, letter.state, letter.events, 'full', 'study').beats.includes(b))
+    && !garden.beats.some(b => buildNarrationContext(story, letter.state, letter.events, 'full', w.location).beats.includes(b)),
+    'an act that brings the player somewhere new is narrated as an arrival there; begun in place, it is not');
 }
 
 // ── Coverage ─────────────────────────────────────────────────────────────────

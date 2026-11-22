@@ -31,6 +31,7 @@ export function contextHaystack(ctx: NarrationContext): string {
     ...ctx.objectsVisible.map(o => o.name),
     ...ctx.personsNamed.map(p => p.label),
     ...ctx.beats,
+    ...ctx.mentions,
     ...ctx.facts.flatMap(f => [f.statement, f.voice ?? '']),
     ...ctx.observations.map(o => o.text),
     ...ctx.ledger.flatMap(l => [...l.told, ...l.heard]),
@@ -79,11 +80,20 @@ export function findInventions(prose: string, ctx: NarrationContext): Invention[
   return [...found.values()];
 }
 
-/** Prose and Observations are both checked; an Observation is canon the moment it is accepted. */
-export function gateNarration(ctx: NarrationContext, result: NarrationResult): GateVerdict {
+/**
+ * Prose and Observations are both checked; an Observation is canon the moment it is accepted.
+ * `unintroduced`: the names of people the player has not been introduced to, which the server
+ * passes and the narrator never sees. They are refused anywhere, the start of a sentence or a
+ * quotation included ("Ines," she says), unless the player typed them.
+ */
+export function gateNarration(ctx: NarrationContext, result: NarrationResult, unintroduced: string[] = []): GateVerdict {
+  const typed = ctx.events.flatMap(e => (e.kind === 'TurnReceived' ? [e.text.toLowerCase()] : []));
+  const leaks = (text: string): Invention[] => unintroduced
+    .filter(n => new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(text) && !typed.some(t => t.includes(n.toLowerCase())))
+    .map(token => ({ kind: 'name' as const, token }));
   const inventions = [
-    ...findInventions(result.prose, ctx),
-    ...result.observations.flatMap(o => findInventions(o.text, ctx)),
+    ...findInventions(result.prose, ctx), ...leaks(result.prose),
+    ...result.observations.flatMap(o => [...findInventions(o.text, ctx), ...leaks(o.text)]),
   ];
   const seen = new Set<string>();
   const unique = inventions.filter(i => { const k = `${i.kind}:${i.token.toLowerCase()}`; if (seen.has(k)) return false; seen.add(k); return true; });

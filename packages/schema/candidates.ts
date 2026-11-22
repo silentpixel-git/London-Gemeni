@@ -149,3 +149,24 @@ export function inCandidateSet(sel: Selection, set: CandidateSet): boolean {
   if (sel.facts?.some(f => !set.knownFacts.some(k => k.id === f))) return false;
   return true;
 }
+
+/** Words that say nothing about a subject. */
+const STOP = new Set(('the and about what who whom whose which with her his him she they them their you your for from that this these those ' +
+  'ask tell how long has have had been there here was were did does know any anything something more why when where said say says ' +
+  'into onto over not but are can could would should will its it is of to in on at by me my we our us').split(' '));
+
+/** The words of a phrase or a line that can carry a subject: three letters or more, not a stop word. */
+export function topicWords(s: string): string[] {
+  return (s.toLowerCase().match(/[a-z]+/g) ?? ([] as string[])).filter(w => w.length >= 3 && !STOP.has(w));
+}
+
+/**
+ * Whether a player's line shares a word with any of a topic's phrases: the same word, one word
+ * starting the other ("key" and "keys", "oil" and "oily"), or two words sharing their first four
+ * letters ("ferry" and "ferried"). An ask keeps its topic only when it does (confineSelection).
+ */
+export function sharesTopicWord(text: string, phrases: string[]): boolean {
+  const said = topicWords(text);
+  const near = (a: string, b: string) => a === b || a.startsWith(b) || b.startsWith(a) || (a.length >= 4 && b.length >= 4 && a.slice(0, 4) === b.slice(0, 4));
+  return phrases.flatMap(topicWords).some(p => said.some(w => near(w, p)));
+}

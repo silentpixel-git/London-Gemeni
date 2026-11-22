@@ -30,6 +30,12 @@ export const NarrationContext = z.object({
   events: z.array(EventPayload),
   /** Authored lines that must appear in substance this turn. */
   beats: z.array(z.string()),
+  /**
+   * What this turn's Events refer to, in words and never by id: the place just left, where someone
+   * went, a way whose lock changed, the Facts a deduction names. The ids stay out of the narrator's
+   * reach (an id is often a real name); these are what it may say instead.
+   */
+  mentions: z.array(z.string()),
   /** Facts that may be stated this turn, verbatim or in voice. */
   facts: z.array(z.object({ id: Id, statement: z.string(), voice: z.string().optional() })),
   /** Flavour already canon for the subjects in scope. */

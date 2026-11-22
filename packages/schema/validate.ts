@@ -6,6 +6,7 @@
 import { Conditions, Id, Lock, Placement } from './common.js';
 import { Effect, Rule, Trigger } from './rule.js';
 import { Story } from './story.js';
+import { topicWords } from './candidates.js';
 
 export interface Issue {
   level: 'fail' | 'warn';
@@ -318,6 +319,11 @@ export function validateStory(raw: unknown): ValidationResult {
   for (const a of story.acts) if (a.id !== firstAct && !actsAdvancedTo.has(a.id)) fail(`acts/${a.id}`, 'no advanceAct effect leads here');
   for (const e of story.endings) if (!endingsReached.has(e.id)) fail(`endings/${e.id}`, 'no endGame effect reaches this ending');
   if (story.endings.length > 0 && endingsReached.size === 0) fail('rules', 'no rule ends the game');
+
+  // ── A topic phrase a question can share a word with ─────────────────────────
+  for (const f of story.facts) f.topics.forEach((phrase, i) => {
+    if (topicWords(phrase).length === 0) fail(`facts/${f.id}/topics[${i}]`, `"${phrase}" has no word a question can share (only short or common words), so it can never be asked about`);
+  });
 
   // ── One pair, two Rules: using one item on the other fires both ─────────────
   for (const c of story.rules) {
