@@ -8,7 +8,8 @@
 //
 //   look        → Looked
 //   inventory   → InventoryChecked
-//   examine T   → Examined{T}; T must be visible here or carried; a person may be examined (Examined{person id})
+//   examine T   → Examined{T}; T must be visible here or carried; a person may be examined (Examined{person id}).
+//                 An Object with a document never reaches here as examine: resolveTurn reads it instead.
 //   read T      → Read{T}; T visible or carried; if T.fact and the player does not know it → FactLearned{player, fact}
 //   take T      → Taken{T}; T an item, visible here (incl. inside an open visible container); already carried → 'you already have it'
 //   drop T      → Dropped{T}; T carried

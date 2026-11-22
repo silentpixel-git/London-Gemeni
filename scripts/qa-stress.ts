@@ -343,6 +343,27 @@ section('key given to the cook');
   check(exitLock(story, r.s, 'kitchen', 'to_store') === null && r.move('to_store').some(e => e.kind === 'Moved'), 'unlockExit: the store opens without the key in hand');
   check(r.replays(), 'give branch replays exactly');
 }
+section('examining a document reads it');
+{
+  // The words a player uses for a log or a dipstick are "examine", "check", "look at": they read it.
+  const r = new Run('examine_document', 24);
+  const chest = r.go('examine the chest', { verb: 'examine', target: 'tackle_chest' });
+  check(has(chest, e => e.kind === 'Examined') && !has(chest, e => e.kind === 'Read'), 'examining an Object with no document is still an examine');
+  r.move('to_kitchen'); r.ask('ines', 'cargo_was_barrels');
+  const log = r.go('examine the log', { verb: 'examine', target: 'keeper_log' });
+  check(has(log, e => e.kind === 'IntentSelected' && e.verb === 'examine') && has(log, e => e.kind === 'Read' && e.object === 'keeper_log') && !has(log, e => e.kind === 'Examined'),
+    'examining the log reads it (the log keeps what was selected)');
+  check(fired(log, 'log_read_starts_storm') && r.s.act === 1, 'and fires the read Rule: the act turns as it does on read');
+  r.move('to_jetty'); r.ask('orrin', 'cargo_was_barrels');
+  r.go('open chest', { verb: 'open', target: 'tackle_chest' });
+  r.go('take key', { verb: 'take', target: 'store_key' });
+  r.move('to_kitchen'); r.move('to_store');
+  const cask = r.go('check the dipstick', { verb: 'examine', target: 'oil_cask' });
+  check(has(cask, e => e.kind === 'FactLearned' && e.person === 'player' && e.fact === 'oil_watered') && has(cask, e => e.kind === 'ClueDiscovered' && e.clue === 'clue_oil'),
+    'checking the cask\'s dipstick teaches the watered oil, as reading it does');
+  check(r.replays(), 'examine-as-read replays exactly');
+}
+
 section('early log read');
 {
   const r = new Run('early_log', 22);

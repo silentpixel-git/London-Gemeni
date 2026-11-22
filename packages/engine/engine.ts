@@ -50,8 +50,12 @@ export function resolveTurn(story: Story, state: State, input: TurnInput, rng: R
       advanceClock(t, MINUTES.look);
       return t.result();
     case 'intent': {
-      const { kind: _k, ...intent } = input.selection;
-      t.emit({ kind: 'IntentSelected', ...intent });
+      const { kind: _k, ...selected } = input.selection;
+      t.emit({ kind: 'IntentSelected', ...selected });
+      // Examining a document is reading it: a player who looks closely at a letter, a ledger or a
+      // dipstick means to take in what it says. The turn resolves, fires Rules and costs time as a read.
+      const examinesDocument = selected.verb === 'examine' && story.objects.some(o => o.id === selected.target && o.document !== undefined);
+      const intent = examinesDocument ? { ...selected, verb: 'read' as const } : selected;
       if (intent.verb === 'wait') { tickInto(t, MINUTES.wait, rng); return t.result(); }
 
       // Who is here before the verb: anyone here after it, or after the Rules it sets off, has arrived.
