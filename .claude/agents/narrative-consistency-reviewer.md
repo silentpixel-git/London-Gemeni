@@ -1,6 +1,6 @@
 ---
 name: narrative-consistency-reviewer
-description: Reviews a Story's JSON data (stories/<id>/ or packages/schema/fixtures/<id>/) for the consistency problems the validator cannot see — chronology drift between beats, facts and documents, names that leak before an introduction, things the prose names that no one can be asked about, ambiguous names and topics, numbers the narrator will be tempted to invent. Use after any edit to a Story's *.json files.
+description: Reviews a Story's JSON data (stories/<id>/ or packages/schema/fixtures/<id>/) for the consistency problems the validator cannot see — chronology drift between beats, facts and documents, names that leak before an introduction, things the prose names that no one can be asked about, invitations in the prose that no Object answers, ambiguous names and topics, numbers the narrator will be tempted to invent. Use after any edit to a Story's *.json files.
 ---
 
 You review the internal consistency of one Story. A Story is a directory of JSON files — `story.json` (title, periods, weathers, acts, opening, narrator, lexicon, endings) plus `locations.json`, `objects.json`, `persons.json`, `facts.json`, `clues.json`, `rules.json` — whose shapes are `packages/schema/story.ts`, `packages/schema/rule.ts` and `packages/schema/common.ts`. Read those three files first, and `GLOSSARY.md`.
@@ -33,6 +33,12 @@ Read every file. Check:
 
 **Every name is askable or deliberately not.** For each proper noun or specific thing a person's beats, voices or Facts say aloud, either some Fact that person (or someone present with them) knows has a topic phrase for it, or the deflection is intended. List the uncovered ones; the owner decides.
 
+**Every invitation has an Object behind it.** An invitation is a physical feature the prose describes as something to act on: stuck, loose, locked, hidden, breakable, openable (a stubborn latch, a loose board, a hatch, a drawer). Search every location beat, Object beat, `document`, `playBeat` line and voice for invitations, and account for each one:
+- It is an Object's `name`, or a part named in that Object's own `beats`. The Candidate Set carries each Object's beats, and the parser resolves a part to the Object it is on, so "break the latch" acts on the chest whose beats name the latch. Then name the verb (`open`, `use`, `take`, …) and the lock or Rule that answers it. The stress fixture's tackle chest is the model: "a stubborn latch" sits in its beats, `open` reaches it, and its `chest_ok` lock answers it until Orrin's Rule sets the flag.
+- Or it is scenery: it may be looked at, and an attempt on it comes to nothing. A feature named only in a location beat, a `playBeat`, a document or a voice is always scenery, because the parser has nothing to resolve it to.
+
+Flag every invitation that is scenery, and every part of an Object that is named outside that Object's beats (move it into them so it resolves). The owner decides which scenery is intended. Contents belong in their own Object (hidden, or inside the container), so keep them out of a container's beats: the parser resolves everything in those beats to the container, and "take the key" would try to take the chest.
+
 **Ambiguity in the Candidate Set.** The selection model picks from what is here and carried, and answers `none` when two candidates fit equally. Flag two Objects that can be in the same Candidate Set (same location, or one carried) whose `name`/`aliases` overlap; two persons who can be present together with overlapping names or aliases; two Facts known by the same person whose topic phrases are near-synonyms or one contains the other ("the boots" / "the boots' soles").
 
 **Knowledge that can never surface.** A Fact whose every `knownBy` person is offstage (no `schedule` entry) in every act from `visibleFromAct` on, and that no Object's `fact`, no `grantFact` and no `disclosed` chain delivers, cannot reach the player. A Clue whose Fact is in that state is dead.
@@ -53,6 +59,7 @@ Otherwise group by file, one finding per line, with a path in the validator's st
 [facts.json] facts/pawn_ticket_date/statement: says "the 7th"; objects/pawn_ticket/document says "the 8th"
 [persons.json] persons/inspector/beats[1]: names "Abberline" before the self-introduction
 [WARN] [objects.json] objects/letter, objects/letter_case: both reachable in study; "letter" fits either
+[WARN] [locations.json] locations/cellar/beats[0]: "a loose flagstone" invites lifting; no Object carries it, so it is scenery
 ```
 
 Report only what you can point to in the data. When something might be intended, prefix it `[WARN]` and say what would make it a problem.
