@@ -12,6 +12,7 @@ import { Story, type EventPayload, type Selection } from '../packages/schema';
 import { loadStoryDir } from '../packages/schema/load';
 import { buildNarrationContext, candidates, fallbackProse, initialState, playerView, replay, resolveTurn, startInvestigation, tick, type State } from '../packages/engine';
 import { suggestionsFor } from '../services/viewFormat';
+import { confineSelection } from '../packages/ai/selection';
 import { fixedRng } from '../packages/engine/rng';
 
 const story = Story.parse(loadStoryDir(join('packages', 'schema', 'fixtures', 'toy')));
@@ -319,6 +320,45 @@ section('player view: tried');
     'in the study, the way back to the hall (where the game began) is visited', JSON.stringify(view2.exits));
   turn({ verb: 'move', exit: 'to_hall' });
   check(playerView(story, vlog).exits.find(x => x.id === 'study_door')?.visited === true, 'back in the hall, the study is visited');
+}
+
+// ── The prose's world, on this Story ─────────────────────────────────────────
+// The same general mechanisms qa:stress proves on the stress Story, here on unrelated content:
+// a part named in an Object's beats, a person's trait, a document examined, a miss on scenery.
+section('the prose\'s world, on this Story');
+{
+  let w: State = startInvestigation(story, 42).state;
+  const step = (sel: Omit<Extract<Selection, { kind: 'intent' }>, 'kind'>, text = '') => {
+    const r = resolveTurn(story, w, { text, selection: { kind: 'intent', ...sel } }, fixedRng([0]));
+    w = r.state; return r;
+  };
+  const hall = candidates(story, w);
+  check(hall.objects.find(o => o.id === 'hall_clock')?.description.some(b => b.includes('small door')) === true
+    && hall.persons.find(p => p.id === 'housekeeper')?.description.some(b => b.includes('black dress')) === true
+    && hall.location.description.some(b => b.includes('mat')),
+    'the parser sees each thing\'s description: the clock\'s small door, the housekeeper\'s black dress, the hall');
+  check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'open', target: 'hall_clock', secondary: 'small door' }, hall)) === '{"kind":"intent","verb":"open","target":"hall_clock"}',
+    'a part as a stray word does not sink the reading: open the small door opens the clock');
+  check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'talk', target: 'housekeeper' }, hall)) === '{"kind":"intent","verb":"talk","person":"housekeeper"}',
+    'a person in the wrong slot moves to the slot talk reads');
+  check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'open', target: 'study_door' }, hall)) === '{"kind":"intent","verb":"move","exit":"study_door"}',
+    'opening a door that is an exit is trying the way: open the study door moves through it');
+  const miss = resolveTurn(story, w, { text: 'draw the curtains', selection: { kind: 'none', reason: 'no candidate' } });
+  check(fallbackProse(story, buildNarrationContext(story, miss.state, miss.events, 'compact')) === 'Nothing comes of it.',
+    'a miss on scenery comes to nothing, and denies nothing');
+  step({ verb: 'ask', person: 'housekeeper', topic: 'key_in_clock' });
+  step({ verb: 'open', target: 'hall_clock' }); step({ verb: 'take', target: 'brass_key' });
+  step({ verb: 'move', exit: 'study_door' });
+  const desk = step({ verb: 'examine', target: 'desk' });
+  check(has(desk.events, e => e.kind === 'Examined' && e.object === 'desk') && !has(desk.events, e => e.kind === 'Read'), 'examining the desk (no document) is an examine');
+  step({ verb: 'combine', target: 'candle', secondary: 'matches' }); // the flame shows the letter
+  const letter = step({ verb: 'examine', target: 'letter' }, 'look at the letter');
+  const letterObj = story.objects.find(o => o.id === 'letter')!;
+  check(has(letter.events, e => e.kind === 'Read' && e.object === 'letter') && has(letter.events, e => e.kind === 'FactLearned' && e.person === 'player' && e.fact === 'letter_confession'),
+    'looking at the letter reads it and teaches its Fact');
+  check(fired(letter.events, 'read_letter') && w.act === 1, 'and fires this Story\'s read Rule: the garden opens, act 1 begins');
+  check(JSON.stringify(buildNarrationContext(story, letter.state, letter.events, 'full').beats) === JSON.stringify([...letterObj.beats, letterObj.document]),
+    'and the narrator gets the letter\'s own beats, then its text');
 }
 
 // ── Coverage ─────────────────────────────────────────────────────────────────

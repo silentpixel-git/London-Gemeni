@@ -9,7 +9,7 @@ export const CandidateSet = z.object({
   location: z.object({ name: z.string(), description: z.array(z.string()) }),
   /**
    * `description` is the beats the narrator describes it from, so a part or
-   * feature the prose mentions (a latch, a lid) resolves to the thing it is on.
+   * feature the prose mentions (a clasp, a hasp) resolves to the thing it is on.
    */
   objects: z.array(z.object({
     id: Id,
@@ -17,7 +17,7 @@ export const CandidateSet = z.object({
     where: z.enum(['here', 'carried', 'inContainer', 'onPerson']),
     description: z.array(z.string()),
   })),
-  /** `description` as for objects, so a role the prose gives ("the cook") resolves to the person. */
+  /** `description` as for objects, so a role the prose gives ("the landlady") resolves to the person. */
   persons: z.array(z.object({ id: Id, name: z.string(), description: z.array(z.string()) })),
   exits: z.array(z.object({ id: Id, names: z.array(z.string()).min(1) })),
   /** Facts a present person can speak to, or the player can tell them, by phrase. */
@@ -62,19 +62,26 @@ export const VERB_FIELDS: Record<Verb, readonly IntentField[]> = {
 /**
  * The Selection with each field in the slot its verb reads. A model filling the
  * reply schema sometimes puts a value in a slot the verb does not read:
- *   - a stray word from the line ("break the latch" → open the chest, secondary
- *     "latch"), which names nothing in the set: dropped;
- *   - a real id in the wrong slot ("try the store door" → move, target the exit;
- *     "talk to the cook" → talk, target the cook): moved to the one empty slot of
+ *   - a stray word from the line ("snap the clasp" → open the casket, secondary
+ *     "clasp"), which names nothing in the set: dropped;
+ *   - a real id in the wrong slot ("try the cellar door" → move, target the exit;
+ *     "talk to the landlady" → talk, target the landlady): moved to the one empty slot of
  *     the verb that takes it. Where no slot or several would, it stays put and
  *     inCandidateSet answers none, never a weaker intent the engine would accept;
  *   - an ask's topic that names nothing: dropped, since ask with no topic is the
- *     designed answer to a subject the person has nothing on (an honest deflection).
+ *     designed answer to a subject the person has nothing on (an honest deflection);
+ *   - open with an exit as its target ("open the cellar door"): a move through that
+ *     exit, the one action the engine has on a way, so a locked one answers with its
+ *     lockedBeat instead of the turn coming to nothing.
  * Other fields the verb reads are left for inCandidateSet to judge. The prover offers
  * only read fields holding ids from the set, so this never changes what it proves.
  */
 export function trimSelection(sel: Selection, set: CandidateSet): Selection {
   if (sel.kind !== 'intent') return sel;
+  if (sel.verb === 'open' && sel.target && !sel.exit && set.exits.some(x => x.id === sel.target) && !set.objects.some(o => o.id === sel.target)) {
+    const { target, ...rest } = sel;
+    return trimSelection({ ...rest, verb: 'move', exit: target }, set);
+  }
   const reads: readonly string[] = VERB_FIELDS[sel.verb];
   const ids = new Set<string>([
     ...set.objects.map(o => o.id), ...set.persons.map(p => p.id), ...set.suspects.map(p => p.id),

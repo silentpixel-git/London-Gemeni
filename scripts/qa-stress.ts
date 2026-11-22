@@ -553,6 +553,9 @@ section('pinned 5: a player can accuse anyone met; examine and use reach people'
     'a real id in an unread field moves to the one slot that takes it', JSON.stringify(moved.map(([sel]) => confineSelection(sel, jettyCands))));
   check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'ask', person: 'orrin', topic: 'whistle_at_neck' }, jettyCands)) === '{"kind":"intent","verb":"ask","person":"orrin"}',
     'an invented topic is dropped: ask with no topic, the designed deflection');
+  check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'open', target: 'to_kitchen' }, jettyCands)) === '{"kind":"intent","verb":"move","exit":"to_kitchen"}',
+    'open with an exit as target is a move through it');
+  check(confineSelection({ kind: 'intent', verb: 'close', target: 'to_kitchen' }, jettyCands).kind === 'none', 'but closing a way is not going through it: none');
   check(confineSelection({ kind: 'intent', verb: 'use', person: 'tackle_chest' }, jettyCands).kind === 'none',
     'where two slots could take it (use: target or secondary), it stays none');
   const accused = r.go('it was the woman in oilskins', { verb: 'deduce', facts: [], person: 'ines' });
