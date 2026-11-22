@@ -21,6 +21,7 @@
         "names": [
           "loft",
           "the net loft",
+          "loft door",
           "nets",
           "north"
         ],
@@ -88,7 +89,8 @@
           "tower",
           "the tower door",
           "stair",
-          "bar"
+          "bar",
+          "chain"
         ],
         "to": "tower_stair",
         "lock": {
@@ -121,7 +123,7 @@
     "id": "tower_stair",
     "name": "The Tower Stair",
     "beats": [
-      "A cramped iron spiral, wet with condensation, climbing to a hatch in the ceiling."
+      "A cramped iron spiral, wet with condensation, climbing to a hatch in the ceiling, its iron hinge crusted with salt."
     ],
     "exits": [
       {

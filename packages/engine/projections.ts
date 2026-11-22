@@ -7,7 +7,8 @@
 //   personsNamed         persons a turnEvent names (person, suspect, from, to) who are not present, labelled as above
 //   events               turnEvents verbatim
 //   beats                flattened from s.beats (BeatQueued this turn), plus Location.beats on Moved/Looked,
-//                        Object.beats on Examined, Object.document on Read (after Object.beats when the player
+//                        Object.beats on Examined and OpenBlocked, Exit.lockedBeat or the destination's
+//                        closedBeat on MoveBlocked, Object.document on Read (after Object.beats when the player
 //                        examined it: examining a document reads it), Ending.beats on GameEnded
 //   facts                Facts disclosed or learned by the player THIS turn (from turnEvents), with the
 //                        speaker's voice where a FactDisclosed came from a person who has one
@@ -36,6 +37,14 @@ export function buildNarrationContext(story: Story, s: State, turnEvents: EventP
     if (e.kind === 'Moved') beats.push(...(story.locations.find(l => l.id === e.to)?.beats ?? []));
     else if (e.kind === 'Looked') beats.push(...loc.beats);
     else if (e.kind === 'Examined') beats.push(...(obj(e.object)?.beats ?? []));
+    // A blocked way or lid reads as the Story wrote it: the exit's lockedBeat, the closed
+    // place's closedBeat, the locked container's own beats.
+    else if (e.kind === 'MoveBlocked') {
+      const exit = loc.exits.find(x => x.id === e.exit);
+      const line = e.reason === 'locked' ? exit?.lockedBeat : story.locations.find(l => l.id === exit?.to)?.closedBeat;
+      if (line) beats.push(line);
+    }
+    else if (e.kind === 'OpenBlocked') beats.push(...(obj(e.object)?.beats ?? []));
     else if (e.kind === 'Read') { const o = obj(e.object); if (examining) beats.push(...(o?.beats ?? [])); if (o?.document) beats.push(o.document); }
     else if (e.kind === 'GameEnded') beats.push(...(story.endings.find(x => x.id === e.ending)?.beats ?? []));
   }

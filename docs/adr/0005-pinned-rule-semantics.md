@@ -14,7 +14,7 @@ The engine review of November 2026 (`docs/reviews/engine-review-2026-11.md`) fou
 
 4. **A `leave` Rule judges its conditions from the room being left.** Its `when` sees the world as it is, with the player still in the location being left, so `location` and `personsPresent` mean what an author expects. Every other trigger sees the world after the action. Firing order is the action, then `leave`, then `enter`, then arrivals, then whatever those set off; Story order applies only among the Rules of one firing.
 
-5. **The prover proves only what a player can select.** Every prover action passes the same Candidate Set check the turn endpoint applies (`inCandidateSet`, now in `packages/schema/candidates.ts`). The endpoint first settles fields a verb does not read (`trimSelection`: a stray word is dropped, a real id moved to the one empty slot that takes it); the prover offers only read fields, so this changes nothing it proves. Two consequences for what a player can select:
+5. **The prover proves only what a player can select.** Every prover action passes the same Candidate Set check the turn endpoint applies (`inCandidateSet`, now in `packages/schema/candidates.ts`). The endpoint first settles the Selection (`trimSelection`): a stray word is dropped, a real id is moved to the one empty slot that takes it, a candidate's exact name stands for its id, and `open` or `use` on an exit itself, or the exit's own key used on it, is a `move` through it. Each of these rewrites only to a Selection the prover also offers, so the two agree. Two consequences for what a player can select:
    - A deduction may accuse anyone the player has met, present or not. The Candidate Set carries them as `suspects`, by the label the player knows them by, and they are exactly the people the diary lists as met. An absent person a turn names reaches the narrator by that label too (`personsNamed`), never as a bare id.
    - `examine` may target a person present, and `use` may take a person present as its secondary.
 
@@ -23,6 +23,8 @@ The engine review of November 2026 (`docs/reviews/engine-review-2026-11.md`) fou
 6. **`visibleFromAct` gates speech, not learning.** It is the earliest act in which a person will tell the player the Fact. A document or a Rule may teach it earlier; the prover reports the first such path it meets as EARLY, and the validator warns on a `grantFact` to the player that can fire earlier. The EARLY list is a net, not a proof of absence: the search stops once every goal is found, so a leak only reachable deeper than that is not seen. Granting it early to a person is not reported: they still cannot tell it before its act.
 
 7. **`knownBy: ["player"]` is honoured.** The player starts knowing the Fact, may name it in a deduction or tell it to others, and finds its Clue on the opening turn.
+
+8. **A `combine` Rule also fires when one of its pair is used on the other.** `Combined` and a `Used` whose `on` is an Object both raise the combine Firing, after the action's own; the prover offers both. The validator warns where an action Rule on that use claims the same pair, since both then land in one turn.
 
 ## Considered options
 

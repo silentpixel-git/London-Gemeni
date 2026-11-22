@@ -19,7 +19,8 @@ export const CandidateSet = z.object({
   })),
   /** `description` as for objects, so a role the prose gives ("the landlady") resolves to the person. */
   persons: z.array(z.object({ id: Id, name: z.string(), description: z.array(z.string()) })),
-  exits: z.array(z.object({ id: Id, names: z.array(z.string()).min(1) })),
+  /** `key`: the Object that opens this exit's lock now, when it is a key lock. */
+  exits: z.array(z.object({ id: Id, names: z.array(z.string()).min(1), key: Id.optional() })),
   /** Facts a present person can speak to, or the player can tell them, by phrase. */
   topics: z.array(z.object({ person: Id, fact: Id, phrase: z.string(), direction: z.enum(['ask', 'tell']) })),
   /** Facts the player knows and may name in a deduction. */
@@ -72,29 +73,39 @@ export const VERB_FIELDS: Record<Verb, readonly IntentField[]> = {
  *     designed answer to a subject the person has nothing on (an honest deflection);
  *   - a value that is exactly one candidate's name rather than its id ("bar" for the
  *     exit named "bar"): that candidate's id;
- *   - open or use on an exit, or anything used on one ("open the cellar door", "lift
- *     the bar", "unlock the door with the key"): a move through that exit, the one
- *     action the engine has on a way, so a locked one answers with its lockedBeat
- *     and a carried key opens it, instead of the turn coming to nothing.
+ *   - open or use on an exit itself ("open the cellar door", "lift the bar"), or the
+ *     exit's own key used on it ("unlock the door with the key"): a move through
+ *     that exit, the one action the engine has on a way, so a locked one answers
+ *     with its lockedBeat and the key opens it. Anything else used on a way stays
+ *     none: it is not an attempt to go through.
  * Other fields the verb reads are left for inCandidateSet to judge. The prover offers
  * only read fields holding ids from the set, so this never changes what it proves.
  */
 export function trimSelection(sel: Selection, set: CandidateSet): Selection {
   if (sel.kind !== 'intent') return sel;
+  const norm = (n: string) => n.trim().toLowerCase().replace(/^the /, '');
   const named = (v: string | undefined) => {
     if (v === undefined || [...set.objects, ...set.exits, ...set.persons].some(c => c.id === v)) return v;
-    const key = v.trim().toLowerCase().replace(/^the /, '');
-    const hits = [
-      ...set.exits.filter(x => x.names.some(n => n.toLowerCase().replace(/^the /, '') === key)).map(x => x.id),
-      ...set.objects.filter(o => o.name.toLowerCase().replace(/^the /, '') === key).map(o => o.id),
-    ];
-    return hits.length === 1 ? hits[0] : v;
+    const hits = new Set([
+      ...set.exits.filter(x => x.names.some(n => norm(n) === norm(v))).map(x => x.id),
+      ...set.objects.filter(o => norm(o.name) === norm(v)).map(o => o.id),
+      ...set.persons.filter(p => norm(p.name) === norm(v)).map(p => p.id),
+    ]);
+    return hits.size === 1 ? [...hits][0] : v;
   };
   sel = { ...sel, ...(sel.target ? { target: named(sel.target) } : {}), ...(sel.secondary ? { secondary: named(sel.secondary) } : {}) };
-  const isExit = (v?: string) => !!v && set.exits.some(x => x.id === v) && !set.objects.some(o => o.id === v);
-  const way = (sel.verb === 'open' || sel.verb === 'use') && !sel.exit
-    ? (isExit(sel.target) ? sel.target : sel.verb === 'use' && isExit(sel.secondary) ? sel.secondary : undefined) : undefined;
-  if (way) return { kind: 'intent', verb: 'move', exit: way };
+  const exitOf = (v?: string) => (v && !set.objects.some(o => o.id === v) && !set.persons.some(p => p.id === v) ? set.exits.find(x => x.id === v) : undefined);
+  if (sel.verb === 'open' || sel.verb === 'use') {
+    const slotted = exitOf(sel.exit);
+    const targetWay = exitOf(sel.target);
+    const onWay = exitOf(sel.secondary) ?? (sel.target && !targetWay ? slotted : undefined);
+    if (targetWay && !sel.secondary) return { kind: 'intent', verb: 'move', exit: targetWay.id };
+    if (slotted && !sel.target) return { kind: 'intent', verb: 'move', exit: slotted.id };
+    if (onWay && sel.verb === 'use') {
+      if (onWay.key && sel.target === onWay.key) return { kind: 'intent', verb: 'move', exit: onWay.id };
+      return { kind: 'none', reason: 'that does nothing to the way' };
+    }
+  }
   const reads: readonly string[] = VERB_FIELDS[sel.verb];
   const ids = new Set<string>([
     ...set.objects.map(o => o.id), ...set.persons.map(p => p.id), ...set.suspects.map(p => p.id),

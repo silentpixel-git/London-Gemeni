@@ -95,7 +95,7 @@
   },
   {
     "id": "hatch_sticks",
-    "statement": "The lamp-room hatch sticks when damp; a hard shove at the hinge frees it.",
+    "statement": "The lamp-room hatch sticks when damp; the knack is a hard shove up at the hinge side.",
     "knownBy": [
       "orrin",
       "maud",
@@ -109,7 +109,7 @@
       "hinge"
     ],
     "spoilerTerms": [
-      "shove at the hinge"
+      "shove up at the hinge"
     ]
   },
   {
