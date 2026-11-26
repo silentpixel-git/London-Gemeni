@@ -29,25 +29,12 @@ import { useInvestigation } from './hooks/useInvestigation';
 import { useAppearance } from './hooks/gameState/useAppearance';
 import { suggestionsFor } from './services/viewFormat';
 import { useAudio } from './hooks/useAudio';
-import type { TimePeriod } from './types';
 
 // The `desk` breakpoint (tailwind.config.js) — the width at or above which the
 // Sidebar docks beside the game instead of sliding over it as a drawer, as in
 // the prototype. Matching the CSS query rather than reading innerWidth keeps
 // this in step with the `desk:` classes on the Sidebar itself.
 const DESK_QUERY = '(min-width: 901px)';
-
-/** The auto theme follows the in-game hour; a Story's own Periods are not needed for that. */
-function themePeriod(clock: number | undefined): TimePeriod {
-  if (clock === undefined) return 'evening';
-  const h = Math.floor((((clock % 1440) + 1440) % 1440) / 60);
-  if (h < 5) return 'lateNight';
-  if (h < 7) return 'dawn';
-  if (h < 12) return 'morning';
-  if (h < 17) return 'afternoon';
-  if (h < 20) return 'evening';
-  return 'night';
-}
 
 const sumTotals = (t: Record<DiaryTab, number>) => t.evidence + t.persons + t.documents;
 
@@ -82,7 +69,7 @@ const AppContent: React.FC = () => {
 
   const inv = useInvestigation({ userId: isAuthReady ? user?.id ?? null : null });
   const view = inv.view;
-  const appearance = useAppearance({ user, userProfile, currentTimePeriod: themePeriod(view?.clock) });
+  const appearance = useAppearance({ user, userProfile, clock: view?.clock });
 
   // Ambient bed from what the player can see; one-shots from the latest turn's cues.
   useAudio({
@@ -220,8 +207,6 @@ const AppContent: React.FC = () => {
   };
 
   const history = inv.history;
-  let lastUserIdx = -1;
-  history.forEach((m, i) => { if (m.role === 'user') lastUserIdx = i; });
 
   return (
     <div
@@ -273,7 +258,6 @@ const AppContent: React.FC = () => {
 
         <NarrativeFeed
           history={history}
-          actualLastUserIdx={lastUserIdx}
           scrollRef={scrollRef}
           dockRef={dockRef}
         />

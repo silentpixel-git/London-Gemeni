@@ -13,12 +13,11 @@ import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { EASE_OUT, DUR_PANEL } from './motionTokens';
 import { StoryRenderer } from './StoryRenderer';
 import { TypewriterBlock } from './TypewriterBlock';
-import { GameHistoryItem } from '../types';
+import type { FeedItem } from '../packages/schema/view.js';
 import { useFeedFollow } from '../hooks/gameState/useFeedFollow';
 
 interface NarrativeFeedProps {
-  history: GameHistoryItem[];
-  actualLastUserIdx: number;
+  history: FeedItem[];
   scrollRef: React.RefObject<HTMLDivElement>;
   /** The command dock's form: the feed never types text underneath it. */
   dockRef: React.RefObject<HTMLElement>;
@@ -27,7 +26,7 @@ interface NarrativeFeedProps {
 /**
  * Deterministic scene chrome above the narrated prose: the act heading (scene
  * entries only) and the pin + location-name header (any full-mode turn). Data
- * comes from engine-verified fields on the history item — the AI has no hand
+ * comes from engine-verified fields on the feed item — the AI has no hand
  * in it. Renders immediately; the prose typewrites below.
  */
 function SceneHeader({ actHeading, location }: { actHeading?: string; location?: string }) {
@@ -58,7 +57,6 @@ function SceneHeader({ actHeading, location }: { actHeading?: string; location?:
 
 export function NarrativeFeed({
   history,
-  actualLastUserIdx,
   scrollRef,
   dockRef,
 }: NarrativeFeedProps) {
@@ -67,6 +65,7 @@ export function NarrativeFeed({
   // Every block types in below the last
   // and is followed line by line, so the reader always starts at its first line.
   const follow = useFeedFollow(scrollRef, contentRef, dockRef, history.length);
+  const lastPlayerIdx = history.map(h => h.kind).lastIndexOf('player');
 
   return (
   <div
@@ -86,17 +85,13 @@ export function NarrativeFeed({
     {/* History */}
     <div ref={contentRef} className="max-w-3xl mx-auto" data-flip>
       <AnimatePresence initial={false}>
-        {history.map((msg, index) => {
-          const isAI = msg.role === 'assistant';
-          const isLast = index === history.length - 1;
-          const isLatestUser = index === actualLastUserIdx;
-
-          // User command line
-          if (!isAI && msg.role !== 'system') {
+        {history.map((item, index) => {
+          // Player command line
+          if (item.kind === 'player') {
             return (
               <motion.div
                 key={index}
-                initial={isLatestUser ? { y: 12, opacity: 0 } : { opacity: 1 }}
+                initial={index === lastPlayerIdx ? { y: 12, opacity: 0 } : { opacity: 1 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={reducedMotion ? { duration: 0 } : { duration: 0.25, ease: EASE_OUT }}
                 className="my-6"
@@ -106,44 +101,25 @@ export function NarrativeFeed({
                       player's command should read at the weight of the prose it
                       answers, not shrink away from it. */}
                   <span className="text-lb-accent font-sans font-bold text-[16px] desk:text-[18px] leading-[1.6] [overflow-wrap:anywhere]">
-                    {msg.text}
+                    {item.text}
                   </span>
                 </div>
               </motion.div>
             );
           }
 
-          // Latest AI message — typewriter animation while streaming
-          if (isLast && isAI && (msg.text !== '' || msg.actHeading || msg.location)) {
-            return (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="mb-6"
-              >
-                <SceneHeader actHeading={msg.actHeading} location={msg.location} />
-                <TypewriterBlock text={msg.text} onProgress={follow} />
-              </motion.div>
-            );
-          }
-
-          // Previous AI messages — static render
-          if (isAI && (msg.text !== '' || msg.actHeading || msg.location)) {
-            return (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="mb-6"
-              >
-                <SceneHeader actHeading={msg.actHeading} location={msg.location} />
-                <StoryRenderer text={msg.text} />
-              </motion.div>
-            );
-          }
-
-          return null;
+          const text = item.kind === 'ending' ? `**${item.name}**` : item.text;
+          const scene: { actHeading?: string; location?: string } = item.kind === 'prose' ? item : {};
+          if (!text && !scene.actHeading && !scene.location) return null;
+          // The latest block types in while it streams; earlier ones render whole.
+          return (
+            <motion.div key={index} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6">
+              <SceneHeader actHeading={scene.actHeading} location={scene.location} />
+              {index === history.length - 1
+                ? <TypewriterBlock text={text} onProgress={follow} />
+                : <StoryRenderer text={text} />}
+            </motion.div>
+          );
         })}
       </AnimatePresence>
 

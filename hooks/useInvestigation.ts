@@ -20,7 +20,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FeedItem, PlayerView } from '../packages/schema/index.js';
 import { InvestigationRepository, type InvestigationSummary } from '../services/InvestigationRepository';
 import { postTurn, TurnRefused, type TurnBody, type TurnLine } from '../services/turnClient';
-import type { GameHistoryItem } from '../types';
 
 /** The Story a new Investigation starts on. The stress fixture until a real Story is authored for the new engine. */
 export const DEFAULT_STORY: string = import.meta.env.VITE_DEFAULT_STORY || 'stress';
@@ -42,15 +41,14 @@ function recall(): string | null {
   try { return localStorage.getItem(LAST_KEY); } catch { return null; }
 }
 
-/** The feed (plus the turn in flight) in the shape NarrativeFeed renders. */
-export function historyFrom(feed: FeedItem[], pending: Pending | null): GameHistoryItem[] {
-  const items: GameHistoryItem[] = feed.map(f =>
-    f.kind === 'player' ? { role: 'user', text: f.text }
-    : f.kind === 'prose' ? { role: 'assistant', text: f.text, location: f.location, actHeading: f.actHeading }
-    : { role: 'assistant', text: `**${f.name}**` });
-  if (pending?.player !== undefined) items.push({ role: 'user', text: pending.player });
-  if (pending) items.push({ role: 'assistant', text: pending.text });
-  return items;
+/** The feed plus the turn in flight, as feed items: what NarrativeFeed renders. */
+function historyFrom(feed: FeedItem[], pending: Pending | null): FeedItem[] {
+  if (!pending) return feed;
+  return [
+    ...feed,
+    ...(pending.player !== undefined ? [{ kind: 'player' as const, text: pending.player }] : []),
+    { kind: 'prose', text: pending.text },
+  ];
 }
 
 export function useInvestigation({ userId }: { userId: string | null }) {

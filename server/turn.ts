@@ -39,6 +39,9 @@ const TurnRequest = z.union([
   z.object({ start: z.object({ storyId: Id, name: z.string().trim().min(1) }).strict() }).strict(),
 ]);
 
+/** A request body; services/turnClient.ts sends these. */
+export type TurnRequestBody = z.infer<typeof TurnRequest>;
+
 /** Player lines offered to the selection model for "open it". */
 const RECENT_TEXTS = 4;
 

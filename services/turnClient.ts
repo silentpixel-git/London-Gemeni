@@ -2,13 +2,10 @@
 // with the player's Supabase JWT and hands each NDJSON line over as it arrives.
 // Types only from packages/schema: the browser never loads the engine or a Story.
 import type { FeedItem, Observation, PlayerView } from '../packages/schema/index.js';
+import type { TurnRequestBody as TurnBody } from '../server/turn.js';
 import { supabase } from '../supabase';
 
-export type TurnBody =
-  | { investigationId: string; text: string }
-  | { investigationId: string; tick: true }
-  | { investigationId: string; resume: true }
-  | { start: { storyId: string; name: string } };
+export type { TurnBody };
 
 export type TurnLine =
   | { kind: 'turn'; investigationId: string; cues: string[]; diary: boolean }
@@ -41,24 +38,15 @@ export async function postTurn(body: TurnBody, onLine: (line: TurnLine) => void)
     try { message = (JSON.parse(first) as { message?: string }).message ?? message; } catch { /* not NDJSON */ }
     throw new TurnRefused(res.status, message);
   }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
   let buffer = '';
-  const flush = (all: boolean) => {
-    let i: number;
-    while ((i = buffer.indexOf('\n')) >= 0) {
-      const line = buffer.slice(0, i).trim();
-      buffer = buffer.slice(i + 1);
-      if (line) onLine(JSON.parse(line) as TurnLine);
-    }
-    if (all && buffer.trim()) { onLine(JSON.parse(buffer) as TurnLine); buffer = ''; }
-  };
+  const emit = (line: string) => { if (line.trim()) onLine(JSON.parse(line) as TurnLine); };
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    flush(false);
+    const lines = (buffer + value).split('\n');
+    buffer = lines.pop()!;
+    lines.forEach(emit);
   }
-  buffer += decoder.decode();
-  flush(true);
+  emit(buffer);
 }

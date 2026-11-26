@@ -1,49 +1,42 @@
 import { useState, useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
 import { upsertProfile, type UserProfile } from '../../services/GameRepository';
-import { ThemeMode, TimePeriod } from '../../types';
+import type { ThemeMode } from '../../types';
 
-export interface AppearanceDeps {
-  user: User | null;
-  userProfile: UserProfile | null;
-  currentTimePeriod: TimePeriod;
+/** The auto theme's palette at an in-game clock (absolute minutes); a Story's own Periods are not needed for that. */
+function autoTheme(clock: number | undefined): 'light' | 'evening' | 'night' {
+  if (clock === undefined) return 'evening';
+  const h = Math.floor((((clock % 1440) + 1440) % 1440) / 60);
+  if (h < 5 || h >= 20) return 'night';
+  if (h < 7 || h >= 17) return 'evening';
+  return 'light';
 }
 
-export function useAppearance(deps: AppearanceDeps) {
-  const { user, userProfile, currentTimePeriod } = deps;
+/** A setting kept in localStorage under `key`; `decode` maps the stored string (null when absent) to the value. */
+function useStored<T extends string | boolean>(key: string, decode: (raw: string | null) => T) {
+  const [value, setValue] = useState<T>(() => {
+    try { return decode(localStorage.getItem(key)); } catch { return decode(null); }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(key, typeof value === 'boolean' ? (value ? 'on' : 'off') : value); } catch {}
+  }, [key, value]);
+  return [value, setValue] as const;
+}
 
+export function useAppearance({ user, userProfile, clock }: { user: User | null; userProfile: UserProfile | null; clock: number | undefined }) {
   // Single appearance choice — defaults to light.
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    try {
-      const stored = localStorage.getItem('lb-theme-mode');
-      if (stored === 'light' || stored === 'dark' || stored === 'auto') return stored;
-    } catch {}
-    return 'light';
-  });
-  // Atmosphere audio — default off, persisted to localStorage (POC).
-  const [soundEffects, setSoundEffects] = useState<boolean>(() => {
-    try { return localStorage.getItem('lb-sound-effects') === 'on'; } catch { return false; }
-  });
-  const [ambientAudio, setAmbientAudio] = useState<boolean>(() => {
-    try { return localStorage.getItem('lb-ambient-audio') === 'on'; } catch { return false; }
-  });
+  const [themeMode, setThemeMode] = useStored<ThemeMode>('lb-theme-mode', r => (r === 'dark' || r === 'auto' ? r : 'light'));
+  // Atmosphere audio — default off.
+  const [soundEffects, setSoundEffects] = useStored('lb-sound-effects', r => r === 'on');
+  const [ambientAudio, setAmbientAudio] = useStored('lb-ambient-audio', r => r === 'on');
   // "Try" suggestion chips above the command line — default on.
-  const [showSuggestions, setShowSuggestions] = useState<boolean>(() => {
-    try { return localStorage.getItem('lb-show-suggestions') !== 'off'; } catch { return true; }
-  });
+  const [showSuggestions, setShowSuggestions] = useStored('lb-show-suggestions', r => r !== 'off');
+  const theme = themeMode === 'auto' ? autoTheme(clock) : themeMode;
 
   // Apply the active data-theme. In 'auto' the palette follows the in-game clock
   // (evening/night); 'light' and 'dark' apply that palette directly. Because it's
   // one choice, a manual dark selection can never be silently overridden.
   useEffect(() => {
-    let theme: string;
-    if (themeMode === 'auto') {
-      theme = (currentTimePeriod === 'night' || currentTimePeriod === 'lateNight') ? 'night'
-            : (currentTimePeriod === 'evening' || currentTimePeriod === 'dawn')   ? 'evening'
-            : 'light';
-    } else {
-      theme = themeMode; // 'light' | 'dark'
-    }
     // Crossfade the whole page atomically via the View Transitions API.
     // Per-element CSS color transitions can't do this cleanly: `color`
     // inherits, so every inheriting node runs its own transition and snaps
@@ -61,28 +54,15 @@ export function useAppearance(deps: AppearanceDeps) {
         document.documentElement.dataset.theme = theme;
       });
     }
-  }, [themeMode, currentTimePeriod]);
+  }, [theme]);
 
-  // Persist the appearance choice — localStorage + Supabase cloud sync.
+  // Sync the appearance choice to the profile when logged in (user accessed via closure — intentionally omitted from deps).
   useEffect(() => {
-    try { localStorage.setItem('lb-theme-mode', themeMode); } catch {}
-    // Sync to cloud when logged in (user accessed via closure — intentionally omitted from deps)
     if (user) {
       upsertProfile(user.id, { themePreference: themeMode });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [themeMode]);
-
-  // Persist the atmosphere audio toggles — localStorage only for the POC.
-  useEffect(() => {
-    try { localStorage.setItem('lb-sound-effects', soundEffects ? 'on' : 'off'); } catch {}
-  }, [soundEffects]);
-  useEffect(() => {
-    try { localStorage.setItem('lb-ambient-audio', ambientAudio ? 'on' : 'off'); } catch {}
-  }, [ambientAudio]);
-  useEffect(() => {
-    try { localStorage.setItem('lb-show-suggestions', showSuggestions ? 'on' : 'off'); } catch {}
-  }, [showSuggestions]);
 
   // Load appearance preference from cloud when user profile becomes available
   useEffect(() => {
