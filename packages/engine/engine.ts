@@ -2,14 +2,10 @@
 // all drive. Deterministic given (story, state, input, rng); every random
 // draw lands in an Event.
 import type { EventPayload, Selection, Story, Verb } from '../schema/index.js';
-import { candidates } from './candidates.js';
 import { turnRng, type Rng } from './rng.js';
 import { cascade, chooseByWeight, clueEvents, eligibleTickRules, fireRule, firingsFrom, type Firing } from './rules.js';
 import { apply, initialState, inventory, personsPresent, visibleObjects, type State } from './state.js';
-import { resolveVerb, type Intent } from './verbs.js';
-
-export { candidates };
-export type { Intent };
+import { resolveVerb } from './verbs.js';
 
 /** In-world minutes each verb costs. wait is the player's explicit Tick. */
 export const MINUTES: Record<Verb, number> = {

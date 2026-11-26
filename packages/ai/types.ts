@@ -22,26 +22,13 @@ export interface Ai {
   narrate(ctx: NarrationContext): AsyncIterable<NarrationChunk>;
 }
 
-export type ProviderName = 'gemini' | 'recorded';
-
-export interface JobConfig { provider: ProviderName; model: string }
-
+/** Gemini models per job (AI_SELECT_MODEL / AI_NARRATE_MODEL). The key is read from env and never stored here. */
 export interface AiConfig {
-  select: JobConfig;
-  narrate: JobConfig;
-  /** For the 'recorded' provider: directory of JSON fixtures keyed by a hash of the input. */
+  selectModel: string;
+  narrateModel: string;
+  /** AI_RECORDINGS_DIR: with no GEMINI_API_KEY, replay JSON fixtures from here (recorded.ts). */
   recordingsDir?: string;
 }
-
-/** Environment → config. AI_SELECT_MODEL / AI_NARRATE_MODEL / AI_SELECT_PROVIDER / AI_NARRATE_PROVIDER. */
-export const ENV_KEYS = {
-  selectProvider: 'AI_SELECT_PROVIDER',
-  selectModel: 'AI_SELECT_MODEL',
-  narrateProvider: 'AI_NARRATE_PROVIDER',
-  narrateModel: 'AI_NARRATE_MODEL',
-  geminiKey: 'GEMINI_API_KEY',
-  recordingsDir: 'AI_RECORDINGS_DIR',
-} as const;
 
 /**
  * What a provider adapter needs from the prompt layer. Prompt text is owned by

@@ -4,9 +4,9 @@ import { GoogleGenAI } from '@google/genai';
 import { NarrationResult, Selection, type NarrationContext } from '../schema/index.js';
 import { buildNarratePrompt, buildSelectPrompt } from './prompts.js';
 import { confineObservations, confineSelection } from './selection.js';
-import type { Ai, JobConfig, NarrationChunk, PromptBundle, SelectInput } from './types.js';
+import type { Ai, NarrationChunk, PromptBundle, SelectInput } from './types.js';
 
-export function gemini(select: JobConfig, narrate: JobConfig, apiKey: string): Ai {
+export function gemini(selectModel: string, narrateModel: string, apiKey: string): Ai {
   const client = new GoogleGenAI({ apiKey });
 
   const request = (model: string, bundle: PromptBundle) => ({
@@ -22,7 +22,7 @@ export function gemini(select: JobConfig, narrate: JobConfig, apiKey: string): A
 
   return {
     async select(input: SelectInput): Promise<Selection> {
-      const req = request(select.model, buildSelectPrompt(input));
+      const req = request(selectModel, buildSelectPrompt(input));
       for (let attempt = 0; attempt < 2; attempt++) {
         const res = await client.models.generateContent(req);
         const parsed = Selection.safeParse(parseJson(res.text ?? ''));
@@ -32,7 +32,7 @@ export function gemini(select: JobConfig, narrate: JobConfig, apiKey: string): A
     },
 
     async *narrate(ctx: NarrationContext): AsyncIterable<NarrationChunk> {
-      const req = request(narrate.model, buildNarratePrompt(ctx));
+      const req = request(narrateModel, buildNarratePrompt(ctx));
       // Streaming design: the reply is the NarrationResult JSON, and `prose` is
       // the first property of the schema (Gemini emits properties in schema
       // order), so the prose string opens early. We decode that string from the
@@ -85,7 +85,7 @@ function parseJson(text: string): unknown {
  * The decoded value of the top-level "prose" string in partial JSON, as far as
  * it has arrived. Stops before an incomplete escape so a later call extends it.
  */
-export function proseSoFar(json: string): string {
+function proseSoFar(json: string): string {
   const key = /"prose"\s*:\s*"/.exec(json);
   if (!key) return '';
   let out = '';

@@ -23,7 +23,7 @@ export interface Invention { kind: 'name' | 'number'; token: string }
 export interface GateVerdict { ok: boolean; inventions: Invention[] }
 
 /** Everything the narrator was told this turn, flattened. */
-export function contextHaystack(ctx: NarrationContext): string {
+function contextHaystack(ctx: NarrationContext): string {
   const parts: string[] = [
     ctx.storyTitle, ctx.act.name, ctx.act.dateLabel, ctx.clock.period, ctx.clock.weather,
     ctx.location.name, ...ctx.location.beats,
@@ -52,7 +52,7 @@ export function contextHaystack(ctx: NarrationContext): string {
  * context. Sentence-initial words are skipped: capitalisation there is
  * grammar, not a name, and was the dominant false positive before.
  */
-export function findInventions(prose: string, ctx: NarrationContext): Invention[] {
+function findInventions(prose: string, ctx: NarrationContext): Invention[] {
   const hay = contextHaystack(ctx);
   const found = new Map<string, Invention>();
   const text = prose.replace(/[*_#>]/g, ' ');

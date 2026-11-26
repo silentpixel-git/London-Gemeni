@@ -43,7 +43,7 @@ export function firingsFrom(story: Story, events: EventPayload[]): Firing[] {
   return out;
 }
 
-export function triggerMatches(t: Trigger, f: Firing, s: State): boolean {
+function triggerMatches(t: Trigger, f: Firing, s: State): boolean {
   if (t.kind !== f.kind) return false;
   switch (t.kind) {
     case 'action': {
@@ -81,7 +81,7 @@ export function triggerMatches(t: Trigger, f: Firing, s: State): boolean {
   }
 }
 
-export function conditionsHold(story: Story, s: State, w: Conditions | undefined): boolean {
+function conditionsHold(story: Story, s: State, w: Conditions | undefined): boolean {
   if (!w) return true;
   if (w.act && !w.act.includes(s.act)) return false;
   if (w.location && !w.location.includes(s.location)) return false;
@@ -95,7 +95,7 @@ export function conditionsHold(story: Story, s: State, w: Conditions | undefined
   return true;
 }
 
-export function ruleEligible(story: Story, s: State, r: Rule, f: Firing): boolean {
+function ruleEligible(story: Story, s: State, r: Rule, f: Firing): boolean {
   if (r.once && (s.firedRules[r.id] ?? 0) > 0) return false;
   if (!triggerMatches(r.trigger, f, s)) return false;
   // A leave Rule judges its conditions from the room being left: the world as it is now, with the player still there.
@@ -121,7 +121,7 @@ export function chooseByWeight(rules: Rule[], draw: number, quiet = 0): Rule | n
 }
 
 /** Translate one Effect into Events against the current State. */
-export function effectEvents(story: Story, s: State, e: Effect, ruleId: Id): EventPayload[] {
+function effectEvents(story: Story, s: State, e: Effect, ruleId: Id): EventPayload[] {
   switch (e.kind) {
     case 'setFlag': return s.flags[e.flag] ? [] : [{ kind: 'FlagSet', flag: e.flag }];
     case 'revealObject': return [{ kind: 'ObjectPlaced', object: e.object, placement: s.objects[e.object].placement, hidden: false }];

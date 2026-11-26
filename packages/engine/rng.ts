@@ -2,7 +2,7 @@
 export interface Rng { next(): number }
 
 /** mulberry32: small, fast, good enough for choosing among a handful of Rules. */
-export function seededRng(seed: number): Rng {
+function seededRng(seed: number): Rng {
   let a = seed >>> 0;
   return {
     next() {

@@ -69,11 +69,11 @@ export function recording(inner: Ai, dir: string): Ai {
   };
 }
 
-export function selectKey(input: SelectInput) {
+function selectKey(input: SelectInput) {
   return { key: sha1({ kind: 'select', text: input.text, candidates: input.candidates }), summary: `select ${JSON.stringify(input.text)}` };
 }
 
-export function narrateKey(ctx: NarrationContext) {
+function narrateKey(ctx: NarrationContext) {
   const kinds = ctx.events.map(e => e.kind).join(',') || 'no events';
   return { key: sha1({ kind: 'narrate', ctx }), summary: `narrate ${ctx.mode} at ${ctx.location.id}: ${kinds}` };
 }

@@ -5,8 +5,6 @@
 // schema (inCandidateSet), so the prover reads the same one.
 import { inCandidateSet, sharesTopicWord, trimSelection, type CandidateSet, type NarrationContext, type NarrationResult, type Selection } from '../schema/index.js';
 
-export { inCandidateSet };
-
 /**
  * The Selection without stray words (trimSelection), or none when it names something the set
  * does not hold. Given the player's line, an ask keeps its topic only when the line shares a word

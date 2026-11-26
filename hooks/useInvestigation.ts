@@ -22,8 +22,8 @@ import { InvestigationRepository, type InvestigationSummary } from '../services/
 import { postTurn, TurnRefused, type TurnBody, type TurnLine } from '../services/turnClient';
 
 /** The Story a new Investigation starts on. The stress fixture until a real Story is authored for the new engine. */
-export const DEFAULT_STORY: string = import.meta.env.VITE_DEFAULT_STORY || 'stress';
-export const IDLE_TICK_MS = 120_000;
+const DEFAULT_STORY: string = import.meta.env.VITE_DEFAULT_STORY || 'stress';
+const IDLE_TICK_MS = 120_000;
 const MAX_IDLE_TICKS = 3;
 const IDLE_POLL_MS = 5_000;
 const LAST_KEY = 'lb:lastInvestigation';

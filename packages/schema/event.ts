@@ -63,7 +63,6 @@ export const EventPayload = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('GameEnded'), ending: Id }),
 ]);
 export type EventPayload = z.infer<typeof EventPayload>;
-export type EventKind = EventPayload['kind'];
 
 /** One row of an Investigation's log. */
 export const LogEvent = z.object({
