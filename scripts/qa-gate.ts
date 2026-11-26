@@ -44,11 +44,13 @@ check(verdict('Fine.', [{ key: 'clock_grain', subject: 'hall_clock', text: 'The 
 check(!verdict('It had been ten days since the light failed.').ok, 'a spelled number is matched whole: "ten" is not earned by a context word that contains it',
   JSON.stringify(verdict('It had been ten days since the light failed.')));
 
-// An id is not a name, though it is often the real one: the stress Story's "ines" is listed as the woman
-// in oilskins until her keeper's log is read. Only the context's words license a name: labels, Story text,
-// and the player's own line.
+// An id is not a name, though it can be the real one. The stress Story's woman in oilskins, Ines Tarrow, is
+// named once her keeper's log is read; her id was "ines" when the narrator first gave her name away. The
+// validator now fails such an id (qa:story), but the gate must not lean on that: the reported turn is
+// replayed with her old id. Only the context's words license a name: labels, Story text, the player's own line.
 {
-  const stress = Story.parse(loadStoryDir(join('packages', 'schema', 'fixtures', 'stress')));
+  const raw = JSON.stringify(loadStoryDir(join('packages', 'schema', 'fixtures', 'stress')));
+  const stress = Story.parse(JSON.parse(raw.replaceAll('"oilskin_woman"', '"ines"')));
   const go = (s: State, text: string, sel: Omit<Extract<Selection, { kind: 'intent' }>, 'kind'>) =>
     resolveTurn(stress, s, { text, selection: { kind: 'intent', ...sel } }, fixedRng([0]));
   const gate = (c: NarrationContext, prose: string) => gateNarration(c, { prose, observations: [] });

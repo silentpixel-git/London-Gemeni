@@ -69,6 +69,26 @@ const FIXTURES = join('packages', 'schema', 'fixtures');
   else { fail('examine-only triggers on documents: dead must fail, partly dead must warn'); show([...about('qa_examine_doc'), ...about('qa_examine_mixed'), ...about('qa_examine_or_read_doc')]); }
 }
 
+// 1e. An id reaches the narrator and the parser verbatim, so a person whose name an alias withholds may not carry it in their id.
+{
+  const raw = loadStoryDir(join(FIXTURES, 'toy')) as { persons: unknown[] };
+  const person = (id: string, name: string, alias?: string) =>
+    ({ id, name, ...(alias ? { alias, introduction: { kind: 'self' } } : {}), schedule: {}, disposition: 'neutral', beats: ['A lamplighter.'] });
+  raw.persons.push(
+    person('tom_lamplighter', 'Tom Ashby', 'the lamplighter'),
+    person('lamplighter', 'Will Ashby', 'the lamplighter'),
+    person('old_ned', 'Ned Ashby', 'old Ned'),
+    person('kit_ashby', 'Kit Ashby'),
+    person('tomb_keeper', 'Tom Ashby', 'the sexton'),
+  );
+  const leak = (id: string) => validateStory(raw).issues.filter(i => i.at === `persons/${id}` && i.level === 'fail');
+  if (leak('tom_lamplighter').some(i => i.message.includes('"tom"'))) pass('an aliased person\'s id that carries a word of their name fails');
+  else { fail('an id carrying a withheld name must fail'); show(leak('tom_lamplighter')); }
+  const clean = ['lamplighter', 'old_ned', 'kit_ashby', 'tomb_keeper'];
+  if (clean.every(id => leak(id).length === 0)) pass('an id from the alias, a name word the alias shows, no alias, and a longer word all pass');
+  else { fail('only a withheld name word, matched whole, may fail'); show(clean.flatMap(leak)); }
+}
+
 // 2. An empty Story does not.
 {
   const r = validateStory(loadStoryDir(join(FIXTURES, 'empty')));

@@ -141,6 +141,13 @@ export function validateStory(raw: unknown): ValidationResult {
     const at = `persons/${p.id}`;
     if (p.introduction?.kind === 'document') needObject(p.introduction.object, `${at}/introduction`);
     if (p.alias && !p.introduction) warn(at, 'has an alias but no introduction, so the name can never be revealed');
+    // The id reaches the narrator and the parser verbatim; a model reads "ines" as a name.
+    if (p.alias) {
+      const words = (s: string) => s.toLowerCase().match(/[a-z]+/g) ?? [];
+      const withheld = new Set(words(p.name).filter(w => !words(p.alias!).includes(w)));
+      const carried = [...new Set(words(p.id).filter(w => withheld.has(w)))];
+      if (carried.length) fail(at, `id carries ${carried.map(w => `"${w}"`).join(', ')} from the name the alias withholds; take the id from the alias or role instead`);
+    }
     if (Object.keys(p.schedule).length === 0) warn(at, 'no schedule: the person is offstage in every act');
     for (const [actKey, entry] of Object.entries(p.schedule)) {
       const actId = Number(actKey);
