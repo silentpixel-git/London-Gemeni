@@ -63,9 +63,11 @@ export function buildNarrationContext(story: Story, s: State, turnEvents: EventP
   }
   // Places likewise, but only those the player has been shown: where someone or something else went is for a Beat to tell.
   const places = new Set<Id>();
+  // MoveBlocked names its exit by id only, on the room the turn began in; an act change may have moved the player since.
+  const relocated = turnEvents.some(e => e.kind === 'ActEntered');
   for (const e of turnEvents) {
     if (e.kind === 'Moved') places.add(e.from).add(e.to);
-    else if (e.kind === 'MoveBlocked' || (e.kind === 'ExitLockChanged' && e.location === s.location)) {
+    else if ((e.kind === 'MoveBlocked' && !relocated) || (e.kind === 'ExitLockChanged' && e.location === s.location)) {
       const to = loc.exits.find(x => x.id === e.exit)?.to;
       if (to) places.add(to);
     }

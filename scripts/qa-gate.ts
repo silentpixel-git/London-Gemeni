@@ -78,6 +78,9 @@ check(!verdict('It had been ten days since the light failed.').ok, 'a spelled nu
   const left = 'I left the Keepers\' Kitchen and went down to the jetty.';
   check(gate(bctx, left).ok && !gate({ ...bctx, placesNamed: [] }, left).ok,
     'the place just left passes by its name in placesNamed, not by its id', JSON.stringify(bctx.placesNamed));
+  check(gate(bctx, 'I left the Keeper\'s Kitchen behind.').ok, 'a name differing from the context\'s by a plural or possessive s passes');
+  const relocated = buildNarrationContext(stress, kitchen, [{ kind: 'MoveBlocked', exit: 'to_tower', reason: 'locked', lock: null }, { kind: 'ActEntered', act: 1 }], 'full');
+  check(relocated.placesNamed.length === 0, 'a blocked exit is not looked up in a room an act change moved the player to', JSON.stringify(relocated.placesNamed));
   const barred = go(kitchen, 'go up the tower', { verb: 'move', exit: 'to_tower' });
   check(barred.events.some(e => e.kind === 'MoveBlocked') && gate(buildNarrationContext(stress, barred.state, barred.events, 'full'), 'The way up to the Tower Stair is barred.').ok,
     'where a blocked way leads passes by its name');

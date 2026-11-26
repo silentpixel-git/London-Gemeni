@@ -57,8 +57,10 @@ export function contextHaystack(ctx: NarrationContext): string {
  */
 export function findInventions(prose: string, ctx: NarrationContext): Invention[] {
   const hay = contextHaystack(ctx);
-  // Whole words: "Ines" is not earned by "lines", nor "ten" by "often".
+  // Whole words: "Ned" is not earned by "opened", nor "ten" by "often". A name may differ
+  // from the context's word by a plural or possessive s ("the Keeper's" for "The Keepers'").
   const words = new Set(hay.match(/[a-z]+/g) ?? []);
+  const earned = (w: string) => words.has(w) || words.has(`${w}s`) || (w.endsWith('s') && words.has(w.slice(0, -1)));
   const found = new Map<string, Invention>();
   const text = prose.replace(/[*_#>]/g, ' ');
 
@@ -66,7 +68,7 @@ export function findInventions(prose: string, ctx: NarrationContext): Invention[
     const body = sentence.trim().replace(/^[^\s]+\s*/, '');
     for (const m of body.matchAll(/\b([A-Z][a-z]{2,})\b/g)) {
       const lower = m[1].toLowerCase();
-      if (GENERIC.has(lower) || words.has(lower)) continue;
+      if (GENERIC.has(lower) || earned(lower)) continue;
       found.set(`name:${lower}`, { kind: 'name', token: m[1] });
     }
   }
