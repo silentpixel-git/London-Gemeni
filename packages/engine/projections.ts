@@ -146,7 +146,8 @@ export function fallbackProse(story: Story, ctx: NarrationContext): string {
       case 'Looked': lines.push('You look around.'); break;
       case 'InventoryChecked': lines.push('You check what you are carrying.'); break;
       case 'Deduced': lines.push(`You lay out your reasoning${e.suspect ? `, naming ${who(e.suspect)}` : ''}.`); break;
-      case 'FlavourRequested': lines.push(`You look more closely at ${e.subject}.`); break;
+      // The subject is the parser model's words, not the Story's: never echoed ungated.
+      case 'FlavourRequested': lines.push('You take a closer look.'); break;
     }
   }
   return [...ctx.beats, ...lines].join(' ');

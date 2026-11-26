@@ -287,8 +287,14 @@ const once = await lookWithGate((_ctx, result) =>
 check('gate rejects once: the retry\'s prose is the narrated text', once.done?.narrated.text === PROSE.retry, once.done?.narrated.text);
 if (!AUTHOR) check('gate rejects once: only the first attempt streamed', once.streamed === PROSE.look && wellOrdered(once.kinds));
 
-const always = await lookWithGate(ctx =>
-  ctx.events.some(e => e.kind === 'Looked') ? { ok: false, inventions: [{ kind: 'name' as const, token: INVENTED }] } : { ok: true, inventions: [] });
+const gated: NarrationContext[] = [];
+const always = await lookWithGate(ctx => {
+  gated.push(ctx);
+  return ctx.events.some(e => e.kind === 'Looked') ? { ok: false, inventions: [{ kind: 'name' as const, token: INVENTED }] } : { ok: true, inventions: [] };
+});
+// The retry's prompt names the rejected word; were the retry judged against that prompt, the word would license itself.
+check('gate rejects twice: both attempts are judged against the turn\'s own context, not the retry prompt',
+  gated.length >= 2 && gated.every(c => !c.beats.some(b => b.includes(INVENTED))), JSON.stringify(gated.map(c => c.beats[0])));
 const fallbackBeats = always.done?.narrated.beats as string[];
 check('gate rejects twice: falls back to the Beats then the engine line, no Observations',
   always.done?.narrated.text === `${fallbackBeats.join(' ')} You look around.` && fallbackBeats.length > 0 && always.done?.observations.length === 0,
