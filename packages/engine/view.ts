@@ -4,6 +4,9 @@
 // feedOf groups the log by its closing rows: a turn's group runs to its
 // Narrated (Observations follow it and belong to the same turn). Groups not
 // yet closed are left out, as is a Narrated with no text (a quiet Tick).
+// A group's prose carries the location heading on an arrival (opening, Moved,
+// Looked, or an act that put the player somewhere new) and the act heading
+// whenever an act begins.
 import type { Diary, EventPayload, FeedItem, Id, PlayerView, Story } from '../schema/index.js';
 import { apply, currentAct, currentPeriod, initialState, inventory, personsPresent, visibleObjects, type State } from './state.js';
 
@@ -11,7 +14,9 @@ export function feedOf(story: Story, events: EventPayload[]): FeedItem[] {
   const feed: FeedItem[] = [];
   let s = initialState(story, 0);
   let group: EventPayload[] = [];
+  let groupFrom = s.location;
   for (const e of events) {
+    if (group.length === 0) groupFrom = s.location;
     s = apply(story, s, e);
     if (e.kind === 'ObservationRecorded') continue;
     if (e.kind !== 'Narrated') { group.push(e); continue; }
@@ -21,7 +26,8 @@ export function feedOf(story: Story, events: EventPayload[]): FeedItem[] {
     if (e.text.trim()) {
       const act = currentAct(story, s);
       const entry = has('InvestigationStarted') || has('ActEntered');
-      const scene = entry || has('Moved') || has('Looked');
+      // An act that begins where the player already stands is a new chapter, not an arrival.
+      const scene = has('InvestigationStarted') || has('Moved') || has('Looked') || (has('ActEntered') && s.location !== groupFrom);
       feed.push({
         kind: 'prose',
         text: e.text,
@@ -67,9 +73,14 @@ export function playerView(story: Story, events: EventPayload[]): PlayerView {
     const p = story.persons.find(x => x.id === id)!;
     return s.persons[id].introduced ? p.name : p.alias ?? p.name;
   };
-  const statement = (id: Id) => story.facts.find(f => f.id === id)!.statement;
+  // What each person told the player, as they said it: their voice for the Fact, else its statement.
+  const said = (person: Id, factId: Id) => {
+    const f = story.facts.find(x => x.id === factId)!;
+    const voice = f.voices?.[person];
+    return voice ? { text: voice, quoted: true as const } : { text: f.statement };
+  };
   // The people met are exactly the suspects a deduction may name (state.met, ADR-0005).
-  diary.persons = Object.keys(s.met).map(id => ({ id, name: label(id), told: (s.ledger[id]?.told ?? []).map(statement) }));
+  diary.persons = Object.keys(s.met).map(id => ({ id, name: label(id), told: (s.ledger[id]?.told ?? []).map(f => said(id, f)) }));
 
   const objName = (id: Id) => story.objects.find(o => o.id === id)!.name;
   const loc = story.locations.find(l => l.id === s.location)!;

@@ -26,12 +26,16 @@ export const NarrationContext = z.object({
   objectsVisible: z.array(z.object({ id: Id, name: z.string() })),
   /** People this turn's Events name who are not present (an accused suspect, someone dismissed), by the label the player knows them by. */
   personsNamed: z.array(z.object({ id: Id, label: z.string() })),
-  /** Places other than this one that this turn's Events name and the player has been shown (where they came from, where a way out of here leads), by name. */
-  placesNamed: z.array(z.object({ id: Id, name: z.string() })),
   /** What the engine resolved this turn; the narration describes exactly this. */
   events: z.array(EventPayload),
   /** Authored lines that must appear in substance this turn. */
   beats: z.array(z.string()),
+  /**
+   * What this turn's Events refer to, in words and never by id: the place just left, where someone
+   * went, a way whose lock changed, the Facts a deduction names. The ids stay out of the narrator's
+   * reach (an id is often a real name); these are what it may say instead.
+   */
+  mentions: z.array(z.string()),
   /** Facts that may be stated this turn, verbatim or in voice. */
   facts: z.array(z.object({ id: Id, statement: z.string(), voice: z.string().optional() })),
   /** Flavour already canon for the subjects in scope. */

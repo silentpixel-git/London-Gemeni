@@ -5,12 +5,13 @@
 //   personsPresent       label = introduced ? name : alias ?? name; beats = person.beats
 //   objectsVisible       visibleObjects(here) + inventory, by name
 //   personsNamed         persons a turnEvent names (person, suspect, from, to) who are not present, labelled as above
-//   placesNamed          locations other than here that Moved names (from, to), and the destination of an exit here
-//                        that MoveBlocked or ExitLockChanged names, by Location.name: what the sidebar has shown
 //   events               turnEvents verbatim
 //   beats                flattened from s.beats (BeatQueued this turn), plus Location.beats on Moved/Looked,
-//                        Object.beats on Examined, Object.document on Read (after Object.beats when the player
+//                        Object.beats on Examined and OpenBlocked, Exit.lockedBeat or the destination's
+//                        closedBeat on MoveBlocked, Object.document on Read (after Object.beats when the player
 //                        examined it: examining a document reads it), Ending.beats on GameEnded
+//   mentions             what turnEvents refer to by id, in words: the place left, a person's destination,
+//                        a way's names, a deduction's Fact statements (never the ids)
 //   facts                Facts disclosed or learned by the player THIS turn (from turnEvents), with the
 //                        speaker's voice where a FactDisclosed came from a person who has one
 //   observations         s.observations whose subject is the location, a present person, or a visible/carried object
@@ -22,7 +23,21 @@ import { currentAct, currentPeriod, inventory, personsPresent, visibleObjects, t
 
 const BUDGET: Record<NarrationMode, number> = { opening: 220, full: 160, compact: 90, flavour: 70 };
 
-export function buildNarrationContext(story: Story, s: State, turnEvents: EventPayload[], mode: NarrationMode): NarrationContext {
+/**
+ * The words of the names of people the player has not been introduced to (an alias stands in for
+ * them), for the invention gate: the narrator never sees them, and the gate refuses them anywhere
+ * unless the player typed them. Titles ("Mrs.", "Dr") are not names.
+ */
+export function unintroducedNames(story: Story, s: State): string[] {
+  const TITLES = new Set(['mr', 'mrs', 'miss', 'ms', 'dr', 'sir', 'lady', 'lord', 'rev', 'inspector', 'sergeant', 'constable']);
+  return story.persons
+    .filter(p => p.alias && !s.persons[p.id]?.introduced)
+    .flatMap(p => p.name.split(/[\s-]+/).map(w => w.replace(/[^A-Za-z']/g, '')))
+    .filter(w => w.length >= 3 && !TITLES.has(w.toLowerCase()));
+}
+
+/** `from`: where the player stood before the turn, so an act that brings them somewhere new reads as an arrival. */
+export function buildNarrationContext(story: Story, s: State, turnEvents: EventPayload[], mode: NarrationMode, from?: Id): NarrationContext {
   const act = currentAct(story, s);
   const loc = story.locations.find(l => l.id === s.location)!;
   const obj = (id: Id) => story.objects.find(o => o.id === id);
@@ -36,11 +51,37 @@ export function buildNarrationContext(story: Story, s: State, turnEvents: EventP
   for (const b of s.beats) beats.push(...b.beats);
   for (const e of turnEvents) {
     if (e.kind === 'Moved') beats.push(...(story.locations.find(l => l.id === e.to)?.beats ?? []));
+    // An act that brings the player somewhere new is an arrival there (no Moved: the act places them).
+    else if (e.kind === 'ActEntered' && from !== undefined && from !== s.location && !turnEvents.some(x => x.kind === 'Moved')) beats.push(...loc.beats);
     else if (e.kind === 'Looked') beats.push(...loc.beats);
-    else if (e.kind === 'Examined') beats.push(...(obj(e.object)?.beats ?? []));
+    else if (e.kind === 'Examined') beats.push(...(obj(e.object)?.beats ?? story.persons.find(p => p.id === e.object)?.beats ?? []));
+    // A blocked way or lid reads as the Story wrote it: the exit's lockedBeat, the closed
+    // place's closedBeat, the locked container's own beats.
+    else if (e.kind === 'MoveBlocked') {
+      const exit = loc.exits.find(x => x.id === e.exit);
+      const line = e.reason === 'locked' ? exit?.lockedBeat : story.locations.find(l => l.id === exit?.to)?.closedBeat;
+      if (line) beats.push(line);
+    }
+    else if (e.kind === 'OpenBlocked') beats.push(...(obj(e.object)?.beats ?? []));
     else if (e.kind === 'Read') { const o = obj(e.object); if (examining) beats.push(...(o?.beats ?? [])); if (o?.document) beats.push(o.document); }
     else if (e.kind === 'GameEnded') beats.push(...(story.endings.find(x => x.id === e.ending)?.beats ?? []));
   }
+
+  // What the turn's Events refer to by id, in words: the narrator may say these, never the ids.
+  const placeName = (id: Id | null) => (id ? story.locations.find(l => l.id === id)?.name : undefined);
+  const exitNames = (locId: Id, exitId: Id) => story.locations.find(l => l.id === locId)?.exits.find(x => x.id === exitId)?.names ?? [];
+  // MoveBlocked names its exit by id only, on the room the turn began in; an act change may have moved the player since.
+  const relocated = turnEvents.some(e => e.kind === 'ActEntered');
+  const mentions = [...new Set(turnEvents.flatMap(e => {
+    switch (e.kind) {
+      case 'Moved': return [placeName(e.from)];
+      case 'MoveBlocked': return relocated ? [] : exitNames(s.location, e.exit);
+      case 'PersonMoved': return [placeName(e.location)];
+      case 'ExitLockChanged': return [placeName(e.location), ...exitNames(e.location, e.exit)];
+      case 'Deduced': return e.facts.map(id => fact(id)?.statement);
+      default: return [];
+    }
+  }).filter((x): x is string => !!x))];
 
   const facts: NarrationContext['facts'] = [];
   const add = (id: Id, speaker?: Id) => {
@@ -61,18 +102,6 @@ export function buildNarrationContext(story: Story, s: State, turnEvents: EventP
     const ids = 'person' in e ? [e.person] : e.kind === 'Deduced' ? [e.suspect] : e.kind === 'FactDisclosed' ? [e.from, e.to] : [];
     for (const id of ids) if (id && story.persons.some(p => p.id === id) && !present.includes(id)) named.add(id);
   }
-  // Places likewise, but only those the player has been shown: where someone or something else went is for a Beat to tell.
-  const places = new Set<Id>();
-  // MoveBlocked names its exit by id only, on the room the turn began in; an act change may have moved the player since.
-  const relocated = turnEvents.some(e => e.kind === 'ActEntered');
-  for (const e of turnEvents) {
-    if (e.kind === 'Moved') places.add(e.from).add(e.to);
-    else if ((e.kind === 'MoveBlocked' && !relocated) || (e.kind === 'ExitLockChanged' && e.location === s.location)) {
-      const to = loc.exits.find(x => x.id === e.exit)?.to;
-      if (to) places.add(to);
-    }
-  }
-  places.delete(s.location);
 
   const stmts = (ids: Id[]) => ids.map(id => fact(id)?.statement).filter((x): x is string => !!x);
   const subjects = new Set<Id>([s.location, ...present, ...visible]);
@@ -87,9 +116,9 @@ export function buildNarrationContext(story: Story, s: State, turnEvents: EventP
     personsPresent: present.map(id => ({ id, label: label(id), disposition: s.persons[id].disposition, beats: story.persons.find(x => x.id === id)!.beats })),
     objectsVisible: visible.map(id => ({ id, name: obj(id)!.name })),
     personsNamed: story.persons.filter(p => named.has(p.id)).map(p => ({ id: p.id, label: label(p.id) })),
-    placesNamed: story.locations.filter(l => places.has(l.id)).map(l => ({ id: l.id, name: l.name })),
     events: turnEvents,
     beats,
+    mentions,
     facts,
     observations: s.observations.filter(o => subjects.has(o.subject)),
     ledger: present.map(person => ({ person, told: stmts(s.ledger[person]?.told ?? []), heard: stmts(s.ledger[person]?.heard ?? []) })),

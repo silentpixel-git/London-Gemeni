@@ -19,7 +19,8 @@ export const CandidateSet = z.object({
   })),
   /** `description` as for objects, so a role the prose gives ("the landlady") resolves to the person. */
   persons: z.array(z.object({ id: Id, name: z.string(), description: z.array(z.string()) })),
-  exits: z.array(z.object({ id: Id, names: z.array(z.string()).min(1) })),
+  /** `key`: the Object that opens this exit's lock now, when it is a key lock. */
+  exits: z.array(z.object({ id: Id, names: z.array(z.string()).min(1), key: Id.optional() })),
   /** Facts a present person can speak to, or the player can tell them, by phrase. */
   topics: z.array(z.object({ person: Id, fact: Id, phrase: z.string(), direction: z.enum(['ask', 'tell']) })),
   /** Facts the player knows and may name in a deduction. */
@@ -70,17 +71,40 @@ export const VERB_FIELDS: Record<Verb, readonly IntentField[]> = {
  *     inCandidateSet answers none, never a weaker intent the engine would accept;
  *   - an ask's topic that names nothing: dropped, since ask with no topic is the
  *     designed answer to a subject the person has nothing on (an honest deflection);
- *   - open with an exit as its target ("open the cellar door"): a move through that
- *     exit, the one action the engine has on a way, so a locked one answers with its
- *     lockedBeat instead of the turn coming to nothing.
+ *   - a value that is exactly one candidate's name rather than its id ("bar" for the
+ *     exit named "bar"): that candidate's id;
+ *   - open or use on an exit itself ("open the cellar door", "lift the bar"), or the
+ *     exit's own key used on it ("unlock the door with the key"): a move through
+ *     that exit, the one action the engine has on a way, so a locked one answers
+ *     with its lockedBeat and the key opens it. Anything else used on a way stays
+ *     none: it is not an attempt to go through.
  * Other fields the verb reads are left for inCandidateSet to judge. The prover offers
  * only read fields holding ids from the set, so this never changes what it proves.
  */
 export function trimSelection(sel: Selection, set: CandidateSet): Selection {
   if (sel.kind !== 'intent') return sel;
-  if (sel.verb === 'open' && sel.target && !sel.exit && set.exits.some(x => x.id === sel.target) && !set.objects.some(o => o.id === sel.target)) {
-    const { target, ...rest } = sel;
-    return trimSelection({ ...rest, verb: 'move', exit: target }, set);
+  const norm = (n: string) => n.trim().toLowerCase().replace(/^the /, '');
+  const named = (v: string | undefined) => {
+    if (v === undefined || [...set.objects, ...set.exits, ...set.persons].some(c => c.id === v)) return v;
+    const hits = new Set([
+      ...set.exits.filter(x => x.names.some(n => norm(n) === norm(v))).map(x => x.id),
+      ...set.objects.filter(o => norm(o.name) === norm(v)).map(o => o.id),
+      ...set.persons.filter(p => norm(p.name) === norm(v)).map(p => p.id),
+    ]);
+    return hits.size === 1 ? [...hits][0] : v;
+  };
+  sel = { ...sel, ...(sel.target ? { target: named(sel.target) } : {}), ...(sel.secondary ? { secondary: named(sel.secondary) } : {}) };
+  const exitOf = (v?: string) => (v && !set.objects.some(o => o.id === v) && !set.persons.some(p => p.id === v) ? set.exits.find(x => x.id === v) : undefined);
+  if (sel.verb === 'open' || sel.verb === 'use') {
+    const slotted = exitOf(sel.exit);
+    const targetWay = exitOf(sel.target);
+    const onWay = exitOf(sel.secondary) ?? (sel.target && !targetWay ? slotted : undefined);
+    if (targetWay && !sel.secondary) return { kind: 'intent', verb: 'move', exit: targetWay.id };
+    if (slotted && !sel.target) return { kind: 'intent', verb: 'move', exit: slotted.id };
+    if (onWay && sel.verb === 'use') {
+      if (onWay.key && sel.target === onWay.key) return { kind: 'intent', verb: 'move', exit: onWay.id };
+      return { kind: 'none', reason: 'that does nothing to the way' };
+    }
   }
   const reads: readonly string[] = VERB_FIELDS[sel.verb];
   const ids = new Set<string>([
@@ -124,4 +148,25 @@ export function inCandidateSet(sel: Selection, set: CandidateSet): boolean {
   if (sel.topic !== undefined && !set.topics.some(t => t.fact === sel.topic && (sel.person === undefined || t.person === sel.person))) return false;
   if (sel.facts?.some(f => !set.knownFacts.some(k => k.id === f))) return false;
   return true;
+}
+
+/** Words that say nothing about a subject. */
+const STOP = new Set(('the and about what who whom whose which with her his him she they them their you your for from that this these those ' +
+  'ask tell how long has have had been there here was were did does know any anything something more why when where said say says ' +
+  'into onto over not but are can could would should will its it is of to in on at by me my we our us').split(' '));
+
+/** The words of a phrase or a line that can carry a subject: three letters or more, not a stop word. */
+export function topicWords(s: string): string[] {
+  return (s.toLowerCase().match(/[a-z]+/g) ?? ([] as string[])).filter(w => w.length >= 3 && !STOP.has(w));
+}
+
+/**
+ * Whether a player's line shares a word with any of a topic's phrases: the same word, one word
+ * starting the other ("key" and "keys", "oil" and "oily"), or two words sharing their first four
+ * letters ("ferry" and "ferried"). An ask keeps its topic only when it does (confineSelection).
+ */
+export function sharesTopicWord(text: string, phrases: string[]): boolean {
+  const said = topicWords(text);
+  const near = (a: string, b: string) => a === b || a.startsWith(b) || b.startsWith(a) || (a.length >= 4 && b.length >= 4 && a.slice(0, 4) === b.slice(0, 4));
+  return phrases.flatMap(topicWords).some(p => said.some(w => near(w, p)));
 }

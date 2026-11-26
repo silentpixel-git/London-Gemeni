@@ -94,5 +94,18 @@ const stressVariant = (mutate: (raw: any) => void) => { const raw = structuredCl
   if (line.reachable && line.path!.join() === 'examine orrin') pass('variant: a Rule on examining a person is REACHABLE (examine orrin)');
   else fail(`variant: clue_hands should be reached by examine orrin, got ${line.reachable ? line.path!.join(' → ') : 'UNREACHABLE'}`);
 }
+{
+  // A goal reachable only by using one item on the other in one turn: the use fires a use Rule and the
+  // combine Rule together, while the combine verb alone cannot follow once the use Rule takes the item.
+  const raw = structuredClone(loadStoryDir(join('packages', 'schema', 'fixtures', 'toy'))) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  raw.rules.push({ id: 'strike_last_match', trigger: { kind: 'action', verb: ['use'], target: ['matches'] }, when: { location: ['study'] }, once: true,
+    effects: [{ kind: 'setFlag', flag: 'match_struck' }, { kind: 'takeItem', object: 'matches' }] });
+  const light = raw.rules.find((r: { id: string }) => r.id === 'light_candle');
+  light.when = { ...(light.when ?? {}), flagsAll: ['match_struck'] };
+  const r = prove(Story.parse(raw));
+  const act1 = r.lines.find(l => l.goal.kind === 'act' && l.goal.id === '1');
+  if (act1?.reachable && !r.capped) pass(`variant: a goal reached only by use-as-combine is REACHABLE (${act1.path!.join(' → ')})`);
+  else fail(`variant: act 1 should be REACHABLE by using the matches on the candle — ${formatProof(r).split('\n').find(l => l.includes('act 1')) ?? 'no act 1 line'}`);
+}
 console.log(`\n${fails === 0 ? 'OK' : `${fails} FAILURE(S)`}`);
 process.exit(fails === 0 ? 0 : 1);

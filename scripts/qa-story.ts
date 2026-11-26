@@ -52,6 +52,24 @@ const FIXTURES = join('packages', 'schema', 'fixtures');
   else fail('take <person> must not validate');
 }
 
+// 1f. A topic phrase no question can share a word with fails.
+{
+  const raw = loadStoryDir(join(FIXTURES, 'stress')) as { facts: Array<{ topics: string[] }> };
+  raw.facts[0].topics.push('the will');
+  const issues = validateStory(raw).issues.filter(i => i.at.includes('/topics['));
+  if (issues.some(i => i.level === 'fail' && i.message.includes('"the will"'))) pass('a topic phrase of only short or common words fails');
+  else { fail('a topic phrase of only stop words must fail'); show(issues); }
+}
+
+// 1e. A combine Rule and an action Rule on using one of the same pair on the other both fire: warn.
+{
+  const raw = loadStoryDir(join(FIXTURES, 'stress')) as { rules: unknown[] };
+  raw.rules.push({ id: 'qa_use_can_on_wick', trigger: { kind: 'action', verb: ['use'], target: ['oil_can'], secondary: ['lamp_wick'] }, once: true, effects: [{ kind: 'playBeat', beats: ['Oil.'] }] });
+  const issues = validateStory(raw).issues.filter(i => i.at.startsWith('rules/qa_use_can_on_wick/'));
+  if (issues.some(i => i.level === 'warn' && i.message.includes('prime_lamp'))) pass('a use Rule on a combine Rule\'s pair warns');
+  else { fail('a use Rule on a combine Rule\'s pair must warn'); show(issues); }
+}
+
 // 1d. Examining an Object with a document is reading it, so an examine-only trigger on one never fires.
 {
   const raw = loadStoryDir(join(FIXTURES, 'stress')) as { rules: unknown[] };

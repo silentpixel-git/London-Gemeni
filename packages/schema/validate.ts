@@ -6,6 +6,7 @@
 import { Conditions, Id, Lock, Placement } from './common.js';
 import { Effect, Rule, Trigger } from './rule.js';
 import { Story } from './story.js';
+import { topicWords } from './candidates.js';
 
 export interface Issue {
   level: 'fail' | 'warn';
@@ -141,7 +142,7 @@ export function validateStory(raw: unknown): ValidationResult {
     const at = `persons/${p.id}`;
     if (p.introduction?.kind === 'document') needObject(p.introduction.object, `${at}/introduction`);
     if (p.alias && !p.introduction) warn(at, 'has an alias but no introduction, so the name can never be revealed');
-    // The id reaches the narrator and the parser verbatim; a model reads "ines" as a name.
+    // The id reaches the narrator and the parser verbatim, and a model reads an id like "ned_ashby" as a name.
     if (p.alias) {
       const words = (s: string) => s.toLowerCase().match(/[a-z]+/g) ?? [];
       const withheld = new Set(words(p.name).filter(w => !words(p.alias!).includes(w)));
@@ -325,6 +326,23 @@ export function validateStory(raw: unknown): ValidationResult {
   for (const a of story.acts) if (a.id !== firstAct && !actsAdvancedTo.has(a.id)) fail(`acts/${a.id}`, 'no advanceAct effect leads here');
   for (const e of story.endings) if (!endingsReached.has(e.id)) fail(`endings/${e.id}`, 'no endGame effect reaches this ending');
   if (story.endings.length > 0 && endingsReached.size === 0) fail('rules', 'no rule ends the game');
+
+  // ── A topic phrase a question can share a word with ─────────────────────────
+  for (const f of story.facts) f.topics.forEach((phrase, i) => {
+    if (topicWords(phrase).length === 0) fail(`facts/${f.id}/topics[${i}]`, `"${phrase}" has no word a question can share (only short or common words), so it can never be asked about`);
+  });
+
+  // ── One pair, two Rules: using one item on the other fires both ─────────────
+  for (const c of story.rules) {
+    if (c.trigger.kind !== 'combine') continue;
+    const pair = [...c.trigger.items].sort().join('|');
+    for (const u of story.rules) {
+      const t = u.trigger;
+      if (t.kind !== 'action' || !t.verb.includes('use') || !t.target?.length || !t.secondary?.length) continue;
+      if (t.target.some(a => t.secondary!.some(b => [a, b].sort().join('|') === pair)))
+        warn(`rules/${u.id}/trigger`, `using one of "${c.trigger.items.join('" and "')}" on the other also fires the combine Rule "${c.id}": both land in one turn`);
+    }
+  }
 
   // ── Spoiler scan: a Fact's terms must not appear in beats seen earlier ────
   for (const f of story.facts) {

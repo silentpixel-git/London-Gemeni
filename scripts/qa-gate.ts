@@ -4,9 +4,9 @@
  * the narrator's own name must pass. Run: npx tsx scripts/qa-gate.ts
  */
 import { join } from 'node:path';
-import { Story, type NarrationContext, type Selection } from '../packages/schema';
+import { Story } from '../packages/schema';
 import { loadStoryDir } from '../packages/schema/load';
-import { buildNarrationContext, initialState, resolveTurn, startInvestigation, tick, type State } from '../packages/engine';
+import { buildNarrationContext, initialState, resolveTurn, tick } from '../packages/engine';
 import { fixedRng } from '../packages/engine/rng';
 import { gateNarration } from '../packages/ai/gate';
 
@@ -25,6 +25,32 @@ const verdict = (prose: string, obs: { key: string; subject: string; text: strin
 
 check(verdict('The housekeeper said the master kept the study key inside the long-case clock. I thanked her and turned to the clock.').ok, 'authored facts and context names pass');
 check(verdict('Marsh is my name, and I was born in Kent.').ok, 'narrator name and lexicon pass');
+// A person's id is often their real name. An event naming them by id must not license the name.
+{
+  const idCtx = { ...ctx, events: [...ctx.events, { kind: 'Spoke' as const, person: 'tarrow' }] };
+  const v = gateNarration(idCtx, { prose: 'She glanced at Tarrow and said nothing more.', observations: [] });
+  check(!v.ok && v.inventions.some(i => i.token === 'Tarrow'), 'a name known only as an event id is caught', JSON.stringify(v.inventions));
+  const typed = { ...idCtx, events: [...idCtx.events, { kind: 'TurnReceived' as const, text: 'ask about Tarrow' }] };
+  check(gateNarration(typed, { prose: 'She glanced at Tarrow and said nothing more.', observations: [] }).ok, 'a name the player typed is theirs to hear');
+  // A name opening a sentence or a quotation is skipped by the proper-noun scan; the unintroduced list catches it there too.
+  const opener = gateNarration(idCtx, { prose: '"Tarrow," she says. Tarrow shrugs.', observations: [] }, ['Tarrow']);
+  check(!opener.ok && opener.inventions.some(i => i.token === 'Tarrow'), 'an unintroduced name is caught at the start of a sentence or quotation', JSON.stringify(opener.inventions));
+  check(gateNarration(typed, { prose: '"Tarrow," she says.', observations: [] }, ['Tarrow']).ok, 'unless the player typed it');
+}
+// Names are matched whole: a context word that merely contains one does not license it.
+{
+  const opened = { ...ctx, observations: [{ key: 'drawer', subject: 'hall', text: 'A drawer stands opened.' }] };
+  check(!gateNarration(opened, { prose: 'I nodded to Ned and waited.', observations: [] }).ok, 'a name is matched whole: "Ned" is not earned by "opened"');
+  const keepers = { ...ctx, beats: [...ctx.beats, "A sign reads The Keepers' Lodge."] };
+  check(gateNarration(keepers, { prose: "I made for the Keeper's Lodge.", observations: [] }).ok, 'a name differing from the context\'s by a plural or possessive s passes');
+}
+// MoveBlocked names its exit by id on the room the turn began in; after an act change it is not looked up in the new one.
+{
+  const blocked = buildNarrationContext(story, s0, [{ kind: 'MoveBlocked', exit: 'garden_door', reason: 'locked', lock: null }], 'full');
+  const moved = buildNarrationContext(story, s0, [{ kind: 'MoveBlocked', exit: 'garden_door', reason: 'locked', lock: null }, { kind: 'ActEntered', act: 1 }], 'full');
+  check(blocked.mentions.includes('the garden door') && !moved.mentions.includes('the garden door'),
+    'a blocked way is named, unless an act change moved the player in the same turn', JSON.stringify([blocked.mentions, moved.mentions]));
+}
 check(!verdict('"Mr Pemberton will be furious," she said.').ok, 'a borrowed name is caught', JSON.stringify(verdict('"Mr Pemberton will be furious," she said.')));
 check(!verdict('It had rained for nine days and the clock said 4 o\'clock.').ok, 'numeric specifics are caught');
 check(verdict('She said it twice, and I believed both times.').ok, 'small counts pass');
@@ -43,48 +69,6 @@ check(verdict('Fine.', [{ key: 'clock_grain', subject: 'hall_clock', text: 'The 
 
 check(!verdict('It had been ten days since the light failed.').ok, 'a spelled number is matched whole: "ten" is not earned by a context word that contains it',
   JSON.stringify(verdict('It had been ten days since the light failed.')));
-
-// An id is not a name, though it can be the real one. The stress Story's woman in oilskins, Ines Tarrow, is
-// named once her keeper's log is read; her id was "ines" when the narrator first gave her name away. The
-// validator now fails such an id (qa:story), but the gate must not lean on that: the reported turn is
-// replayed with her old id. Only the context's words license a name: labels, Story text, the player's own line.
-{
-  const raw = JSON.stringify(loadStoryDir(join('packages', 'schema', 'fixtures', 'stress')));
-  const stress = Story.parse(JSON.parse(raw.replaceAll('"oilskin_woman"', '"ines"')));
-  const go = (s: State, text: string, sel: Omit<Extract<Selection, { kind: 'intent' }>, 'kind'>) =>
-    resolveTurn(stress, s, { text, selection: { kind: 'intent', ...sel } }, fixedRng([0]));
-  const gate = (c: NarrationContext, prose: string) => gateNarration(c, { prose, observations: [] });
-  const arrive = go(startInvestigation(stress, 1).state, 'go to the kitchen', { verb: 'move', exit: 'to_kitchen' });
-  const kitchen = arrive.state;
-  const talk = go(kitchen, 'talk to the woman in oilskins', { verb: 'talk', person: 'ines' });
-  const kctx = buildNarrationContext(stress, talk.state, talk.events, 'compact');
-  check(kctx.events.some(e => e.kind === 'Spoke' && e.person === 'ines') && kctx.personsPresent.some(p => p.id === 'ines' && p.label === 'the woman in oilskins'),
-    'stress kitchen: she is addressed by her id and labelled by her alias');
-  const named = gate(kctx, 'I turned to the woman in yellow oilskins, Ines, who did not look up.');
-  check(!named.ok && named.inventions.some(i => i.token === 'Ines'), "an un-introduced person's id-derived name is caught", JSON.stringify(named));
-  const lines = gate({ ...kctx, observations: [{ key: 'coiled_lines', subject: 'kitchen', text: 'Coiled lines hang by the door.' }] }, 'I turned to her, Ines, and waited.');
-  check(!lines.ok, 'a name is matched whole: "Ines" is not earned by a context word that contains it', JSON.stringify(lines));
-  check(gate(kctx, 'I turned to the woman in oilskins while Maud Pike watched us both.').ok, 'her label and a present person\'s name pass');
-  // The player may echo a name they typed, wherever they learned it: it tells them nothing they did not write.
-  const typed = go(kitchen, 'talk to Ines', { verb: 'talk', person: 'ines' });
-  check(gate(buildNarrationContext(stress, typed.state, typed.events, 'compact'), 'She looked up sharply when I said Ines.').ok, 'a name the player typed this turn passes');
-  const read = go(kitchen, 'read the log', { verb: 'read', target: 'keeper_log' });
-  const after = go(read.state, 'talk to the woman in oilskins', { verb: 'talk', person: 'ines' });
-  check(gate(buildNarrationContext(stress, after.state, after.events, 'compact'), 'I turned to Ines, who did not look up.').ok, 'once her log is read, her name passes');
-
-  // Places the player has been shown reach the narrator by name, so a name the id alone used to license still passes.
-  const back = go(kitchen, 'go back to the jetty', { verb: 'move', exit: 'to_jetty' });
-  const bctx = buildNarrationContext(stress, back.state, back.events, 'full');
-  const left = 'I left the Keepers\' Kitchen and went down to the jetty.';
-  check(gate(bctx, left).ok && !gate({ ...bctx, placesNamed: [] }, left).ok,
-    'the place just left passes by its name in placesNamed, not by its id', JSON.stringify(bctx.placesNamed));
-  check(gate(bctx, 'I left the Keeper\'s Kitchen behind.').ok, 'a name differing from the context\'s by a plural or possessive s passes');
-  const relocated = buildNarrationContext(stress, kitchen, [{ kind: 'MoveBlocked', exit: 'to_tower', reason: 'locked', lock: null }, { kind: 'ActEntered', act: 1 }], 'full');
-  check(relocated.placesNamed.length === 0, 'a blocked exit is not looked up in a room an act change moved the player to', JSON.stringify(relocated.placesNamed));
-  const barred = go(kitchen, 'go up the tower', { verb: 'move', exit: 'to_tower' });
-  check(barred.events.some(e => e.kind === 'MoveBlocked') && gate(buildNarrationContext(stress, barred.state, barred.events, 'full'), 'The way up to the Tower Stair is barred.').ok,
-    'where a blocked way leads passes by its name');
-}
 
 console.log(`\n${fails === 0 ? 'OK' : `${fails} FAILURE(S)`}`);
 process.exit(fails === 0 ? 0 : 1);
