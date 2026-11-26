@@ -25,7 +25,6 @@ import { EditProfileModal } from './components/EditProfileModal';
 import { InvestigationsModal } from './components/InvestigationsModal';
 import { DiaryModal, diaryTabTotals, type DiaryTab } from './components/DiaryModal';
 import { DiaryToast } from './components/DiaryToast';
-import { ResetPasswordModal } from './components/ResetPasswordModal';
 import { useInvestigation } from './hooks/useInvestigation';
 import { useAppearance } from './hooks/gameState/useAppearance';
 import { suggestionsFor } from './services/viewFormat';
@@ -56,7 +55,7 @@ const sumTotals = (t: Record<DiaryTab, number>) => t.evidence + t.persons + t.do
 // ── Inner app (has access to Supabase context) ──────────────────────────────
 
 const AppContent: React.FC = () => {
-  const { user, isGuest, isAuthReady, isNewUser, isPasswordRecovery, userProfile, authError, logout } = useSupabase();
+  const { user, isGuest, isAuthReady, isNewUser, userProfile, authError, logout } = useSupabase();
   // Open by default on desktop (lg+); closed on smaller devices where the
   // sidebar is an overlay drawer that would otherwise cover the game.
   const [isSidebarOpen, setIsSidebarOpen] = useState(
@@ -170,18 +169,18 @@ const AppContent: React.FC = () => {
 
   // Nothing open once the player's investigations are loaded: choose or begin one.
   useEffect(() => {
-    if (inv.isReady && !inv.investigationId && !isPasswordRecovery) setIsInvestigationsOpen(true);
-  }, [inv.isReady, inv.investigationId, isPasswordRecovery]);
+    if (inv.isReady && !inv.investigationId) setIsInvestigationsOpen(true);
+  }, [inv.isReady, inv.investigationId]);
 
   // A signed-in (not guest) player with no display name yet: the first-run profile prompt, once.
   const firstRunShownFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!user || isGuest || !isNewUser || isPasswordRecovery || firstRunShownFor.current === user.id) return;
+    if (!user || isGuest || !isNewUser || firstRunShownFor.current === user.id) return;
     firstRunShownFor.current = user.id;
     setIsAuthModalOpen(false);
     setIsFirstRunProfile(true);
     setIsEditProfileOpen(true);
-  }, [user, isGuest, isNewUser, isPasswordRecovery]);
+  }, [user, isGuest, isNewUser]);
   // Signing in closes the sign-in modal.
   useEffect(() => { if (user && !isGuest) setIsAuthModalOpen(false); }, [user, isGuest]);
 
@@ -319,7 +318,6 @@ const AppContent: React.FC = () => {
         view={view}
         newTabs={diaryNewTabs}
       />
-      <ResetPasswordModal isOpen={isPasswordRecovery} />
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}

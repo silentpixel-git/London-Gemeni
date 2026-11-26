@@ -1,26 +1,17 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '../supabase';
-import { User, Session } from '@supabase/supabase-js';
-import { GameRepository, UserProfile } from '../services/GameRepository';
+import type { User } from '@supabase/supabase-js';
+import { getProfile, type UserProfile } from '../services/GameRepository';
 
 interface SupabaseContextType {
   user: User | null;
   /** An anonymous Supabase user: plays and saves, but has not claimed an account (server/TURN.md). */
   isGuest: boolean;
-  session: Session | null;
   isAuthReady: boolean;
   authError: string | null;
   isNewUser: boolean;
-  isPasswordRecovery: boolean;
   userProfile: UserProfile | null;
-  loginWithGoogle: () => Promise<void>;
   loginWithEmail: (email: string) => Promise<boolean>;
-  loginWithPassword: (email: string, password: string) => Promise<boolean>;
-  signUpWithPassword: (email: string, password: string) => Promise<'session' | 'confirm' | 'error'>;
-  resetPassword: (email: string) => Promise<boolean>;
-  updatePassword: (newPassword: string) => Promise<boolean>;
-  clearPasswordRecovery: () => void;
   logout: () => Promise<void>;
   clearAuthError: () => void;
   refreshProfile: () => Promise<void>;
@@ -30,11 +21,9 @@ const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined
 
 export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isNewUser, setIsNewUser] = useState(false);
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   // Guests play as anonymous users; the turn endpoint needs a JWT for every request.
@@ -48,7 +37,7 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // A guest has no profile to name; the first-run profile prompt waits for a claimed account.
     if (sessionUser.is_anonymous) { setUserProfile(null); setIsNewUser(false); return; }
     const userId = sessionUser.id;
-    const profile = await GameRepository.getProfile(userId);
+    const profile = await getProfile(userId);
     setUserProfile(profile);
     // Treat as new user if no display name has been set yet
     setIsNewUser(!profile?.displayName);
@@ -57,7 +46,6 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     // Check for existing session on mount
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         loadProfile(session.user);
@@ -72,21 +60,13 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Do NOT set isAuthReady here — it is set exactly once in getSession() above.
     // Calling setIsAuthReady(true) on every TOKEN_REFRESHED event would re-trigger
     // any [isAuthReady]-dependent effects on each automatic token renewal.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // A password-recovery link establishes a temporary session and fires this
-      // event. Flag it so the app shows a "set new password" form instead of
-      // dropping the player straight into the game.
-      if (event === 'PASSWORD_RECOVERY') {
-        setIsPasswordRecovery(true);
-      }
-      setSession(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         // Defer the profile fetch out of this callback. The callback runs while
         // GoTrue holds its internal auth lock; calling another Supabase method
         // (getProfile -> getSession) synchronously here deadlocks operations
-        // that also need the lock — most visibly updateUser() during password
-        // recovery, which would hang forever. setTimeout(0) releases the lock
+        // that also need the lock, such as updateUser(). setTimeout(0) releases the lock
         // first. (Supabase's documented guidance for this callback.)
         const sessionUser = session.user;
         setTimeout(() => { loadProfile(sessionUser); }, 0);
@@ -98,21 +78,6 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     return () => subscription.unsubscribe();
   }, []);
-
-  const loginWithGoogle = async () => {
-    setAuthError(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
-    });
-    if (error) {
-      if (error.message.includes('provider is not enabled')) {
-        setAuthError('Google sign-in is not enabled. Please check your Supabase project settings.');
-      } else {
-        setAuthError(error.message);
-      }
-    }
-  };
 
   const loginWithEmail = async (email: string): Promise<boolean> => {
     setAuthError(null);
@@ -139,84 +104,6 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return true;
   };
 
-  // Map Supabase's terse auth errors to player-facing copy.
-  const friendlyAuthError = (message: string): string => {
-    const m = message.toLowerCase();
-    if (m.includes('invalid login credentials')) return "That email and password don't match.";
-    if (m.includes('already registered') || m.includes('already been registered')) {
-      return 'An account with this email already exists — try signing in.';
-    }
-    // New password identical to the current one (recovery / change-password flow)
-    if (m.includes('different from the old password') || m.includes('same_password')) {
-      return 'Your new password must be different from your current one.';
-    }
-    // Weak / breached password (leaked-password protection)
-    if (m.includes('password') && (m.includes('weak') || m.includes('pwned') || m.includes('compromised') || m.includes('breach'))) {
-      return 'That password is too common or has appeared in a data breach — please choose a stronger one.';
-    }
-    // Length / complexity requirement — surface the real requirement rather than assuming "6 characters"
-    if (m.includes('password') && (m.includes('at least') || m.includes('should contain'))) {
-      return message;
-    }
-    if (m.includes('email') && m.includes('invalid')) return 'Please enter a valid email address.';
-    return message;
-  };
-
-  const loginWithPassword = async (email: string, password: string): Promise<boolean> => {
-    setAuthError(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setAuthError(friendlyAuthError(error.message));
-      return false;
-    }
-    return true;
-  };
-
-  const signUpWithPassword = async (
-    email: string,
-    password: string,
-  ): Promise<'session' | 'confirm' | 'error'> => {
-    setAuthError(null);
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: window.location.origin },
-    });
-    if (error) {
-      setAuthError(friendlyAuthError(error.message));
-      return 'error';
-    }
-    // With "Confirm email" disabled, a session is returned and onAuthStateChange
-    // logs the player straight in. If it's still enabled, no session comes back
-    // and the caller should prompt the player to check their inbox.
-    return data.session ? 'session' : 'confirm';
-  };
-
-  const resetPassword = async (email: string): Promise<boolean> => {
-    setAuthError(null);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
-    });
-    if (error) {
-      setAuthError(friendlyAuthError(error.message));
-      return false;
-    }
-    return true;
-  };
-
-  const updatePassword = async (newPassword: string): Promise<boolean> => {
-    setAuthError(null);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    if (error) {
-      setAuthError(friendlyAuthError(error.message));
-      return false;
-    }
-    setIsPasswordRecovery(false);
-    return true;
-  };
-
-  const clearPasswordRecovery = () => setIsPasswordRecovery(false);
-
   const logout = async () => {
     try {
       // scope: 'local' clears the JWT from localStorage without a network round-trip,
@@ -227,7 +114,6 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
     setUserProfile(null);
     setIsNewUser(false);
-    setIsPasswordRecovery(false);
     // Signed out is a fresh guest, so the game stays playable.
     await signInAsGuest();
   };
@@ -236,20 +122,15 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const refreshProfile = async () => {
     if (!user || user.is_anonymous) return;
-    const profile = await GameRepository.getProfile(user.id);
+    const profile = await getProfile(user.id);
     setUserProfile(profile);
     if (profile?.displayName) setIsNewUser(false);
   };
 
   return (
     <SupabaseContext.Provider value={{
-      user, isGuest: !!user?.is_anonymous, session, isAuthReady, authError,
-      isNewUser, isPasswordRecovery, userProfile,
-      loginWithGoogle, loginWithEmail,
-      loginWithPassword, signUpWithPassword, resetPassword,
-      updatePassword, clearPasswordRecovery,
-      logout,
-      clearAuthError, refreshProfile,
+      user, isGuest: !!user?.is_anonymous, isAuthReady, authError, isNewUser, userProfile,
+      loginWithEmail, logout, clearAuthError, refreshProfile,
     }}>
       {children}
     </SupabaseContext.Provider>

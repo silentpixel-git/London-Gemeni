@@ -129,7 +129,7 @@ export const Header: React.FC<HeaderProps> = ({
   const profileWrapRef = useRef<HTMLDivElement>(null);
   const guestWrapRef = useRef<HTMLDivElement>(null);
 
-  const displayName = userProfile?.displayName || user?.user_metadata?.full_name || user?.email;
+  const displayName = userProfile?.displayName || user?.email;
 
   // Check available space and reposition menu above if needed
   useLayoutEffect(() => {
@@ -368,17 +368,8 @@ export const Header: React.FC<HeaderProps> = ({
                   className="flex items-center gap-2 text-lb-primary group pressable"
                   aria-label="Account menu"
                 >
-                  <div className="w-10 h-10 rounded-full bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white flex items-center justify-center overflow-hidden shrink-0">
-                    {user.user_metadata?.avatar_url ? (
-                      <img
-                        src={user.user_metadata.avatar_url}
-                        alt="Profile"
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <UserIcon size={18} />
-                    )}
+                  <div className="w-10 h-10 rounded-full bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white flex items-center justify-center shrink-0">
+                    <UserIcon size={18} />
                   </div>
                   <ChevronDown
                     size={14}

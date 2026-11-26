@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
-import { GameRepository, UserProfile } from '../../services/GameRepository';
+import { upsertProfile, type UserProfile } from '../../services/GameRepository';
 import { ThemeMode, TimePeriod } from '../../types';
 
 export interface AppearanceDeps {
@@ -68,7 +68,7 @@ export function useAppearance(deps: AppearanceDeps) {
     try { localStorage.setItem('lb-theme-mode', themeMode); } catch {}
     // Sync to cloud when logged in (user accessed via closure — intentionally omitted from deps)
     if (user) {
-      GameRepository.upsertProfile(user.id, { themePreference: themeMode });
+      upsertProfile(user.id, { themePreference: themeMode });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [themeMode]);
