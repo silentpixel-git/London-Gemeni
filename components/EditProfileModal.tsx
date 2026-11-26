@@ -13,13 +13,13 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { X, User as UserIcon, Loader2, Save } from 'lucide-react';
 import { useSupabase } from './SupabaseProvider';
 import { upsertProfile } from '../services/GameRepository';
 import { TermsContent } from './TermsContent';
-import { ModalBackdrop } from './ModalBackdrop';
-import { overlayPresence, zoomFadeVariants } from './motionTokens';
+import { Modal } from './Modal';
+import { zoomFadeVariants } from './motionTokens';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -48,21 +48,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     setSaveError(null);
   }, [isOpen, userProfile, user, isFirstRun]);
 
-  // Lock body scroll; ESC to close (only when not first run)
-  useEffect(() => {
-    if (!isOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isFirstRun) onClose();
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.body.style.overflow = prev;
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, [isOpen, isFirstRun, onClose]);
-
   const handleSave = async () => {
     if (!user || !displayName.trim()) return;
     setIsSaving(true);
@@ -78,10 +63,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     }
   };
 
-  const handleBackdrop = () => {
-    if (!isFirstRun) onClose();
-  };
-
   if (!user) return null;
 
   const canSave = displayName.trim().length > 0 && (!isFirstRun || hasAcceptedTerms) && !isSaving;
@@ -91,14 +72,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     : null;
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          {...overlayPresence}
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-        >
-          <ModalBackdrop onClick={handleBackdrop} />
-
+    <Modal isOpen={isOpen} onDismiss={isFirstRun ? undefined : onClose}>
           {/* Modal card */}
           <motion.div variants={zoomFadeVariants(reducedMotion)} className="relative w-full max-w-sm bg-lb-paper border border-lb-border rounded-xl shadow-2xl overflow-hidden">
 
@@ -198,8 +172,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               </div>
             </div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 };

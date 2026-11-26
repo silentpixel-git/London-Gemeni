@@ -31,10 +31,10 @@
  */
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { X, ChevronDown, Feather, Search, Users, ScrollText, type LucideIcon } from 'lucide-react';
-import { ModalBackdrop } from './ModalBackdrop';
-import { overlayPresence, DUR_EXIT, EASE_OUT_EXPO, EASE_OUT_QUINT, EASE_DRAWER } from './motionTokens';
+import { Modal } from './Modal';
+import { DUR_EXIT, EASE_OUT_EXPO, EASE_OUT_QUINT, EASE_DRAWER } from './motionTokens';
 import type { Diary, PlayerView } from '../packages/schema/view.js';
 import { formatClock } from '../services/viewFormat';
 
@@ -257,39 +257,14 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, view, n
   const panelsRef = useRef<HTMLDivElement>(null);
   const panelRefs = useRef<Partial<Record<DiaryTab, HTMLDivElement | null>>>({});
   const tabRefs = useRef<Partial<Record<DiaryTab, HTMLButtonElement | null>>>({});
-  const openerRef = useRef<HTMLElement | null>(null);
   const shownTab = useRef<DiaryTab>('journal');   // the panel currently in data-state="active"
   const nextInstant = useRef(true);               // the next panel change skips its animation
   const leaveTimer = useRef<number | undefined>(undefined);
 
-  // Body scroll lock, Esc, and a focus trap. Focus goes into the dialog on open
-  // and back to the opener on close. Keyed on isOpen only (onClose via a ref), so
-  // parent re-renders never bounce focus while the diary is open.
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  // The dialog (Modal) handles Escape, the inert page and handing focus back; the
+  // card itself takes focus on open, so keyboard reading starts at the diary.
   useEffect(() => {
-    if (!isOpen) return;
-    openerRef.current = document.activeElement as HTMLElement | null;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    cardRef.current?.focus({ preventScroll: true });
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { onCloseRef.current(); return; }
-      if (e.key !== 'Tab' || !cardRef.current) return;
-      const focusable = [...cardRef.current.querySelectorAll<HTMLElement>('button:not([tabindex="-1"]), [href], [tabindex="0"]')]
-        .filter(el => el.offsetParent !== null);
-      if (focusable.length === 0) return;
-      const first = focusable[0], last = focusable[focusable.length - 1];
-      const inside = cardRef.current.contains(document.activeElement);
-      if (e.shiftKey && (document.activeElement === first || !inside)) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && (document.activeElement === last || !inside)) { e.preventDefault(); first.focus(); }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener('keydown', handleKey);
-      openerRef.current?.focus?.();
-    };
+    if (isOpen) cardRef.current?.focus({ preventScroll: true });
   }, [isOpen]);
 
   // Every open lands on Journal with the current act unfolded, without animating there.
@@ -486,20 +461,10 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, view, n
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          {...overlayPresence}
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4"
-          onClick={onClose}
-        >
-          <ModalBackdrop />
-          <motion.div variants={cardVariants} className="relative w-full sm:max-w-[780px]" onClick={e => e.stopPropagation()}>
+    <Modal isOpen={isOpen} onDismiss={onClose} className="items-end sm:items-center sm:p-4" labelledBy="diary-title">
+          <motion.div variants={cardVariants} className="relative w-full sm:max-w-[780px]">
             <div
               ref={cardRef}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="diary-title"
               tabIndex={-1}
               className={`relative grid grid-rows-[auto_minmax(0,1fr)] sm:grid-rows-1 sm:grid-cols-[200px_minmax(0,1fr)] overflow-hidden h-[86vh] max-h-[86vh] sm:h-[min(640px,86vh)] bg-lb-paper text-lb-primary border border-lb-border rounded-t-2xl sm:rounded-xl shadow-2xl focus:outline-none ${
                 sheetDrag !== null ? '' : animateHeight && !reducedMotion ? 'transition-[height,transform] [transition-duration:320ms] ease-drawer' : 'transition-transform [transition-duration:320ms] ease-drawer'
@@ -619,8 +584,6 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, view, n
               </div>
             </div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 };

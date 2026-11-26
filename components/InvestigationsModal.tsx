@@ -8,11 +8,11 @@
  */
 
 import React, { useEffect, useId, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { X, Play, Trash2, Clock } from 'lucide-react';
 import type { InvestigationSummary } from '../services/InvestigationRepository';
-import { ModalBackdrop } from './ModalBackdrop';
-import { overlayPresence, zoomFadeVariants } from './motionTokens';
+import { Modal } from './Modal';
+import { zoomFadeVariants } from './motionTokens';
 
 interface InvestigationsModalProps {
   isOpen: boolean;
@@ -57,21 +57,6 @@ export const InvestigationsModal: React.FC<InvestigationsModalProps> = ({
 
   const defaultName = `Investigation ${investigations.length + 1}`;
 
-  // Lock body scroll; ESC to close (only when dismissible)
-  useEffect(() => {
-    if (!isOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && canClose) onClose();
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener('keydown', handleKey);
-    };
-  }, [isOpen, canClose, onClose]);
-
   // Reset transient state and prefill the name each time the modal opens
   useEffect(() => {
     if (!isOpen) {
@@ -88,22 +73,11 @@ export const InvestigationsModal: React.FC<InvestigationsModalProps> = ({
     onStart(trimmed);
   };
 
-  const tryClose = () => {
-    if (canClose) onClose();
-  };
-
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div {...overlayPresence} className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={tryClose}>
-          <ModalBackdrop />
+    <Modal isOpen={isOpen} onDismiss={canClose ? onClose : undefined} labelledBy={headingId}>
           <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={headingId}
             variants={zoomFadeVariants(reducedMotion)}
             className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-lb-paper border border-lb-border rounded-xl shadow-2xl"
-            onClick={e => e.stopPropagation()}
           >
             {canClose && (
               <button
@@ -222,8 +196,6 @@ export const InvestigationsModal: React.FC<InvestigationsModalProps> = ({
               </form>
             </div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 };

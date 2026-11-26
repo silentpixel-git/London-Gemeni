@@ -11,13 +11,13 @@
  * closes the modal.
  */
 
-import React, { useState, useEffect } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import React, { useState } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import { X, Mail, Loader2, CheckCircle } from 'lucide-react';
 import { useSupabase } from './SupabaseProvider';
 import { TermsContent } from './TermsContent';
-import { ModalBackdrop } from './ModalBackdrop';
-import { overlayPresence, zoomFadeVariants } from './motionTokens';
+import { Modal } from './Modal';
+import { zoomFadeVariants } from './motionTokens';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -43,19 +43,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   /** The address the sign-in link went to, once sent. */
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [showTerms, setShowTerms] = useState(false);
-
-  // Lock body scroll while open; ESC to close
-  useEffect(() => {
-    if (!isOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.body.style.overflow = prev;
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, [isOpen]);
 
   const resetState = () => {
     setEmail('');
@@ -83,14 +70,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          {...overlayPresence}
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-        >
-          <ModalBackdrop onClick={handleClose} />
-
+    <Modal isOpen={isOpen} onDismiss={handleClose}>
           {/* Modal card */}
           <motion.div variants={zoomFadeVariants(reducedMotion)} className="relative w-full max-w-md bg-lb-bg border border-lb-border rounded-xl shadow-2xl overflow-hidden">
 
@@ -184,8 +164,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               )}
             </div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 };
