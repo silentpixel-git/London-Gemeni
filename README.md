@@ -115,7 +115,7 @@ vercel --prod
 | UI | React 19 + TypeScript |
 | Styling | Tailwind CSS (build-time, PostCSS) |
 | Animation | Motion |
-| Audio | Howler |
+| Audio | Web Audio API (`services/AudioManager.ts`) |
 | Schemas | Zod |
 | AI | Google Gemini (`@google/genai`) |
 | Auth + DB | Supabase (PostgreSQL + GoTrue, row-level security) |

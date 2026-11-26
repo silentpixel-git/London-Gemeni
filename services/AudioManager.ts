@@ -1,44 +1,50 @@
 /**
  * services/AudioManager.ts
  *
- * Framework-agnostic audio layer. A single instance owns every Howl, gates
- * playback on the user's settings, and cross-fades ambient beds. It is pure
- * presentation — it never reads or writes game state or the engine.
+ * Framework-agnostic audio layer on the Web Audio API. A single instance owns
+ * the AudioContext, gates playback on the user's settings, and cross-fades
+ * ambient beds. It is pure presentation — it never reads or writes game state
+ * or the engine.
  *
  * Two independent layers:
- *   - SFX: fire-and-forget one-shots, played from game-event emission points.
+ *   - SFX: fire-and-forget one-shots, decoded once and played from game-event
+ *     emission points.
  *   - Ambient: a looping location "bed" plus an optional weather layer on top,
- *     both cross-faded on change.
+ *     both cross-faded on change. Each streams from an <audio> element through
+ *     its own GainNode, so a long file is never decoded whole and fades are
+ *     gain ramps (an element's own volume is read-only on iOS).
  */
 
-import { Howl, Howler } from 'howler';
-import { AMBIENT_BEDS, WEATHER_LAYERS, SFX_FILES, SFX_TRIM, SfxId } from './audioManifest';
+import { AMBIENT_BEDS, WEATHER_LAYERS, SFX_FILES, SFX_TRIM, type SfxId } from './audioManifest';
 
-const FADE_MS = 1200;
+const FADE_S = 1.2;
 // The Act 0 prototype's mix: beds well under the prose, one-shots at about half
 // the bed (docs/audio-prompts.md).
 const BED_VOLUME = 0.35;
 const SFX_VOLUME = BED_VOLUME * 0.5;
 
+/** A looping layer: a streamed <audio> element through its own gain. */
+interface Layer { key: string; el: HTMLAudioElement; gain: GainNode }
+
 class AudioManager {
+  private ctx: AudioContext | null = null;
   private sfxEnabled = false;
   private ambientEnabled = false;
-  private unlocked = false;
+  private sfxBuffers = new Map<SfxId, Promise<AudioBuffer>>();
+  private bed: Layer | null = null;
+  private weather: Layer | null = null;
 
-  private sfxCache = new Map<SfxId, Howl>();
-
-  private bed: Howl | null = null;
-  private bedKey: string | null = null;
-
-  private weather: Howl | null = null;
-  private weatherKey: string | null = null;
+  /** Made on first use; one made before the first gesture starts suspended until unlock(). */
+  private context(): AudioContext {
+    return (this.ctx ??= new AudioContext());
+  }
 
   /** Call on the first user gesture to satisfy browser autoplay policy. */
   unlock(): void {
-    if (this.unlocked) return;
-    this.unlocked = true;
-    const ctx = Howler.ctx;
-    if (ctx && ctx.state === 'suspended') ctx.resume();
+    const ctx = this.context();
+    if (ctx.state === 'suspended') void ctx.resume();
+    // A bed started before the first gesture (ambient remembered as on) was refused: start it now.
+    for (const layer of [this.bed, this.weather]) if (layer?.el.paused) void layer.el.play().catch(() => {});
   }
 
   setEnabled({ sfx, ambient }: { sfx: boolean; ambient: boolean }): void {
@@ -50,72 +56,75 @@ class AudioManager {
   /** Play a one-shot, optionally after a delay so it lands with the prose it belongs to. */
   playSfx(id: SfxId, delayMs = 0): void {
     if (delayMs > 0) { window.setTimeout(() => this.playSfx(id), delayMs); return; }
-    if (!this.sfxEnabled) return;
     const file = SFX_FILES[id];
-    if (!file) return;
-    let howl = this.sfxCache.get(id);
-    if (!howl) {
-      howl = new Howl({ src: [file], volume: SFX_VOLUME * (SFX_TRIM[id] ?? 1), preload: true });
-      this.sfxCache.set(id, howl);
+    // Before the first gesture a one-shot would wait in the suspended context and land late: drop it.
+    if (!this.sfxEnabled || !file || this.ctx?.state !== 'running') return;
+    const ctx = this.ctx;
+    let buffer = this.sfxBuffers.get(id);
+    if (!buffer) {
+      buffer = fetch(file).then(r => r.arrayBuffer()).then(b => ctx.decodeAudioData(b));
+      this.sfxBuffers.set(id, buffer);
     }
-    howl.play();
+    buffer.then(buf => {
+      const source = ctx.createBufferSource();
+      source.buffer = buf;
+      const gain = ctx.createGain();
+      gain.gain.value = SFX_VOLUME * (SFX_TRIM[id] ?? 1);
+      source.connect(gain).connect(ctx.destination);
+      source.start();
+    }).catch(() => this.sfxBuffers.delete(id));
   }
 
   /** Cross-fade to the bed and weather layer the Story names (PlayerView.ambience). An unknown or null id is silent. */
   setAmbient(bed: string | null, weather: string | null): void {
     if (!this.ambientEnabled) return;
-    this.setBed(bed);
-    this.setWeather(weather);
+    const file = bed ? AMBIENT_BEDS[bed] : undefined;
+    this.bed = this.swap(this.bed, file ? { key: file, file, volume: BED_VOLUME } : null);
+    const layer = weather ? WEATHER_LAYERS[weather] : undefined;
+    // `volume` lets one file serve several intensities, so it is part of the key.
+    this.weather = this.swap(this.weather, layer ? { key: `${weather}:${layer.volume}`, ...layer } : null);
   }
 
   // ── Internals ──────────────────────────────────────────────────────────────
 
-  private setBed(bed: string | null): void {
-    const file = bed ? AMBIENT_BEDS[bed] : undefined;
-    if (!file) { this.fadeOut(this.bed); this.bed = null; this.bedKey = null; return; }
-    if (this.bedKey === file && this.bed) {
-      // Same bed: restore its level after a dip or a curtain fade.
-      if (this.bed.volume() < BED_VOLUME) this.bed.fade(this.bed.volume(), BED_VOLUME, FADE_MS);
-      return;
+  private swap(current: Layer | null, next: { key: string; file: string; volume: number } | null): Layer | null {
+    if (next && current?.key === next.key) {
+      // Same layer: restore its level after a dip or a curtain fade.
+      this.ramp(current.gain, next.volume);
+      return current;
     }
-    this.fadeOut(this.bed);
-    this.bed = this.fadeIn(file, BED_VOLUME);
-    this.bedKey = file;
-  }
-
-  private setWeather(id: string | null): void {
-    const layer = id ? WEATHER_LAYERS[id] : undefined;
-    if (!layer) { this.fadeOut(this.weather); this.weather = null; this.weatherKey = null; return; }
-    const key = `${id}:${layer.volume}`;
-    if (this.weatherKey === key && this.weather) {
-      if (this.weather.volume() < layer.volume) this.weather.fade(this.weather.volume(), layer.volume, FADE_MS);
-      return;
-    }
-    this.fadeOut(this.weather);
-    this.weather = this.fadeIn(layer.file, layer.volume);
-    this.weatherKey = key;
+    if (current) this.fadeOut(current);
+    return next ? this.fadeIn(next.key, next.file, next.volume) : null;
   }
 
   private stopAmbient(): void {
-    this.fadeOut(this.bed);     this.bed = null;     this.bedKey = null;
-    this.fadeOut(this.weather); this.weather = null; this.weatherKey = null;
+    if (this.bed) this.fadeOut(this.bed);
+    if (this.weather) this.fadeOut(this.weather);
+    this.bed = this.weather = null;
   }
 
-  private fadeIn(file: string, volume: number): Howl {
-    const howl = new Howl({ src: [file], loop: true, volume: 0, html5: true });
-    // A bed started before the first gesture (ambient remembered as on) is
-    // refused by the autoplay policy: Howler's documented retry is to play
-    // again once it reports the audio unlocked.
-    howl.once('playerror', () => howl.once('unlock', () => { howl.play(); howl.fade(0, volume, FADE_MS); }));
-    howl.play();
-    howl.fade(0, volume, FADE_MS);
-    return howl;
+  private fadeIn(key: string, file: string, volume: number): Layer {
+    const ctx = this.context();
+    const el = new Audio(file);
+    el.loop = true;
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    ctx.createMediaElementSource(el).connect(gain).connect(ctx.destination);
+    void el.play().catch(() => {}); // refused before the first gesture; unlock() retries
+    this.ramp(gain, volume);
+    return { key, el, gain };
   }
 
-  private fadeOut(howl: Howl | null): void {
-    if (!howl) return;
-    howl.fade(howl.volume(), 0, FADE_MS);
-    howl.once('fade', () => howl.stop());
+  private fadeOut(layer: Layer): void {
+    this.ramp(layer.gain, 0);
+    window.setTimeout(() => { layer.el.pause(); layer.gain.disconnect(); }, FADE_S * 1000);
+  }
+
+  private ramp(gain: GainNode, to: number): void {
+    const now = this.context().currentTime;
+    gain.gain.cancelScheduledValues(now);
+    gain.gain.setValueAtTime(gain.gain.value, now);
+    gain.gain.linearRampToValueAtTime(to, now + FADE_S);
   }
 }
 
