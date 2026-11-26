@@ -1,6 +1,6 @@
 # The turn endpoint (plan §2.2, ADR-0001)
 
-`POST /api/turn` — one request per player turn or Tick. Deployed as `api/turn.ts` (Vercel Node function, `.js`-suffixed relative imports; `qa:lambda-imports` walks it) and mounted on the Vite dev server by `apiDevGateway` in `vite.config.ts`.
+`POST /api/turn` — one request per player turn or Tick. Deployed as `api/turn.ts` (Vercel Node function, `.js`-suffixed relative imports; `npm run lint` checks them through `tsconfig.server.json`) and mounted on the Vite dev server by `apiDevGateway` in `vite.config.ts`.
 
 ## Request
 ```json

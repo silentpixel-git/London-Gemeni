@@ -1,63 +1,51 @@
-import path from 'path';
 import { defineConfig, loadEnv, type Plugin, type ViteDevServer } from 'vite';
 import react from '@vitejs/plugin-react';
-import tailwindcss from 'tailwindcss';
-import autoprefixer from 'autoprefixer';
 
 // Dev-only middleware that serves POST /api/turn by loading the same Vercel
 // web handler used in production (api/turn.ts), so `npm run dev` works without
-// `vercel dev`. The GEMINI key stays server-side — it is NOT defined into the
-// client bundle.
-const SERVER_ENV_KEYS = [
-  'GEMINI_API_KEY',
-  // api/turn.ts: Supabase client per request, and the AI seam's job config.
-  'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY',
-  'AI_SELECT_PROVIDER', 'AI_SELECT_MODEL', 'AI_NARRATE_PROVIDER', 'AI_NARRATE_MODEL', 'AI_RECORDINGS_DIR',
-];
-
+// `vercel dev`. Server-side variables from .env reach process.env here, never
+// the client bundle (only VITE_* is defined into it).
 function apiDevGateway(env: Record<string, string>): Plugin {
   return {
     name: 'api-dev-gateway',
     configureServer(server: ViteDevServer) {
-      for (const key of SERVER_ENV_KEYS) {
-        if (env[key] && !process.env[key]) process.env[key] = env[key];
+      for (const [key, value] of Object.entries(env)) {
+        if (value && !process.env[key]) process.env[key] = value;
       }
-      for (const route of ['/api/turn']) {
-        server.middlewares.use(route, (req, res) => {
-          void (async () => {
-            if (req.method !== 'POST') {
-              res.statusCode = 405;
-              res.end();
-              return;
-            }
-            const chunks: Buffer[] = [];
-            for await (const chunk of req) chunks.push(chunk as Buffer);
-            const mod = await server.ssrLoadModule(`${route}.ts`);
-            const response: Response = await mod.POST(
-              new Request(`http://localhost${route}`, {
-                method: 'POST',
-                headers: {
-                  'content-type': 'application/json',
-                  ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
-                },
-                body: Buffer.concat(chunks),
-              })
-            );
-            res.statusCode = response.status;
-            response.headers.forEach((value, key) => res.setHeader(key, value));
-            if (response.body) {
-              for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
-                res.write(chunk);
-              }
-            }
+      server.middlewares.use('/api/turn', (req, res) => {
+        void (async () => {
+          if (req.method !== 'POST') {
+            res.statusCode = 405;
             res.end();
-          })().catch(err => {
-            console.error(`[api-dev-gateway ${route}]`, err);
-            if (!res.headersSent) res.statusCode = 500;
-            res.end(JSON.stringify({ error: 'AI gateway failed.' }));
-          });
+            return;
+          }
+          const chunks: Buffer[] = [];
+          for await (const chunk of req) chunks.push(chunk as Buffer);
+          const mod = await server.ssrLoadModule('/api/turn.ts');
+          const response: Response = await mod.POST(
+            new Request('http://localhost/api/turn', {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}),
+              },
+              body: Buffer.concat(chunks),
+            })
+          );
+          res.statusCode = response.status;
+          response.headers.forEach((value, key) => res.setHeader(key, value));
+          if (response.body) {
+            for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+              res.write(chunk);
+            }
+          }
+          res.end();
+        })().catch(err => {
+          console.error('[api-dev-gateway /api/turn]', err);
+          if (!res.headersSent) res.statusCode = 500;
+          res.end(JSON.stringify({ error: 'AI gateway failed.' }));
         });
-      }
+      });
     },
   };
 }
@@ -71,15 +59,5 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
       },
       plugins: [react(), apiDevGateway(env)],
-      css: {
-        postcss: {
-          plugins: [tailwindcss, autoprefixer],
-        },
-      },
-      resolve: {
-        alias: {
-          '@': path.resolve(__dirname, '.'),
-        }
-      }
     };
 });

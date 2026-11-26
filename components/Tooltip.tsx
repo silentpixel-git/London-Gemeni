@@ -65,7 +65,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ label, side = 'bottom', childr
             role="tooltip"
             className={`whitespace-nowrap rounded-md bg-lb-primary text-lb-bg font-sans text-xs px-2.5 py-1.5 shadow-lg ${
               side === 'top' ? 'origin-bottom' : 'origin-top'
-            } ${open === 'animated' ? 'animate-in fade-in zoom-in-95 duration-150 ease-out' : ''}`}
+            } ${open === 'animated' ? 'lb-in-pop' : ''}`}
           >
             {label}
           </span>

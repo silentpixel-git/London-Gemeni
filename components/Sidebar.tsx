@@ -106,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isSidebarOpen, onClose, onPref
       transition-transform [transition-duration:320ms] ease-drawer desk:transition-none
       ${isSidebarOpen ? 'translate-x-0' : '-translate-x-[105%] desk:translate-x-0 desk:-ml-80'}
     `} data-flip>
-      <div key={locationId} className="flex flex-col gap-8 px-5 pb-6 pt-[calc(24px+env(safe-area-inset-top,0px))] desk:p-8 animate-in fade-in duration-300">
+      <div key={locationId} className="flex flex-col gap-8 px-5 pb-6 pt-[calc(24px+env(safe-area-inset-top,0px))] desk:p-8 lb-in-fade">
 
         {/* Current location */}
         <section className="flex flex-col gap-3">

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "npm run qa:story && vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit",
+    "lint": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
     "qa:story": "npx tsx scripts/qa-story.ts",
     "qa:core": "npx tsx scripts/qa-core.ts",
     "qa:prove": "npx tsx scripts/qa-prove.ts",
@@ -15,8 +15,7 @@
     "qa:gate": "npx tsx scripts/qa-gate.ts",
     "qa:turn": "npx tsx scripts/qa-turn.ts",
     "qa:browser": "npx tsx scripts/qa-browser.ts",
-    "qa:lambda-imports": "npx tsx scripts/qa-lambda-imports.ts",
-    "qa:all": "npm run lint && npm run qa:lambda-imports && npm run qa:story && npm run qa:core && npm run qa:prove && npm run qa:stress && npm run qa:gate && npm run qa:turn"
+    "qa:all": "npm run lint && npm run qa:story && npm run qa:core && npm run qa:prove && npm run qa:stress && npm run qa:gate && npm run qa:turn"
   },
   "dependencies": {
     "@google/genai": "^1.33.0",
@@ -37,7 +36,6 @@
     "autoprefixer": "^10.4.27",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.19",
-    "tailwindcss-animate": "^1.0.7",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

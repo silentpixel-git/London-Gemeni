@@ -150,7 +150,7 @@ export const InvestigationsModal: React.FC<InvestigationsModalProps> = ({
                         </button>
 
                         {isConfirming ? (
-                          <div className="flex items-center gap-2 shrink-0 animate-in fade-in duration-150">
+                          <div className="flex items-center gap-2 shrink-0 lb-in-fade-fast">
                             <span className="text-xs text-lb-muted">Delete?</span>
                             <button
                               onClick={() => { onDelete(inv.id); setConfirmingDelete(null); }}
@@ -167,7 +167,7 @@ export const InvestigationsModal: React.FC<InvestigationsModalProps> = ({
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1 shrink-0 animate-in fade-in duration-150">
+                          <div className="flex items-center gap-1 shrink-0 lb-in-fade-fast">
                             <button
                               onClick={() => onOpen(inv.id)}
                               disabled={isBusy}

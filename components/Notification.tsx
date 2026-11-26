@@ -21,13 +21,13 @@ export const Notification: React.FC<NotificationProps> = ({ message, type, onClo
       className={`
         fixed top-6 left-1/2 -translate-x-1/2 z-[100]
         flex items-center gap-3 px-6 py-3 rounded-full shadow-xl
-        animate-in fade-in slide-in-from-top-4 duration-300
+        lb-in-drop
         transition-[opacity,transform] ease-out
         ${leaving ? 'opacity-0 -translate-y-2' : ''}
         ${type === 'error' ? 'bg-red-900 text-white' : 'bg-lb-primary text-lb-bg'}
       `}
-      // duration-300 above drives the entrance animation; the exit transition
-      // is snappier (system responding, not announcing).
+      // lb-in-drop is the entrance (0.3s); the exit transition is snappier
+      // (system responding, not announcing).
       style={{ transitionDuration: '200ms' }}
     >
       {type === 'error'

@@ -1,0 +1,15 @@
+// The Vercel function (api/turn.ts and everything it imports) runs as native
+// Node ESM, file by file: an extensionless or .ts relative import, or a value
+// import of a type the transpiler cannot erase, throws at module load and takes
+// down the whole function while Vite and tsx stay green. nodenext makes tsc
+// refuse all three. Run by `npm run lint`.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": false
+  },
+  "files": ["api/turn.ts"]
+}

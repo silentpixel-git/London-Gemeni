@@ -139,10 +139,21 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse,
   .animate-bounce,
-  .animate-in {
+  .lb-in-fade, .lb-in-fade-fast, .lb-in-zoom, .lb-in-pop, .lb-in-drop {
     animation: none !important;
   }
 }
+
+/* Entrances: a fade, a small zoom, or a short drop from above. */
+.lb-in-fade      { animation: lb-in-fade .3s; }
+.lb-in-fade-fast { animation: lb-in-fade .15s; }
+.lb-in-zoom      { animation: lb-in-zoom .3s; }
+.lb-in-pop       { animation: lb-in-pop .15s ease-out; }
+.lb-in-drop      { animation: lb-in-drop .3s ease-out; }
+@keyframes lb-in-fade { from { opacity: 0; } }
+@keyframes lb-in-zoom { from { transform: scale(.95); } }
+@keyframes lb-in-pop  { from { opacity: 0; transform: scale(.95); } }
+@keyframes lb-in-drop { from { opacity: 0; transform: translateY(-1rem); } }
 
 /* ── Watson's diary: tab panels ────────────────────────────────────────────
    All panels share one grid cell so a tab change never resizes the card.
