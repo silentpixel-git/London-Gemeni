@@ -2,25 +2,14 @@
  * components/SettingsPanel.tsx
  *
  * The shared body of the Settings menu: a single Appearance choice
- * (Light / Dark / Auto) plus the two sound toggles and the suggestions toggle. Rendered inside the
- * profile dropdown's Settings sub-page (signed in) and inside the lone
- * gear popover (signed out), so both states drive the same controls.
+ * (Light / Dark / Auto) plus the two sound toggles and the suggestions toggle.
+ * Rendered inside the account menu's Settings sub-page.
  */
 
 import React from 'react';
 import { Sun, Moon, Clock, Volume2, Waves, MousePointerClick, type LucideIcon } from 'lucide-react';
 import type { ThemeMode } from '../types';
-
-interface SettingsPanelProps {
-  themeMode: ThemeMode;
-  onSetThemeMode: (mode: ThemeMode) => void;
-  soundEffects: boolean;
-  onToggleSound: () => void;
-  ambientAudio: boolean;
-  onToggleAmbient: () => void;
-  showSuggestions: boolean;
-  onToggleSuggestions: () => void;
-}
+import type { Appearance } from '../hooks/gameState/useAppearance';
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; caption: string; icon: LucideIcon }[] = [
   { value: 'light', label: 'Light', caption: 'parchment',   icon: Sun },
@@ -43,15 +32,8 @@ const Toggle: React.FC<{ on: boolean; onClick: () => void; label: string }> = ({
   </button>
 );
 
-export const SettingsPanel: React.FC<SettingsPanelProps> = ({
-  themeMode,
-  onSetThemeMode,
-  soundEffects,
-  onToggleSound,
-  ambientAudio,
-  onToggleAmbient,
-  showSuggestions,
-  onToggleSuggestions,
+export const SettingsPanel: React.FC<{ appearance: Appearance }> = ({
+  appearance: { themeMode, setThemeMode, soundEffects, setSoundEffects, ambientAudio, setAmbientAudio, showSuggestions, setShowSuggestions },
 }) => (
   <div className="p-3">
     {/* Appearance */}
@@ -63,7 +45,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <button
             key={value}
             type="button"
-            onClick={() => onSetThemeMode(value)}
+            onClick={() => setThemeMode(value)}
             aria-pressed={selected}
             className={`flex flex-col items-center gap-1 py-2 rounded-md border pressable ${
               selected
@@ -86,14 +68,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         <Volume2 size={15} className="text-lb-muted" />
         <span className="font-medium">Sound effects</span>
       </span>
-      <Toggle on={soundEffects} onClick={onToggleSound} label="Toggle sound effects" />
+      <Toggle on={soundEffects} onClick={() => setSoundEffects(v => !v)} label="Toggle sound effects" />
     </div>
     <div className="flex items-center justify-between gap-3 px-1 py-2">
       <span className="flex items-center gap-2 text-sm text-lb-primary">
         <Waves size={15} className="text-lb-muted" />
         <span className="font-medium">Ambient sound</span>
       </span>
-      <Toggle on={ambientAudio} onClick={onToggleAmbient} label="Toggle ambient sound" />
+      <Toggle on={ambientAudio} onClick={() => setAmbientAudio(v => !v)} label="Toggle ambient sound" />
     </div>
 
     {/* Play */}
@@ -103,7 +85,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
         <MousePointerClick size={15} className="text-lb-muted" />
         <span className="font-medium">Show suggestions</span>
       </span>
-      <Toggle on={showSuggestions} onClick={onToggleSuggestions} label="Toggle suggestions" />
+      <Toggle on={showSuggestions} onClick={() => setShowSuggestions(v => !v)} label="Toggle suggestions" />
     </div>
 
   </div>

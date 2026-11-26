@@ -28,7 +28,6 @@ import { DiaryToast } from './components/DiaryToast';
 import { useInvestigation } from './hooks/useInvestigation';
 import { useAppearance } from './hooks/gameState/useAppearance';
 import { suggestionsFor } from './services/viewFormat';
-import { useConnections } from './hooks/gameState/useConnections';
 import { useAudio } from './hooks/useAudio';
 import type { TimePeriod } from './types';
 
@@ -84,7 +83,6 @@ const AppContent: React.FC = () => {
   const inv = useInvestigation({ userId: isAuthReady ? user?.id ?? null : null });
   const view = inv.view;
   const appearance = useAppearance({ user, userProfile, currentTimePeriod: themePeriod(view?.clock) });
-  const { connectionStatus, checkConnections } = useConnections({ isAuthReady, setNotification });
 
   // Ambient bed from what the player can see; one-shots from the latest turn's cues.
   useAudio({
@@ -261,16 +259,8 @@ const AppContent: React.FC = () => {
         <Header
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={toggleSidebar}
-          connectionStatus={{ engine: inv.engineOk, supabase: connectionStatus.supabase }}
-          onRetryConnection={checkConnections}
-          themeMode={appearance.themeMode}
-          onSetThemeMode={appearance.setThemeMode}
-          soundEffects={appearance.soundEffects}
-          onToggleSound={() => appearance.setSoundEffects(v => !v)}
-          ambientAudio={appearance.ambientAudio}
-          onToggleAmbient={() => appearance.setAmbientAudio(v => !v)}
-          showSuggestions={appearance.showSuggestions}
-          onToggleSuggestions={() => appearance.setShowSuggestions(v => !v)}
+          engineOk={inv.engineOk}
+          appearance={appearance}
           user={isGuest ? null : user}
           userProfile={userProfile}
           onOpenInvestigations={openInvestigations}

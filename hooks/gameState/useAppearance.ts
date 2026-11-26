@@ -95,3 +95,5 @@ export function useAppearance(deps: AppearanceDeps) {
 
   return { themeMode, setThemeMode, soundEffects, setSoundEffects, ambientAudio, setAmbientAudio, showSuggestions, setShowSuggestions };
 }
+
+export type Appearance = ReturnType<typeof useAppearance>;
