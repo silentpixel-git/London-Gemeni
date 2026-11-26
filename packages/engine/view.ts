@@ -73,9 +73,14 @@ export function playerView(story: Story, events: EventPayload[]): PlayerView {
     const p = story.persons.find(x => x.id === id)!;
     return s.persons[id].introduced ? p.name : p.alias ?? p.name;
   };
-  const statement = (id: Id) => story.facts.find(f => f.id === id)!.statement;
+  // What each person told the player, as they said it: their voice for the Fact, else its statement.
+  const said = (person: Id, factId: Id) => {
+    const f = story.facts.find(x => x.id === factId)!;
+    const voice = f.voices?.[person];
+    return voice ? { text: voice, quoted: true as const } : { text: f.statement };
+  };
   // The people met are exactly the suspects a deduction may name (state.met, ADR-0005).
-  diary.persons = Object.keys(s.met).map(id => ({ id, name: label(id), told: (s.ledger[id]?.told ?? []).map(statement) }));
+  diary.persons = Object.keys(s.met).map(id => ({ id, name: label(id), told: (s.ledger[id]?.told ?? []).map(f => said(id, f)) }));
 
   const objName = (id: Id) => story.objects.find(o => o.id === id)!.name;
   const loc = story.locations.find(l => l.id === s.location)!;

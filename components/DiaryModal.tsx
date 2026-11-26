@@ -18,9 +18,12 @@
  *    active panel (capped at 86vh), eases between heights, and closes on a
  *    downward drag of its handle.
  *
+ *  - Every panel opens with a headline and a line on what it holds; an empty one shows
+ *    a quiet mark, a title and how it fills (no button: play fills the diary).
  *  - Journal: the act accordion; each act lists the clues found in it, timed.
  *  - Evidence: discovered clues.
- *  - Persons: people met, with everything they have told the player.
+ *  - Persons: people met, with everything they have told the player, in their own
+ *    words (quoted) where the story gives them a voice for it.
  *  - Documents: papers held, verbatim.
  *
  * Read-only throughout. A null view reads as an empty diary.
@@ -29,7 +32,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { X, ChevronDown } from 'lucide-react';
+import { X, ChevronDown, Feather, Search, Users, ScrollText, type LucideIcon } from 'lucide-react';
 import { ModalBackdrop } from './ModalBackdrop';
 import { overlayPresence, DUR_EXIT, EASE_OUT_EXPO, EASE_OUT_QUINT, EASE_DRAWER } from './motionTokens';
 import type { Diary, PlayerView } from '../packages/schema/view.js';
@@ -79,6 +82,25 @@ const Empty: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <p className="m-0 italic text-[15px] text-lb-primary/75">{children}</p>
 );
 
+/** Each panel opens with its name and what belongs in it, so a section reads as a section before it fills. */
+const PanelHead: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <header className="mb-6 sm:mb-7 pr-8 sm:pr-0">
+    <h3 className="m-0 font-serif font-normal text-[22px] sm:text-2xl leading-tight text-lb-primary">{title}</h3>
+    <p className="mt-1.5 mb-0 text-[15px] leading-relaxed text-lb-primary/70">{children}</p>
+  </header>
+);
+
+/** A section with nothing in it yet: a quiet mark, a title and how it fills. No button: the diary fills as the case is played. */
+const EmptySection: React.FC<{ icon: LucideIcon; title: string; children: React.ReactNode }> = ({ icon: Icon, title, children }) => (
+  <div className="flex flex-col items-center text-center gap-3 pt-8 sm:pt-12 pb-4">
+    <span className="grid place-items-center w-12 h-12 rounded-full bg-lb-primary/[0.06] text-lb-primary/55">
+      <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
+    </span>
+    <p className="m-0 font-serif text-[19px] text-lb-primary">{title}</p>
+    <p className="m-0 max-w-[34ch] text-[15px] leading-relaxed text-lb-primary/70">{children}</p>
+  </div>
+);
+
 // --- Panels ------------------------------------------------------------
 
 const JournalPanel: React.FC<{
@@ -86,11 +108,14 @@ const JournalPanel: React.FC<{
   openAct: number | null;
   onToggleAct: (act: number) => void;
 }> = ({ diary, openAct, onToggleAct }) => {
-  if (diary.acts.length === 0) return <Empty>Nothing noted yet.</Empty>;
+  const head = <PanelHead title="Journal">The case act by act, each clue entered at the hour it came to light.</PanelHead>;
+  if (diary.acts.length === 0) return <>{head}<EmptySection icon={Feather} title="Nothing noted yet">The first entry is made when the case begins.</EmptySection></>;
   const latest = diary.acts[diary.acts.length - 1].id;
   const acts = [...diary.acts].reverse(); // newest act first
 
   return (
+    <>
+    {head}
     <div className="flex flex-col gap-2">
       {acts.map(act => {
         const expanded = openAct === act.id;
@@ -114,7 +139,7 @@ const JournalPanel: React.FC<{
             <div className={`grid transition-[grid-template-rows] duration-300 ease-out-quint ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
               <div className="overflow-hidden">
                 {entries.length === 0 ? (
-                  <div className="pt-2 pb-4"><Empty>Nothing noted yet.</Empty></div>
+                  <div className="pt-2 pb-4"><Empty>No clues entered in this act yet.</Empty></div>
                 ) : (
                   <ul className="list-none m-0 p-0 flex flex-col gap-3.5 pt-2 pb-4">
                     {entries.map(clue => (
@@ -133,12 +158,16 @@ const JournalPanel: React.FC<{
         );
       })}
     </div>
+    </>
   );
 };
 
 const EvidencePanel: React.FC<{ diary: Diary }> = ({ diary }) => {
-  if (diary.clues.length === 0) return <Empty>No evidence yet.</Empty>;
+  const head = <PanelHead title="Evidence">Every clue uncovered so far, and what it shows.</PanelHead>;
+  if (diary.clues.length === 0) return <>{head}<EmptySection icon={Search} title="No evidence yet">Clues are entered here as they are uncovered.</EmptySection></>;
   return (
+    <>
+    {head}
     <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
       {diary.clues.map(clue => (
         <li key={clue.id} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
@@ -147,12 +176,16 @@ const EvidencePanel: React.FC<{ diary: Diary }> = ({ diary }) => {
         </li>
       ))}
     </ul>
+    </>
   );
 };
 
 const PersonsPanel: React.FC<{ diary: Diary }> = ({ diary }) => {
-  if (diary.persons.length === 0) return <Empty>No one met yet.</Empty>;
+  const head = <PanelHead title="Persons">Everyone met in the case, and what each has said.</PanelHead>;
+  if (diary.persons.length === 0) return <>{head}<EmptySection icon={Users} title="No one met yet">People are entered here when they are met, with whatever they tell.</EmptySection></>;
   return (
+    <>
+    {head}
     <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
       {diary.persons.map(p => (
         <li key={p.id} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
@@ -162,20 +195,26 @@ const PersonsPanel: React.FC<{ diary: Diary }> = ({ diary }) => {
           ) : (
             <ul className="list-disc m-0 pl-5 flex flex-col gap-1.5">
               {p.told.map((line, i) => (
-                <li key={i} className="text-[15px] leading-relaxed text-lb-primary/90">{line}</li>
+                <li key={i} className={`text-[15px] leading-relaxed text-lb-primary/90 ${line.quoted ? 'font-serif italic text-base' : ''}`}>
+                  {line.quoted ? `“${line.text}”` : line.text}
+                </li>
               ))}
             </ul>
           )}
         </li>
       ))}
     </ul>
+    </>
   );
 };
 
 /** NOTE on colors: secondary text avoids `text-lb-muted`, which fails WCAG AA at body sizes against lb-paper; `text-lb-primary/70+` passes. */
 const DocumentsPanel: React.FC<{ diary: Diary }> = ({ diary }) => {
-  if (diary.documents.length === 0) return <Empty>No documents yet.</Empty>;
+  const head = <PanelHead title="Documents">Letters, logs and papers read, copied out in full.</PanelHead>;
+  if (diary.documents.length === 0) return <>{head}<EmptySection icon={ScrollText} title="No documents yet">Whatever is read is copied out here, word for word.</EmptySection></>;
   return (
+    <>
+    {head}
     <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
       {diary.documents.map(doc => (
         <li key={doc.id} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
@@ -184,6 +223,7 @@ const DocumentsPanel: React.FC<{ diary: Diary }> = ({ diary }) => {
         </li>
       ))}
     </ul>
+    </>
   );
 };
 

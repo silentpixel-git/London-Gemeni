@@ -34,8 +34,11 @@ export interface Diary {
   /** Acts entered so far, in order. */
   acts: Array<{ id: number; name: string; dateLabel: string }>;
   clues: Array<{ id: Id; name: string; summary: string; act: number; clock: number }>;
-  /** People met, with every Fact they have told the player (the Disclosure Ledger). */
-  persons: Array<Named & { told: string[] }>;
+  /**
+   * People met, with every Fact they have told the player (the Disclosure Ledger), in their own
+   * words where the Fact has a voice for them (`quoted`), else as its statement.
+   */
+  persons: Array<Named & { told: Array<{ text: string; quoted?: true }> }>;
   documents: Array<Named & { text: string }>;
 }
 

@@ -426,6 +426,19 @@ section('names, people examined, mentions, short words');
   check((confineSelection(keySel, k.cand(), 'ask maud where the keys are kept') as { topic?: string }).topic === 'store_key_in_chest', 'a plural matches a short topic word ("keys" for "key")');
 }
 
+section('the diary\'s persons page');
+{
+  // Three people told the same Fact: each is listed in their own words where the story gives them a voice.
+  const r = new Run('diary_voices', 33);
+  r.ask('orrin', 'cargo_was_barrels');
+  r.move('to_kitchen'); r.ask('ines', 'cargo_was_barrels');
+  const persons = playerView(story, r.log).diary.persons;
+  const barrels = story.facts.find(f => f.id === 'cargo_was_barrels')!;
+  check(JSON.stringify(persons.find(p => p.id === 'orrin')?.told) === JSON.stringify([{ text: barrels.voices!.orrin, quoted: true }]),
+    'Orrin is listed with what he said, quoted', JSON.stringify(persons.find(p => p.id === 'orrin')?.told));
+  check(JSON.stringify(persons.find(p => p.id === 'ines')?.told) === JSON.stringify([{ text: barrels.statement }]), 'someone with no voice for it is listed with the Fact\'s statement');
+}
+
 section('an act that begins where the player stands');
 {
   // Reading the log in the kitchen turns act 1, whose anchor is the kitchen: a new chapter, not an arrival.
