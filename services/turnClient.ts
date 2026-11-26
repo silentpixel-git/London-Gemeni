@@ -1,11 +1,10 @@
 // Client side of POST /api/turn (contract: server/TURN.md). Sends one request
 // with the player's Supabase JWT and hands each NDJSON line over as it arrives.
 // Types only from packages/schema: the browser never loads the engine or a Story.
-import type { FeedItem, Observation, PlayerView } from '../packages/schema/index.js';
-import type { TurnRequestBody as TurnBody } from '../server/turn.js';
+import type { FeedItem, Observation, PlayerView, TurnRequest } from '../packages/schema/index.js';
 import { supabase } from '../supabase';
 
-export type { TurnBody };
+export type TurnBody = TurnRequest;
 
 export type TurnLine =
   | { kind: 'turn'; investigationId: string; cues: string[]; diary: boolean }

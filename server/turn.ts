@@ -4,9 +4,8 @@
 // middleware build the deps, scripts/qa-turn.ts passes in-memory ones.
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { z } from 'zod';
 import {
-  Id, Story, type EventPayload, type LogEvent, type NarrationContext, type NarrationMode, type NarrationResult,
+  Story, TurnRequest, type EventPayload, type LogEvent, type NarrationContext, type NarrationMode, type NarrationResult,
 } from '../packages/schema/index.js';
 import { loadStoryDir } from '../packages/schema/load.js';
 import {
@@ -32,16 +31,6 @@ export interface TurnDeps {
   now?: () => number;
 }
 
-const TurnRequest = z.union([
-  z.object({ investigationId: z.string().min(1), text: z.string().trim().min(1) }).strict(),
-  z.object({ investigationId: z.string().min(1), tick: z.literal(true) }).strict(),
-  z.object({ investigationId: z.string().min(1), resume: z.literal(true) }).strict(),
-  z.object({ start: z.object({ storyId: Id, name: z.string().trim().min(1) }).strict() }).strict(),
-]);
-
-/** A request body; services/turnClient.ts sends these. */
-export type TurnRequestBody = z.infer<typeof TurnRequest>;
-
 /** Player lines offered to the selection model for "open it". */
 const RECENT_TEXTS = 4;
 
@@ -64,7 +53,7 @@ const PREPARE_ATTEMPTS = 3;
 const NDJSON = { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store' };
 
 export async function handleTurn(request: Request, deps: TurnDeps): Promise<Response> {
-  let body: z.infer<typeof TurnRequest>;
+  let body: TurnRequest;
   try {
     body = TurnRequest.parse(await request.json());
   } catch {
@@ -151,7 +140,7 @@ interface Prepared {
 
 type Refusal = { status: number; message: string };
 /** A request that resolves a turn (a resume reads only). */
-type TurnBody = Exclude<z.infer<typeof TurnRequest>, { resume: true }>;
+type TurnBody = Exclude<TurnRequest, { resume: true }>;
 
 /** Server steps 1–3: everything that can still answer with a plain HTTP error. A lost race for the next seq starts over from a fresh load. */
 async function prepare(body: TurnBody, deps: TurnDeps): Promise<Prepared | Refusal> {

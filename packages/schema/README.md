@@ -10,6 +10,7 @@ The contracts of the rebuilt engine (plan: `docs/engine-rebuild-plan.md`, vocabu
 | `event.ts` | The Event log union and Observation (ADR-0001, ADR-0002) |
 | `candidates.ts` | Candidate Set and Selection (ADR-0003), and `inCandidateSet`, the membership check every consumer shares (ADR-0005) |
 | `narration.ts` | NarrationContext and NarrationResult |
+| `view.ts`, `turn.ts` | The turn endpoint's contract with the client: `PlayerView` and `FeedItem` out (plain types), `TurnRequest` in |
 | `validate.ts` | `validateStory(raw)`: shape, referential integrity, flags, progression, spoiler scan. The reachability prover is Phase 1 and lands here |
 | `load.ts` | Node-only: `loadStoryDir(dir)` merges `story.json` + one JSON file per collection |
 | `fixtures/` | `toy` (passes; uses every Trigger kind), `empty` (must fail), `broken` (toy with three authored faults) |
