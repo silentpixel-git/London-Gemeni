@@ -70,10 +70,12 @@ export function buildNarrationContext(story: Story, s: State, turnEvents: EventP
   // What the turn's Events refer to by id, in words: the narrator may say these, never the ids.
   const placeName = (id: Id | null) => (id ? story.locations.find(l => l.id === id)?.name : undefined);
   const exitNames = (locId: Id, exitId: Id) => story.locations.find(l => l.id === locId)?.exits.find(x => x.id === exitId)?.names ?? [];
+  // MoveBlocked names its exit by id only, on the room the turn began in; an act change may have moved the player since.
+  const relocated = turnEvents.some(e => e.kind === 'ActEntered');
   const mentions = [...new Set(turnEvents.flatMap(e => {
     switch (e.kind) {
       case 'Moved': return [placeName(e.from)];
-      case 'MoveBlocked': return exitNames(s.location, e.exit);
+      case 'MoveBlocked': return relocated ? [] : exitNames(s.location, e.exit);
       case 'PersonMoved': return [placeName(e.location)];
       case 'ExitLockChanged': return [placeName(e.location), ...exitNames(e.location, e.exit)];
       case 'Deduced': return e.facts.map(id => fact(id)?.statement);
@@ -173,7 +175,8 @@ export function fallbackProse(story: Story, ctx: NarrationContext): string {
       case 'Looked': lines.push('You look around.'); break;
       case 'InventoryChecked': lines.push('You check what you are carrying.'); break;
       case 'Deduced': lines.push(`You lay out your reasoning${e.suspect ? `, naming ${who(e.suspect)}` : ''}.`); break;
-      case 'FlavourRequested': lines.push(`You look more closely at ${e.subject}.`); break;
+      // The subject is the parser model's words, not the Story's: never echoed ungated.
+      case 'FlavourRequested': lines.push('You take a closer look.'); break;
     }
   }
   return [...ctx.beats, ...lines].join(' ');

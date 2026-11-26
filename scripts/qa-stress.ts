@@ -86,7 +86,7 @@ const ASKABLE = (r: Run, person: string, fact: string, dir: 'ask' | 'tell') =>
 /** Shortest honest route into act 1: ines (who knows about the barrels) is asked, then the log is read. */
 function toAct1(r: Run) {
   r.move('to_kitchen');
-  r.ask('ines', 'cargo_was_barrels');
+  r.ask('oilskin_woman', 'cargo_was_barrels');
   r.go('read the log', { verb: 'read', target: 'keeper_log' });
 }
 /** Through act 1 into the lamp room: chest, key, store, cask, tell the cook, hatch, wait for Orrin, wick promise. */
@@ -156,11 +156,11 @@ const main = new Run('main', 11);
   check(has(told, e => e.kind === 'FactDisclosed') && ctx.facts.find(f => f.id === 'cargo_was_barrels')?.statement.startsWith('Orrin ferried'), 'the plain statement travels with the voice');
 
   r.move('to_kitchen');
-  check(absent() && r.present().includes('maud') && r.present().includes('ines'), 'kitchen, act 0: Maud and Ines present, companion still absent');
+  check(absent() && r.present().includes('maud') && r.present().includes('oilskin_woman'), 'kitchen, act 0: Maud and Ines present, companion still absent');
   check(!ASKABLE(r, 'maud', 'cargo_was_barrels', 'ask'), 'before the boundary: Maud cannot be asked about the barrels');
   check(ASKABLE(r, 'maud', 'cargo_was_barrels', 'tell'), 'before the boundary: the player could only tell Maud');
-  check(r.cand().persons.find(p => p.id === 'ines')?.name === 'the woman in oilskins', 'Ines is shown by alias before her log is read');
-  check(r.s.persons.ines.introduced === false, 'persons.ines.introduced is false');
+  check(r.cand().persons.find(p => p.id === 'oilskin_woman')?.name === 'the woman in oilskins', 'Ines is shown by alias before her log is read');
+  check(r.s.persons.oilskin_woman.introduced === false, 'persons.oilskin_woman.introduced is false');
 
   r.wait();
   check(r.s.boundaries === 0 && !ASKABLE(r, 'maud', 'cargo_was_barrels', 'ask'), 'one wait, still morning: still no ask entry for Maud');
@@ -186,13 +186,13 @@ const main = new Run('main', 11);
 
   // ── Document introduction ─────────────────────────────────────────────────
   section('document introduction');
-  check(r.cand().persons.find(p => p.id === 'ines')?.name === 'the woman in oilskins', 'still an alias in the kitchen');
+  check(r.cand().persons.find(p => p.id === 'oilskin_woman')?.name === 'the woman in oilskins', 'still an alias in the kitchen');
   const early = r.log.length;
   const read = r.go('read the log', { verb: 'read', target: 'keeper_log' });
-  check(has(read, e => e.kind === 'Read' && e.object === 'keeper_log') && r.s.persons.ines.introduced === true, 'reading the log flips persons.ines.introduced');
-  check(r.cand().persons.find(p => p.id === 'ines')?.name === 'Ines Tarrow', 'the candidate name changes to Ines Tarrow');
+  check(has(read, e => e.kind === 'Read' && e.object === 'keeper_log') && r.s.persons.oilskin_woman.introduced === true, 'reading the log flips persons.oilskin_woman.introduced');
+  check(r.cand().persons.find(p => p.id === 'oilskin_woman')?.name === 'Ines Tarrow', 'the candidate name changes to Ines Tarrow');
   check(has(read, e => e.kind === 'ClueDiscovered' && e.clue === 'clue_crane'), 'the log also teaches its fact (clue_crane)');
-  check(buildNarrationContext(story, r.s, read, 'full').personsPresent.find(p => p.id === 'ines')?.label === 'Ines Tarrow', 'the narration context labels her by name');
+  check(buildNarrationContext(story, r.s, read, 'full').personsPresent.find(p => p.id === 'oilskin_woman')?.label === 'Ines Tarrow', 'the narration context labels her by name');
   void early;
   check(fired(read, 'log_read_starts_storm') && has(read, e => e.kind === 'ActEntered' && e.act === 1) && r.s.act === 1, 'barrels known → reading the log enters act 1');
 }
@@ -210,7 +210,7 @@ section('act 1 / companion');
   const route: Array<[string, string]> = [];
   const step = (exit: string) => { r.move(exit); route.push([exit, r.s.location]); check(dovHere(), `companion present after moving to ${r.s.location}`); };
   step('to_jetty');
-  check(!r.present().includes('ines') && r.present().includes('orrin'), 'jetty: Orrin is here, Ines is not');
+  check(!r.present().includes('oilskin_woman') && r.present().includes('orrin'), 'jetty: Orrin is here, Ines is not');
 
   // Orrin, asked again in act 1, unlatches the chest.
   const again = r.ask('orrin', 'cargo_was_barrels');
@@ -257,7 +257,7 @@ section('act 1 / companion');
   const locked = r.move('to_tower');
   check(has(locked, e => e.kind === 'MoveBlocked' && e.reason === 'locked' && e.lock?.kind === 'flag') && r.s.location === 'kitchen', 'tower door: MoveBlocked{locked} before the disclosure');
   check(ASKABLE(r, 'maud', 'oil_watered', 'tell'), 'the player can tell Maud about the oil');
-  check(!ASKABLE(r, 'ines', 'oil_watered', 'tell') && !ASKABLE(r, 'dov', 'oil_watered', 'tell'), 'nobody else needs telling');
+  check(!ASKABLE(r, 'oilskin_woman', 'oil_watered', 'tell') && !ASKABLE(r, 'dov', 'oil_watered', 'tell'), 'nobody else needs telling');
   const tell = r.ask('maud', 'oil_watered');
   check(has(tell, e => e.kind === 'FactDisclosed' && e.from === 'player' && e.to === 'maud' && e.fact === 'oil_watered'), 'telling Maud: FactDisclosed player → maud');
   check(fired(tell, 'maud_unbars_tower') && r.s.flags.tower_unbarred === true, 'disclosed trigger sets tower_unbarred');
@@ -301,7 +301,7 @@ section('act 2 / combine / deduce');
 {
   const r = main;
   check(r.s.act === 2 && r.s.location === 'lamp_room' && r.s.clock === 1140, 'act 2: lamp room, 19:00');
-  check(r.present().includes('dov') && !r.present().includes('ines'), 'companion present at the top of the tower; Ines is on the stair');
+  check(r.present().includes('dov') && !r.present().includes('oilskin_woman'), 'companion present at the top of the tower; Ines is on the stair');
   check(buildNarrationContext(story, r.s, [], 'full').clock.weather === 'Sea fog', 'weather has changed to fog');
   check(fired(r.log.slice(-40), 'drawer_wick') && r.where('lamp_wick').kind === 'inventory', 'giveItem: the promised wick is in the inventory');
   check(!r.cand().objects.some(o => o.id === 'torn_page'), 'the hidden page is not offered');
@@ -361,7 +361,7 @@ section('examining a document reads it');
   const r = new Run('examine_document', 24);
   const chest = r.go('examine the chest', { verb: 'examine', target: 'tackle_chest' });
   check(has(chest, e => e.kind === 'Examined') && !has(chest, e => e.kind === 'Read'), 'examining an Object with no document is still an examine');
-  r.move('to_kitchen'); r.ask('ines', 'cargo_was_barrels');
+  r.move('to_kitchen'); r.ask('oilskin_woman', 'cargo_was_barrels');
   const log = r.go('examine the log', { verb: 'examine', target: 'keeper_log' });
   check(has(log, e => e.kind === 'IntentSelected' && e.verb === 'examine') && has(log, e => e.kind === 'Read' && e.object === 'keeper_log') && !has(log, e => e.kind === 'Examined'),
     'examining the log reads it (the log keeps what was selected)');
@@ -416,8 +416,8 @@ section('names, people examined, mentions, short words');
     'the woman in oilskins\' name is withheld until her introduction; people with no alias are not');
   const left = r.move('to_kitchen');
   check(buildNarrationContext(story, r.s, left, 'full', 'jetty').mentions.includes('The Jetty'), 'the place just left reaches the narrator by name (mentions), not by id');
-  const looked = r.go('examine the woman in oilskins', { verb: 'examine', target: 'ines' });
-  const inesBeats = story.persons.find(p => p.id === 'ines')!.beats;
+  const looked = r.go('examine the woman in oilskins', { verb: 'examine', target: 'oilskin_woman' });
+  const inesBeats = story.persons.find(p => p.id === 'oilskin_woman')!.beats;
   check(inesBeats.every(b => buildNarrationContext(story, r.s, looked, 'compact').beats.includes(b)), 'examining a person gives the narrator their beats');
   r.go('read the log', { verb: 'read', target: 'keeper_log' });
   check(!unintroducedNames(story, r.s).includes('Ines'), 'once the log introduces her, her name is free');
@@ -431,12 +431,12 @@ section('the diary\'s persons page');
   // Three people told the same Fact: each is listed in their own words where the story gives them a voice.
   const r = new Run('diary_voices', 33);
   r.ask('orrin', 'cargo_was_barrels');
-  r.move('to_kitchen'); r.ask('ines', 'cargo_was_barrels');
+  r.move('to_kitchen'); r.ask('oilskin_woman', 'cargo_was_barrels');
   const persons = playerView(story, r.log).diary.persons;
   const barrels = story.facts.find(f => f.id === 'cargo_was_barrels')!;
   check(JSON.stringify(persons.find(p => p.id === 'orrin')?.told) === JSON.stringify([{ text: barrels.voices!.orrin, quoted: true }]),
     'Orrin is listed with what he said, quoted', JSON.stringify(persons.find(p => p.id === 'orrin')?.told));
-  check(JSON.stringify(persons.find(p => p.id === 'ines')?.told) === JSON.stringify([{ text: barrels.statement }]), 'someone with no voice for it is listed with the Fact\'s statement');
+  check(JSON.stringify(persons.find(p => p.id === 'oilskin_woman')?.told) === JSON.stringify([{ text: barrels.statement }]), 'someone with no voice for it is listed with the Fact\'s statement');
 }
 
 section('an act that begins where the player stands');
@@ -446,7 +446,7 @@ section('an act that begins where the player stands');
   const said: EventPayload = { kind: 'Narrated', text: 'prose', beats: [] };
   const log: EventPayload[] = [...fr.log, said];
   log.push(...fr.move('to_kitchen'), said);
-  log.push(...fr.ask('ines', 'cargo_was_barrels'), said);
+  log.push(...fr.ask('oilskin_woman', 'cargo_was_barrels'), said);
   log.push(...fr.go('read the log', { verb: 'read', target: 'keeper_log' }), said);
   const prose = feedOf(story, log).filter(f => f.kind === 'prose') as Array<{ location?: string; actHeading?: string }>;
   check(fr.s.act === 1 && !!prose.at(-1)?.actHeading && prose.at(-1)?.location === undefined, 'an act begun in place gets its chapter heading and no location heading', JSON.stringify(prose.at(-1)));
@@ -458,7 +458,7 @@ section('early log read');
   const r = new Run('early_log', 22);
   r.move('to_kitchen');
   const es = r.go('read the log', { verb: 'read', target: 'keeper_log' });
-  check(r.s.persons.ines.introduced && r.s.act === 0 && !fired(es, 'log_read_starts_storm'), 'the introduction does not depend on the act change (barrels unknown → still act 0)');
+  check(r.s.persons.oilskin_woman.introduced && r.s.act === 0 && !fired(es, 'log_read_starts_storm'), 'the introduction does not depend on the act change (barrels unknown → still act 0)');
   check(r.replays(), 'early-log branch replays exactly');
 }
 section('proximity at the origin (suspected engine fault)');
@@ -495,7 +495,7 @@ section('endings on fresh Investigations');
   toAct2(late);
   let guard = 0; while (!late.s.ended && guard++ < 20) late.wait();
   check(late.s.ended === 'ship_lost' && late.s.clock >= 1320, 'ten o\'clock in act 2 → ship_lost');
-  check(late.s.persons.ines.override === null, 'dismissPerson ran before endGame');
+  check(late.s.persons.oilskin_woman.override === null, 'dismissPerson ran before endGame');
   check(guard <= 8, 'the deadline is a handful of waits away', String(guard));
   check(late.replays(), 'timeout ending replays exactly');
 }
@@ -528,12 +528,12 @@ section('pinned 2: proximity fires on arrival, not every turn');
   check(r.replays(), 'replays exactly');
 
   const ahead = load(variant(r2 => {
-    r2.rules.push({ id: 'meet_ines_starts_act2', trigger: { kind: 'proximity', person: 'ines' }, when: { act: [0] }, once: true, effects: [{ kind: 'advanceAct', act: 2 }] });
+    r2.rules.push({ id: 'meet_ines_starts_act2', trigger: { kind: 'proximity', person: 'oilskin_woman' }, when: { act: [0] }, once: true, effects: [{ kind: 'advanceAct', act: 2 }] });
   }));
   const a = new Run('arrival_act', 43, ahead);
   const met = a.move('to_kitchen');
   check(fired(met, 'meet_ines_starts_act2') && a.s.act === 2 && a.s.location === 'lamp_room', 'a proximity Rule that enters an act does so on the arrival turn itself');
-  check(!a.cand().persons.some(p => p.id === 'ines'), 'so the next command is chosen against the new act, not against someone who is no longer there');
+  check(!a.cand().persons.some(p => p.id === 'oilskin_woman'), 'so the next command is chosen against the new act, not against someone who is no longer there');
 
   const sched = load(variant(r2 => {
     r2.persons.find((p: { id: string }) => p.id === 'orrin').schedule['0'] = { default: { kind: 'at', location: 'jetty' }, byPeriod: { afternoon: { kind: 'at', location: 'kitchen' } } };
@@ -603,7 +603,7 @@ section('pinned 5: a player can accuse anyone met; examine and use reach people'
   check(!accuse(r.cand()), 'Maud, not yet met, cannot be accused');
   r.move('to_kitchen'); r.move('to_jetty');
   check(r.cand().suspects.some(p => p.id === 'maud') && !r.present().includes('maud') && accuse(r.cand()), 'once met, Maud can be accused from the jetty');
-  check(r.cand().suspects.find(p => p.id === 'ines')?.name === 'the woman in oilskins', 'suspects carry the label the player knows them by');
+  check(r.cand().suspects.find(p => p.id === 'oilskin_woman')?.name === 'the woman in oilskins', 'suspects carry the label the player knows them by');
   check(inCandidateSet({ kind: 'intent', verb: 'examine', target: 'orrin' }, r.cand()), 'examine accepts a person present');
   check(inCandidateSet({ kind: 'intent', verb: 'use', target: 'tackle_chest', secondary: 'orrin' }, r.cand()), 'use … on accepts a person present');
   check(!inCandidateSet({ kind: 'intent', verb: 'take', target: 'orrin' }, r.cand()) && !inCandidateSet({ kind: 'intent', verb: 'examine', target: 'maud' }, r.cand()),
@@ -661,12 +661,12 @@ section('pinned 5: a player can accuse anyone met; examine and use reach people'
     'a person sharing an exit\'s id is a person, not a way');
   check(confineSelection({ kind: 'intent', verb: 'use', person: 'tackle_chest' }, jettyCands).kind === 'none',
     'where two slots could take it (use: target or secondary), it stays none');
-  const accused = r.go('it was the woman in oilskins', { verb: 'deduce', facts: [], person: 'ines' });
+  const accused = r.go('it was the woman in oilskins', { verb: 'deduce', facts: [], person: 'oilskin_woman' });
   const ctx = buildNarrationContext(story, r.s, accused, 'compact');
-  check(!fired(accused, 'deduce_cook') && JSON.stringify(ctx.personsNamed) === '[{"id":"ines","label":"the woman in oilskins"}]',
+  check(!fired(accused, 'deduce_cook') && JSON.stringify(ctx.personsNamed) === '[{"id":"oilskin_woman","label":"the woman in oilskins"}]',
     'an absent suspect reaches the narrator by the label the player knows, not as a bare id', JSON.stringify(ctx.personsNamed));
   check(!gateNarration(ctx, { prose: 'You name her. Far off in the kitchen, Tarrow would not have flinched.', observations: [] }).ok,
-    'her surname, which no id carries, is still an invention to the gate (an id like "ines" itself still licenses a first name: review finding H8)');
+    'her surname, which no id carries, is still an invention to the gate (an id like "oilskin_woman" itself still licenses a first name: review finding H8)');
   const diary = playerView(story, r.log).diary.persons.map(p => p.id).sort().join();
   check(diary === r.cand().suspects.map(p => p.id).sort().join(), 'the diary\'s people met are exactly the suspects', diary);
   check(r.replays(), 'replays exactly');
@@ -695,11 +695,11 @@ section('transcript holds only turns that involve the person');
 {
   const r = new Run('transcript', 51);
   r.move('to_kitchen');
-  check(r.present().includes('maud') && r.present().includes('ines'), 'Maud and Ines share the kitchen');
+  check(r.present().includes('maud') && r.present().includes('oilskin_woman'), 'Maud and Ines share the kitchen');
   r.ask('maud', 'cargo_was_barrels');
   const after = apply(story, r.s, { kind: 'Narrated', text: 'Maud wipes her hands.', beats: [] });
   check(isDeepStrictEqual(after.transcript.maud?.map(l => `${l.speaker}:${l.text}`), ['player:ask maud about cargo_was_barrels', 'person:Maud wipes her hands.']), 'the person addressed gets the player\'s line, then the prose', JSON.stringify(after.transcript.maud));
-  check(!after.transcript.ines, 'a person present but not addressed gets nothing');
+  check(!after.transcript.oilskin_woman, 'a person present but not addressed gets nothing');
   const look = r.look();
   const looked = apply(story, r.s, { kind: 'Narrated', text: 'The kitchen is warm.', beats: [] });
   check(has(look, e => e.kind === 'Looked') && isDeepStrictEqual(looked.transcript, r.s.transcript), 'a turn that addresses nobody leaves every transcript alone');

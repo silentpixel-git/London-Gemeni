@@ -17,6 +17,7 @@ The contracts of the rebuilt engine (plan: `docs/engine-rebuild-plan.md`, vocabu
 Choices a later phase should not undo without reading the plan:
 
 - **Flags are implicit strings.** A flag exists because an Effect sets it. The validator fails any flag that is read but never set, and warns on the reverse.
+- **An aliased person's id may not carry their name.** Ids reach the narrator and the parser verbatim, and a model reads an id like `ned_ashby` as a name. The validator fails an id word that is a word of the `name` and not of the `alias`.
 - **`once` is required on every Rule.** A puzzle left repeating by accident is the default failure mode; the author states it.
 - **Objects have one identity.** Carried or on a table, the same id. `placement.kind === 'inventory'` is the inventory; there is no separate item list.
 - **A Fact's `visibleFromAct` gates speech, not learning** (ADR-0005). No person tells the player the Fact before that act. A document or a Rule may still teach it earlier: the validator warns on a `grantFact` to the player that can fire earlier, and the prover lists each such path it finds as EARLY. `spoilerTerms` extend the gate to prose beats, where a leak fails validation.

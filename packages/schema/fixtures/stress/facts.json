@@ -4,7 +4,7 @@
     "statement": "Orrin ferried unmarked barrels to the light the week before the lamp failed.",
     "knownBy": [
       "orrin",
-      "ines",
+      "oilskin_woman",
       "dov"
     ],
     "visibleFromAct": 0,
@@ -24,7 +24,7 @@
     "knownBy": [
       "orrin",
       "maud",
-      "ines",
+      "oilskin_woman",
       "dov"
     ],
     "visibleFromAct": 1,
@@ -43,7 +43,7 @@
     "knownBy": [
       "orrin",
       "maud",
-      "ines",
+      "oilskin_woman",
       "dov"
     ],
     "visibleFromAct": 1,
@@ -61,7 +61,7 @@
     "statement": "Seawater has been put into the lamp oil.",
     "knownBy": [
       "orrin",
-      "ines",
+      "oilskin_woman",
       "dov"
     ],
     "visibleFromAct": 2,
@@ -81,7 +81,7 @@
     "knownBy": [
       "orrin",
       "maud",
-      "ines",
+      "oilskin_woman",
       "dov"
     ],
     "visibleFromAct": 1,
@@ -99,7 +99,7 @@
     "knownBy": [
       "orrin",
       "maud",
-      "ines",
+      "oilskin_woman",
       "dov"
     ],
     "visibleFromAct": 1,
@@ -130,7 +130,7 @@
     "id": "lens_is_cracked",
     "statement": "The great lens is cracked and has been for weeks.",
     "knownBy": [
-      "ines"
+      "oilskin_woman"
     ],
     "visibleFromAct": 2,
     "topics": [

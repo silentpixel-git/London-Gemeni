@@ -12,7 +12,7 @@ For story content this skill runs inside `act-authoring`: only after the owner's
 
 Take these from the score; ask for anything it leaves open:
 
-1. **id** — snake_case, unique among persons (`[a-z][a-z0-9_]*`).
+1. **id** — snake_case, unique among persons (`[a-z][a-z0-9_]*`). For a person with an alias, take it from the alias or role, never the name: the id reaches the narrator and the parser verbatim, and the validator fails one that carries a word of the name the alias withholds.
 2. **name** — the real name the player learns.
 3. **alias and introduction** (optional) — what the player calls them until they know the name ("the inspector"), and how they learn it: `{ "kind": "self" }` (introduces themself on first talk) or `{ "kind": "document", "object": "<object id>" }` (named once that Object is read). An alias without an introduction can never be lifted; the validator warns on it.
 4. **schedule** — for each act they appear in, keyed by the act id as a string: a `default` Place and optional `byPeriod` overrides keyed by the Story's period ids. A Place is `{ "kind": "at", "location": "<id>" }`, `{ "kind": "follows", "person": "player" }` (a companion; or another person's id to trail them), or `{ "kind": "offstage" }`. **An act with no entry means offstage that act**; do not pad every act. Arrivals and exits mid-act are Rules (`summonPerson`, `movePerson`, `dismissPerson`), not schedule entries.

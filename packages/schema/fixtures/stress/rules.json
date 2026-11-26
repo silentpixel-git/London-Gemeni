@@ -102,7 +102,7 @@
   { "id": "deduce_cook", "trigger": { "kind": "deduction", "suspect": "maud" }, "once": true,
     "effects": [ { "kind": "endGame", "ending": "wrong_accusation" } ] },
   { "id": "ship_lost_at_ten", "trigger": { "kind": "clock", "atMinutes": 1320, "act": [2] }, "once": true,
-    "effects": [ { "kind": "dismissPerson", "person": "ines" }, { "kind": "endGame", "ending": "ship_lost" } ] },
+    "effects": [ { "kind": "dismissPerson", "person": "oilskin_woman" }, { "kind": "endGame", "ending": "ship_lost" } ] },
   { "id": "tick_gulls", "trigger": { "kind": "tick" }, "when": { "location": ["jetty"] }, "once": false, "weight": 3,
     "effects": [ { "kind": "playBeat", "beats": ["A gull lands on the chest, looks at you, and leaves."], "asQuote": true } ] },
   { "id": "tick_kettle", "trigger": { "kind": "tick" }, "when": { "location": ["kitchen"] }, "once": false, "weight": 2,

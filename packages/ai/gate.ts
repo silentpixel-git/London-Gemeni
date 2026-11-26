@@ -49,11 +49,16 @@ export function contextHaystack(ctx: NarrationContext): string {
 
 /**
  * Proper nouns and numeric specifics in `prose` that appear nowhere in the
- * context. Sentence-initial words are skipped: capitalisation there is
- * grammar, not a name, and was the dominant false positive before.
+ * context, each matched whole. Sentence-initial words are skipped:
+ * capitalisation there is grammar, not a name, and was the dominant false
+ * positive before.
  */
 export function findInventions(prose: string, ctx: NarrationContext): Invention[] {
   const hay = contextHaystack(ctx);
+  // Whole words: "Ned" is not earned by "opened", nor "ten" by "often". A name may differ
+  // from the context's word by a plural or possessive s ("the Keeper's" for "The Keepers'").
+  const words = new Set(hay.match(/[a-z]+/g) ?? []);
+  const earned = (w: string) => words.has(w) || words.has(`${w}s`) || (w.endsWith('s') && words.has(w.slice(0, -1)));
   const found = new Map<string, Invention>();
   const text = prose.replace(/[*_#>]/g, ' ');
 
@@ -61,7 +66,7 @@ export function findInventions(prose: string, ctx: NarrationContext): Invention[
     const body = sentence.trim().replace(/^[^\s]+\s*/, '');
     for (const m of body.matchAll(/\b([A-Z][a-z]{2,})\b/g)) {
       const lower = m[1].toLowerCase();
-      if (GENERIC.has(lower) || hay.includes(lower)) continue;
+      if (GENERIC.has(lower) || earned(lower)) continue;
       found.set(`name:${lower}`, { kind: 'name', token: m[1] });
     }
   }
@@ -70,8 +75,6 @@ export function findInventions(prose: string, ctx: NarrationContext): Invention[
   for (const m of text.matchAll(/\b(\d+)\b/g)) {
     if (!numbers.has(m[1])) found.set(`num:${m[1]}`, { kind: 'number', token: m[1] });
   }
-  // Whole words: "ten" is not earned by "often" or "listen".
-  const words = new Set(hay.match(/[a-z]+/g) ?? []);
   for (const m of text.matchAll(SPELLED)) {
     const lower = m[1].toLowerCase();
     if (SMALL_COUNTS.has(lower) || words.has(lower)) continue;

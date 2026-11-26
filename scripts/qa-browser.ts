@@ -48,7 +48,7 @@ function check(name: string, ok: boolean, detail = '') {
 // ── The server, in-process ──────────────────────────────────────────────────
 
 const SELECTIONS: Record<string, Selection> = {
-  'ask the woman in oilskins about the barrels': { kind: 'intent', verb: 'ask', person: 'ines', topic: 'cargo_was_barrels' },
+  'ask the woman in oilskins about the barrels': { kind: 'intent', verb: 'ask', person: 'oilskin_woman', topic: 'cargo_was_barrels' },
   "read the keeper's log": { kind: 'intent', verb: 'read', target: 'keeper_log' },
   'ask orrin about the cargo': { kind: 'intent', verb: 'ask', person: 'orrin', topic: 'cargo_was_barrels' },
   'open the tackle chest': { kind: 'intent', verb: 'open', target: 'tackle_chest' },

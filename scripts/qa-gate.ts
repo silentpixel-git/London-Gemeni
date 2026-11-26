@@ -37,6 +37,20 @@ check(verdict('Marsh is my name, and I was born in Kent.').ok, 'narrator name an
   check(!opener.ok && opener.inventions.some(i => i.token === 'Tarrow'), 'an unintroduced name is caught at the start of a sentence or quotation', JSON.stringify(opener.inventions));
   check(gateNarration(typed, { prose: '"Tarrow," she says.', observations: [] }, ['Tarrow']).ok, 'unless the player typed it');
 }
+// Names are matched whole: a context word that merely contains one does not license it.
+{
+  const opened = { ...ctx, observations: [{ key: 'drawer', subject: 'hall', text: 'A drawer stands opened.' }] };
+  check(!gateNarration(opened, { prose: 'I nodded to Ned and waited.', observations: [] }).ok, 'a name is matched whole: "Ned" is not earned by "opened"');
+  const keepers = { ...ctx, beats: [...ctx.beats, "A sign reads The Keepers' Lodge."] };
+  check(gateNarration(keepers, { prose: "I made for the Keeper's Lodge.", observations: [] }).ok, 'a name differing from the context\'s by a plural or possessive s passes');
+}
+// MoveBlocked names its exit by id on the room the turn began in; after an act change it is not looked up in the new one.
+{
+  const blocked = buildNarrationContext(story, s0, [{ kind: 'MoveBlocked', exit: 'garden_door', reason: 'locked', lock: null }], 'full');
+  const moved = buildNarrationContext(story, s0, [{ kind: 'MoveBlocked', exit: 'garden_door', reason: 'locked', lock: null }, { kind: 'ActEntered', act: 1 }], 'full');
+  check(blocked.mentions.includes('the garden door') && !moved.mentions.includes('the garden door'),
+    'a blocked way is named, unless an act change moved the player in the same turn', JSON.stringify([blocked.mentions, moved.mentions]));
+}
 check(!verdict('"Mr Pemberton will be furious," she said.').ok, 'a borrowed name is caught', JSON.stringify(verdict('"Mr Pemberton will be furious," she said.')));
 check(!verdict('It had rained for nine days and the clock said 4 o\'clock.').ok, 'numeric specifics are caught');
 check(verdict('She said it twice, and I believed both times.').ok, 'small counts pass');
