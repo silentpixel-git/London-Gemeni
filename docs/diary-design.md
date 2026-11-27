@@ -21,7 +21,7 @@ It went through four attempts:
 ## Tabs
 | Tab | Content | Source of the pattern |
 |---|---|---|
-| **Journal** | The act heading and date line. Then one entry per event: time tile, one-word label (Encounter / Clue / Decision) and one or two serif sentences. Entries that produced a quick note get a quill button that jumps to that note. The act ends with a **Reflection** (italic, left rule, signed "— J. H. W.") | Today's journal + [5 Minute Journal](https://mobbin.com/screens/59059226-c8cc-4e04-a48f-f32331a83c20) |
+| **Journal** | The act heading and date line. Then one entry per event: time tile, one-word label (Encounter / Clue / Decision) and one or two sentences. Entries that produced a quick note get a quill button that jumps to that note. The act ends with a **Reflection** (italic, left rule, signed "— J. H. W.") | Today's journal + [5 Minute Journal](https://mobbin.com/screens/59059226-c8cc-4e04-a48f-f32331a83c20) |
 | **Quick notes** | Exact words from the scene, **always whole sentences**, in a soft highlight with a source line. **These are the leads.** Replaces Evidence | [Medium](https://mobbin.com/screens/d029d138-2f1e-4517-be89-1e6a85390df6) / [Pocket](https://mobbin.com/screens/6e005a16-1328-4178-b388-8ad0eaa34e85) |
 | **Persons** | Today's ledger: name, a line, a source. A misread person's name is struck through ("~~The clergyman~~ — An actor between performances…") | Today's Persons tab |
 | **Documents** | Filed papers. Empty in Act 0 ("No papers filed yet.") | Today's Documents tab |

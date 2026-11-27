@@ -28,8 +28,9 @@ export default {
       },
       fontFamily: {
         sans:     ['"Lato"', 'sans-serif'],
+        // Headings only: titles, mastheads, panel and section headings. Never names,
+        // quotes, body or status text (game-direction skill, "Typography").
         serif:    ['"Playfair Display"', 'serif'],
-        playfair: ['"Playfair"', 'serif'],
       },
       // Motion vocabulary (tokens: components/motionTokens.ts).
       //   hover/controls: duration-150 ease-out

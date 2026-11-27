@@ -134,7 +134,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
             {reducedMotion ? (
               <>
                 <loadingVariant.icon size={14} className="shrink-0" />
-                <span className="text-sm italic font-serif">{loadingVariant.text}</span>
+                <span className="text-sm italic">{loadingVariant.text}</span>
               </>
             ) : (
               // All messages render stacked; the lb-rot-* CSS loop shows one
@@ -148,7 +148,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
                     style={{ '--lb-slot': `${((k - loadingStart + LOADING_VARIANTS.length) % LOADING_VARIANTS.length) * 3.1}s` } as React.CSSProperties}
                   >
                     <Icon size={14} className="lb-rot-icon shrink-0" />
-                    <span className="text-sm italic font-serif lb-ink-mask lb-rot-txt">{text}</span>
+                    <span className="text-sm italic lb-ink-mask lb-rot-txt">{text}</span>
                   </span>
                 ))}
               </span>

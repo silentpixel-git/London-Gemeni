@@ -96,7 +96,7 @@ const EmptySection: React.FC<{ icon: LucideIcon; title: string; children: React.
     <span className="grid place-items-center w-12 h-12 rounded-full bg-lb-primary/[0.06] text-lb-primary/55">
       <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
     </span>
-    <p className="m-0 font-serif text-[19px] text-lb-primary">{title}</p>
+    <p className="m-0 font-bold text-[17px] text-lb-primary">{title}</p>
     <p className="m-0 max-w-[34ch] text-[15px] leading-relaxed text-lb-primary/70">{children}</p>
   </div>
 );
@@ -147,7 +147,7 @@ const JournalPanel: React.FC<{
                         <span className="grid place-items-center h-11 rounded-lg bg-lb-primary/[0.06] text-sm font-bold tabular-nums">
                           {shortTime(formatClock(clue.clock))}
                         </span>
-                        <p className="m-0 mt-0.5 font-serif text-[17px] leading-snug text-lb-primary">{clue.summary}</p>
+                        <p className="m-0 mt-0.5 text-[16px] leading-snug text-lb-primary">{clue.summary}</p>
                       </li>
                     ))}
                   </ul>
@@ -171,7 +171,7 @@ const EvidencePanel: React.FC<{ diary: Diary }> = ({ diary }) => {
     <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
       {diary.clues.map(clue => (
         <li key={clue.id} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
-          <p className="m-0 font-serif text-[19px] text-lb-primary">{clue.name}</p>
+          <p className="m-0 font-bold text-[17px] text-lb-primary">{clue.name}</p>
           <p className="m-0 text-[15px] leading-relaxed text-lb-primary/90">{clue.summary}</p>
         </li>
       ))}
@@ -189,13 +189,13 @@ const PersonsPanel: React.FC<{ diary: Diary }> = ({ diary }) => {
     <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
       {diary.persons.map(p => (
         <li key={p.id} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
-          <p className="m-0 font-serif text-[19px] text-lb-primary">{p.name}</p>
+          <p className="m-0 font-bold text-[17px] text-lb-primary">{p.name}</p>
           {p.told.length === 0 ? (
             <p className="m-0 text-[15px] leading-relaxed text-lb-primary/65">Has told you nothing of note yet.</p>
           ) : (
             <ul className="list-disc m-0 pl-5 flex flex-col gap-1.5">
               {p.told.map((line, i) => (
-                <li key={i} className={`text-[15px] leading-relaxed text-lb-primary/90 ${line.quoted ? 'font-serif italic text-base' : ''}`}>
+                <li key={i} className={`text-[15px] leading-relaxed text-lb-primary/90 ${line.quoted ? 'italic' : ''}`}>
                   {line.quoted ? `“${line.text}”` : line.text}
                 </li>
               ))}
@@ -218,8 +218,8 @@ const DocumentsPanel: React.FC<{ diary: Diary }> = ({ diary }) => {
     <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
       {diary.documents.map(doc => (
         <li key={doc.id} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
-          <p className="m-0 font-serif text-[19px] text-lb-primary">{doc.name}</p>
-          <p className="mt-2 mb-0 whitespace-pre-wrap font-serif italic text-[16px] text-lb-primary/90 leading-relaxed">{doc.text}</p>
+          <p className="m-0 font-bold text-[17px] text-lb-primary">{doc.name}</p>
+          <p className="mt-2 mb-0 whitespace-pre-wrap italic text-[16px] text-lb-primary/90 leading-relaxed">{doc.text}</p>
         </li>
       ))}
     </ul>
@@ -504,7 +504,7 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, view, n
                   <h2 id="diary-title" className="m-0 font-serif font-normal text-2xl sm:text-[28px] leading-[1.05]">{narrator ? `${narrator}'s Diary` : 'Diary'}</h2>
                   <p className="m-0 flex flex-row sm:flex-col items-baseline sm:items-start gap-2 sm:gap-0.5">
                     <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-lb-primary/60">Private</span>
-                    {narrator && <em className="font-playfair text-sm text-lb-primary/70">/ {narrator}</em>}
+                    {narrator && <em className="text-sm text-lb-primary/70">/ {narrator}</em>}
                   </p>
                 </div>
                 <div
