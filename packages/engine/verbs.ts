@@ -39,6 +39,8 @@ export interface Intent {
   secondary?: Id;
   person?: Id;
   topic?: Id;
+  /** A told answer agrees with the Fact's statement (ADR-0005 §11); absent means not judged, taken as agreeing. */
+  agrees?: boolean;
   exit?: Id;
   facts?: Id[];
 }
@@ -95,7 +97,7 @@ export function resolveVerb(story: Story, s: State, intent: Intent): EventPayloa
       if (!isHere(p)) return reject(NO_ONE);
       const fact = obj(t)?.fact;
       const disclose: EventPayload[] = fact && s.knows.player[fact] && !s.knows[p]?.[fact]
-        ? [{ kind: 'FactDisclosed', from: 'player', to: p, fact }] : [];
+        ? [{ kind: 'FactDisclosed', from: 'player', to: p, fact, agrees: true }] : [];
       return [intent.verb === 'show' ? { kind: 'Shown', object: t, person: p } : { kind: 'Given', object: t, person: p }, ...disclose];
     }
     case 'talk':
@@ -105,7 +107,7 @@ export function resolveVerb(story: Story, s: State, intent: Intent): EventPayloa
       const fact = intent.topic;
       if (fact && story.facts.some(f => f.id === fact)) {
         if (canTell(story, s, p, fact)) return [{ kind: 'Spoke', person: p, fact }, { kind: 'FactDisclosed', from: p, to: 'player', fact }];
-        if (s.knows.player[fact] && !s.knows[p]?.[fact]) return [{ kind: 'Spoke', person: p, fact }, { kind: 'FactDisclosed', from: 'player', to: p, fact }];
+        if (s.knows.player[fact] && !s.knows[p]?.[fact]) return [{ kind: 'Spoke', person: p, fact }, { kind: 'FactDisclosed', from: 'player', to: p, fact, agrees: intent.agrees ?? true }];
       }
       return [{ kind: 'Spoke', person: p }];
     }

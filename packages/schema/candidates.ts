@@ -22,7 +22,8 @@ export const CandidateSet = z.object({
   /** `key`: the Object that opens this exit's lock now, when it is a key lock. */
   exits: z.array(z.object({ id: Id, names: z.array(z.string()).min(1), key: Id.optional() })),
   /** Facts a present person can speak to, or the player can tell them, by phrase. */
-  topics: z.array(z.object({ person: Id, fact: Id, phrase: z.string(), direction: z.enum(['ask', 'tell']) })),
+  /** `statement` only on a tell topic: the selector judges a told answer against it. A person's own Facts are never shown before they tell them. */
+  topics: z.array(z.object({ person: Id, fact: Id, phrase: z.string(), direction: z.enum(['ask', 'tell']), statement: z.string().optional() })),
   /** Facts the player knows and may name in a deduction. */
   knownFacts: z.array(z.object({ id: Id, statement: z.string() })),
   /** Everyone the player has met, by the label the player knows them by: who a deduction may accuse (ADR-0005). */
@@ -40,6 +41,8 @@ export const Selection = z.discriminatedUnion('kind', [
     topic: Id.optional(),
     /** ask only: the line tells the person (a claim, an answer, the player's own view), rather than asking them. A topic offered as "tell" needs it. */
     telling: z.boolean().optional(),
+    /** A telling ask on a "tell" topic: whether what the line claims agrees with that Fact's statement (judged by the selector). */
+    agrees: z.boolean().optional(),
     exit: Id.optional(),
     /** deduce only: the Facts named. The suspect, if any, is `person`, drawn from `suspects`. */
     facts: z.array(Id).optional(),
@@ -59,7 +62,7 @@ export const VERB_FIELDS: Record<Verb, readonly IntentField[]> = {
   examine: ['target'], read: ['target'], take: ['target'], drop: ['target'], open: ['target'], close: ['target'],
   use: ['target', 'secondary'], combine: ['target', 'secondary'],
   show: ['target', 'person'], give: ['target', 'person'],
-  talk: ['person'], ask: ['person', 'topic', 'telling'], deduce: ['facts', 'person'], move: ['exit'],
+  talk: ['person'], ask: ['person', 'topic', 'telling', 'agrees'], deduce: ['facts', 'person'], move: ['exit'],
 };
 
 /**
@@ -119,6 +122,9 @@ export function trimSelection(sel: Selection, set: CandidateSet): Selection {
       return { kind: 'none', reason: 'that does nothing to the way' };
     }
   }
+  // A deduction's suspect must be someone the player has met; anything else named there (an Object) is dropped, not the line.
+  const suspect = sel.person;
+  if (sel.verb === 'deduce' && suspect && !set.suspects.some(p => p.id === suspect)) { const { person: _p, ...rest } = sel; sel = rest; }
   const reads: readonly string[] = VERB_FIELDS[sel.verb];
   const ids = new Set<string>([
     ...set.objects.map(o => o.id), ...set.persons.map(p => p.id), ...set.suspects.map(p => p.id),

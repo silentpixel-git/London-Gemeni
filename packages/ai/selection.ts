@@ -15,10 +15,16 @@ import { Verb, inCandidateSet, sharesTopicWord, trimSelection, type CandidateSet
 export function confineSelection(sel: Selection, set: CandidateSet, text?: string): Selection {
   const trimmed = trimSelection(sel, set);
   if (!inCandidateSet(trimmed, set)) return { kind: 'none', reason: 'selection outside the candidate set' };
-  // A topic offered only as "tell" is the player telling: a question about that subject is an ask with no topic.
-  if (trimmed.kind === 'intent' && trimmed.verb === 'ask' && trimmed.topic && !trimmed.telling) {
-    const offered = set.topics.filter(t => t.fact === trimmed.topic && (!trimmed.person || t.person === trimmed.person));
-    if (offered.length && offered.every(t => t.direction === 'tell')) { const { topic: _t, ...rest } = trimmed; return rest; }
+  if (trimmed.kind === 'intent' && trimmed.verb === 'ask') {
+    // A judgement means something only on a line that tells.
+    if (!trimmed.telling && trimmed.agrees !== undefined) { const { agrees: _a, ...rest } = trimmed; return confineSelection(rest, set, text); }
+    // A topic offered only as "tell" is the player telling: a question about that subject is an ask with no topic.
+    const offered = trimmed.topic ? set.topics.filter(t => t.fact === trimmed.topic && (!trimmed.person || t.person === trimmed.person)) : [];
+    const tellOnly = offered.length > 0 && offered.every(t => t.direction === 'tell');
+    if (tellOnly && !trimmed.telling) { const { topic: _t, agrees: _a, ...rest } = trimmed; return rest; }
+    // A told answer need not name its subject ("he is an actor, Holmes"): the shared-word check below guards against a
+    // Fact handed out unasked, which telling cannot do.
+    if (tellOnly) return trimmed;
   }
   if (text !== undefined && trimmed.kind === 'intent' && trimmed.verb === 'ask' && trimmed.topic) {
     const phrases = set.topics.filter(t => t.fact === trimmed.topic && (!trimmed.person || t.person === trimmed.person)).map(t => t.phrase);

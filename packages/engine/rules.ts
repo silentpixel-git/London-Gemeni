@@ -15,7 +15,7 @@ export type Firing =
   | { kind: 'clock'; from: number; to: number }
   | { kind: 'tick' }
   | { kind: 'combine'; items: Id[] }
-  | { kind: 'disclosed'; fact: Id; from: PersonOrPlayer; to: PersonOrPlayer }
+  | { kind: 'disclosed'; fact: Id; from: PersonOrPlayer; to: PersonOrPlayer; agrees?: boolean }
   | { kind: 'proximity'; person: Id }
   | { kind: 'deduction'; facts: Id[]; suspect?: Id };
 
@@ -35,7 +35,7 @@ export function firingsFrom(story: Story, events: EventPayload[]): Firing[] {
       case 'Combined': out.push({ kind: 'combine', items: e.items }); break;
       /** Using one Object on another is bringing the two together: "soak the wick in the oil" is a use or a combine as the parser reads it. */
       case 'Used': if (e.on && e.on !== e.object && story.objects.some(o => o.id === e.on)) out.push({ kind: 'combine', items: [e.object, e.on] }); break;
-      case 'FactDisclosed': out.push({ kind: 'disclosed', fact: e.fact, from: e.from, to: e.to }); break;
+      case 'FactDisclosed': out.push({ kind: 'disclosed', fact: e.fact, from: e.from, to: e.to, agrees: e.agrees }); break;
       case 'Deduced': out.push({ kind: 'deduction', facts: e.facts, suspect: e.suspect }); break;
       default: break;
     }
@@ -69,7 +69,8 @@ function triggerMatches(t: Trigger, f: Firing, s: State): boolean {
     }
     case 'disclosed': {
       const g = f as Extract<Firing, { kind: 'disclosed' }>;
-      return (!t.fact || t.fact === g.fact) && (!t.from || t.from === g.from) && (!t.to || t.to === g.to);
+      return (!t.fact || t.fact === g.fact) && (!t.from || t.from === g.from) && (!t.to || t.to === g.to)
+        && (t.agrees === undefined || (g.agrees ?? true) === t.agrees);
     }
     case 'proximity': return t.person === (f as Extract<Firing, { kind: 'proximity' }>).person;
     case 'deduction': {
@@ -148,7 +149,7 @@ function effectEvents(story: Story, s: State, e: Effect, ruleId: Id): EventPaylo
         ...(s.knows[e.from]?.[e.fact] ? [] : [{ kind: 'FactLearned', person: e.from, fact: e.fact } as EventPayload]),
         { kind: 'Spoke', person: other, fact: e.fact },
         // To the player, as an ask: told even when the player already knew it.
-        { kind: 'FactDisclosed', from: e.from, to: e.person, fact: e.fact },
+        { kind: 'FactDisclosed', from: e.from, to: e.person, fact: e.fact, ...(e.from === 'player' ? { agrees: true } : {}) },
       ];
     }
     case 'setDisposition': return [{ kind: 'DispositionChanged', person: e.person, disposition: e.disposition }];

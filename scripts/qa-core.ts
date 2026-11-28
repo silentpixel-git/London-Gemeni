@@ -14,6 +14,7 @@ import { buildNarrationContext, candidates, fallbackProse, initialState, playerV
 import { suggestionsFor } from '../services/viewFormat';
 import { confineSelection, repairSelectionReply } from '../packages/ai/selection';
 import { fixedRng } from '../packages/engine/rng';
+import { prove } from '../packages/engine/prover';
 
 const story = Story.parse(loadStoryDir(join('packages', 'schema', 'fixtures', 'toy')));
 
@@ -381,6 +382,10 @@ section('telling and asking');
   check(JSON.stringify(asked) === '{"kind":"intent","verb":"ask","person":"housekeeper"}', 'a question about a tell subject keeps no topic: it is an ask, not the player telling');
   const told = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'letter_confession', telling: true }, set, 'tell her about the letter');
   check(told.kind === 'intent' && told.topic === 'letter_confession', 'the same subject, told, keeps its topic');
+  const unnamed = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'letter_confession', telling: true }, set, 'it was the gardener who did it');
+  check(unnamed.kind === 'intent' && unnamed.topic === 'letter_confession', 'a told answer need not name its subject to count');
+  const accuseThing = confineSelection({ kind: 'intent', verb: 'deduce', facts: ['letter_confession'], person: 'mat' }, set, 'i accuse the mat');
+  check(accuseThing.kind === 'intent' && accuseThing.verb === 'deduce' && accuseThing.person === undefined, 'a deduction naming a thing as its suspect keeps the deduction and drops the thing');
   const plain = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'key_in_clock' }, set, 'ask her about the key');
   check(plain.kind === 'intent' && plain.topic === 'key_in_clock', 'an ordinary ask needs no telling');
   const object = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'mat' }, set, 'ask her about the mat');
@@ -401,6 +406,36 @@ section('telling and asking');
   check(JSON.stringify(repairSelectionReply({ kind: 'ask', person: 'housekeeper', topic: 'key_in_clock' })) === '{"kind":"intent","verb":"ask","person":"housekeeper","topic":"key_in_clock"}',
     'a reply that puts the verb in "kind" is read as that intent');
   check(JSON.stringify(repairSelectionReply({ kind: 'none', reason: 'x' })) === '{"kind":"none","reason":"x"}', 'a well-formed reply is left alone');
+}
+
+// ── A told answer is judged ──────────────────────────────────────────────────
+// Telling a person a Fact the player holds (an answer, a reading) carries whether what the line claims agrees
+// with the Fact's statement; the selector judges it server side, and disclosed Rules may branch on it.
+section('a told answer is judged');
+{
+  const judged = Story.parse({
+    ...story,
+    facts: story.facts.map(f => (f.id === 'letter_confession' ? { ...f, knownBy: ['player'] } : f)),
+    rules: [...story.rules,
+      { id: 'told_right', trigger: { kind: 'disclosed', fact: 'letter_confession', from: 'player', agrees: true }, once: true, effects: [{ kind: 'playBeat', beats: ['Right.'] }] },
+      { id: 'told_wrong', trigger: { kind: 'disclosed', fact: 'letter_confession', from: 'player', agrees: false }, once: true,
+        effects: [{ kind: 'playBeat', beats: ['Wrong.'] }, { kind: 'grantFact', person: 'player', fact: 'master_was_afraid' }] }],
+    clues: [...story.clues, { id: 'clue_afraid', name: 'Afraid', fact: 'master_was_afraid', summary: 'He was afraid.' }],
+  });
+  const w0: State = startInvestigation(judged, 42).state;
+  const set = candidates(judged, w0);
+  const entry = set.topics.find(t => t.person === 'housekeeper' && t.fact === 'letter_confession' && t.direction === 'tell');
+  check(entry?.statement === judged.facts.find(f => f.id === 'letter_confession')!.statement, 'a tell topic carries its statement, for the selector to judge against');
+  check(set.topics.filter(t => t.direction === 'ask').every(t => t.statement === undefined), 'an ask topic does not: nothing a person knows is shown before it is told');
+  const tell = (agrees?: boolean) => resolveTurn(judged, w0, { text: 'tell her', selection: { kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'letter_confession', telling: true, ...(agrees === undefined ? {} : { agrees }) } }, fixedRng([0]));
+  const right = tell(true), wrong = tell(false), plain = tell();
+  check(has(right.events, e => e.kind === 'FactDisclosed' && e.agrees === true) && fired(right.events, 'told_right') && !fired(right.events, 'told_wrong'), 'an agreeing answer fires the Rule that waits for one');
+  check(has(wrong.events, e => e.kind === 'FactDisclosed' && e.agrees === false) && fired(wrong.events, 'told_wrong') && !fired(wrong.events, 'told_right'), 'a contrary answer fires the other');
+  check(fired(plain.events, 'told_right') && has(plain.events, e => e.kind === 'FactDisclosed' && e.agrees === true), 'an answer not judged is taken as agreeing');
+  const untold = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'key_in_clock', agrees: false }, set, 'ask her about the key');
+  check(untold.kind === 'intent' && untold.agrees === undefined, 'agrees means nothing on a line that does not tell: dropped');
+  const p = prove(judged);
+  check(p.lines.find(l => l.goal.id === 'clue_afraid')?.reachable === true, 'the prover offers the contrary answer too: a Clue only a wrong answer gives is REACHABLE');
 }
 
 // ── An Object used on itself is no use ───────────────────────────────────────
