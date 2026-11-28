@@ -1,0 +1,148 @@
+[
+  {
+    "id": "open_window",
+    "name": "the open window",
+    "aliases": [
+      "window",
+      "the street"
+    ],
+    "item": false,
+    "placement": {
+      "kind": "location",
+      "location": "baker_street"
+    },
+    "beats": [
+      "The open window looks down on Baker Street, packed with the holiday: the cab rank below, the pillar box, the chemist's across the way."
+    ]
+  },
+  {
+    "id": "crowd",
+    "name": "the holiday crowd",
+    "aliases": [
+      "crowd",
+      "the people"
+    ],
+    "item": false,
+    "placement": {
+      "kind": "location",
+      "location": "baker_street"
+    },
+    "beats": [
+      "The holiday crowd in the street below: straw hats, a great many children, a sailor; a licensed victualler by the pillar box with his daughter; a man under the lamp whose boots are white to the ankle with dust."
+    ]
+  },
+  {
+    "id": "street_soldier",
+    "name": "the old fellow by the cab rank",
+    "aliases": [
+      "old man",
+      "soldier"
+    ],
+    "item": false,
+    "hidden": true,
+    "placement": {
+      "kind": "location",
+      "location": "baker_street"
+    },
+    "beats": [
+      "The old fellow at the kerb by the cab rank, just under the window: about sixty, in a decent coat too heavy for August; heels together, chin up; a stick in his left hand that he leans on more than he would wish.",
+      "When he moves to let a perambulator by, the left leg swings stiff from the hip, the knee hardly bending. His neck is burned a deep brick-colour that no English summer gives a man."
+    ]
+  },
+  {
+    "id": "street_clergyman",
+    "name": "the clergyman across the street",
+    "aliases": [
+      "curate",
+      "parson"
+    ],
+    "item": false,
+    "hidden": true,
+    "placement": {
+      "kind": "location",
+      "location": "baker_street"
+    },
+    "beats": [
+      "The clergyman across the street outside the chemist's: a long black coat and a white tie; the coat shiny at the seams, the cuffs turned, a good hat gone to the bad.",
+      "He holds a small book open, his lips moving, and now and then looks up over the heads of the crowd as a man repeating something to himself. His face is half-lost under the brim of his hat in the failing light; from here there is nothing more to be made of it."
+    ]
+  },
+  {
+    "id": "opera_glass",
+    "name": "Holmes's opera glass",
+    "aliases": [
+      "opera glass",
+      "glass"
+    ],
+    "item": true,
+    "placement": {
+      "kind": "person",
+      "person": "holmes"
+    },
+    "beats": [
+      "Holmes's opera glass: a small French glass with good lenses, its brass worn bright with use."
+    ]
+  },
+  {
+    "id": "holmes_violin",
+    "name": "the violin",
+    "aliases": [
+      "violin case",
+      "fiddle"
+    ],
+    "item": false,
+    "placement": {
+      "kind": "location",
+      "location": "baker_street"
+    },
+    "beats": [
+      "Holmes's violin in its open case on the chair; he has been at it, on and off, since Saturday."
+    ]
+  },
+  {
+    "id": "tobacco_monograph",
+    "name": "the monograph",
+    "aliases": [
+      "tobacco monograph"
+    ],
+    "item": false,
+    "placement": {
+      "kind": "location",
+      "location": "baker_street"
+    },
+    "beats": [
+      "On the shelf, Holmes's monograph upon the ashes of the various tobaccos: a hundred and forty varieties, with plates."
+    ]
+  },
+  {
+    "id": "chemistry_bench",
+    "name": "the chemistry bench",
+    "aliases": [
+      "bench",
+      "experiment"
+    ],
+    "item": false,
+    "placement": {
+      "kind": "location",
+      "location": "baker_street"
+    },
+    "beats": [
+      "The chemistry bench and the afternoon's failure: a blackened retort, and a smell that has not left the room."
+    ]
+  },
+  {
+    "id": "mantel",
+    "name": "the mantelpiece",
+    "aliases": [
+      "mantel"
+    ],
+    "item": false,
+    "placement": {
+      "kind": "location",
+      "location": "baker_street"
+    },
+    "beats": [
+      "The mantelpiece: the clock, the pipe-rack, a litter of letters under a jack-knife."
+    ]
+  }
+]

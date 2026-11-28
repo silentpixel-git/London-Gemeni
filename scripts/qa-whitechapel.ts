@@ -104,6 +104,8 @@ const win = new Run(7);
   check(win.topic('watson_reading_soldier', 'tell') && win.topic('watson_reading_clergyman', 'tell'), 'turn 2: both readings can now be told to Holmes');
   check(win.told('holmes_the_wager') && win.s.persons.holmes.disposition === 'warm', 'turn 2: the terms are on record; Holmes warms to it');
 
+  const self = win.probe('use the glass on the glass', { verb: 'use', target: 'opera_glass', secondary: 'opera_glass' });
+  check(!self.state.flags.clergyman_seen_through_glass, 'the glass used on itself counts for nothing');
   const looked = win.probe('examine the clergyman', { verb: 'examine', target: 'street_clergyman' });
   check(!looked.state.flags.clergyman_seen_through_glass && !looked.state.knows.holmes?.watson_reading_clergyman,
     'examining the clergyman by eye neither counts as the glass nor commits a reading');

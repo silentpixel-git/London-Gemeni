@@ -217,12 +217,12 @@ Each row gives:
 
 | # | id | Trigger | When | once | Effects |
 |---|---|---|---|---|---|
-| 9 | `glass_on_clergyman` | combine `[opera_glass, street_clergyman]` | `flagsNone [clergyman_read]` | yes | `setFlag clergyman_seen_through_glass` |
+| 9 | `glass_on_clergyman` | action, verbs use, combine; target and secondary each `[opera_glass, street_clergyman]` (either order) | `flagsNone [clergyman_read]` | yes | `setFlag clergyman_seen_through_glass` |
 | 10 | `clergyman_examined_with_glass` | action, examine, target `street_clergyman` | `hasItems [opera_glass]`, `flagsNone [clergyman_read]` | yes | `setFlag clergyman_seen_through_glass` |
 | 11 | `clergyman_through_glass` | flag `clergyman_seen_through_glass` | — | yes | `giveItem opera_glass`; `playBeat` §5.9-G |
-| 12 | `glass_on_soldier` | combine `[opera_glass, street_soldier]` | — | yes | `giveItem opera_glass`; `playBeat ["Through the glass, a faded campaign ribbon shows on the old fellow's coat, worn so long it has gone the colour of the cloth."]` |
-| 13 | `glass_on_crowd` | combine `[opera_glass, crowd]` | — | **no** (texture; repeats) | `giveItem opera_glass`; `playBeat ["The glass brings the street up close: straw hats, a child on a man's shoulders, a sailor arguing with a cabman."]` |
-| 14 | `glass_on_window` | combine `[opera_glass, open_window]` | — | **no** | `giveItem opera_glass`; `playBeat ["Through the glass the far side of Baker Street jumps forward: the chemist's window, a lamp-post, a dog asleep in a doorway."]` |
+| 12 | `glass_on_soldier` | action, verbs use, combine; target and secondary each `[opera_glass, street_soldier]` | — | yes | `giveItem opera_glass`; `playBeat ["Through the glass, a faded campaign ribbon shows on the old fellow's coat, worn so long it has gone the colour of the cloth."]` |
+| 13 | `glass_on_crowd` | action, verbs use, combine; target and secondary each `[opera_glass, crowd]` | — | **no** (texture; repeats) | `giveItem opera_glass`; `playBeat ["The glass brings the street up close: straw hats, a child on a man's shoulders, a sailor arguing with a cabman."]` |
+| 14 | `glass_on_window` | action, verbs use, combine; target and secondary each `[opera_glass, open_window]` | — | **no** | `giveItem opera_glass`; `playBeat ["Through the glass the far side of Baker Street jumps forward: the chemist's window, a lamp-post, a dog asleep in a doorway."]` |
 
 - **#11:** about 60 words. Quantities: none.
 - **#12–#14:** about 30 words each, in `full`. Quantities: none.
@@ -384,7 +384,7 @@ The start is 7:30 PM (1170). Costs come from the engine:
 
 | Check | Result |
 |---|---|
-| **Schema fit** | Every row uses existing Triggers (`action`, `flag`, `disclosed`, `deduction`, `combine`, `clock`, `tick`), Effects (`setFlag`, `playBeat`, `grantFact` with `from`, `revealObject`, `moveObject`, `giveItem`, `setDisposition`, `cue`, `endGame`) and Conditions (`flagsAll`, `flagsNone`, `hasItems`). Nothing story-shaped is needed beyond `grantFact.from`, which is already built |
+| **Schema fit** | Every row uses existing Triggers (`action`, `flag`, `disclosed`, `deduction`, `clock`, `tick`), Effects (`setFlag`, `playBeat`, `grantFact` with `from`, `revealObject`, `moveObject`, `giveItem`, `setDisposition`, `cue`, `endGame`) and Conditions (`flagsAll`, `flagsNone`, `hasItems`). Nothing story-shaped is needed beyond `grantFact.from`, which is already built |
 | **Flags** | Set and read: `demonstration_given` (19/20 → 15/16/21), `wager_offered` (15/16 → 17), `clergyman_seen_through_glass` (9/10 → 5/6/11), `soldier_read` (4 → 3/7), `clergyman_read` (5/6 → 3/8/9/10), `wager_won` (5 → 22/23), `closing_heard` (3 → 1/2), `evening_over` (1/2 → 22/23). None is set without being read, and none is read without being set. All describe world state |
 | **Presence** | Holmes is at `baker_street` all act. Every Rule with an attributed grant (#3–#8, #17, #21) names him in `personsPresent`. The figures are Objects |
 | **Chronology** | Stated once, in the spec's §C. The Beats above cite it: "a little after seven", "about sixty", "a hundred and forty", "midnight", "Saturday". Nothing restates a date |
@@ -430,7 +430,7 @@ person):
 
 | Phrase | Must reach |
 |---|---|
-| "look at the clergyman through the glass" | `use opera_glass` on `street_clergyman` (#9) |
+| "look at the clergyman through the glass" | `use opera_glass` on `street_clergyman`, either order (#9) |
 | "examine the clergyman closely" (glass in hand) | #10 |
 | "tell Holmes about the soldier" | `ask holmes` with tell topic `watson_reading_soldier` |
 | "I think the clergyman is an actor" | `deduce` (#8) or `ask` (tell); either commits |
@@ -464,6 +464,11 @@ All four go to the live `select` check at pre-flight (§I of the spec template).
   or two turns before the closing, which still reads as "the light was going".
 - **A5. Two Objects the spec didn't list: none.** The mantel and the bench were already added in the
   spec.
+- **A6 (implementation, after sign-off #2).** Rules #9 and #12–#14 were scored as `combine` triggers.
+  The validator requires both members of a `combine` pair to be Items, and the figures, the crowd and
+  the window are not. They are therefore `action` triggers on `use`/`combine`, with both Objects in
+  both slots so either order matches. The behaviour is unchanged, and no new flag, Effect or phrasing
+  is involved.
 
 ## 9. Risks the golden can't see (for the playtest)
 

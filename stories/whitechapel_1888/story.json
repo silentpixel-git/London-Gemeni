@@ -1,0 +1,94 @@
+{
+  "id": "whitechapel_1888",
+  "title": "The Whitechapel Diaries",
+  "periods": [
+    {
+      "id": "late_night",
+      "name": "late night",
+      "startMinutes": 0
+    },
+    {
+      "id": "dawn",
+      "name": "dawn",
+      "startMinutes": 300
+    },
+    {
+      "id": "morning",
+      "name": "morning",
+      "startMinutes": 420
+    },
+    {
+      "id": "afternoon",
+      "name": "afternoon",
+      "startMinutes": 720
+    },
+    {
+      "id": "evening",
+      "name": "evening",
+      "startMinutes": 1020
+    },
+    {
+      "id": "night",
+      "name": "night",
+      "startMinutes": 1200
+    }
+  ],
+  "weathers": [
+    {
+      "id": "clear_warm",
+      "name": "Warm, Clear",
+      "ambience": "still_air"
+    }
+  ],
+  "acts": [
+    {
+      "id": 0,
+      "name": "The Wager",
+      "anchorLocation": "baker_street",
+      "startClockMinutes": 1170,
+      "dateLabel": "Monday 6 August 1888 (Bank Holiday)",
+      "weather": "clear_warm",
+      "ambience": {
+        "baker_street": "holiday_street"
+      }
+    }
+  ],
+  "opening": {
+    "act": 0,
+    "location": "baker_street",
+    "beats": [
+      "\"It had been a close and airless bank holiday, the sort of day that empties London of everyone who can afford to be emptied and leaves the rest of us to sit in our shirtsleeves and resent them.\"",
+      "Both windows of the sitting room stand open to Baker Street. The holiday comes up off the pavement: barrel-organs, a brass band somewhere off, and under it the murmur of a hundred thousand people with nothing to do.",
+      "Holmes's afternoon at the chemistry bench ended a little after seven, when something on it went black and stank.",
+      "Holmes stands at the open window with his hands behind him and his little opera glass in one of them, looking down into the crowd. He has not yet said a word."
+    ]
+  },
+  "narrator": {
+    "name": "Watson",
+    "aliases": [
+      "John H. Watson",
+      "Dr Watson"
+    ],
+    "voice": [
+      "First person, past tense: Watson writing in his diary of an evening already past. Never present tense.",
+      "Watson is an army surgeon: he notices medical particulars others pass over, and names them correctly.",
+      "Measured and controlled, emotionally present, never breathless: the register of A Study in Scarlet.",
+      "Period English of 1888; no modern idiom, no purple prose, no cliché for its own sake.",
+      "Holmes is 'Holmes'; Watson never calls himself anything but 'I'."
+    ]
+  },
+  "lexicon": [
+    "London",
+    "English",
+    "French"
+  ],
+  "endings": [
+    {
+      "id": "prologue_end",
+      "name": "The Windows Left Open",
+      "beats": [
+        "\"It was, I believe, the last evening of that summer on which it did not occur to me to close them.\""
+      ]
+    }
+  ]
+}

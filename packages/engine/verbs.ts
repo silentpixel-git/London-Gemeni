@@ -15,7 +15,7 @@
 //   drop T      → Dropped{T}; T carried
 //   open T      → T a container visible here or carried: closed → Opened; locked → lockOpen(lock) ? Opened : OpenBlocked{lock}; open → IntentRejected
 //   close T     → T an open container visible or carried → Closed
-//   use T [on S]→ Used{T, on?}; T carried or visible; S if given must be visible, carried, or a present person
+//   use T [on S]→ Used{T, on?}; T carried or visible; S if given must be visible, carried, or a present person, and not T itself
 //   combine T S → Combined{[T,S]}; both carried or visible here; no self-combine
 //   show T to P → Shown{T,P}; T carried; P present; then if T.fact and the player knows it and P does not already → FactDisclosed{player→P}
 //   give T to P → Given{T,P}; same conditions; same disclosure
@@ -85,6 +85,7 @@ export function resolveVerb(story: Story, s: State, intent: Intent): EventPayloa
     case 'use':
       if (!reach(t)) return reject(NO_THING);
       if (sec && !reach(sec) && !isHere(sec)) return reject(NO_THING);
+      if (sec === t) return reject('it cannot be used on itself');
       return [{ kind: 'Used', object: t, ...(sec ? { on: sec } : {}) }];
     case 'combine':
       if (!reach(t) || !reach(sec)) return reject(NO_THING);

@@ -368,6 +368,16 @@ section('the prose\'s world, on this Story');
     'an act that brings the player somewhere new is narrated as an arrival there; begun in place, it is not');
 }
 
+// ── An Object used on itself is no use ───────────────────────────────────────
+section('use on itself');
+{
+  let w: State = startInvestigation(story, 42).state;
+  const r = resolveTurn(story, w, { text: 'use the mat on the mat', selection: { kind: 'intent', verb: 'use', target: 'mat', secondary: 'mat' } }, fixedRng([0]));
+  w = r.state;
+  check(has(r.events, e => e.kind === 'IntentRejected') && !has(r.events, e => e.kind === 'Used'),
+    'using an Object on itself is refused, as combining it with itself is, so no Rule listing it in both slots fires');
+}
+
 // ── An attributed grant: a Rule's Beat speaks for a person ───────────────────
 // grantFact with `from` records the grant as that person telling it, exactly as an
 // answered ask does: the Ledger, who heard the turn, the Clue. Built on a copy of

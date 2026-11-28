@@ -1,0 +1,13 @@
+[
+  {
+    "id": "baker_street",
+    "name": "221B Baker Street",
+    "beats": [
+      "Our sitting room at 221B, in late daylight going to dusk: both windows stand open to the street, and the room holds the day's heat.",
+      "The chemistry bench under the far window is blackened and stinking from the afternoon's experiment.",
+      "The mantelpiece; the violin case open on the chair beside it; a monograph on the shelf."
+    ],
+    "exits": [],
+    "ambience": "baker_street"
+  }
+]
