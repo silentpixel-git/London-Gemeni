@@ -51,8 +51,12 @@ export const Effect = z.discriminatedUnion('kind', [
   /** Brings the person to wherever the player is. */
   z.object({ kind: z.literal('summonPerson'), person: Id }).strict(),
   z.object({ kind: z.literal('dismissPerson'), person: Id }).strict(),
-  /** The person learns the Fact, optionally after N time-period boundaries; entering any act delivers it at once. */
-  z.object({ kind: z.literal('grantFact'), person: PersonOrPlayer, fact: Id, delayPeriods: z.number().int().min(0).optional() }).strict(),
+  /**
+   * The person learns the Fact, optionally after N time-period boundaries; entering any act delivers it at once.
+   * `from`: someone tells it, as a Rule's Beat speaks for them. Recorded exactly as an answered ask (a disclosure:
+   * the Ledger, who hears the turn, the Clue), and the teller learns it first if they did not know it. Not with a delay.
+   */
+  z.object({ kind: z.literal('grantFact'), person: PersonOrPlayer, fact: Id, delayPeriods: z.number().int().min(0).optional(), from: PersonOrPlayer.optional() }).strict(),
   z.object({ kind: z.literal('setDisposition'), person: Id, disposition: Disposition }).strict(),
   /** Authored lines the narrator must carry this turn. asQuote renders as a world blockquote. */
   z.object({ kind: z.literal('playBeat'), beats: z.array(z.string().min(1)).min(1), asQuote: z.boolean().optional() }).strict(),

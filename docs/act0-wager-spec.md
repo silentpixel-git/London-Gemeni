@@ -365,7 +365,7 @@ From the reviews and from this port. None of these needs an owner decision now.
 
 ## For sign-off #1 — seven decisions
 
-**Decided by the owner, 2026-11-28: all seven as recommended.** 1 accept for the tutorial; 2 prologue
+**Decided by the owner, 2026-11-28: all seven as recommended. Spec signed off (sign-off #1), 2026-11-28.** 1 accept for the tutorial; 2 prologue
 end card; 3 beats with quoted lines; 4 the glass in Holmes's hand with the early demonstration;
 5 two branch Clues; 6 both (a) and (b); 7 make the engine change (`grantFact` with `from`) before any
 Act 0 data.

@@ -154,7 +154,11 @@ person `beats`, Fact statements and Clue summaries alike.
   one, perhaps the wrong one, or answer `none`.
 - A person can speak to a Fact only once they know it and the act has reached its
   `visibleFromAct`. A Fact learned mid-act arrives by `grantFact` (optionally with
-  `delayPeriods`, for a rumor; entering any act delivers it at once). The player
+  `delayPeriods`, for a rumor; entering any act delivers it at once). When a Beat
+  has a person *say* the Fact, grant it to the player `from` that person: it is
+  then recorded exactly as an answered ask (the Ledger, the diary's Persons, the
+  Clue), and fires `disclosed` Rules. Without `from`, nobody is on record as having
+  told it, and the narrator may later have the speaker deny it. The player
   may learn a Fact before its act from a document or a Rule: the prover lists each
   such path it finds as EARLY, and the score says which are deliberate (ADR-0005).
 - `knownBy: ["player"]` means the player starts knowing the Fact.

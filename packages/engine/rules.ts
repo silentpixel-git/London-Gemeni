@@ -136,9 +136,13 @@ function effectEvents(story: Story, s: State, e: Effect, ruleId: Id): EventPaylo
     case 'dismissPerson': return [{ kind: 'PersonMoved', person: e.person, location: null }];
     case 'grantFact':
       if (s.knows[e.person]?.[e.fact]) return [];
-      return e.delayPeriods
-        ? [{ kind: 'GrantScheduled', person: e.person, fact: e.fact, maturesAtBoundary: s.boundaries + e.delayPeriods }]
-        : [{ kind: 'FactLearned', person: e.person, fact: e.fact }];
+      if (e.delayPeriods) return [{ kind: 'GrantScheduled', person: e.person, fact: e.fact, maturesAtBoundary: s.boundaries + e.delayPeriods }];
+      if (!e.from) return [{ kind: 'FactLearned', person: e.person, fact: e.fact }];
+      // Told by someone: they learn it first if they did not know it, then it is a disclosure like an answered ask.
+      return [
+        ...(s.knows[e.from]?.[e.fact] ? [] : [{ kind: 'FactLearned', person: e.from, fact: e.fact } as EventPayload]),
+        { kind: 'FactDisclosed', from: e.from, to: e.person, fact: e.fact },
+      ];
     case 'setDisposition': return [{ kind: 'DispositionChanged', person: e.person, disposition: e.disposition }];
     case 'playBeat': return [{ kind: 'BeatQueued', rule: ruleId, beats: e.beats, asQuote: e.asQuote ?? false }];
     case 'cue': return [{ kind: 'CuePlayed', sound: e.sound }];

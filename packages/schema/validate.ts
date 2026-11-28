@@ -262,7 +262,14 @@ export function validateStory(raw: unknown): ValidationResult {
       }
       case 'movePerson': needPerson(e.person, at); needLocation(e.location, at); break;
       case 'summonPerson': case 'dismissPerson': needPerson(e.person, at); break;
-      case 'grantFact': needPerson(e.person, at); needFact(e.fact, at); break;
+      case 'grantFact':
+        needPerson(e.person, at); needFact(e.fact, at);
+        if (e.from !== undefined) {
+          needPerson(e.from, at);
+          if (e.from === e.person) fail(at, `"${e.from}" cannot tell a fact to themself`);
+          if (e.delayPeriods) fail(at, 'a delayed grant cannot have a teller: when it arrives nobody is telling it');
+        }
+        break;
       case 'setDisposition': needPerson(e.person, at); break;
       case 'playBeat': break;
       case 'cue': break;

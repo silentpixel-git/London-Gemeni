@@ -8,7 +8,7 @@
  * Run: npx tsx scripts/qa-core.ts     Exit 1 on any FAIL.
  */
 import { join } from 'node:path';
-import { Story, type EventPayload, type Selection } from '../packages/schema';
+import { Story, validateStory, type EventPayload, type Selection } from '../packages/schema';
 import { loadStoryDir } from '../packages/schema/load';
 import { buildNarrationContext, candidates, fallbackProse, initialState, playerView, replay, resolveTurn, startInvestigation, tick, type State } from '../packages/engine';
 import { suggestionsFor } from '../services/viewFormat';
@@ -366,6 +366,54 @@ section('the prose\'s world, on this Story');
   check(w.location !== 'study' && garden.beats.every(b => buildNarrationContext(story, letter.state, letter.events, 'full', 'study').beats.includes(b))
     && !garden.beats.some(b => buildNarrationContext(story, letter.state, letter.events, 'full', w.location).beats.includes(b)),
     'an act that brings the player somewhere new is narrated as an arrival there; begun in place, it is not');
+}
+
+// ── An attributed grant: a Rule's Beat speaks for a person ───────────────────
+// grantFact with `from` records the grant as that person telling it, exactly as an
+// answered ask does: the Ledger, who heard the turn, the Clue. Built on a copy of
+// the toy Story so the fixture (and everything keyed on it) is unchanged.
+section('attributed grant');
+{
+  const told = Story.parse({
+    ...story,
+    rules: [...story.rules, {
+      id: 'housekeeper_volunteers', trigger: { kind: 'action', verb: ['look'] }, when: { personsPresent: ['housekeeper'] }, once: true,
+      effects: [
+        { kind: 'grantFact', person: 'player', fact: 'letter_confession', from: 'housekeeper' },
+        { kind: 'grantFact', person: 'player', fact: 'master_was_afraid' },
+      ],
+    }, {
+      id: 'confession_heard', trigger: { kind: 'disclosed', fact: 'letter_confession', from: 'housekeeper' }, once: true,
+      effects: [{ kind: 'playBeat', beats: ['She lowers her voice.'] }],
+    }],
+  });
+  let w: State = startInvestigation(told, 42).state;
+  const r = resolveTurn(told, w, { text: 'look around', selection: { kind: 'intent', verb: 'look' } }, fixedRng([0]));
+  w = r.state;
+  const at = (pred: (e: EventPayload) => boolean) => r.events.findIndex(pred);
+  const teaches = at(e => e.kind === 'FactLearned' && e.person === 'housekeeper' && e.fact === 'letter_confession');
+  const discloses = at(e => e.kind === 'FactDisclosed' && e.from === 'housekeeper' && e.to === 'player' && e.fact === 'letter_confession');
+  check(discloses >= 0 && !has(r.events, e => e.kind === 'FactLearned' && e.person === 'player' && e.fact === 'letter_confession'),
+    'a grant with `from` is a disclosure from that person, not a bare learning');
+  check(teaches >= 0 && teaches < discloses && w.knows.housekeeper?.letter_confession === true,
+    'the teller learns it first if they did not know it: nobody tells what they do not know');
+  check(w.ledger.housekeeper?.told.includes('letter_confession') === true, 'the Ledger records it as told by her, as an ask would');
+  check(has(r.events, e => e.kind === 'ClueDiscovered' && e.clue === 'clue_letter'), 'and its Clue is discovered');
+  check(w.involved.includes('housekeeper'), 'the turn involves her, so she hears its prose');
+  check(fired(r.events, 'confession_heard'), 'and a disclosed Rule on that Fact from her fires, as on an ask');
+  check(has(r.events, e => e.kind === 'FactLearned' && e.person === 'player' && e.fact === 'master_was_afraid')
+    && !w.ledger.housekeeper?.told.includes('master_was_afraid'),
+    'a grant without `from` is unchanged: learned, attributed to no one');
+  const issues = (effect: object) => validateStory({ ...story, rules: [...story.rules, { id: 'probe', trigger: { kind: 'tick' }, weight: 1, once: true, effects: [effect] }] })
+    .issues.filter(i => i.level === 'fail' && i.at.startsWith('rules/probe/'));
+  check(issues({ kind: 'grantFact', person: 'player', fact: 'master_was_afraid', from: 'housekeeper', delayPeriods: 1 }).length === 1,
+    'validator: a delayed grant cannot be attributed (a rumour arrives, nobody is telling it then)');
+  check(issues({ kind: 'grantFact', person: 'housekeeper', fact: 'master_was_afraid', from: 'housekeeper' }).length === 1,
+    'validator: nobody tells themself');
+  check(issues({ kind: 'grantFact', person: 'player', fact: 'master_was_afraid', from: 'nobody_here' }).length === 1,
+    'validator: the teller must be a person in the Story');
+  check(issues({ kind: 'grantFact', person: 'player', fact: 'master_was_afraid', from: 'housekeeper' }).length === 0,
+    'validator: an attributed grant to the player from a person is fine');
 }
 
 // ── Coverage ─────────────────────────────────────────────────────────────────
