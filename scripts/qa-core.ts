@@ -476,6 +476,19 @@ section('settling a told answer');
   check(stray.kind === 'intent' && stray.topic === 'letter_confession' && !('facts' in stray), 'a field the verb never reads (facts on an ask) is dropped, not the answer');
   const looked = confineSelection({ kind: 'intent', verb: 'look', target: 'hall_clock' }, set, 'look at the clock');
   check(JSON.stringify(looked) === '{"kind":"intent","verb":"examine","target":"hall_clock"}', 'look with a target is examining it');
+  const around = confineSelection({ kind: 'intent', verb: 'look', target: 'room' }, set, 'look around the room');
+  check(JSON.stringify(around) === '{"kind":"intent","verb":"look"}', 'look with a word that names nothing is still a look, never a miss');
+  const lookThrough = confineSelection({ kind: 'intent', verb: 'look', target: 'hall_clock', secondary: 'mat' }, set, 'look at the clock through the mat');
+  check(JSON.stringify(lookThrough) === '{"kind":"intent","verb":"use","target":"mat","secondary":"hall_clock"}', 'look at X through Y, given as look, is Y used on X');
+  const quoted = [`"Did the gardener write it?" I ask.`, `say "was it the gardener who wrote it?"`, `(is it the gardener?)`];
+  check(quoted.every(line => { const q = confineSelection(told, set, line); return q.kind === 'intent' && q.topic === undefined; }),
+    'a question inside quotation marks or brackets is still a question');
+  const statements = ['Holmes, who else but the gardener wrote it', 'When I saw the ink I knew: the gardener wrote the letter',
+    'Do not be absurd, the gardener wrote the letter', 'Whether you like it or not, the gardener wrote it', 'What a fool I was. The gardener wrote it.'];
+  check(statements.every(line => { const q = confineSelection(told, set, line); return q.kind === 'intent' && q.topic === 'letter_confession'; }),
+    'a statement that opens with a question word is still a statement');
+  const vocative = confineSelection(told, set, 'Mrs Hale, was it the gardener');
+  check(vocative.kind === 'intent' && vocative.topic === undefined, 'a question addressed by name is a question, whoever is named');
   const judging = (verdict: boolean | null | 'throw'): Ai => ({
     select: async () => ({ kind: 'none' }), narrate: async function* () { /* unused */ },
     judge: async () => { if (verdict === 'throw') throw new Error('down'); return verdict; },
@@ -486,7 +499,7 @@ section('settling a told answer');
   const unknown = await settleAnswer(told, set, 'the gardener wrote it', [], judging(null));
   const noJudge = await settleAnswer(told, set, 'the gardener wrote it', [], { select: async () => ({ kind: 'none' }), narrate: async function* () { /* unused */ } });
   check(right.kind === 'intent' && right.agrees === true && wrong.kind === 'intent' && wrong.agrees === false, 'the judge decides: its verdict replaces the selector\'s');
-  check([failed, unknown, noJudge].every(x => x.kind === 'intent' && x.topic === undefined && x.agrees === undefined),
+  check([failed, unknown, noJudge].every(x => x.kind === 'intent' && x.topic === undefined && x.agrees === undefined && x.telling === undefined),
     'an answer that cannot be judged (judge down, unsure, or none and the selector did not judge) commits nothing: the player may say it again');
   const selectorJudged = await settleAnswer({ ...told, agrees: false }, set, 'the cook wrote it', [], { select: async () => ({ kind: 'none' }), narrate: async function* () { /* unused */ } });
   check(selectorJudged.kind === 'intent' && selectorJudged.agrees === false, 'with no judge, the selector\'s own judgement stands');

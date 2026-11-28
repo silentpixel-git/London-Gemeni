@@ -91,8 +91,10 @@ export function gemini(selectModel: string, narrateModel: string, judgeModel: st
 }
 
 /**
- * Ceilings, so a turn fits the function's 60 s (vercel.json): select at most twice 5 s, on a turn that tells an answer
- * one judge call of 7 s, narrate at most twice 20 s; that leaves time for loading, replay and the appends
+ * Ceilings on each call. A turn's usual worst case is select twice 5 s, on a turn that tells an answer one judge call
+ * of 7 s, and narrate 20 s twice (the gate may ask once more): 57 s of the function's 60 s (vercel.json), before
+ * loading, replay and the appends. Rarer paths go past it (narrate's own retry on an unparsable reply, a lost race
+ * for the next seq that selects again); a turn the platform cuts off is closed by stale-turn recovery (server/TURN.md)
  * (the gate may ask once more). A select model answers in about a second; narration is the long call. A Selection is a short object: 512 tokens assumes a select model that does not
  * think (the default, flash-lite); a thinking model would spend them before replying.
  */

@@ -50,10 +50,25 @@ export function fromSelector(sel: Selection): Selection {
   return sel.kind === 'none' && sel.reason !== undefined ? { kind: 'none' } : sel;
 }
 
-/** A line put as a question: it ends in a question mark, or opens as one does. */
+/**
+ * A line put as a question: with its quotation marks, brackets and closing punctuation set aside, it ends in a
+ * question mark (perhaps with a speech tag after it), or (after any form of address, "Mrs Hale, …") it opens with an
+ * auxiliary verb ("is it…", "did he…") or "I wonder".
+ * Words like what, when or whether often open a statement ("What a fool I was. It was the gardener."), so they count
+ * only with the question mark.
+ */
 function isQuestion(text: string): boolean {
-  const t = text.trim().toLowerCase();
-  return t.endsWith('?') || /^(holmes,\s*)?(is|are|was|were|do|does|did|can|could|would|should|has|have|shall|will|what|who|whom|whose|why|how|which|where|when|whether|i wonder)\b/.test(t);
+  const t = text.trim();
+  // A question mark with nothing after it but closing quotes or brackets and at most a short speech tag ("I ask.").
+  const q = t.lastIndexOf('?');
+  if (q >= 0) {
+    const after = t.slice(q + 1).replace(/["'”’)\]]/g, '').replace(/[.!]+$/, '').trim().toLowerCase();
+    if (after === '' || /^(i|he|she|we|they|you)\s+(ask|asked|say|said|wonder|wondered|enquire|enquired)$/.test(after)) return true;
+  }
+  // An auxiliary verb opening the first clause, after any quotation mark or form of address ("Mrs Hale, was it…").
+  const clause = t.toLowerCase().replace(/^["'“‘(\[]+/, '').replace(/^[a-z][a-z.' ]{0,30},\s*/, '');
+  if (/^i wonder\b/.test(clause)) return true;
+  return /^(is|are|was|were|did|does|has|have|had|can|could|would|should|shall|will|might|may)\s/.test(clause) && !/^\w+\s+not\b/.test(clause);
 }
 
 /**
@@ -66,7 +81,7 @@ export async function settleAnswer(sel: Selection, set: CandidateSet, text: stri
   if (sel.kind !== 'intent' || sel.verb !== 'ask' || !sel.topic || !sel.telling) return sel;
   const offered = set.topics.filter(t => t.fact === sel.topic && (!sel.person || t.person === sel.person));
   if (!offered.length || !offered.every(t => t.direction === 'tell')) return sel;
-  const unjudged = () => { const { topic: _t, agrees: _a, ...rest } = sel; return rest; };
+  const unjudged = () => { const { topic: _t, agrees: _a, telling: _l, ...rest } = sel; return rest; };
   if (!ai.judge) return sel.agrees === undefined ? unjudged() : sel;
   const verdict = await ai.judge({ text, recentTexts, subject: offered.map(t => t.phrase).join(', '), answer: offered[0].answer ?? '' }).catch((err: unknown) => {
     console.warn('judge failed:', err instanceof Error ? err.message : err);

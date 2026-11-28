@@ -77,8 +77,11 @@ export const VERB_FIELDS: Record<Verb, readonly IntentField[]> = {
  *   - an ask's topic that is not one of the set's topics (names nothing, or names an Object or a
  *     person): dropped, since ask with no topic is the designed answer to a subject the person has
  *     nothing on (an honest deflection);
+ *   - look with a target that is a candidate ("look at the clock"): examine it; a target that names
+ *     nothing is a stray word and the look stays a look;
  *   - examine with an object as secondary ("look at the ship through the telescope"): using that
  *     object on the target (a read keeps reading; its secondary is a stray word);
+ *   - facts on any verb but deduce: dropped, a stray the selector added;
  *   - a value that is exactly one candidate's name rather than its id ("bar" for the
  *     exit named "bar"): that candidate's id;
  *   - open or use on an exit itself ("open the cellar door", "lift the bar"), or the
@@ -102,6 +105,12 @@ export function trimSelection(sel: Selection, set: CandidateSet): Selection {
     return hits.size === 1 ? [...hits][0] : v;
   };
   sel = { ...sel, ...(sel.target ? { target: named(sel.target) } : {}), ...(sel.secondary ? { secondary: named(sel.secondary) } : {}) };
+  // "Look at the clock": look with a target that names something here is examining it (and "look at X through Y" is
+  // then an instrument used on X, below). A target that names nothing is a stray word: the look stays a look.
+  const seen = sel.target;
+  if (sel.verb === 'look' && seen && (set.objects.some(o => o.id === seen) || set.persons.some(p => p.id === seen))) {
+    return trimSelection({ ...sel, verb: 'examine' }, set);
+  }
   // "Look at X through Y": examining something through an object at hand is using that object on it. Reading X by
   // or with something is still reading X (the secondary is a stray word there), so a document is never lost to a use.
   const lens = sel.secondary;
@@ -122,8 +131,6 @@ export function trimSelection(sel: Selection, set: CandidateSet): Selection {
       return { kind: 'none', reason: 'that does nothing to the way' };
     }
   }
-  // "Look at the clock" with a target is examining it.
-  if (sel.verb === 'look' && sel.target) sel = { ...sel, verb: 'examine' };
   // facts belong to a deduction alone; on any other verb they are a stray the selector added, never a reason to refuse.
   if (sel.verb !== 'deduce' && sel.facts !== undefined) { const { facts: _f, ...rest } = sel; sel = rest; }
   const reads: readonly string[] = VERB_FIELDS[sel.verb];

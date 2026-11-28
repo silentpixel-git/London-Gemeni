@@ -66,6 +66,8 @@ export function recording(inner: Ai, dir: string): Ai {
         yield chunk;
       }
     },
+    // The judge passes through unrecorded: replay keeps the judgement in the recorded Selection's `agrees`.
+    ...(inner.judge ? { judge: inner.judge.bind(inner) } : {}),
   };
 }
 

@@ -4,8 +4,8 @@ The seam between the engine and the models (plan §2.9, ADR-0002, ADR-0003).
 
 | File | Owner | Holds |
 |---|---|---|
-| `types.ts` | design | `Ai` (select, narrate), `SelectInput`, `NarrationChunk`, `AiConfig`, `PromptBundle` |
-| `prompts.ts` | prompt design | `buildSelectPrompt`, `buildNarratePrompt` → `PromptBundle` |
+| `types.ts` | design | `Ai` (select, narrate, judge), `SelectInput`, `JudgeInput`, `NarrationChunk`, `AiConfig`, `PromptBundle` |
+| `prompts.ts` | prompt design | `buildSelectPrompt`, `buildJudgePrompt`, `buildNarratePrompt` → `PromptBundle` |
 | `gate.ts` | prompt design | `gateNarration`: the invention gate |
 | `gemini.ts` | plumbing | Gemini adapter over `@google/genai`: sends a `PromptBundle`, validates the reply with Zod, retries once |
 | `recorded.ts` | plumbing | Fixture adapter: replays JSON recordings keyed by a hash of the input; records when a real provider is wrapped |
