@@ -72,7 +72,8 @@ class Run {
   /** A turn on a copy of the State: observed, never logged. */
   probe(text: string, sel: Sel) { return resolveTurn(story, this.s, { text, selection: { kind: 'intent', ...sel } }, fixedRng([0])); }
   talk() { return this.go('talk to holmes', { verb: 'talk', person: 'holmes' }); }
-  tell(fact: string) { return this.go(`tell holmes about ${fact}`, { verb: 'ask', person: 'holmes', topic: fact }); }
+  /** Telling Holmes a reading; `agrees` is the selector's judgement of what the line claimed (ADR-0005 §11). */
+  tell(fact: string, agrees = true) { return this.go(`tell holmes about ${fact}`, { verb: 'ask', person: 'holmes', topic: fact, telling: true, agrees }); }
   examine(target: string) { return this.go(`examine ${target}`, { verb: 'examine', target }); }
   visible(id: string) { return candidates(story, this.s).objects.some(o => o.id === id); }
   topic(fact: string, direction: 'ask' | 'tell') { return candidates(story, this.s).topics.some(t => t.person === 'holmes' && t.fact === fact && t.direction === direction); }
@@ -148,21 +149,24 @@ const win = new Run(7);
     && candidates(story, back.state).objects.some(o => o.id === 'opera_glass'),
     'giving Holmes his glass puts it back on the mantel, where it can still be used');
 
-  const t4 = win.tell('watson_reading_soldier');
-  check(fired(t4, 'soldier_verdict') && win.flag('soldier_read') && clue(t4, 'clue_old_soldier'), 'turn 4: telling Holmes the soldier commits; The Old Soldier enters the diary');
+  const t4 = win.tell('watson_reading_soldier', true);
+  check(fired(t4, 'soldier_verdict_right') && !fired(t4, 'soldier_verdict_wrong') && win.flag('soldier_right') && clue(t4, 'clue_old_soldier'),
+    'turn 4: a right reading of the soldier is a point to Watson; The Old Soldier enters the diary');
   check(win.told('holmes_soldier_grandchild'), 'turn 4: the grandchild is on record as Holmes\'s');
   check(win.log.some(e => e.kind === 'RuleFired' && e.rule === 'lamplighter') && fired(t4, 'lamplighter'), 'turn 4: the clock passes 7:45 and the lamplighter goes by');
   check(!win.topic('watson_reading_soldier', 'tell') && phraseFact(win.s, 'the old soldier') === 'holmes_soldier_reading',
     'after the verdict, "the old soldier" is Holmes\'s reading to ask about, not Watson\'s to tell');
   const soldierCtx = JSON.stringify(buildNarrationContext(story, win.s, t4, 'full'));
-  check(/sixty/.test(soldierCtx) && /thigh/.test(soldierCtx) && /Peshawar/.test(soldierCtx), 'turn 4: the narrator has the reading Watson gives, with its numbers');
+  const verdictBeats = buildNarrationContext(story, win.s, t4, 'full').beats.join(' ');
+  check(/Peshawar/.test(soldierCtx) && soldierCtx.includes('tell holmes about watson_reading_soldier') && !/infantryman|sergeant/.test(verdictBeats),
+    'turn 4: the narrator has the player\'s own line, and the verdict restates no reading the player did not give');
   fits('turn 4, the soldier verdict', win.s, t4);
 
   const asked = win.probe('ask holmes about the grandchild', { verb: 'ask', person: 'holmes', topic: 'holmes_soldier_grandchild' });
   check(!fired(asked.events, 'closing'), 'a question after a verdict is answered and never sets off the closing');
 
-  const t5 = win.tell('watson_reading_clergyman');
-  check(fired(t5, 'clergyman_verdict_won') && !fired(t5, 'clergyman_verdict_lost') && win.flag('wager_won'), 'turn 5: the clergyman read through the glass wins the wager');
+  const t5 = win.tell('watson_reading_clergyman', true);
+  check(fired(t5, 'clergyman_verdict_right') && !fired(t5, 'clergyman_verdict_wrong') && win.flag('wager_won'), 'turn 5: the clergyman read rightly, after the soldier, wins the wager');
   check(clue(t5, 'clue_actor_found') && !win.s.clues.includes('clue_actor_shown'), 'turn 5: one Actor Clue, the found one');
   check(!fired(t5, 'closing'), 'turn 5: the second verdict is a question, so the closing does not fire');
   fits('turn 5, the clergyman verdict (won)', win.s, t5);
@@ -189,9 +193,9 @@ section('the loss: no glass');
 {
   const r = new Run(11);
   r.talk(); r.talk();
-  r.tell('watson_reading_soldier');
-  const t = r.tell('watson_reading_clergyman');
-  check(fired(t, 'clergyman_verdict_lost') && !fired(t, 'clergyman_verdict_won') && !r.flag('wager_won'), 'the clergyman read by eye loses the wager');
+  r.tell('watson_reading_soldier', true);
+  const t = r.tell('watson_reading_clergyman', false);
+  check(fired(t, 'clergyman_verdict_wrong') && !fired(t, 'clergyman_verdict_right') && !r.flag('wager_won'), 'a wrong reading of the clergyman loses the wager');
   check(clue(t, 'clue_actor_shown') && !r.s.clues.includes('clue_actor_found'), 'one Actor Clue, the shown one');
   check(isDeepStrictEqual(r.s.objects.opera_glass.placement, { kind: 'location', location: 'baker_street' }), 'Holmes puts the glass back on the mantel');
   check(r.told('holmes_actor_reading') && r.told('actor_shown_through_glass'), 'the actor and the rebuke are on record as Holmes\'s');
@@ -227,9 +231,17 @@ section('the other routes');
   check(fired(crowd1, 'glass_on_crowd') && fired(crowd2, 'glass_on_crowd'), 'the glass on the crowd always answers (it repeats)');
   const soldier = r.go('look at the old fellow through the glass', { verb: 'use', target: 'opera_glass', secondary: 'street_soldier' });
   check(fired(soldier, 'glass_on_soldier') && !r.flag('soldier_read'), 'the glass on the soldier adds the ribbon and commits nothing');
-  const ded = r.go('i deduce the clergyman is an actor', { verb: 'deduce', facts: ['watson_reading_clergyman'] });
-  check(fired(ded, 'deduce_clergyman') && fired(ded, 'clergyman_verdict_won'), 'a deduction about the clergyman commits the reading');
-  check(!fired(ded, 'closing'), 'and does not set off the closing');
+  const ded = r.probe('i deduce the clergyman is an actor', { verb: 'deduce', facts: ['watson_reading_clergyman'] });
+  check(!has(ded.events, e => e.kind === 'RuleFired'), 'a deduction is not an answer: only telling Holmes is judged');
+  const wrongSoldier = r.tell('watson_reading_soldier', false);
+  check(fired(wrongSoldier, 'soldier_verdict_wrong') && !r.flag('soldier_right') && clue(wrongSoldier, 'clue_old_soldier_missed') && !r.s.clues.includes('clue_old_soldier'),
+    'a wrong reading of the soldier is a point to Holmes; The Old Soldier (missed) enters the diary');
+  check(r.told('soldier_put_right'), 'Holmes\'s correction is on record as his');
+  const again = r.probe('tell holmes the old fellow is a soldier after all', { verb: 'ask', person: 'holmes', topic: 'watson_reading_soldier', telling: true, agrees: true });
+  check(!has(again.events, e => e.kind === 'RuleFired') && !again.state.flags.soldier_right, 'the first answer holds: a second try about the soldier counts for nothing');
+  const rightClergyman = r.tell('watson_reading_clergyman', true);
+  check(fired(rightClergyman, 'clergyman_verdict_right') && !r.flag('wager_won'), 'a right clergyman after a wrong soldier is one each: the wager is lost');
+  check(!fired(rightClergyman, 'closing'), 'and the verdict does not set off the closing');
   check(r.replays(), 'this route replays exactly');
 }
 
@@ -240,7 +252,7 @@ section('validation and the prover');
   check(v.ok, 'the Story validates', v.issues.filter(i => i.level === 'fail').map(i => `${i.at}: ${i.message}`).join('; '));
   check(v.issues.length === 0, 'with no warnings', v.issues.map(i => `${i.at}: ${i.message}`).join('; '));
   const p = prove(story);
-  const want = ['clue_old_soldier', 'clue_actor_found', 'clue_actor_shown', 'clue_what_asks_to_be_seen', 'prologue_end'];
+  const want = ['clue_old_soldier', 'clue_old_soldier_missed', 'clue_actor_found', 'clue_actor_shown', 'clue_what_asks_to_be_seen', 'prologue_end'];
   for (const id of want) {
     const line = p.lines.find(l => l.goal.id === id);
     check(line?.reachable === true, `prover: ${id} REACHABLE`, line ? 'UNREACHABLE' : 'not a goal');

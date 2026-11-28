@@ -146,7 +146,8 @@
       "the old fellow",
       "the soldier",
       "the man by the cab rank"
-    ]
+    ],
+    "answer": "He is an old soldier: an infantryman, Indian service long ago, lame in the left leg, probably a sergeant. Any answer that makes him an old soldier or veteran agrees; the particulars need not all be given."
   },
   {
     "id": "watson_reading_clergyman",
@@ -157,7 +158,8 @@
       "the clergyman",
       "the curate",
       "the man outside the chemist's"
-    ]
+    ],
+    "answer": "He is no clergyman but an actor in costume, learning his lines. An answer that makes him an actor or a player in costume agrees; a curate, parson or clergyman does not."
   },
   {
     "id": "holmes_soldier_reading",
@@ -169,7 +171,7 @@
       "his leg"
     ],
     "voices": {
-      "holmes": "Infantry; India, and long ago; the left thigh healed short; a sergeant. Your reading, Watson, and a good one."
+      "holmes": "Infantry; India, and long ago; the left thigh healed short; a sergeant."
     }
   },
   {
@@ -182,6 +184,18 @@
     ],
     "voices": {
       "holmes": "I should only have added that he is waiting for a grandchild."
+    }
+  },
+  {
+    "id": "soldier_put_right",
+    "statement": "Watson misread the old fellow; Holmes put him right: an old soldier, infantry, India long ago, the left thigh healed short.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "where i went wrong"
+    ],
+    "voices": {
+      "holmes": "No, Watson. An old soldier: infantry, India long ago, the left thigh healed short."
     }
   },
   {
@@ -202,14 +216,14 @@
   },
   {
     "id": "actor_found_through_glass",
-    "statement": "Watson saw the greasepaint through the glass before he gave his answer, and read the actor correctly. Holmes conceded it.",
+    "statement": "Watson read the actor correctly before Holmes said a word. Holmes conceded it.",
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [
       "the point you conceded"
     ],
     "voices": {
-      "holmes": "You found the greasepaint for yourself before you spoke. You have it exactly."
+      "holmes": "You have it exactly, and before I said a word."
     }
   },
   {

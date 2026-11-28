@@ -3,13 +3,19 @@
     "id": "clue_old_soldier",
     "name": "The Old Soldier",
     "fact": "holmes_soldier_grandchild",
-    "summary": "An infantryman, India long ago, the left thigh healed short; read correctly. Holmes added that he waits for a grandchild."
+    "summary": "An old soldier, read correctly: infantry, India long ago, the left thigh healed short. Holmes added that he waits for a grandchild."
+  },
+  {
+    "id": "clue_old_soldier_missed",
+    "name": "The Old Soldier",
+    "fact": "soldier_put_right",
+    "summary": "I misread him. Holmes put me right: an old soldier, infantry, India long ago, the left thigh healed short."
   },
   {
     "id": "clue_actor_found",
     "name": "The Actor",
     "fact": "actor_found_through_glass",
-    "summary": "Not a curate: an actor between performances. I found the greasepaint through the glass before I spoke."
+    "summary": "Not a curate: an actor between performances. I named him before Holmes said a word."
   },
   {
     "id": "clue_actor_shown",

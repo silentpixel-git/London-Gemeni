@@ -104,12 +104,13 @@
     ]
   },
   {
-    "id": "soldier_verdict",
+    "id": "soldier_verdict_right",
     "trigger": {
       "kind": "disclosed",
       "fact": "watson_reading_soldier",
       "from": "player",
-      "to": "holmes"
+      "to": "holmes",
+      "agrees": true
     },
     "when": {
       "personsPresent": [
@@ -121,8 +122,8 @@
       {
         "kind": "playBeat",
         "beats": [
-          "I gave Holmes my reading of the old fellow by the cab rank, a man of about sixty: an infantryman by his stance; India, and not lately; an old fracture of the left thigh, set in a hurry and healed short; a sergeant, long out of the army. I knew that walk: I had watched it learned in the base hospital at Peshawar.",
-          "Holmes was silent a moment. \"Admirable,\" he said. He conceded every word, and the leg better than he could have seen it himself.",
+          "I gave Holmes my reading of the old fellow, and said I knew that walk: I had watched it learned in the base hospital at Peshawar.",
+          "Holmes was silent a moment. \"Admirable,\" he said. He conceded it, and the leg better than he could have seen it himself.",
           "Then he added the one thing I had missed. \"One to you, Watson.\""
         ]
       },
@@ -140,21 +141,23 @@
       {
         "kind": "setFlag",
         "flag": "soldier_read"
+      },
+      {
+        "kind": "setFlag",
+        "flag": "soldier_right"
       }
     ]
   },
   {
-    "id": "clergyman_verdict_won",
+    "id": "soldier_verdict_wrong",
     "trigger": {
       "kind": "disclosed",
-      "fact": "watson_reading_clergyman",
+      "fact": "watson_reading_soldier",
       "from": "player",
-      "to": "holmes"
+      "to": "holmes",
+      "agrees": false
     },
     "when": {
-      "flagsAll": [
-        "clergyman_seen_through_glass"
-      ],
       "personsPresent": [
         "holmes"
       ]
@@ -164,7 +167,48 @@
       {
         "kind": "playBeat",
         "beats": [
-          "\"No curate, Holmes,\" I said. \"That is greasepaint at his hairline, and he is learning a part, not a lesson. He is an actor between performances, still in his costume.\"",
+          "I gave Holmes my reading of the old fellow.",
+          "Holmes shook his head, and pointed me back to the way the man stood and the way he carried his left leg.",
+          "\"One to me.\""
+        ]
+      },
+      {
+        "kind": "grantFact",
+        "person": "holmes",
+        "fact": "holmes_soldier_reading"
+      },
+      {
+        "kind": "grantFact",
+        "person": "player",
+        "fact": "soldier_put_right",
+        "from": "holmes"
+      },
+      {
+        "kind": "setFlag",
+        "flag": "soldier_read"
+      }
+    ]
+  },
+  {
+    "id": "clergyman_verdict_right",
+    "trigger": {
+      "kind": "disclosed",
+      "fact": "watson_reading_clergyman",
+      "from": "player",
+      "to": "holmes",
+      "agrees": true
+    },
+    "when": {
+      "personsPresent": [
+        "holmes"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "I gave Holmes my reading of the clergyman.",
           "Holmes looked at me for so long that I began to fear some fresh error; then he confirmed it, and sat down rather heavily in his chair.",
           "\"I begin to think I shall have to find another occupation.\""
         ]
@@ -183,26 +227,62 @@
       },
       {
         "kind": "setFlag",
-        "flag": "wager_won"
+        "flag": "clergyman_read"
       },
       {
         "kind": "setFlag",
-        "flag": "clergyman_read"
+        "flag": "clergyman_right"
       }
     ]
   },
   {
-    "id": "clergyman_verdict_lost",
+    "id": "wager_won_on_soldier",
+    "trigger": {
+      "kind": "flag",
+      "flag": "soldier_right"
+    },
+    "when": {
+      "flagsAll": [
+        "clergyman_right"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "setFlag",
+        "flag": "wager_won"
+      }
+    ]
+  },
+  {
+    "id": "wager_won_on_clergyman",
+    "trigger": {
+      "kind": "flag",
+      "flag": "clergyman_right"
+    },
+    "when": {
+      "flagsAll": [
+        "soldier_right"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "setFlag",
+        "flag": "wager_won"
+      }
+    ]
+  },
+  {
+    "id": "clergyman_verdict_wrong",
     "trigger": {
       "kind": "disclosed",
       "fact": "watson_reading_clergyman",
       "from": "player",
-      "to": "holmes"
+      "to": "holmes",
+      "agrees": false
     },
     "when": {
-      "flagsNone": [
-        "clergyman_seen_through_glass"
-      ],
       "personsPresent": [
         "holmes"
       ]
@@ -212,7 +292,7 @@
       {
         "kind": "playBeat",
         "beats": [
-          "I gave my reading: a curate from a poor parish somewhere in the country, getting tomorrow's lesson by heart.",
+          "I gave Holmes my reading of the clergyman.",
           "\"Ah,\" said Holmes, very gently. \"Look again — through the glass this time. Not at his coat. At the line of his hair beside the ear, and at the book.\"",
           "I looked, and saw the greasepaint and the thin script. Holmes took the glass back to the mantel.",
           "\"You saw a black coat and stopped looking. One to me.\""
@@ -241,58 +321,6 @@
       {
         "kind": "setFlag",
         "flag": "clergyman_read"
-      }
-    ]
-  },
-  {
-    "id": "deduce_soldier",
-    "trigger": {
-      "kind": "deduction",
-      "facts": [
-        "watson_reading_soldier"
-      ]
-    },
-    "when": {
-      "flagsNone": [
-        "soldier_read"
-      ],
-      "personsPresent": [
-        "holmes"
-      ]
-    },
-    "once": true,
-    "effects": [
-      {
-        "kind": "grantFact",
-        "person": "holmes",
-        "fact": "watson_reading_soldier",
-        "from": "player"
-      }
-    ]
-  },
-  {
-    "id": "deduce_clergyman",
-    "trigger": {
-      "kind": "deduction",
-      "facts": [
-        "watson_reading_clergyman"
-      ]
-    },
-    "when": {
-      "flagsNone": [
-        "clergyman_read"
-      ],
-      "personsPresent": [
-        "holmes"
-      ]
-    },
-    "once": true,
-    "effects": [
-      {
-        "kind": "grantFact",
-        "person": "holmes",
-        "fact": "watson_reading_clergyman",
-        "from": "player"
       }
     ]
   },

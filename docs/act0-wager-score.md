@@ -624,6 +624,65 @@ Owner decisions, each as recommended:
 - `look` doesn't mention the people present.
 - The inventory narration omitted the carried glass.
 
+## 8d. Judged answers (owner decision 2026-11-28, after the live re-run)
+
+**The decision:** the player's own words decide each reading (ADR-0005 §11). This replaces spec
+decision 6, under which Watson's reading was fixed whatever the player typed.
+
+**What a told answer is judged against:**
+- Each `watson_reading_*` Fact keeps its neutral statement. That statement is what the narrator
+  sees when the wager grants it.
+- It gains an `answer`, which the selector judges a told reading against and which is never
+  narrated:
+  - **soldier:** "He is an old soldier: an infantryman, Indian service long ago, lame in the left
+    leg, probably a sergeant. Any answer that makes him an old soldier or veteran agrees; the
+    particulars need not all be given."
+  - **clergyman:** "He is no clergyman but an actor in costume, learning his lines. An answer that
+    makes him an actor or a player in costume agrees; a curate, parson or clergyman does not."
+
+**The verdicts:** each figure has a right and a wrong verdict, on `disclosed` with `agrees: true` or
+`agrees: false`. None of them restates a reading, because the narrator has the player's own line.
+
+| Rule | Beats | Grants | Flags | Clue |
+|---|---|---|---|---|
+| `soldier_verdict_right` | "I gave Holmes my reading of the old fellow, and said I knew that walk: I had watched it learned in the base hospital at Peshawar." Holmes concedes ("Admirable") and adds the grandchild. "One to you, Watson." | `holmes_soldier_reading` to Holmes; `holmes_soldier_grandchild` to the player from Holmes | `soldier_read`, `soldier_right` | The Old Soldier |
+| `soldier_verdict_wrong` | "I gave Holmes my reading of the old fellow." Holmes shakes his head. He corrects it, and the new Fact `soldier_put_right` carries his correction. "One to me." | `holmes_soldier_reading` to Holmes; `soldier_put_right` to the player from Holmes | `soldier_read` | The Old Soldier (missed) |
+| `clergyman_verdict_right` | "I gave Holmes my reading of the clergyman." Holmes's long look, then his confirmation, then "I begin to think I shall have to find another occupation." | `holmes_actor_reading` and `actor_found_through_glass`, both to the player from Holmes | `clergyman_read`, `clergyman_right` | The Actor (found) |
+| `clergyman_verdict_wrong` | "I gave Holmes my reading of the clergyman." Then "Ah … Look again — through the glass this time…", the greasepaint seen, the glass back on the mantel, and "You saw a black coat and stopped looking. One to me." | `holmes_actor_reading` and `actor_shown_through_glass`, both to the player from Holmes | `clergyman_read` | The Actor (shown) |
+
+**Who wins:**
+- `wager_won` is set by `wager_won_on_soldier` (flag `soldier_right` + `flagsAll
+  [clergyman_right]`) or by `wager_won_on_clergyman` (the mirror). Watson wins only if **both**
+  readings are right.
+- The glass is how the clergyman is read rightly. A lucky guess without it also counts: Holmes judges
+  the answer, not the method.
+- The codas still branch on `wager_won`.
+
+**Removed:** `deduce_soldier` and `deduce_clergyman`. A deduction is not judged, and the prompt now
+keeps `deduce` for accusing a culprit. "I think he is an actor" is a telling line.
+
+**New Fact `soldier_put_right`:**
+- statement: "Watson misread the old fellow; Holmes put him right: an old soldier, infantry, India
+  long ago, the left thigh healed short."
+- voice: "No, Watson. An old soldier: infantry, India long ago, the left thigh healed short."
+- topics: "where I went wrong".
+
+**New Clue `clue_old_soldier_missed`, named "The Old Soldier":** "I misread him. Holmes put me right:
+an old soldier, infantry, India long ago, the left thigh healed short."
+
+**Changed:**
+- `clue_actor_found`: "Not a curate: an actor between performances. I named him before Holmes said a
+  word."
+- `actor_found_through_glass`: "Watson read the actor correctly before Holmes said a word. Holmes
+  conceded it."
+- `holmes_soldier_reading`'s voice no longer says "your reading": "Infantry; India, and long ago; the
+  left thigh healed short; a sergeant."
+
+**The ending's line:** the ending's beat becomes Watson's own sentence, written without quotation
+marks ("It was, I believe, the last evening …"), so the narrator can't give it to Holmes.
+
+**The prover's new goal:** `clue_old_soldier_missed`.
+
 ## 9. Risks the golden can't see (for the playtest)
 
 - **The glass is invisible on the very first turn.** If the player's first line is about the glass
