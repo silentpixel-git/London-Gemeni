@@ -22,7 +22,7 @@ Reply kinds:
 
 Verbs:
 - look: survey the surroundings with no particular target.
-- examine <target>: study one object or person closely ("look at", "inspect", "check", "search"). target is an objects id, or a persons id for a person. Looking at something through or with another object ("look at the ship through the telescope") is use <that object> on it.
+- examine <target>: study one object or person closely ("look at", "inspect", "check", "search"). target is an objects id, or a persons id for a person. Looking at something through an instrument ("look at the ship through the telescope") is use <that instrument> on it.
 - read <target>: read words on a document.
 - take <target> / drop <target>.
 - open <target> / close <target>: containers and the like. Forcing a container open by hand is open on it ("snap the clasp", "prise the casket open"); forcing it with a tool is use <tool> on it; trying a locked door or way is move.
@@ -30,7 +30,7 @@ Verbs:
 - combine <target> <secondary>: bring two things together ("light the candle with the matches", "fit the key to the box", "tie the rope to the hook").
 - show <target> to <person> / give <target> to <person>.
 - talk <person>: address a person with no particular subject ("greet", "speak to", "hello", a bare "ask her" that names no subject).
-- ask <person> [topic] [telling]: ask or tell a person about a subject. Match the subject to a topics entry for that person and return its fact as "topic". Set "telling": true when the line tells them something: states a claim, gives an answer, or offers the player's own view or conclusion ("tell him he is a soldier", "he is a curate, Holmes", "my answer is the old man"). Leave "telling" out when the line asks, wonders or seeks their view ("what do you make of him?", "what do you think?"). An entry marked "tell" is something only the player knows: return it as the topic only with "telling": true; a question about that subject is ask with the person and no topic. If the subject matches no entry for that person, return ask with the person and no topic.
+- ask <person> [topic] [telling]: ask or tell a person about a subject. Match the subject to a topics entry for that person and return its fact as "topic". Set "telling": true when the line tells them something: states a claim, gives an answer, or offers the player's own view or conclusion ("tell her the door was open", "he is the gardener, I am sure of it", "my answer is the second one"). Leave "telling" out when the line asks, wonders or seeks their view ("what do you make of him?", "what do you think?"). An entry marked "tell" is something only the player knows: return it as the topic only with "telling": true; a question about that subject is ask with the person and no topic. If the subject matches no entry for that person, return ask with the person and no topic.
 - deduce [facts] [person]: accuse, conclude or name a culprit. "facts" are ids from knownFacts the player is invoking; "person" is the suspect, if they name one, and is an id from suspects (anyone the player has met, present or not).
 - move <exit>: go somewhere. Match any of an exit's names, a compass direction, or the destination's name. "Leave", "go back", "out" map to the exit that fits best; if several fit equally, none.
 - wait: pass time, rest, linger, watch, listen for a while.

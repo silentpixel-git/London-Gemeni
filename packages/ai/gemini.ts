@@ -24,19 +24,23 @@ export function gemini(selectModel: string, narrateModel: string, apiKey: string
   return {
     async select(input: SelectInput): Promise<Selection> {
       for (let attempt = 0; attempt < 2; attempt++) {
-        // A Selection is a few ids: a reply that runs on (a deduction listing every Fact, repeated) is cut short
-        // and, like one that takes too long, comes to none rather than holding the turn past the function's time.
+        // A reply that runs on (a deduction listing every Fact, repeated) is cut short and, like one that takes
+        // too long or fails, comes to none rather than holding the turn past the function's time.
         const req = request(selectModel, buildSelectPrompt(input), { maxOutputTokens: SELECT_MAX_TOKENS, abortSignal: AbortSignal.timeout(SELECT_TIMEOUT_MS) });
-        const res = await client.models.generateContent(req).catch(() => null);
+        const res = await client.models.generateContent(req).catch((err: unknown) => {
+          console.warn('select failed:', err instanceof Error ? err.message : err);
+          return null;
+        });
         if (!res) continue;
         const parsed = Selection.safeParse(repairSelectionReply(parseJson(res.text ?? '')));
         if (parsed.success) return confineSelection(parsed.data, input.candidates, input.text);
       }
-      return { kind: 'none', reason: 'unparseable' };
+      return { kind: 'none', reason: 'no usable reply' };
     },
 
     async *narrate(ctx: NarrationContext): AsyncIterable<NarrationChunk> {
-      const req = request(narrateModel, buildNarratePrompt(ctx));
+      // A narration that has not finished in its time ends the turn's narration; the endpoint closes the turn with its Beats.
+      const req = () => request(narrateModel, buildNarratePrompt(ctx), { abortSignal: AbortSignal.timeout(NARRATE_TIMEOUT_MS) });
       // Streaming design: the reply is the NarrationResult JSON, and `prose` is
       // the first property of the schema (Gemini emits properties in schema
       // order), so the prose string opens early. We decode that string from the
@@ -48,7 +52,7 @@ export function gemini(selectModel: string, narrateModel: string, apiKey: string
       for (let attempt = 0; attempt < 2; attempt++) {
         let raw = '';
         let sent = 0;
-        const stream = await client.models.generateContentStream(req);
+        const stream = await client.models.generateContentStream(req());
         for await (const chunk of stream) {
           raw += chunk.text ?? '';
           const prose = proseSoFar(raw);
@@ -75,9 +79,14 @@ export function gemini(selectModel: string, narrateModel: string, apiKey: string
   };
 }
 
-/** Ceilings on one select call: a Selection is a short object, and the turn must answer well inside the function's time. */
+/**
+ * Ceilings, so a turn fits the function's 60 s (vercel.json): select at most twice 8 s, narrate at most twice 20 s
+ * (the gate may ask once more). A Selection is a short object: 512 tokens assumes a select model that does not
+ * think (the default, flash-lite); a thinking model would spend them before replying.
+ */
 const SELECT_MAX_TOKENS = 512;
-const SELECT_TIMEOUT_MS = 15_000;
+const SELECT_TIMEOUT_MS = 8_000;
+const NARRATE_TIMEOUT_MS = 20_000;
 
 /** Gemini's JSON-schema dialect rejects the $schema dialect marker Zod adds. */
 function forGemini(schema: Record<string, unknown>): Record<string, unknown> {

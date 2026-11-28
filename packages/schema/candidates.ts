@@ -74,8 +74,8 @@ export const VERB_FIELDS: Record<Verb, readonly IntentField[]> = {
  *   - an ask's topic that is not one of the set's topics (names nothing, or names an Object or a
  *     person): dropped, since ask with no topic is the designed answer to a subject the person has
  *     nothing on (an honest deflection);
- *   - examine or read with an object as secondary ("look at the clergyman through the glass"):
- *     using that object on the target;
+ *   - examine with an object as secondary ("look at the ship through the telescope"): using that
+ *     object on the target (a read keeps reading; its secondary is a stray word);
  *   - a value that is exactly one candidate's name rather than its id ("bar" for the
  *     exit named "bar"): that candidate's id;
  *   - open or use on an exit itself ("open the cellar door", "lift the bar"), or the
@@ -99,9 +99,10 @@ export function trimSelection(sel: Selection, set: CandidateSet): Selection {
     return hits.size === 1 ? [...hits][0] : v;
   };
   sel = { ...sel, ...(sel.target ? { target: named(sel.target) } : {}), ...(sel.secondary ? { secondary: named(sel.secondary) } : {}) };
-  // "Look at X through Y", "read X by Y": examining or reading something with an object at hand is using that object on it.
+  // "Look at X through Y": examining something through an object at hand is using that object on it. Reading X by
+  // or with something is still reading X (the secondary is a stray word there), so a document is never lost to a use.
   const lens = sel.secondary;
-  if ((sel.verb === 'examine' || sel.verb === 'read') && sel.target && lens && lens !== sel.target && set.objects.some(o => o.id === lens)) {
+  if (sel.verb === 'examine' && sel.target && lens && lens !== sel.target && set.objects.some(o => o.id === lens)) {
     return trimSelection({ kind: 'intent', verb: 'use', target: lens, secondary: sel.target }, set);
   }
   // "Use the glass" with the glass in both slots means the plain use: the engine refuses a thing used on itself.
@@ -126,7 +127,8 @@ export function trimSelection(sel: Selection, set: CandidateSet): Selection {
   const names = (v: unknown) => (Array.isArray(v) ? v : [v]).some(x => typeof x === 'string' && ids.has(x));
   const out: Record<string, unknown> = { kind: 'intent', verb: sel.verb };
   // A topic must be a topic: anything else named there (an Object, a person) leaves the ask with no topic, the designed deflection.
-  for (const [k, v] of Object.entries(sel)) if (reads.includes(k) && !(k === 'topic' && !set.topics.some(t => t.fact === v))) out[k] = v;
+  const offered = (v: unknown) => set.topics.some(t => t.fact === v && (sel.kind !== 'intent' || !sel.person || t.person === sel.person));
+  for (const [k, v] of Object.entries(sel)) if (reads.includes(k) && !(k === 'topic' && !offered(v))) out[k] = v;
   const fits = (slot: string, v: unknown) =>
     Array.isArray(v) === (slot === 'facts') && inCandidateSet({ kind: 'intent', verb: sel.verb, [slot]: v } as Selection, set);
   for (const [k, v] of Object.entries(sel)) {

@@ -16,7 +16,7 @@ export type Observation = z.infer<typeof Observation>;
 export const EventPayload = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('InvestigationStarted'), story: Id, seed: z.number().int() }),
   z.object({ kind: z.literal('TurnReceived'), text: z.string() }),
-  z.object({ kind: z.literal('IntentSelected'), verb: Verb, target: Id.optional(), secondary: Id.optional(), person: Id.optional(), topic: Id.optional(), exit: Id.optional(), facts: z.array(Id).optional() }),
+  z.object({ kind: z.literal('IntentSelected'), verb: Verb, target: Id.optional(), secondary: Id.optional(), person: Id.optional(), topic: Id.optional(), telling: z.boolean().optional(), exit: Id.optional(), facts: z.array(Id).optional() }),
   z.object({ kind: z.literal('IntentRejected'), reason: z.string() }),
   z.object({ kind: z.literal('FlavourRequested'), subject: z.string() }),
   z.object({ kind: z.literal('Moved'), from: Id, to: Id, exit: Id }),

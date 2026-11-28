@@ -182,6 +182,13 @@ function drawsSelectingEach(weights: number[]): number[] {
 }
 
 /** The State with the clock reduced to its period and the transcript dropped. */
+/**
+ * The search's notion of "the same state". It leaves out the Ledger: two states that differ only in whether a
+ * person heard a Fact from the player (and so is not offered as telling it back, ADR-0005 §10) are merged, and
+ * whichever the search met first stands for both. That can only hide an "ask them" action, so its worst case is a
+ * false UNREACHABLE, which fails loudly; it never claims a goal reachable that is not. Keying on it as well
+ * multiplies the stress Story's states past the search cap.
+ */
 function abstractKey(story: Story, s: State): string {
   const onceRules = Object.keys(s.firedRules).filter(id => story.rules.find(r => r.id === id)?.once);
   return JSON.stringify({

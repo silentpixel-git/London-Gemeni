@@ -387,6 +387,12 @@ section('telling and asking');
   check(JSON.stringify(object) === '{"kind":"intent","verb":"ask","person":"housekeeper"}', 'an Object given as a topic is the designed deflection, not a rejected line');
   const lens = confineSelection({ kind: 'intent', verb: 'examine', target: 'hall_clock', secondary: 'mat' }, set, 'look at the clock through the mat');
   check(JSON.stringify(lens) === '{"kind":"intent","verb":"use","target":"mat","secondary":"hall_clock"}', 'examining something with an object at hand is using that object on it');
+  const byLamp = confineSelection({ kind: 'intent', verb: 'read', target: 'hall_clock', secondary: 'mat' }, set, 'read the clock by the mat');
+  check(byLamp.kind === 'intent' && byLamp.verb === 'read' && byLamp.target === 'hall_clock', 'reading something by or with another object is still reading it');
+  const both = { ...set, persons: [...set.persons, { id: 'gardener', name: 'The Gardener', description: [] }],
+    topics: [...set.topics.filter(t => t.fact !== 'key_in_clock'), { person: 'gardener', fact: 'key_in_clock', phrase: 'the key', direction: 'ask' as const }] };
+  const wrongPerson = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'key_in_clock' }, both, 'ask her about the key');
+  check(JSON.stringify(wrongPerson) === '{"kind":"intent","verb":"ask","person":"housekeeper"}', 'a topic offered only for someone else is the designed deflection, not a rejected line');
   const r = resolveTurn(knows, w, { text: 'tell her about the letter', selection: told }, fixedRng([0]));
   w = r.state;
   check(has(r.events, e => e.kind === 'FactDisclosed' && e.from === 'player' && e.to === 'housekeeper'), 'telling her discloses it to her');
