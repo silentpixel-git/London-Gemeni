@@ -1,14 +1,25 @@
-# Act 0 — The Wager — narrative spec
+# Act 0 — The Wager — narrative spec (rebuilt engine)
 
-**Classification:** act rework. Replaces the Mrs Kemp Act 0 ("The Bank Holiday") wholesale.
-**Phase:** 1 of the act-authoring pipeline (narrative spec). Sections A–F and H are filled here.
-Section G (the beat-by-beat mechanical score) and section I (pre-flight) are phase 2 and are
-**not** part of this sign-off.
-**Voice reference:** `docs/act0-window-wager.md` (story and beat map). This spec is
-authoritative where the two differ.
-**Owner decisions already taken (chat, 2026-10-10):** Holmes's "unremarkable man" thesis stays.
-The coda's last line stays. The Act 1 transition is deferred until Act 0 is right. Saves are
-not a concern.
+**Classification:** port. The first act of the Whitechapel Story written for the rebuilt engine, and
+the first act in `stories/`. Phase 1 of `act-authoring` (narrative spec): sections A–F and H. The
+mechanical score (section G) and pre-flight (I) are phase 2 and not part of this sign-off.
+
+**Sources:**
+- **Story and voice:** `docs/act0-window-wager.md` (the story and its beat map). Where the two differ,
+  this spec wins.
+- **Previous spec:** written for the old engine on 2026-10-10, committed as "phase 1, pending review"
+  and never signed off. It is in this file's git history (`4ddfd72`). Its narrative carries over. Its
+  mechanisms (`ACT_TIME_CONFIG`, `CLUE_TRIGGERS`, `requireFlags`, the intent parser, `diary*.ts`) no
+  longer exist.
+- **Look and sound:** the clickable prototype, `docs/act0-prototype.html`. The audio takes for the
+  glass going down and the riffled pages were picked from it and are already in the game.
+
+**Owner decisions already taken (chat, 2026-10-10), carried as given:**
+- Holmes's "unremarkable man" thesis stays.
+- The coda's last line stays.
+- Saves are not a concern.
+
+**New in this port:** the five decisions in "For sign-off" at the end.
 
 ---
 
@@ -16,224 +27,301 @@ not a concern.
 
 | Field | Value |
 |---|---|
-| Number / name | 0 — **The Wager** (`ACT_NAMES[0]`, currently "The Bank Holiday") |
-| In-game date + day of week | Monday 6 August 1888, Bank Holiday — the evening before Martha Tabram is killed |
-| Canonical clock start (`ACT_TIME_CONFIG`) | **7:30 PM** (`canonicalMinutes: 1170`), changed from 8:30 PM. Reason: the act runs through dusk; the lamplighter beat and the opera glass both depend on failing light. Sunset in London on 6 Aug is about 7:40 PM GMT, and 1888 had no summer time. |
-| Weather (`ACT_WEATHER`) | `clear-warm` / "Warm, Clear" — unchanged |
-| Entry anchor location | none — the game starts at `baker_street` (unchanged) |
-| Opening (`OPENING_FIXED_LINE`) | Rewritten: the holiday, the heat, both windows up, Holmes at the window after a failed afternoon at the bench. This is the act's only fixed authored text. |
-| Bridge line (`ACT_BRIDGES[1]`) | **Deferred** (owner decision 3). The current text is a stale leftover and is out of scope here. |
-| Gate flags (`ACT_PROGRESSION[0]`) | The five required beats in §B: demonstration, wager, soldier read, clergyman read, closing. Exact flag names are set in the score. |
+| Story | New directory `stories/whitechapel_1888/`, id `whitechapel_1888`, title **The Whitechapel Diaries**. Act 0 is its only act until Act 1 is authored |
+| Narrator | Watson, first person, past tense, writing in hindsight. The voice lines come from `narration-voice-check` (phase 2) |
+| Act id / `name` | 0 — **The Wager** |
+| `dateLabel` | **Monday 6 August 1888** (Bank Holiday) |
+| `startClockMinutes` | **1170** (7:30 PM). The act runs through dusk, and the lamplighter and the glass both need failing light |
+| Periods (story-wide) | Six, matching the old engine's hours: `late_night` 0:00, `dawn` 5:00, `morning` 7:00, `afternoon` 12:00, `evening` 17:00, `night` 20:00. Act 0 opens in `evening` and crosses into `night` during the wager |
+| `weather` | `clear_warm`, "Warm, Clear", with the `still_air` weather layer |
+| `anchorLocation` | `baker_street` (the opening places the player there) |
+| Ambience | `baker_street` plays the `holiday_street` bed in this act (the prototype's mix). Its own bed for later acts stays `baker_street` |
+| Opening | Beats, not verbatim text (decision 3): the holiday, the heat, both windows up, the crowd's murmur, Holmes at the window with his opera glass after an afternoon at the bench that ended "a little after seven" when something went black and stank |
+| Gate | The closing Rule. It plays the coda for whichever branch was won, then **ends the game with the prologue ending** (decision 2). When Act 1 exists, that Effect becomes `advanceAct 1` |
+| Prover goals added | Act 0; Clues `the_old_soldier`, `the_actor_found` / `the_actor_shown` (either branch), `what_asks_to_be_seen`; ending `prologue_end` |
 
 ## B. The case
 
-There is no case, by design. Act 0 is the tutorial and the calm before. The episodic shape is
-kept loosely: opening event → task → conclusion → debrief. There is **no moral choice** (see
-the open question at the end).
+There is no case, by design. Act 0 is the tutorial and the calm before: opening → demonstration →
+task (the wager) → conclusion → debrief → coda. There is **no moral choice** (decision 1).
 
-- **One-line premise:** On the bank holiday evening, Holmes is bored at the window and bets
-  Watson that he can't read two strangers in the street the way Holmes reads them.
-- **Opening event:** Holmes demonstrates on the victualler and his daughter, and on the
-  Hampstead man with Heath-road dust on his boots, separating what is observed from what is
-  inferred. **He reads the Hampstead man's boots through his opera glass and puts it down on the
-  mantel.** This is the glass's only introduction, and the player sees it in use before it matters.
-  Watson calls it a parlour trick.
-- **Investigation (the task):** Holmes proposes the wager and names two figures in the street.
-  The player reads each one: EXAMINE the figure, then TALK to Holmes about it.
-
-  **The commit rule** (review issue 1): **EXAMINE only describes. TALK to Holmes about the
-  figure commits Watson's reading.**
-  - EXAMINE narration states Watson's observations (the coat, the cuffs, the book, the moving
-    lips) and never voices a conclusion.
-  - The reading is spoken, and judged, only when the player raises the figure with Holmes.
-  - Using the glass at any point before that TALK counts as "glass first".
-  - TALK about a figure not yet examined is allowed: Watson looks and reads in the same beat,
+- **One-line premise:** on the bank holiday evening, Holmes is bored at the window and bets Watson he
+  cannot read two strangers in the street.
+- **Opening event:** the room, the heat, Holmes at the window, the glass in his hand.
+- **The demonstration** (first exchange with Holmes, or looking out of the window or at the crowd):
+  - Holmes reads the licensed victualler and his daughter, and the man who walked in from Hampstead.
+  - He separates what he observes (the Heath-road dust, white to the ankle) from what he infers (that
+    the man walked).
+  - **He lowers the opera glass and sets it on the mantel** (decision 4). This is how the glass is
+    introduced: the player sees it used before it matters. Watson calls the whole thing a parlour
+    trick.
+- **The wager** (the next exchange with Holmes):
+  - **Terms:** two strangers. If Watson reads both, Holmes leaves the violin alone until midnight. If
+    he fails, Watson reads the tobacco-ash monograph, plates included.
+  - **The two figures:** the old fellow at the kerb by the cab rank, and the clergyman outside the
+    chemist's. Both appear in the street from this point.
+- **The task:** read each figure. **EXAMINE only describes; telling Holmes your reading commits it.**
+  - EXAMINE gives Watson's observations (the coat, the cuffs, the book, the moving lips) and never a
+    conclusion.
+  - The reading is spoken, and judged, only when the player raises the figure with Holmes: "talk to
+    Holmes about the soldier", "tell Holmes about the clergyman".
+  - Raising a figure that hasn't been examined is allowed: Watson looks and reads in the same beat,
     without the glass.
-  - The two figures can be read in either order.
-  1. **The old soldier** at the kerb by the cab rank. Watson's reading is medical and always
-     correct: infantry bearing, Indian service, an old fracture of the left thigh healed short.
-     Holmes concedes it and adds the one thing Watson missed (he is watching for a grandchild).
-  2. **The "clergyman"** outside the chemist's. Without the glass, Watson reads a poor country
-     curate and is wrong; Holmes hands him the opera glass and points to the greasepaint and
-     the script, and he is an actor between performances. If the player TAKEs the opera glass
-     from the mantel and USEs it on the clergyman *before* giving a reading, Watson finds the
-     greasepaint himself and gets it right.
-
-  **The glass works on every figure** (review issue 2). USE glass WITH the soldier gives one
-  extra detail, a faded campaign ribbon on his coat, but doesn't change his reading, which is
-  already correct. USE glass WITH the crowd or the window gives a short piece of texture.
-  Neither ever returns "nothing happens", so a player who tries the glass early is encouraged
-  to keep using it. Natural wordings such as "look at the clergyman through the glass" must reach
-  USE; that's a phase 2 trigger-phrasing row. TAKE is genuinely required, because the engine
-  needs the glass in inventory for USE…WITH.
-- **Conclusion:** the wager is settled. If both readings are right, Watson wins; this happens
-  only if the glass was used first.
-- **Debrief (closing):** Holmes asks Watson to describe anyone else who has passed under the
-  window, and Watson can't. "We see what asks to be seen. A man who asks nothing of anybody…
-  might pass under this window every evening for a year and never once be looked at." This is
-  the game's thesis, stated in August as a complaint about tedium.
-
-  **The closing must not take over a question** (review issue 3). It never fires on the turn in
-  which the player asks a specific question; the first follow-up after the verdict (the actor,
-  the greasepaint, the grandchild) is answered normally. It fires on the player's next action
-  after the verdict, of any kind, that isn't a specific question to Holmes. That covers
-  EXAMINE window or crowd, TALK to Holmes with no topic, or any other action. There is a fallback
-  after a few turns. The exact trigger and threshold are set in the score.
-- **Coda (narrated):** the wager payoff (Holmes leaves the violin alone, or Watson reads the
-  tobacco-ash monograph), then the open windows: "the last evening of that summer on which it
-  did not occur to me to [close them]."
-- **Branches:** the outcome is a **skill branch, not a choice**.
-  - Win → flag along the lines of `act0_wager_won` → read only by the coda line and the diary
-    entry.
-  - Lose → no flag → read by the same two places.
-  - Nothing is read after Act 0.
-- **The glass at act end:** the closing returns the glass to the mantel (removed from
-  inventory) whether or not the player took it. In the lose branch, if the player is already
-  holding it, Holmes says "use the glass" instead of handing it over. The glass never carries
-  into Act 1.
-- **One-time deviation from the template, recorded:** Act 0 has no typed moral choice. The
-  win/lose branch is decided by omission (not using the glass), which the template forbids for
-  choices. This is accepted **for the tutorial only**, because the omission is the act's
-  lesson and the glass is shown in use on the first turn. It is not a precedent for later
-  acts.
+  - Either figure can go first.
+  1. **The old soldier.** Watson's reading is medical and always right: infantry bearing, Indian
+     service (not recent), an old fracture of the left thigh healed short, probably a sergeant.
+     Holmes concedes it and adds the one thing Watson missed: the man is waiting for a grandchild.
+  2. **The "clergyman".**
+     - *Without the glass*, Watson reads a poor country curate and is wrong. Holmes hands him the
+       glass and points to the greasepaint at the hairline and the script in his hand: the man is an
+       actor between performances. A point to Holmes.
+     - *If the player took the glass and used it on the clergyman before giving a reading*, Watson
+       finds the greasepaint himself and is right. A point to Watson.
+- **The glass works on everything it can reach.**
+  - On the soldier it adds one detail, a faded campaign ribbon, without changing his reading.
+  - On the crowd or the window it adds a short piece of texture.
+  - It never answers "nothing happens", so a player who tries it early is encouraged to keep using
+    it.
+  - Taking it is a real step, because the glass must be carried to be used.
+- **Conclusion:** the wager is settled. Watson wins only if the glass came first.
+- **Debrief (the closing):**
+  - Holmes asks Watson to describe anyone else who has passed under the window, and Watson can't.
+  - "We see what asks to be seen. A man who asks nothing of anybody … might pass under this window
+    every evening for a year and never once be looked at."
+  - **The closing never takes over a question.** The first specific question after the verdict (the
+    actor, the greasepaint, the grandchild) is answered normally.
+  - The closing fires on the player's next action that isn't a question to Holmes, with a fallback if
+    the player only asks. The exact trigger is set in the score.
+- **Coda (narrated, then the ending):**
+  - **If Watson won:** Holmes leaves the violin in its case.
+  - **If Watson lost:** Holmes lays the monograph in Watson's lap.
+  - **Both:** the open windows — "the last evening of that summer on which it did not occur to me to
+    [close them]."
+- **The branch is a skill branch, not a choice.**
+  - The win flag is read only by the coda Beat and by which clergyman Clue enters the diary
+    (decision 5).
+  - Nothing reads it after Act 0.
+- **The glass at the act's end:** it goes back to the mantel whether or not the player took it. In
+  the lose branch, if the player is already holding it, Holmes says "use the glass" instead of
+  handing it over.
 
 ## C. Canonical facts block
+
+Every figure and name the act uses, stated once. Beats, statements and Clue summaries cite this
+block.
 
 | Fact | Canonical value |
 |---|---|
 | Date | Monday 6 August 1888, Bank Holiday |
 | Clock at start | 7:30 PM |
-| Sunset | about 7:40 PM; the lamplighter passes during the wager |
-| Holmes's afternoon | a chemical experiment that failed: "went black and stank", a little after seven |
-| How long Holmes and Watson have known each other | **seven years** (met 1881) |
-| The victualler | a licensed victualler with his daughter, kept out "an hour past the time her mother allowed" |
-| The Hampstead man | walked in from Hampstead that morning to save the fare; Heath-road dust white to the ankle; about **four miles** (the existing fact) |
-| The crowd | "a hundred thousand people" in the streets (Watson's narration, in the opening); "some hundreds" have passed under the window during the wager (Watson's answer at the close) |
-| The old soldier | **about sixty**; coat too heavy for August; stick in the left hand; infantry; Indian service, not recent; old fracture of the left thigh, healed short; probably a sergeant; waiting for a grandchild |
-| Watson's reference | the base hospital at **Peshawar** (canon: *A Study in Scarlet*) |
-| The "clergyman" | an actor, still in his costume of black coat and white tie, between the matinée and the evening performance; learning new lines from a thin paper script in a coloured wrapper; a line of greasepaint at the hairline beside the ear |
-| The theatre | **unnamed**: "a West End house", a melodrama with a clergyman in it. He is not wanted until the second act, which is why he is still in Baker Street in costume around 7:40. *(The Princess's was checked and rejected: its summer 1888 bill was *The Still Alarm*, a fire-engine melodrama.)* |
-| The opera glass | Holmes's. He uses it in the demonstration and sets it on the mantel |
-| Watson's wound | **never located** in this act. Canon contradicts itself (shoulder in *A Study in Scarlet*, leg in *The Sign of Four*) |
-| Win stake | Holmes will not touch the violin before **midnight**; he has been playing it "on and off since Saturday" |
-| Lose stake | Watson reads Holmes's monograph on the ashes of the various tobaccos, "**a hundred and forty** varieties", plates included (canon) |
-| Historical boundary | No Whitechapel murder has happened. Martha Tabram is killed about 2:30 AM on Tuesday 7 August, about four miles east. Nobody in this act knows or hints at it. |
+| Sunset | about **7:45 PM** GMT. 1888 had no summer time; the modern figure is 8:45 PM BST. The lamplighter passes during the wager, as the gas goes up across the street |
+| Holmes's afternoon | a chemical experiment that failed, a little after seven: "went black and stank" |
+| How long they have known each other | **seven years** (they met in 1881) |
+| The victualler | a licensed victualler by the pillar box, with his daughter, kept out "an hour past the time her mother allowed" |
+| The Hampstead man | under the lamp; walked in from Hampstead that morning to save the fare; Heath-road dust white to the ankle; **about four miles** |
+| The crowd | "a hundred thousand people" in London's streets (opening). "Some hundreds" have passed under the window during the wager (Watson's answer at the closing). No other counts |
+| The old soldier | **about sixty**; a coat too heavy for August; stick in the left hand; infantry; Indian service, not recent; old fracture of the left thigh, healed short; probably a sergeant; waiting for a grandchild; a faded campaign ribbon (through the glass) |
+| Watson's reference | the base hospital at **Peshawar** (canon, *A Study in Scarlet*) |
+| The "clergyman" | an actor in costume: black coat, white tie, coat shiny at the seams, cuffs turned; learning new lines from a thin paper script in a coloured wrapper; a line of greasepaint at the hairline beside the ear |
+| The theatre | **unnamed** — "a West End house", in a melodrama with a clergyman in it. He isn't wanted until the second act. *(The Princess's was checked and rejected: its summer 1888 bill was* The Still Alarm*.)* |
+| The opera glass | Holmes's; French; bought for the opera and used for everything else |
+| Watson's wound | **never located** in this act (canon contradicts itself) |
+| Win stake | the violin is not touched before **midnight**; Holmes has been at it "on and off since Saturday" |
+| Lose stake | the monograph on the ashes of the various tobaccos, **a hundred and forty** varieties, plates included (canon) |
+| Historical boundary | No Whitechapel murder has happened. Martha Tabram is killed about 2:30 AM on Tuesday 7 August, about four miles east. Nobody in this act knows of it or hints at it |
 
-## D. Locations and objects
+## D. Locations and Objects
 
-One location: `baker_street`, kept with its atmosphere and description rewritten. **The rewrite
-must fix these conflicts in the current entry:**
-- `timeOfDay: 'night'` and "warm lamplight": at 7:30 PM the sun is still up, so the entry needs
-  late daylight going to dusk.
-- "A concluded case bundled": there is no case in this act.
-- "Chemistry bench wiped down": the bench has just "gone black and stank".
+One location, **`baker_street`** ("221B Baker Street, the sitting room"). Its beats name everything
+the player needs before it matters:
+- late daylight going to dusk, both windows open to the holiday;
+- the chemistry bench, gone black and stinking;
+- the mantel;
+- the violin case and the monograph on the shelf.
 
-The description must name **the mantel and the opera glass on it**, and the violin and
-monograph, so every object the player needs is named in the room before it matters. All Kemp
-objects are removed: `pawn_ticket`, `nells_boots`, `nells_workbox`, `nells_letters`,
-`charity_card`, along with their `CLUE_TRIGGERS` and `CLUE_GATES` entries. The alias column is
-a starting list; the sweep against `intentParser.ts` is a phase 2 pre-check.
+**No exits in Act 0.** The player can't leave 221B, and the prose never invites them to. Trying gives
+the engine's generic refusal (see H).
 
-| Object id | Display name | Aliases (candidate) | Visible from | Verbs | Container? | Clue? |
-|---|---|---|---|---|---|---|
-| `open_window` | the open window (exists) | window, street, view, crowd outside | start | EXAMINE | no | no |
-| `crowd` | the holiday crowd (exists) | crowd, people, passers-by, bystanders | start | EXAMINE | no | no |
-| `street_soldier` | the old soldier | old man, soldier, veteran, old fellow, man by the cab rank | wager offered | EXAMINE | no | no (deduction object) |
-| `street_clergyman` | the clergyman | clergyman, curate, parson, man outside the chemist's | wager offered | EXAMINE, USE glass WITH | no | no (deduction object) |
-| `opera_glass` | Holmes's opera glass | opera glass, glass, glasses, field glass, spyglass | start (on the mantel) | EXAMINE, TAKE, USE…WITH | no | no |
-| `holmes_violin` | the violin | violin, fiddle, violin case | start | EXAMINE | no | no (wager-stake texture) |
-| `tobacco_monograph` | the monograph | monograph, tobacco monograph, ashes | start | EXAMINE | no | no (wager-stake texture) |
+| Object id | `name` | Aliases (starting list) | Placement | Hidden until | Item |
+|---|---|---|---|---|---|
+| `open_window` | the open window | window, the street below | `baker_street` | — | no |
+| `crowd` | the holiday crowd | crowd, the people, passers-by | `baker_street` | — | no |
+| `street_soldier` | the old soldier | old fellow, man by the cab rank | `baker_street` | the wager | no |
+| `street_clergyman` | the clergyman | curate, parson, man outside the chemist's | `baker_street` | the wager | no |
+| `opera_glass` | Holmes's opera glass | opera glass, glass | **held by Holmes**, then the mantel after the demonstration | — | yes |
+| `holmes_violin` | the violin | violin case, fiddle | `baker_street` | — | no |
+| `tobacco_monograph` | the monograph | tobacco monograph | `baker_street` | — | no |
+| `chemistry_bench` | the chemistry bench | bench, experiment | `baker_street` | — | no |
 
-Scenery discipline: the chemistry bench is mentioned in the opening only and is **not** an
-object. The violin and monograph are kept because both are named stakes the player will
-naturally examine. **Alias risk to sweep:** `glass` and `glasses` may collide with other
-acts' objects.
+**Changes from the old spec:**
+- **The glass starts in Holmes's hand** (decision 4).
+- **The bench is now an Object.** The old spec kept it as scenery. But the opening names it, and
+  CLAUDE.md's coherence rule says whatever the prose shows must resolve to something.
+
+**Covered without Objects of their own:**
+- **The victualler and the Hampstead man** are written into the crowd's and the window's beats. So
+  "examine the man from Hampstead" resolves to the crowd, and Holmes's Facts answer questions about
+  either.
+- **The lamplighter** is scenery inside a Beat.
+
+**Name collisions to sweep in phase 2:**
+- "glass" against "window" (a window glass);
+- "the man …" against the soldier;
+- "the crowd" against the closing's topic phrase.
 
 ## E. Characters
 
 ```
-id: holmes (existing — Act 0 changes only)
-Role line (Act 0): Bored at the open window on the bank holiday evening, contemptuous of the
-  holiday's harmlessness; once Watson calls his method a parlour trick he turns playful and
-  competitive, and is generous when beaten.
-Presence: unchanged (Baker Street, Act 0).
+id: holmes
+name: Sherlock Holmes (no alias, no introduction needed: Watson knows him)
+schedule, act 0: default at baker_street
+disposition at start: neutral (bored); warm once the wager is struck
+beats (sent every turn he is present):
+  - a tall, lean man in shirtsleeves in the heat, at the open window, a pipe within reach
+  - bored and contemptuous of the holiday's harmlessness; once Watson calls his method a
+    parlour trick, playful and competitive, and generous when beaten
+  - precise speech; separates what he observes from what he infers
 ```
 
-The Act 0 cast is **Holmes and Watson only**. `mrs_kemp` is removed from `npcs.ts` and every
-schedule, and her facts go too. Every street figure is an **object**, not an NPC: the player
-reads them through the glass and the window, never talks to them. Mrs Hudson does not appear.
+- **The cast is Holmes and Watson only.** Watson is the narrator, not a person in the Story.
+- **The street figures are Objects.** The player reads them; nobody talks to them.
+- **Mrs Hudson does not appear.**
 
 ## F. Facts and topics
 
-All are `knownBy: ['holmes']` and `visibleFromAct: 0`. The topic phrases are a starting list,
-written as a player would type them; `qa:topics` and the partial-match sweep happen in phase 2.
+- All are `visibleFromAct: 0`.
+- A Fact Holmes doesn't know at the start reaches him by `grantFact` at the beat that unlocks it.
+  This replaces the old `requireFlags`.
+- Topic phrases are a starting list, written as a player types them. The collision sweep is phase 2.
 
-| Fact id | Statement (gist) | requireFlags | Topic phrases |
+**What Holmes can tell:**
+
+| Fact id | Statement (gist) | Holmes knows it | Topics (start) |
 |---|---|---|---|
-| `holmes_heath_road_dust` | kept as is | demonstration | heath road, heath-road, hampstead, the dust, his boots, the man from hampstead |
-| `holmes_victualler_deduction` | kept as is | demonstration | the victualler, the publican, his daughter, the girl |
-| `holmes_observation_vs_inference` | kept as is | demonstration | observation, inference, the difference, your method |
-| `holmes_holiday_dull` | **new**, replacing `holmes_crime_grown_dull`: London has taken a holiday from wickedness and he resents it; nothing in the street needs explaining | — | the holiday, bank holiday, crime, boredom, wickedness |
-| `holmes_the_wager` | **new**: the terms (two readings; the violin until midnight against the monograph) | wager offered | the wager, the bet, the terms, the stakes |
-| `holmes_violin_stake` | **new**: he has been at the violin since Saturday; he keeps his word | wager offered | the violin, your violin, midnight |
-| `holmes_monograph` | **new**: the monograph on the ashes of the various tobaccos, a hundred and forty varieties, with plates | wager offered | the monograph, tobacco ash, the ashes, the plates |
-| `holmes_soldier_grandchild` | **new**: the soldier watches at a child's height, so he is waiting for a grandchild | soldier read | the grandchild, the old soldier, what i missed |
-| `holmes_actor_reading` | **new**: greasepaint, the script, a West End melodrama with a clergyman in it, not wanted until the second act; "you saw a black coat and stopped looking" | clergyman read | the actor, the clergyman, greasepaint, the theatre, the play, the second act |
-| `holmes_watsons_service` | **new**, a canon callback: he knew Watson for an Afghan man the day they met. The statement must **not** say where Watson was wounded; Watson's eye for a soldier's leg is the surgeon's, not the detective's | soldier read | afghanistan, peshawar, your service, my wound |
-| `holmes_opera_glass` | **new**: a good glass, French, bought for the opera and used for everything else; "the eye is the instrument, Watson, the glass merely brings the street nearer" | — | the opera glass, your glass, the glass |
-| `holmes_invisible_in_a_crowd` | **reworded and gated on the closing**: "we see what asks to be seen" | closing | the crowd outside, being noticed, what asks to be seen |
+| `holmes_holiday_dull` | London has taken a holiday from wickedness and he resents it; nothing in the street needs explaining | from the start | the holiday, bank holiday, boredom |
+| `holmes_opera_glass` | a good French glass, bought for the opera, used for everything else; "the eye is the instrument, the glass merely brings the street nearer" | from the start | the opera glass, your glass |
+| `holmes_heath_road_dust` | the Hampstead man's boots, white to the ankle with Heath-road dust; he walked the four miles to save the fare | demonstration | hampstead, heath road, the dust, his boots |
+| `holmes_victualler` | the licensed victualler kept his daughter out an hour past her mother's time | demonstration | the victualler, the publican, his daughter |
+| `holmes_observation_vs_inference` | the dust is observed; that he walked is inferred; "nobody else in London" notes the difference | demonstration | observation, inference, your method |
+| `holmes_the_wager` | the terms: two readings; the violin until midnight against the monograph | wager | the wager, the bet, the stakes |
+| `holmes_violin_stake` | at the violin on and off since Saturday; he keeps his word | wager | the violin, midnight |
+| `holmes_monograph` | the monograph on the ashes of the various tobaccos, a hundred and forty varieties, with plates | wager | the monograph, tobacco ash |
+| `holmes_soldier_grandchild` | the soldier watches the crowd at the height of a child's head: he is waiting for a grandchild | soldier read | the grandchild |
+| `holmes_watsons_service` | he knew Watson for an Afghan man the day they met. **Never says where Watson was wounded** | soldier read | afghanistan, peshawar, your service |
+| `holmes_actor_reading` | greasepaint, the script, a West End melodrama with a clergyman in it, not wanted until the second act; "you saw a black coat and stopped looking" | clergyman read | the actor, greasepaint, the theatre, the second act |
+| `holmes_invisible_in_a_crowd` | "we see what asks to be seen" | closing | being noticed, what asks to be seen |
 
-Remove all `kemp_*` facts and Holmes's Kemp-era facts: `holmes_no_case_here`,
-`holmes_boots_bermondsey`, `holmes_letters_tuesdays`, `holmes_honest_object`,
-`holmes_mothers_name` and `holmes_concluded_case`. The "concluded case" isn't in the new story.
-Keep it as "an unnamed case, done with" if Holmes's boredom needs a reason.
+**What Watson can tell** (the commit rule):
 
-**Every proper noun in this act's prose must be askable:** Hampstead, Heath road, Peshawar,
-India, Afghanistan, Baker Street. "The Park" (Regent's Park) is
-used as a direction only; either cut it from the prose or add it as a topic.
+| Fact id | Statement (neutral) | Player knows it | Topics |
+|---|---|---|---|
+| `watson_reading_soldier` | Watson's reading of the old soldier at the kerb | the wager | the old soldier, the soldier, the man by the cab rank |
+| `watson_reading_clergyman` | Watson's reading of the clergyman outside the chemist's | the wager | the clergyman, the curate |
+
+**How the commit rule works:**
+- Telling Holmes one of these Facts is the commit. The engine offers a Fact the player knows and
+  Holmes doesn't as a "tell" topic. "talk to Holmes about the soldier" becomes a disclosure from the
+  player to Holmes, and a `disclosed` Rule plays the verdict.
+- The verdict's words differ by branch, so the statement stays neutral and the branch lives in the
+  Rule.
+- **No engine work is needed.**
+
+**Diary (Clues):**
+
+| Clue | Its Fact | Entered when |
+|---|---|---|
+| **The Old Soldier** | `holmes_soldier_grandchild` | the soldier is read |
+| **The Actor** | `the_actor_found`: "found through the glass, before I spoke" | the clergyman is read, win |
+| **The Actor** | `the_actor_shown`: "Holmes put the glass in my hand" | the clergyman is read, loss |
+| **What Asks to Be Seen** | `holmes_invisible_in_a_crowd` | the closing |
+
+- The two actor Clues share a name; exactly one ever enters the diary (decision 5).
+- Holmes appears under Persons with everything he has told.
+
+**Every proper noun this act's prose puts in front of the player is askable:**
+
+| Name | Askable through |
+|---|---|
+| Hampstead, Heath road | `holmes_heath_road_dust` |
+| Peshawar, Afghanistan | `holmes_watsons_service` |
+| India | the soldier's verdict, via `holmes_soldier_grandchild` (phase 2 confirms the phrase) |
+| Baker Street | the location |
+| the West End | `holmes_actor_reading` |
+| "the Park" | **cut from the prose** (direction only) |
 
 ## H. Boundaries — what must not appear
 
-- **Nothing sealed this act is a spoiler:** no murder, no Whitechapel, no Tabram, no
-  "Ripper", no police. Holmes's crowd thesis is general and names no one. The coda's darkness
-  is *Watson in hindsight*, and only in the last line.
-- **The cast is closed:** Holmes and Watson. No Mrs Hudson, no Billy the page-boy, no
-  client, no telegram. The street figures don't speak and aren't named. The lamplighter is
-  scenery inside a beat, not a person.
-- **History:** August 1888 is high summer, with no fog and no cold. Gas lamps. Holmes smokes a
-  pipe. No Moriarty and no Irene Adler. *The Sign of Four* hasn't happened (it's September), so
-  there's no Mary Morstan, though the tobacco monograph already exists as a canon detail.
-- **Within reach but not covered:** the player can't leave 221B in Act 0. `dorset_street` is
-  the listed exit today; the score must decide whether it is blocked with an authored
-  in-character refusal ("Holmes would never forgive me for leaving with the wager
-  unsettled").
+- **Nothing later is sealed into this act:** no murder, no Whitechapel, no Tabram, no "Ripper", no
+  police. Holmes's crowd thesis is general and names no one. The coda's darkness is Watson writing in
+  hindsight, and only in the last line.
+- **The cast is closed:** Holmes and Watson. No Mrs Hudson, no Billy, no client, no telegram. The
+  street figures don't speak and aren't named. **Nothing from the wider canon goes into the
+  `lexicon`** to quiet the invention gate.
+- **Flavour that reads as a clue:** not a risk here, since nothing is a case clue. Still, the figures'
+  Beats state exactly what is there (the greasepaint is visible only through the glass), so the
+  narrator has no gap to fill.
+- **History:**
+  - High summer: no fog, no cold.
+  - Gas lamps. Holmes smokes a pipe.
+  - No Moriarty, no Irene Adler. *The Sign of Four* hasn't happened (September), so no Mary Morstan.
+    The tobacco monograph already exists in canon.
+- **Reachable but not covered:** leaving 221B. There is no exit, so "go downstairs" gets the generic
+  refusal. If the owner wants an in-character line ("Holmes would never forgive me for leaving with
+  the wager unsettled"), that is a `lockedBeat` on a locked exit to a location that doesn't exist
+  yet. Not proposed.
 
 ---
 
 ## Carried to phase 2 (the mechanical score)
 
-From the story-integrity review. These need no owner decision now:
-- **Topic collisions to sweep:** "the crowd" (object and closing fact), "the violin" (object
-  and fact), "the soldier" and "the clergyman" (each both the trigger for its read and the
-  topic of the fact unlocked by that read).
-- **`dorset_street` exit:** block it with an authored in-character refusal.
-- **`act0_midnight_bells`** (`events.ts`) can never fire, because the clock is capped at
-  11:59 PM. Delete it with the rest of the Kemp-era Act 0 data.
-- **Win/lose diary variant:** goes in `diary*.ts`, keyed on the win flag.
-- **Clock:** the critical path at current time costs is about 30 in-game minutes (7:30 to
-  about 8:00 PM), which fits the lamplighter beat.
+From the old spec's review and from this port. None of these needs an owner decision now.
+- **The closing's trigger:**
+  - an action Rule on every verb except `ask` to Holmes, gated on both readings;
+  - plus a fallback (a `clock` or `tick` Rule). Pinned in the score.
+- **Phrasings that must reach the right verb:**
+  - "look at the clergyman through the glass" must reach USE glass WITH clergyman;
+  - "tell Holmes my reading" must reach the tell topic.
+- **Budgets:**
+  - The clergyman verdict, as written in the voice reference, runs past the 160-word `full` budget.
+    The score splits it across Beats, or trims it.
+  - The opening's beats must fit 220 words.
+- **Numbers the invention gate must find in each turn's context:** sixty, four, seven, a hundred and
+  forty, a hundred thousand, midnight. Each goes in a Beat or Fact of that turn, never only in an
+  earlier one.
+- **Cues:**
+  - `glass_down` when Holmes sets the glass on the mantel;
+  - `lamplighter` on a `clock` Rule as dusk falls;
+  - `pages_riffle` in the lose coda;
+  - the clue chime comes from the engine.
+- **Default Story:** new games keep starting on the stress fixture until Act 0 passes its playtest.
+  The switch is a one-line env change (`VITE_DEFAULT_STORY`) decided then.
 
-## Open question for the owner (part of sign-off #1)
+---
 
-**Act 0 has no choice.** The template expects exactly one choice, with both branches reached by
-something the player types. The wager is a *skill* branch: the "lose" branch is reached by
-**not** using the glass, which is exactly what the template forbids for choices.
+## For sign-off #1 — five decisions
 
-My recommendation is to **accept it for the tutorial**, recorded as a one-time deviation
-(§B). The story-integrity review agreed, on condition that the glass is shown in use before it
-matters and that the moment a reading is committed is unambiguous; both are now in §B. The rule exists so that moral choices
-aren't decided by omission. A skill check where omission means "you didn't look closely" *is*
-the lesson of the act.
-
-The alternative is to add a trivial typed choice at the close, such as closing the windows or
-leaving them open. I'd advise against that: it cheapens the last line.
+1. **No choice in Act 0.** The template wants one typed moral choice. The wager is a skill branch
+   whose losing side is reached by omission (not using the glass), which the template forbids for
+   choices.
+   - **Recommendation: accept it for the tutorial only**, as a recorded one-time deviation. The
+     omission is the lesson ("you saw a black coat and stopped looking"), and the glass is shown in
+     use before it matters.
+   - The alternative, a trivial typed choice at the close, would cheapen the last line.
+2. **The act ends the game for now.** With no Act 1 in the new engine, the closing ends the
+   Investigation with a "prologue" ending: an end card after the coda. When Act 1 is authored, that
+   Effect becomes `advanceAct 1` and the ending is removed.
+   - **Recommendation: yes.** A placeholder Act 1 would be content nobody approved.
+3. **The opening is no longer verbatim.** The new engine has no channel for fixed prose except
+   documents. The opening becomes Beats the narrator must carry, in Watson's voice, within 220 words,
+   with the invention gate holding it to them. It reads close to the voice reference, but not word
+   for word.
+   - **Recommendation: accept.** Adding a verbatim channel is engine work, and nothing else needs it.
+4. **The glass starts in Holmes's hand.** He sets it on the mantel during the demonstration, with the
+   `glass-down` cue. So the player can't pocket it before he has shown what it is for, and the sound
+   lands on the moment it describes.
+   - **Recommendation: yes.**
+5. **The diary records the win.** The new diary holds Clues, not free-form entries. The clergyman
+   gets two Clues of the same name, one per branch: "found through the glass, before I spoke" versus
+   "Holmes put the glass in my hand". Exactly one is ever entered. With the soldier and the thesis,
+   Act 0 puts three Clues in the diary, which also teaches the player the diary exists.
+   - **Recommendation: yes.**
