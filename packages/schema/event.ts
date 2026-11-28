@@ -39,7 +39,7 @@ export const EventPayload = z.discriminatedUnion('kind', [
   /** `greeting`: the player addressed them with no subject (talk), as against an ask that found nothing to say. */
   z.object({ kind: z.literal('Spoke'), person: Id, fact: Id.optional(), greeting: z.literal(true).optional() }),
   /** A Fact passed in conversation: the only Event the Disclosure Ledger reads. */
-  /** `agrees`: told by the player, whether what they claimed agrees with the Fact's statement (ADR-0005 §11). */
+  /** `agrees`: told by the player, whether what they claimed agrees with the Fact's answer (`answer ?? statement`, ADR-0005 §11). A show or a Rule's grant from the player is not judged and carries true. */
   z.object({ kind: z.literal('FactDisclosed'), from: PersonOrPlayer, to: PersonOrPlayer, fact: Id, agrees: z.boolean().optional() }),
   /** Someone now knows a Fact by any other route: reading, a Rule, a matured rumor. */
   z.object({ kind: z.literal('FactLearned'), person: PersonOrPlayer, fact: Id }),

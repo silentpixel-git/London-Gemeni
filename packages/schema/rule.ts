@@ -25,7 +25,7 @@ export const Trigger = z.discriminatedUnion('kind', [
   /** The two Objects combined, or one used on the other. */
   z.object({ kind: z.literal('combine'), items: z.array(Id).length(2) }).strict(),
   /** A Fact was told. Omitted fields match anything. */
-  /** `agrees`: told by the player, only an answer that agrees (true) or does not (false) with the Fact's statement (ADR-0005 §11). */
+  /** `agrees`: told by the player, only an answer that agrees (true) or does not (false) with the Fact's answer (`answer ?? statement`, ADR-0005 §11). The validator refuses it on any other teller. */
   z.object({ kind: z.literal('disclosed'), fact: Id.optional(), from: PersonOrPlayer.optional(), to: PersonOrPlayer.optional(), agrees: z.boolean().optional() }).strict(),
   /**
    * The player and the person come to share a location: the player arrives where

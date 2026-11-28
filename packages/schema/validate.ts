@@ -238,6 +238,8 @@ export function validateStory(raw: unknown): ValidationResult {
         if (t.fact) needFact(t.fact, `${at}/fact`);
         if (t.from) needPerson(t.from, `${at}/from`);
         if (t.to) needPerson(t.to, `${at}/to`);
+        // Only the player's answers are judged (ADR-0005 §11): agrees anywhere else can never match.
+        if (t.agrees !== undefined && ((t.from && t.from !== 'player') || t.to === 'player')) fail(`${at}/agrees`, 'agrees judges only the player\'s answers: from must be "player" (or left out) and to must not be "player"');
         break;
       case 'proximity': needPerson(t.person, `${at}/person`); break;
       case 'deduction':

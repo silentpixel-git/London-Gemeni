@@ -3,7 +3,7 @@
 // a Selection naming an id outside the set becomes none) and the turn endpoint
 // applies the Selection check again. The Selection rule itself lives in the
 // schema (inCandidateSet), so the prover reads the same one.
-import { Verb, inCandidateSet, sharesTopicWord, trimSelection, type CandidateSet, type NarrationContext, type NarrationResult, type Selection } from '../schema/index.js';
+import { Verb, inCandidateSet, sharesTopicWord, topicWords, trimSelection, type CandidateSet, type NarrationContext, type NarrationResult, type Selection } from '../schema/index.js';
 
 /**
  * The Selection without stray words (trimSelection), or none when it names something the set
@@ -13,6 +13,9 @@ import { Verb, inCandidateSet, sharesTopicWord, trimSelection, type CandidateSet
  * gate, on the selector instead of the narrator.
  */
 export function confineSelection(sel: Selection, set: CandidateSet, text?: string): Selection {
+  // The selector sees each tell topic's answer; the free text it writes (a flavour subject, a none reason) reaches the
+  // player, so a word of an answer the player did not write themselves turns it into a plain miss.
+  if (sel.kind !== 'intent' && leaks(sel.kind === 'flavour' ? sel.subject : sel.reason ?? '', set, text)) return { kind: 'none' };
   const trimmed = trimSelection(sel, set);
   if (!inCandidateSet(trimmed, set)) return { kind: 'none', reason: 'selection outside the candidate set' };
   if (trimmed.kind === 'intent' && trimmed.verb === 'ask') {
@@ -22,15 +25,26 @@ export function confineSelection(sel: Selection, set: CandidateSet, text?: strin
     const offered = trimmed.topic ? set.topics.filter(t => t.fact === trimmed.topic && (!trimmed.person || t.person === trimmed.person)) : [];
     const tellOnly = offered.length > 0 && offered.every(t => t.direction === 'tell');
     if (tellOnly && !trimmed.telling) { const { topic: _t, agrees: _a, ...rest } = trimmed; return rest; }
-    // A told answer need not name its subject ("he is an actor, Holmes"): the shared-word check below guards against a
-    // Fact handed out unasked, which telling cannot do.
-    if (tellOnly) return trimmed;
+    // A told answer need not name its subject ("it was the gardener" told of the letter): it is on the subject if it
+    // shares a word with the subject's phrases or with its answer. A line about nothing of the kind keeps no topic,
+    // so it cannot use an answer up.
+    if (tellOnly) {
+      if (text === undefined || sharesTopicWord(text, offered.flatMap(t => [t.phrase, ...(t.answer ? [t.answer] : [])]))) return trimmed;
+      const { topic: _t, agrees: _a, ...rest } = trimmed; return rest;
+    }
   }
   if (text !== undefined && trimmed.kind === 'intent' && trimmed.verb === 'ask' && trimmed.topic) {
     const phrases = set.topics.filter(t => t.fact === trimmed.topic && (!trimmed.person || t.person === trimmed.person)).map(t => t.phrase);
     if (!sharesTopicWord(text, phrases)) { const { topic: _t, ...rest } = trimmed; return rest; }
   }
   return trimmed;
+}
+
+/** Whether free text carries a word of a tell topic's answer that is neither in the player's line nor in the topic's phrases. */
+function leaks(free: string, set: CandidateSet, text?: string): boolean {
+  const own = new Set(topicWords(`${text ?? ''} ${set.topics.map(t => t.phrase).join(' ')}`));
+  const hidden = new Set(set.topics.flatMap(t => (t.answer ? topicWords(t.answer) : [])).filter(w => !own.has(w)));
+  return topicWords(free).some(w => hidden.has(w));
 }
 
 /**

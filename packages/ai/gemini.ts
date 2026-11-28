@@ -80,13 +80,14 @@ export function gemini(selectModel: string, narrateModel: string, apiKey: string
 }
 
 /**
- * Ceilings, so a turn fits the function's 60 s (vercel.json): select at most twice 6 s, narrate at most twice 24 s
+ * Ceilings, so a turn fits the function's 60 s (vercel.json): select at most twice 5 s, narrate at most twice 22 s, leaving
+ * time for loading, replay and the appends
  * (the gate may ask once more). A select model answers in about a second; narration is the long call. A Selection is a short object: 512 tokens assumes a select model that does not
  * think (the default, flash-lite); a thinking model would spend them before replying.
  */
 const SELECT_MAX_TOKENS = 512;
-const SELECT_TIMEOUT_MS = 6_000;
-const NARRATE_TIMEOUT_MS = 24_000;
+const SELECT_TIMEOUT_MS = 5_000;
+const NARRATE_TIMEOUT_MS = 22_000;
 
 /** Gemini's JSON-schema dialect rejects the $schema dialect marker Zod adds. */
 function forGemini(schema: Record<string, unknown>): Record<string, unknown> {

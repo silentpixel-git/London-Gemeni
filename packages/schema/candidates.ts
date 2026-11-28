@@ -41,7 +41,7 @@ export const Selection = z.discriminatedUnion('kind', [
     topic: Id.optional(),
     /** ask only: the line tells the person (a claim, an answer, the player's own view), rather than asking them. A topic offered as "tell" needs it. */
     telling: z.boolean().optional(),
-    /** A telling ask on a "tell" topic: whether what the line claims agrees with that Fact's statement (judged by the selector). */
+    /** A telling ask on a "tell" topic: whether what the line claims agrees with that Fact's answer (`answer ?? statement`), judged by the selector. */
     agrees: z.boolean().optional(),
     exit: Id.optional(),
     /** deduce only: the Facts named. The suspect, if any, is `person`, drawn from `suspects`. */
@@ -122,9 +122,6 @@ export function trimSelection(sel: Selection, set: CandidateSet): Selection {
       return { kind: 'none', reason: 'that does nothing to the way' };
     }
   }
-  // A deduction's suspect must be someone the player has met; anything else named there (an Object) is dropped, not the line.
-  const suspect = sel.person;
-  if (sel.verb === 'deduce' && suspect && !set.suspects.some(p => p.id === suspect)) { const { person: _p, ...rest } = sel; sel = rest; }
   const reads: readonly string[] = VERB_FIELDS[sel.verb];
   const ids = new Set<string>([
     ...set.objects.map(o => o.id), ...set.persons.map(p => p.id), ...set.suspects.map(p => p.id),

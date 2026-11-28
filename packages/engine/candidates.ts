@@ -16,7 +16,7 @@
 //              Object that opens a key lock on it now
 //   topics     for each present person P and each Fact F:
 //                canTell(P,F) and P did not hear F from the player → one entry per topic phrase, direction 'ask'
-//                  (a person does not repeat to the player what the player told them)
+//                  (a person does not repeat to the player what the player told them, right or contrary)
 //                else player knows F and P does not → one entry per phrase, direction 'tell', with F's answer (else statement)
 //                  (the player's own answer: the selector judges a told answer against it, ADR-0005 §11)
 //   knownFacts facts the player knows (for deduce), with statements
@@ -35,7 +35,8 @@ export function candidates(story: Story, s: State): CandidateSet {
   const topics: CandidateSet['topics'] = [];
   for (const person of persons) {
     for (const f of story.facts) {
-      const heardFromPlayer = s.ledger[person]?.heard.includes(f.id) ?? false;
+      const ledger = s.ledger[person];
+      const heardFromPlayer = (ledger?.heard.includes(f.id) || ledger?.contrary?.includes(f.id)) ?? false;
       const direction = canTell(story, s, person, f.id) && !heardFromPlayer ? 'ask' : s.knows.player[f.id] && !s.knows[person]?.[f.id] ? 'tell' : null;
       if (direction) for (const phrase of f.topics) topics.push({ person, fact: f.id, phrase, direction, ...(direction === 'tell' ? { answer: f.answer ?? f.statement } : {}) });
     }

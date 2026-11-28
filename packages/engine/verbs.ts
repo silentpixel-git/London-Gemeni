@@ -17,12 +17,12 @@
 //   close T     → T an open container visible or carried → Closed
 //   use T [on S]→ Used{T, on?}; T carried or visible; S if given must be visible, carried, or a present person, and not T itself
 //   combine T S → Combined{[T,S]}; both carried or visible here; no self-combine
-//   show T to P → Shown{T,P}; T carried; P present; then if T.fact and the player knows it and P does not already → FactDisclosed{player→P}
+//   show T to P → Shown{T,P}; T carried; P present; then if T.fact and the player knows it and P does not already → FactDisclosed{player→P, agrees: true}
 //   give T to P → Given{T,P}; same conditions; same disclosure
 //   talk P      → Spoke{P, greeting}; P present
 //   ask P topic → P present; topic a fact id:
 //                 canTell(P, fact) → Spoke{P, fact}, FactDisclosed{P→player}
-//                 else player knows fact and P does not → Spoke{P, fact}, FactDisclosed{player→P}
+//                 else player knows fact and P does not → Spoke{P, fact}, FactDisclosed{player→P, agrees: intent.agrees ?? true} (ADR-0005 §11)
 //                 else → Spoke{P} (an honest deflection; no fact)
 //   deduce      → Deduced{facts, suspect?}; every named fact must be known by the player; suspect must be a person id
 //   move exit   → exit in this location by id: location.openPeriods excludes now → MoveBlocked{closed, null};
@@ -39,7 +39,7 @@ export interface Intent {
   secondary?: Id;
   person?: Id;
   topic?: Id;
-  /** A told answer agrees with the Fact's statement (ADR-0005 §11); absent means not judged, taken as agreeing. */
+  /** A told answer agrees with the Fact's answer (`answer ?? statement`, ADR-0005 §11); absent means not judged, taken as agreeing. */
   agrees?: boolean;
   exit?: Id;
   facts?: Id[];

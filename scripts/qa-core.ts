@@ -385,7 +385,13 @@ section('telling and asking');
   const unnamed = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'letter_confession', telling: true }, set, 'it was the gardener who did it');
   check(unnamed.kind === 'intent' && unnamed.topic === 'letter_confession', 'a told answer need not name its subject to count');
   const accuseThing = confineSelection({ kind: 'intent', verb: 'deduce', facts: ['letter_confession'], person: 'mat' }, set, 'i accuse the mat');
-  check(accuseThing.kind === 'intent' && accuseThing.verb === 'deduce' && accuseThing.person === undefined, 'a deduction naming a thing as its suspect keeps the deduction and drops the thing');
+  check(accuseThing.kind === 'none', 'a deduction naming a thing as its suspect is no deduction: it could otherwise fire into an ending');
+  const offTopic = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'letter_confession', telling: true, agrees: false }, set, 'i am sure it will rain');
+  check(offTopic.kind === 'intent' && offTopic.topic === undefined, 'a telling line that shares no word with the subject or its answer does not use the answer up');
+  const leak = confineSelection({ kind: 'flavour', subject: 'the blackmail demand that names the gardener' }, set, 'look around the hall');
+  check(leak.kind === 'none', 'a flavour subject that would show the player a hidden answer becomes none');
+  const ownWords = confineSelection({ kind: 'flavour', subject: 'the gardener' }, set, 'think about the gardener');
+  check(ownWords.kind === 'flavour', 'the player\'s own words are never a leak');
   const plain = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'key_in_clock' }, set, 'ask her about the key');
   check(plain.kind === 'intent' && plain.topic === 'key_in_clock', 'an ordinary ask needs no telling');
   const object = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'mat' }, set, 'ask her about the mat');
@@ -437,6 +443,18 @@ section('a told answer is judged');
   check(fired(plain.events, 'told_right') && has(plain.events, e => e.kind === 'FactDisclosed' && e.agrees === true), 'an answer not judged is taken as agreeing');
   const untold = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'key_in_clock', agrees: false }, set, 'ask her about the key');
   check(untold.kind === 'intent' && untold.agrees === undefined, 'agrees means nothing on a line that does not tell: dropped');
+  const contrary = wrong.state;
+  check(contrary.knows.housekeeper?.letter_confession === true && contrary.ledger.housekeeper?.contrary?.includes('letter_confession') === true
+    && !contrary.ledger.housekeeper?.heard.includes('letter_confession'),
+    'a contrary answer: she knows the subject was answered, and her Ledger records the player\'s contrary claim, not the Fact');
+  check(!buildNarrationContext(judged, contrary, wrong.events, 'full').ledger.some(l => l.heard.length > 0),
+    'the narrator is never told she heard the right answer the player did not give');
+  check(!candidates(judged, contrary).topics.some(t => t.fact === 'letter_confession'), 'and the answered subject is offered in neither direction: the first answer holds');
+  const fails = (trigger: object) => validateStory({ ...story, rules: [...story.rules, { id: 'probe', trigger, once: true, effects: [{ kind: 'playBeat', beats: ['x'] }] }] })
+    .issues.filter(i => i.level === 'fail' && i.at.startsWith('rules/probe/')).length;
+  check(fails({ kind: 'disclosed', fact: 'key_in_clock', from: 'housekeeper', agrees: false }) === 1, 'validator: only the player\'s answers are judged, so agrees on another teller can never fire');
+  check(fails({ kind: 'disclosed', fact: 'key_in_clock', to: 'player', agrees: true }) === 1, 'validator: nor on a disclosure to the player');
+  check(fails({ kind: 'disclosed', fact: 'key_in_clock', from: 'player', agrees: false }) === 0, 'validator: agrees on the player\'s answer is fine');
   const p = prove(judged);
   check(p.lines.find(l => l.goal.id === 'clue_afraid')?.reachable === true, 'the prover offers the contrary answer too: a Clue only a wrong answer gives is REACHABLE');
 }

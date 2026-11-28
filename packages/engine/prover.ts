@@ -125,7 +125,7 @@ function actionsFrom(story: Story, s: State): Action[] {
   }
   if (listens('drop')) for (const id of carried) offer(`drop ${id}`, { verb: 'drop', target: id });
   for (const t of c.topics) {
-    offer(`ask ${t.person} about ${t.fact}`, { verb: 'ask', person: t.person, topic: t.fact });
+    offer(`ask ${t.person} about ${t.fact}`, { verb: 'ask', person: t.person, topic: t.fact, ...(t.direction === 'tell' ? { telling: true } : {}) });
     // A told answer may be right or wrong (ADR-0005 §11): a Rule may wait for either.
     if (t.direction === 'tell') offer(`tell ${t.person} a contrary answer about ${t.fact}`, { verb: 'ask', person: t.person, topic: t.fact, telling: true, agrees: false });
   }
