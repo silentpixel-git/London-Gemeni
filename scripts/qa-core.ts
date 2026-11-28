@@ -425,8 +425,11 @@ section('a told answer is judged');
   const w0: State = startInvestigation(judged, 42).state;
   const set = candidates(judged, w0);
   const entry = set.topics.find(t => t.person === 'housekeeper' && t.fact === 'letter_confession' && t.direction === 'tell');
-  check(entry?.statement === judged.facts.find(f => f.id === 'letter_confession')!.statement, 'a tell topic carries its statement, for the selector to judge against');
-  check(set.topics.filter(t => t.direction === 'ask').every(t => t.statement === undefined), 'an ask topic does not: nothing a person knows is shown before it is told');
+  check(entry?.answer === judged.facts.find(f => f.id === 'letter_confession')!.statement, 'a tell topic carries its answer (here the statement), for the selector to judge against');
+  check(set.topics.filter(t => t.direction === 'ask').every(t => t.answer === undefined), 'an ask topic does not: nothing a person knows is shown before it is told');
+  const withAnswer = Story.parse({ ...judged, facts: judged.facts.map(f => (f.id === 'letter_confession' ? { ...f, answer: 'It was the gardener.' } : f)) });
+  check(candidates(withAnswer, startInvestigation(withAnswer, 42).state).topics.find(t => t.fact === 'letter_confession')?.answer === 'It was the gardener.',
+    'a Fact\'s own answer, when it has one, is what the selector judges against; its statement stays what is narrated');
   const tell = (agrees?: boolean) => resolveTurn(judged, w0, { text: 'tell her', selection: { kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'letter_confession', telling: true, ...(agrees === undefined ? {} : { agrees }) } }, fixedRng([0]));
   const right = tell(true), wrong = tell(false), plain = tell();
   check(has(right.events, e => e.kind === 'FactDisclosed' && e.agrees === true) && fired(right.events, 'told_right') && !fired(right.events, 'told_wrong'), 'an agreeing answer fires the Rule that waits for one');

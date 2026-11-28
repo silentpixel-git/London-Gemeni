@@ -17,7 +17,7 @@
 //   topics     for each present person P and each Fact F:
 //                canTell(P,F) and P did not hear F from the player → one entry per topic phrase, direction 'ask'
 //                  (a person does not repeat to the player what the player told them)
-//                else player knows F and P does not → one entry per phrase, direction 'tell', with F's statement
+//                else player knows F and P does not → one entry per phrase, direction 'tell', with F's answer (else statement)
 //                  (the player's own answer: the selector judges a told answer against it, ADR-0005 §11)
 //   knownFacts facts the player knows (for deduce), with statements
 //   suspects   every person the player has met (state.met), by label, in Story order (for deduce)
@@ -37,7 +37,7 @@ export function candidates(story: Story, s: State): CandidateSet {
     for (const f of story.facts) {
       const heardFromPlayer = s.ledger[person]?.heard.includes(f.id) ?? false;
       const direction = canTell(story, s, person, f.id) && !heardFromPlayer ? 'ask' : s.knows.player[f.id] && !s.knows[person]?.[f.id] ? 'tell' : null;
-      if (direction) for (const phrase of f.topics) topics.push({ person, fact: f.id, phrase, direction, ...(direction === 'tell' ? { statement: f.statement } : {}) });
+      if (direction) for (const phrase of f.topics) topics.push({ person, fact: f.id, phrase, direction, ...(direction === 'tell' ? { answer: f.answer ?? f.statement } : {}) });
     }
   }
   const label = (id: Id) => {

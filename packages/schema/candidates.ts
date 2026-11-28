@@ -22,8 +22,8 @@ export const CandidateSet = z.object({
   /** `key`: the Object that opens this exit's lock now, when it is a key lock. */
   exits: z.array(z.object({ id: Id, names: z.array(z.string()).min(1), key: Id.optional() })),
   /** Facts a present person can speak to, or the player can tell them, by phrase. */
-  /** `statement` only on a tell topic: the selector judges a told answer against it. A person's own Facts are never shown before they tell them. */
-  topics: z.array(z.object({ person: Id, fact: Id, phrase: z.string(), direction: z.enum(['ask', 'tell']), statement: z.string().optional() })),
+  /** `answer` only on a tell topic: the right answer the selector judges a told answer against. A person's own Facts are never shown before they tell them. */
+  topics: z.array(z.object({ person: Id, fact: Id, phrase: z.string(), direction: z.enum(['ask', 'tell']), answer: z.string().optional() })),
   /** Facts the player knows and may name in a deduction. */
   knownFacts: z.array(z.object({ id: Id, statement: z.string() })),
   /** Everyone the player has met, by the label the player knows them by: who a deduction may accuse (ADR-0005). */
