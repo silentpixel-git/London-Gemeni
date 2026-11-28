@@ -441,6 +441,8 @@ All four go to the live `select` check at pre-flight (§I of the spec template).
 
 ## 8. Spec amendments in this score (part of sign-off #2)
 
+**Accepted by the owner, 2026-11-28: A1–A4 as written.**
+
 - **A1. `holmes_soldier_reading` is dropped.**
   - The spec added it so "ask Holmes about the soldier" is answered after the verdict.
   - The engine already does that: once told, Watson's reading is a Fact Holmes *knows*, so it
