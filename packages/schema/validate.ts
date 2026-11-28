@@ -267,6 +267,7 @@ export function validateStory(raw: unknown): ValidationResult {
         if (e.from !== undefined) {
           needPerson(e.from, at);
           if (e.from === e.person) fail(at, `"${e.from}" cannot tell a fact to themself`);
+          else if (e.from !== 'player' && e.person !== 'player') fail(at, `"${e.from}" telling "${e.person}" leaves the player out: an attributed grant has the player on one side`);
           if (e.delayPeriods) fail(at, 'a delayed grant cannot have a teller: when it arrives nobody is telling it');
         }
         break;
@@ -294,10 +295,18 @@ export function validateStory(raw: unknown): ValidationResult {
     // Granting it to a person early is harmless; granting it to the player early is
     // allowed but worth a look, and the prover reports the exact path as EARLY.
     for (const [i, e] of r.effects.entries()) {
-      if (e.kind !== 'grantFact' || e.person !== 'player') continue;
+      if (e.kind !== 'grantFact') continue;
+      // An attributed grant needs the other side here, or it is recorded unattributed.
+      const other = e.from === undefined ? undefined : e.from === 'player' ? e.person : e.from;
+      if (other && other !== 'player' && !r.when?.personsPresent?.includes(other)) {
+        warn(`${at}/effects[${i}]`, `"${other}" may not be present when this fires; an absent teller's grant is recorded unattributed (add when.personsPresent)`);
+      }
+      // The player learns the Fact in being told it, or in telling it.
+      if (e.person !== 'player' && e.from !== 'player') continue;
       const f = facts.get(e.fact);
       if (f && minActOfRule(r) < f.visibleFromAct) {
-        warn(`${at}/effects[${i}]`, `grants the player "${e.fact}" (visible from act ${f.visibleFromAct}) and the rule can fire in act ${minActOfRule(r)}${r.when?.act ? '' : '; add when.act if it cannot'}`);
+        const how = e.from && e.from !== 'player' ? `has "${e.from}" tell the player` : e.from === 'player' ? 'has the player tell' : 'grants the player';
+        warn(`${at}/effects[${i}]`, `${how} "${e.fact}" (visible from act ${f.visibleFromAct}) and the rule can fire in act ${minActOfRule(r)}${r.when?.act ? '' : '; add when.act if it cannot'}`);
       }
     }
     // A clock Rule at its act's start time never fires on entry (the clock starts there, it does not pass it).

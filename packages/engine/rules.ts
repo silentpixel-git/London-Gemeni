@@ -134,15 +134,23 @@ function effectEvents(story: Story, s: State, e: Effect, ruleId: Id): EventPaylo
     case 'movePerson': return [{ kind: 'PersonMoved', person: e.person, location: e.location }];
     case 'summonPerson': return [{ kind: 'PersonMoved', person: e.person, location: s.location }];
     case 'dismissPerson': return [{ kind: 'PersonMoved', person: e.person, location: null }];
-    case 'grantFact':
-      if (s.knows[e.person]?.[e.fact]) return [];
-      if (e.delayPeriods) return [{ kind: 'GrantScheduled', person: e.person, fact: e.fact, maturesAtBoundary: s.boundaries + e.delayPeriods }];
-      if (!e.from) return [{ kind: 'FactLearned', person: e.person, fact: e.fact }];
-      // Told by someone: they learn it first if they did not know it, then it is a disclosure like an answered ask.
+    case 'grantFact': {
+      const known = !!s.knows[e.person]?.[e.fact];
+      const learned: EventPayload[] = known ? [] : [{ kind: 'FactLearned', person: e.person, fact: e.fact }];
+      if (e.delayPeriods) return known ? [] : [{ kind: 'GrantScheduled', person: e.person, fact: e.fact, maturesAtBoundary: s.boundaries + e.delayPeriods }];
+      if (!e.from) return learned;
+      // Told, as an answered ask: the player and one person present (the validator keeps the player on one side).
+      const other = e.from === 'player' ? e.person : e.from;
+      if (!personsPresent(story, s).includes(other)) return learned; // nobody here to tell it: unattributed
+      if (e.from === 'player' && known) return []; // as an ask: the player tells only what the person does not know
       return [
+        // Nobody tells what they do not know: the teller learns it first.
         ...(s.knows[e.from]?.[e.fact] ? [] : [{ kind: 'FactLearned', person: e.from, fact: e.fact } as EventPayload]),
+        { kind: 'Spoke', person: other, fact: e.fact },
+        // To the player, as an ask: told even when the player already knew it.
         { kind: 'FactDisclosed', from: e.from, to: e.person, fact: e.fact },
       ];
+    }
     case 'setDisposition': return [{ kind: 'DispositionChanged', person: e.person, disposition: e.disposition }];
     case 'playBeat': return [{ kind: 'BeatQueued', rule: ruleId, beats: e.beats, asQuote: e.asQuote ?? false }];
     case 'cue': return [{ kind: 'CuePlayed', sound: e.sound }];

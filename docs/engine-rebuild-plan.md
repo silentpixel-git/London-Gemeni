@@ -119,7 +119,7 @@ Triggers (closed union):
 | `proximity` | The player and a person come to share a location (an arrival; ADR-0005) |
 | `deduction` | The player names a set of Facts or a suspect |
 
-Effects (closed union): `setFlag`, `revealObject`, `hideObject`, `moveObject`, `giveItem`, `takeItem`, `lockExit`, `unlockExit`, `movePerson`, `summonPerson`, `dismissPerson`, `grantFact(person, fact, delay?)`, `setDisposition`, `playBeat`, `cue(audio)`, `advanceAct`, `endGame(ending)`.
+Effects (closed union): `setFlag`, `revealObject`, `hideObject`, `moveObject`, `giveItem`, `takeItem`, `lockExit`, `unlockExit`, `movePerson`, `summonPerson`, `dismissPerson`, `grantFact(person, fact, delay?, from?)`, `setDisposition`, `playBeat`, `cue(audio)`, `advanceAct`, `endGame(ending)`.
 
 Conditions: act, location, time period, weather, flags required and forbidden, Items held, people present, facts known by the player.
 

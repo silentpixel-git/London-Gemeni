@@ -20,11 +20,13 @@ The engine review of November 2026 (`docs/reviews/engine-review-2026-11.md`) fou
 
    The prover can also always wait until the next period, so content gated by a period (a room, a schedule, a delayed grant) is reachable whether or not some `clock` Rule happens to exist. "wait until X" in a walkthrough stands for as many waits as it takes.
 
-6. **`visibleFromAct` gates speech, not learning.** It is the earliest act in which a person will tell the player the Fact. A document or a Rule may teach it earlier; the prover reports the first such path it meets as EARLY, and the validator warns on a `grantFact` to the player that can fire earlier. The EARLY list is a net, not a proof of absence: the search stops once every goal is found, so a leak only reachable deeper than that is not seen. Granting it early to a person is not reported: they still cannot tell it before its act.
+6. **`visibleFromAct` gates speech, not learning.** It is the earliest act in which a person will tell the player the Fact when asked. A document or a Rule may teach it earlier, including a Rule that has a person tell it (§9); the prover reports the first such path it meets as EARLY, and the validator warns on a `grantFact` that teaches the player a Fact (given to the player, told to them, or told by them) and can fire earlier, naming the teller. The EARLY list is a net, not a proof of absence: the search stops once every goal is found, so a leak only reachable deeper than that is not seen. Granting it early to a person is not reported: they still cannot tell it before its act.
 
 7. **`knownBy: ["player"]` is honoured.** The player starts knowing the Fact, may name it in a deduction or tell it to others, and finds its Clue on the opening turn.
 
 8. **A `combine` Rule also fires when one of its pair is used on the other.** `Combined` and a `Used` whose `on` is an Object both raise the combine Firing, after the action's own; the prover offers both. The validator warns where an action Rule on that use claims the same pair, since both then land in one turn.
+
+9. **A Rule can have a person tell a Fact (`grantFact` with `from`).** Added so a Rule whose Beats have a person speak can put on record that they said it. It is recorded as an answered `ask`: the teller learns the Fact first if they did not know it, then `Spoke` and `FactDisclosed`, so the Ledger, the diary's Persons, who hears the turn, the Clue and `disclosed` Rules all see a person telling it. The player is always on one side: the validator fails a grant between two people, since the Ledger records only exchanges with the player. As with an ask, a person tells the player even what the player already knows, and the player tells a person only what they do not. The other side must be present: if they are not, the grant is a plain unattributed `grantFact`, and the validator warns unless the Rule's `when.personsPresent` names them. A delayed grant cannot have a teller.
 
 ## Considered options
 

@@ -53,8 +53,9 @@ export const Effect = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('dismissPerson'), person: Id }).strict(),
   /**
    * The person learns the Fact, optionally after N time-period boundaries; entering any act delivers it at once.
-   * `from`: someone tells it, as a Rule's Beat speaks for them. Recorded exactly as an answered ask (a disclosure:
-   * the Ledger, who hears the turn, the Clue), and the teller learns it first if they did not know it. Not with a delay.
+   * `from`: someone tells it, as a Rule's Beat speaks for them; the player is on one side (ADR-0005 §9). Recorded as
+   * an answered ask: Spoke, then a disclosure (the Ledger, who hears the turn, the Clue, disclosed Rules), and the
+   * teller learns it first if they did not know it. An absent other side makes it a plain, unattributed grant. Not with a delay.
    */
   z.object({ kind: z.literal('grantFact'), person: PersonOrPlayer, fact: Id, delayPeriods: z.number().int().min(0).optional(), from: PersonOrPlayer.optional() }).strict(),
   z.object({ kind: z.literal('setDisposition'), person: Id, disposition: Disposition }).strict(),

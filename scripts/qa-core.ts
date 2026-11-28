@@ -401,6 +401,38 @@ section('attributed grant');
   check(has(r.events, e => e.kind === 'ClueDiscovered' && e.clue === 'clue_letter'), 'and its Clue is discovered');
   check(w.involved.includes('housekeeper'), 'the turn involves her, so she hears its prose');
   check(fired(r.events, 'confession_heard'), 'and a disclosed Rule on that Fact from her fires, as on an ask');
+  check(has(r.events, e => e.kind === 'Spoke' && e.person === 'housekeeper' && e.fact === 'letter_confession') && w.persons.housekeeper.introduced,
+    'she speaks it (Spoke), so a self-introducing teller is introduced, as on an ask');
+
+  // The same grant, but the player already knows the Fact: still told, as an ask still tells.
+  const knew = Story.parse({ ...told, facts: told.facts.map(f => (f.id === 'letter_confession' ? { ...f, knownBy: ['player'] } : f)) });
+  const k = resolveTurn(knew, startInvestigation(knew, 42).state, { text: 'look around', selection: { kind: 'intent', verb: 'look' } }, fixedRng([0]));
+  check(has(k.events, e => e.kind === 'FactDisclosed' && e.from === 'housekeeper' && e.fact === 'letter_confession')
+    && k.state.ledger.housekeeper?.told.includes('letter_confession') === true && fired(k.events, 'confession_heard'),
+    'a player who already knows it is still told: the Ledger records it and the disclosed Rule fires');
+
+  // The player tells a person: the other direction, as an ask on a "tell" topic.
+  const tells = Story.parse({
+    ...story,
+    facts: story.facts.map(f => (f.id === 'letter_confession' ? { ...f, knownBy: ['player'] } : f)),
+    rules: [...story.rules, { id: 'player_confides', trigger: { kind: 'action', verb: ['look'] }, once: true,
+      effects: [{ kind: 'grantFact', person: 'housekeeper', fact: 'letter_confession', from: 'player' }] }],
+  });
+  const t = resolveTurn(tells, startInvestigation(tells, 42).state, { text: 'look around', selection: { kind: 'intent', verb: 'look' } }, fixedRng([0]));
+  check(has(t.events, e => e.kind === 'FactDisclosed' && e.from === 'player' && e.to === 'housekeeper')
+    && t.state.ledger.housekeeper?.heard.includes('letter_confession') === true && t.state.knows.housekeeper?.letter_confession === true,
+    'from the player to a person: the Ledger records that she heard it');
+
+  // A teller who is not here cannot tell: the grant is recorded unattributed, and nobody absent hears the turn.
+  const gone = Story.parse({
+    ...story,
+    rules: [...story.rules, { id: 'told_from_afar', trigger: { kind: 'action', verb: ['look'] }, once: true,
+      effects: [{ kind: 'dismissPerson', person: 'housekeeper' }, { kind: 'grantFact', person: 'player', fact: 'letter_confession', from: 'housekeeper' }] }],
+  });
+  const g = resolveTurn(gone, startInvestigation(gone, 42).state, { text: 'look around', selection: { kind: 'intent', verb: 'look' } }, fixedRng([0]));
+  check(has(g.events, e => e.kind === 'FactLearned' && e.person === 'player' && e.fact === 'letter_confession')
+    && !has(g.events, e => e.kind === 'FactDisclosed') && !g.state.involved.includes('housekeeper') && !g.state.ledger.housekeeper,
+    'an absent teller: the player learns it, attributed to no one, and she does not hear the turn');
   check(has(r.events, e => e.kind === 'FactLearned' && e.person === 'player' && e.fact === 'master_was_afraid')
     && !w.ledger.housekeeper?.told.includes('master_was_afraid'),
     'a grant without `from` is unchanged: learned, attributed to no one');
@@ -414,6 +446,22 @@ section('attributed grant');
     'validator: the teller must be a person in the Story');
   check(issues({ kind: 'grantFact', person: 'player', fact: 'master_was_afraid', from: 'housekeeper' }).length === 0,
     'validator: an attributed grant to the player from a person is fine');
+  const twoPeople = Story.parse({ ...story, persons: [...story.persons, { ...story.persons[0], id: 'gardener', name: 'The Gardener', alias: undefined, introduction: undefined }] });
+  check(validateStory({ ...twoPeople, rules: [...twoPeople.rules, { id: 'probe', trigger: { kind: 'tick' }, weight: 1, once: true,
+    effects: [{ kind: 'grantFact', person: 'housekeeper', fact: 'master_was_afraid', from: 'gardener' }] }] })
+    .issues.filter(i => i.level === 'fail' && i.at.startsWith('rules/probe/')).length === 1,
+    'validator: an attributed grant has the player on one side (between two people, nobody tells the player anything)');
+  const warns = (rule: object) => validateStory({ ...story, rules: [...story.rules, rule] }).issues.filter(i => i.level === 'warn' && i.at.startsWith('rules/probe'));
+  check(warns({ id: 'probe', trigger: { kind: 'tick' }, weight: 1, once: true, effects: [{ kind: 'grantFact', person: 'player', fact: 'letter_confession', from: 'housekeeper' }] })
+    .some(i => i.message.includes('present')),
+    'validator: warns when the Rule does not require the teller present');
+  check(warns({ id: 'probe', trigger: { kind: 'tick' }, weight: 1, once: true, when: { personsPresent: ['housekeeper'] },
+    effects: [{ kind: 'grantFact', person: 'player', fact: 'letter_confession', from: 'housekeeper' }] }).length === 0,
+    'validator: no warning once the Rule requires the teller present');
+  check(warns({ id: 'probe', trigger: { kind: 'tick' }, weight: 1, once: true, when: { personsPresent: ['housekeeper'] },
+    effects: [{ kind: 'grantFact', person: 'housekeeper', fact: 'gardener_fled', from: 'player' }] })
+    .some(i => i.message.includes('gardener_fled')),
+    'validator: a grant from the player warns early like a grant to the player (the player learns it in telling it)');
 }
 
 // ── Coverage ─────────────────────────────────────────────────────────────────
