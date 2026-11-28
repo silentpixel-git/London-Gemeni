@@ -18,6 +18,7 @@ import { Story, validateStory, type EventPayload, type Selection } from '../pack
 import { loadStoryDir } from '../packages/schema/load';
 import { buildNarrationContext, candidates, replay, resolveTurn, startInvestigation, tick, type State } from '../packages/engine';
 import { prove, formatProof } from '../packages/engine/prover';
+import { confineSelection } from '../packages/ai/selection';
 import { fixedRng } from '../packages/engine/rng';
 
 const DIR = join('stories', 'whitechapel_1888');
@@ -122,9 +123,19 @@ const win = new Run(7);
 
   const self = win.probe('use the glass on the glass', { verb: 'use', target: 'opera_glass', secondary: 'opera_glass' });
   check(!self.state.flags.clergyman_seen_through_glass, 'the glass used on itself counts for nothing');
+  const set = candidates(story, win.s);
+  const question = confineSelection({ kind: 'intent', verb: 'ask', person: 'holmes', topic: 'watson_reading_clergyman' }, set, 'what do you make of the clergyman, Holmes?');
+  check(question.kind === 'intent' && question.topic === undefined, 'asking Holmes about the clergyman is a question, not Watson\'s answer');
+  const answer = confineSelection({ kind: 'intent', verb: 'ask', person: 'holmes', topic: 'watson_reading_soldier', telling: true }, set, 'tell Holmes the old fellow is a cab driver');
+  check(answer.kind === 'intent' && answer.topic === 'watson_reading_soldier', 'telling Holmes anything about the old fellow, even a wrong guess, is the answer');
+  const through = confineSelection({ kind: 'intent', verb: 'examine', target: 'street_clergyman', secondary: 'opera_glass' }, set, 'look at the clergyman through the glass');
+  check(through.kind === 'intent' && through.verb === 'use' && through.target === 'opera_glass' && through.secondary === 'street_clergyman'
+    && win.probe('look at the clergyman through the glass', through as Sel).state.flags.clergyman_seen_through_glass === true,
+    '"look at the clergyman through the glass", with the glass on the mantel, is the glass on the clergyman');
   const byEye = win.probe('read the clergyman\'s book', { verb: 'read', target: 'street_clergyman' });
   check(fired(byEye.events, 'clergyman_read_by_eye') && !byEye.state.flags.clergyman_seen_through_glass, 'reading his book by eye: too far to make out, and it counts for nothing');
   const looked = win.probe('examine the clergyman', { verb: 'examine', target: 'street_clergyman' });
+  check(fired(looked.events, 'clergyman_examined_by_eye'), 'examining him by eye says the naked eye can make nothing more of him');
   check(!looked.state.flags.clergyman_seen_through_glass && !looked.state.knows.holmes?.watson_reading_clergyman,
     'examining the clergyman by eye neither counts as the glass nor commits a reading');
 
@@ -155,13 +166,16 @@ const win = new Run(7);
   check(clue(t5, 'clue_actor_found') && !win.s.clues.includes('clue_actor_shown'), 'turn 5: one Actor Clue, the found one');
   check(!fired(t5, 'closing'), 'turn 5: the second verdict is a question, so the closing does not fire');
   fits('turn 5, the clergyman verdict (won)', win.s, t5);
-  check(phraseFact(win.s, 'the clergyman') === 'holmes_actor_reading', 'after the verdict, "the clergyman" is Holmes\'s reading of the actor');
+  check(!win.topic('watson_reading_clergyman', 'ask') && !win.topic('watson_reading_clergyman', 'tell') && win.topic('holmes_actor_reading', 'ask'),
+    'after the verdict, Holmes is never offered as telling Watson\'s answer back; the actor is his to ask about');
 
-  const t6 = win.talk();
+  const t6 = win.examine('crowd');
   check(fired(t6, 'closing') && clue(t6, 'clue_what_asks_to_be_seen') && win.told('holmes_invisible_in_a_crowd'), 'turn 6: the next action is the closing; What Asks to Be Seen enters the diary');
   fits('turn 6, the closing', win.s, t6);
   check(!fired(t6, 'evening_ends_on_action') && !win.s.ended, 'turn 6: the closing\'s turn does not also play the coda');
 
+  const giveBack = win.probe('give holmes his glass', { verb: 'give', target: 'opera_glass', person: 'holmes' });
+  check(fired(giveBack.events, 'coda_won') && !fired(giveBack.events, 'glass_returned'), 'giving the glass back on the coda\'s turn plays the coda, not the returned-glass line');
   const t7 = win.examine('open_window');
   check(fired(t7, 'evening_ends_on_action') && fired(t7, 'coda_won') && !fired(t7, 'coda_lost'), 'turn 7: the coda, won');
   check(t7.some(e => e.kind === 'BeatQueued' && e.rule === 'coda_won' && /window/i.test(e.beats.join(' '))), 'turn 7: the coda names the windows the ending\'s last line closes on');
@@ -200,13 +214,14 @@ section('the other routes');
   check(r.flag('demonstration_given') && !r.flag('wager_offered'), 'examining the window first sets off the demonstration');
   const idle = r.idle();
   check(!fired(idle, 'wager') && !r.flag('wager_offered'), 'an idle Tick does not play the wager: it waits for an exchange with Holmes');
-  r.go('ask holmes about the experiment', { verb: 'ask', person: 'holmes', topic: 'holmes_experiment' });
-  check(r.flag('wager_offered'), 'a question to Holmes is the exchange that brings the wager');
+  r.examine('chemistry_bench');
+  check(r.flag('wager_offered'), 'the next action of any kind brings the wager');
   r.go('take the opera glass', { verb: 'take', target: 'opera_glass' });
   const reads = r.probe('read his book', { verb: 'read', target: 'street_clergyman' });
   check(fired(reads.events, 'clergyman_examined_with_glass') && !fired(reads.events, 'clergyman_read_by_eye'), 'reading his book with the glass in hand counts as the glass');
   const closely = r.examine('street_clergyman');
   check(fired(closely, 'clergyman_examined_with_glass') && r.flag('clergyman_seen_through_glass'), 'examining the clergyman with the glass in hand counts as the glass');
+  check(!fired(closely, 'clergyman_examined_by_eye'), '…and the naked-eye line does not play with it');
   const crowd1 = r.go('look at the crowd through the glass', { verb: 'use', target: 'opera_glass', secondary: 'crowd' });
   const crowd2 = r.go('look at the crowd through the glass', { verb: 'use', target: 'opera_glass', secondary: 'crowd' });
   check(fired(crowd1, 'glass_on_crowd') && fired(crowd2, 'glass_on_crowd'), 'the glass on the crowd always answers (it repeats)');

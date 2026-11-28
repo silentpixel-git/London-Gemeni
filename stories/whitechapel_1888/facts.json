@@ -92,7 +92,7 @@
       "the man under the lamp"
     ],
     "voices": {
-      "holmes": "His boots are white to the ankle with the dust of the Heath road. That is a fact."
+      "holmes": "The man under the lamp: his boots are white to the ankle with the dust of the Heath road. That is a fact."
     }
   },
   {
@@ -104,7 +104,10 @@
       "the victualler",
       "the publican",
       "the victualler's daughter"
-    ]
+    ],
+    "voices": {
+      "holmes": "The licensed victualler by the pillar box has kept his daughter out an hour past the time her mother allowed, and will be made to pay for it."
+    }
   },
   {
     "id": "holmes_observation_vs_inference",
@@ -122,7 +125,7 @@
   },
   {
     "id": "holmes_the_wager",
-    "statement": "The wager: two strangers read correctly, and Holmes will not touch the violin before midnight; fail, and Watson reads the monograph on a hundred and forty tobacco ashes, plates and all. Holmes holds him to his first answer.",
+    "statement": "Holmes's wager with Watson: if Watson reads both strangers correctly, Holmes will not touch the violin before midnight; if Watson fails, Watson reads Holmes's monograph on a hundred and forty tobacco ashes, plates and all. Holmes holds him to his first answer.",
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [
@@ -140,8 +143,9 @@
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [
-      "my reading of the soldier",
-      "my answer about the soldier"
+      "the old fellow",
+      "the soldier",
+      "the man by the cab rank"
     ]
   },
   {
@@ -150,8 +154,9 @@
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [
-      "my reading of the clergyman",
-      "my answer about the clergyman"
+      "the clergyman",
+      "the curate",
+      "the man outside the chemist's"
     ]
   },
   {
@@ -162,7 +167,10 @@
     "topics": [
       "the old soldier",
       "his leg"
-    ]
+    ],
+    "voices": {
+      "holmes": "Infantry; India, and long ago; the left thigh healed short; a sergeant. Your reading, Watson, and a good one."
+    }
   },
   {
     "id": "holmes_soldier_grandchild",
@@ -182,13 +190,15 @@
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [
-      "the clergyman",
-      "the curate",
+      "the clergyman in costume",
       "the actor",
       "greasepaint",
       "the theatre",
       "the second act"
-    ]
+    ],
+    "voices": {
+      "holmes": "An actor, Watson, between the matinée and the evening performance at one of the West End houses: a melodrama with a clergyman in it, and he is not wanted until the second act."
+    }
   },
   {
     "id": "actor_found_through_glass",
@@ -199,7 +209,7 @@
       "the point you conceded"
     ],
     "voices": {
-      "holmes": "You have it exactly."
+      "holmes": "You found the greasepaint for yourself before you spoke. You have it exactly."
     }
   },
   {

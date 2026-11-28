@@ -574,6 +574,56 @@ The rest are data fixes inside the signed-off design.
   written for queued Beats. Whether the opening and the ending are carried verbatim is a
   narration-review item for the playtest.
 
+## 8c. Changes after the playtests (blind `game-reviewer`, live `qa-playthrough`; owner decisions 2026-11-28)
+
+Owner decisions, each as recommended:
+1. **Telling versus asking** (seam, ADR-0005 §10).
+2. **"Look at X through Y" is using Y on X** (seam, ADR-0005 §5).
+3. **The wager follows on the next action of any kind.**
+4. **The glass stays in Holmes's hand on turn one;** the one-turn miss is accepted.
+
+### Structural
+- **Tell phrases go back to plain names.** The seam now keeps a "tell" topic only when the line tells,
+  and never offers Holmes as telling Watson's reading back. So the plain names can be used safely:
+  - `watson_reading_soldier`: "the old fellow", "the soldier", "the man by the cab rank";
+  - `watson_reading_clergyman`: "the clergyman", "the curate", "the man outside the chemist's";
+  - `holmes_actor_reading` gives up "the clergyman" / "the curate" and takes "the clergyman in
+    costume".
+
+  Any telling about a figure commits, and any question about one is deflected. After the verdict,
+  questions meet Holmes's own reading.
+- **#15 `wager_on_exchange` fires on any action but `look`/`inventory`,** with no person constraint.
+  It stays listed before the demonstration's trigger, so the two never share a turn.
+- **#3 `closing` drops `read`.** Reading a document adds its text to the turn and runs past the
+  budget.
+- **New `clergyman_examined_by_eye`** (action `examine`, target `street_clergyman`;
+  `flagsNone [clergyman_seen_through_glass]`; `once: false`; listed after #10 and #11). It plays the
+  Beat "To the naked eye, from here, there is nothing more to be made of him." The clergyman's own
+  beats no longer say it, so the line can't play alongside the glass.
+- **#25 `glass_returned`** gains `flagsNone [evening_over]`, so it never plays on the coda's turn.
+
+### Words
+- **The demonstration's Beats no longer carry Watson's jab.** The Facts render after the Beats, so
+  the jab came before Holmes's speech and answered nothing. The wager's first Beat carries it, as the
+  reason Holmes turns.
+- **`holmes_heath_road_dust`'s voice names its man:** "The man under the lamp: his boots are white to
+  the ankle…".
+- **The glass Beat (#11)** no longer says Watson "took up" the glass. It may already be in his hand.
+- **The location's beats** no longer give the hour ("late daylight"); the period does.
+- **`holmes_the_wager`** names who does what: "if Watson reads them both, Holmes will not touch the
+  violin until midnight…".
+- **Every Fact Holmes tells has a voice** in his words, so he never recites a third-person diary
+  line: `holmes_victualler`, `holmes_actor_reading`, `holmes_soldier_reading`,
+  `actor_found_through_glass`.
+- **The golden measures the closing on "examine the crowd",** the score's own path.
+
+### Noted for later (not this act's data)
+- Prose is still narrated for a turn after the game has ended (server).
+- One `none` refusal named the mechanics ("not an action in itself").
+- Stock phrases repeat ("a smile playing on his lips"). This is a narrator-prompt matter.
+- `look` doesn't mention the people present.
+- The inventory narration omitted the carried glass.
+
 ## 9. Risks the golden can't see (for the playtest)
 
 - **The glass is invisible on the very first turn.** If the player's first line is about the glass

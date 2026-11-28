@@ -59,7 +59,6 @@
       "kind": "action",
       "verb": [
         "examine",
-        "read",
         "take",
         "drop",
         "open",
@@ -88,9 +87,8 @@
         "beats": [
           "The light was going, and Holmes had gone back to the window.",
           "\"You did very well, Watson. Better than you know.\"",
-          "He asked how many people had passed under the window since I began. \"Some hundreds,\" I said. He asked me to describe one he had not pointed out, and I could not: not one face, not one coat.",
-          "\"Nor could I. Nor could any constable on any beat in London. We see what asks to be seen. A man who asks nothing of anybody, who dresses as the street dresses and walks as the street walks, might pass under this window every evening for a year and never once be looked at.\"",
-          "He let the curtain fall and did not say anything more."
+          "He asked me to describe any one of the some hundreds who had passed under the window since I began, one he had not pointed out. I could not: not one face.",
+          "\"Nor could I. Nor could any constable on any beat in London. We see what asks to be seen. A man who asks nothing of anybody, who dresses as the street dresses and walks as the street walks, might pass under this window every evening for a year and never once be looked at.\""
         ]
       },
       {
@@ -371,7 +369,7 @@
       {
         "kind": "playBeat",
         "beats": [
-          "I took up Holmes's opera glass and looked across the street at the clergyman.",
+          "Through Holmes's opera glass I looked across the street at the clergyman.",
           "Along his hairline, beside the ear, there was a faint brownish line upon the skin, too even to be dirt; and the book was no prayer-book but a thin paper volume in a coloured wrapper, its lines set out in short, uneven lengths."
         ]
       }
@@ -399,6 +397,32 @@
         "kind": "playBeat",
         "beats": [
           "At that distance, in that light, I could not make out a line of it."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "clergyman_examined_by_eye",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "examine"
+      ],
+      "target": [
+        "street_clergyman"
+      ]
+    },
+    "when": {
+      "flagsNone": [
+        "clergyman_seen_through_glass"
+      ]
+    },
+    "once": false,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "To the naked eye, from here, there is nothing more to be made of him."
         ]
       }
     ]
@@ -513,6 +537,9 @@
     "when": {
       "personsPresent": [
         "holmes"
+      ],
+      "flagsNone": [
+        "evening_over"
       ]
     },
     "once": false,
@@ -538,11 +565,20 @@
     "trigger": {
       "kind": "action",
       "verb": [
+        "examine",
+        "read",
+        "take",
+        "drop",
+        "open",
+        "close",
+        "use",
+        "combine",
+        "show",
+        "give",
         "talk",
-        "ask"
-      ],
-      "person": [
-        "holmes"
+        "ask",
+        "deduce",
+        "move"
       ]
     },
     "when": {
@@ -577,7 +613,7 @@
       {
         "kind": "playBeat",
         "beats": [
-          "I had called his reading of the street a parlour trick; Holmes turned from the window with a look I had learned, in seven years, to distrust.",
+          "When he had done, I called it a very good parlour trick. Holmes turned from the window with a look I had learned, in seven years, to distrust.",
           "\"Any man,\" he said. \"Very well. A wager.\" Two people in the street below, to be read correctly.",
           "\"Tell me when you have him. I shall hold you to your first answer.\"",
           "He gestured at the window: the old fellow on the kerb by the cab rank, just under the window, and the clergyman across the street outside the chemist's, his face half-lost under the brim of his hat.",
@@ -702,8 +738,7 @@
         "beats": [
           "Holmes spoke without turning from the window.",
           "He read the street below for me: the licensed victualler and his daughter by the pillar box, and the man under the lamp.",
-          "He lowered the little opera glass and set it on the mantel.",
-          "I said, with some feeling, that it was a very good parlour trick, and that any man might do it who had nothing else to do with his evening."
+          "He lowered the little opera glass and set it on the mantel."
         ]
       },
       {
