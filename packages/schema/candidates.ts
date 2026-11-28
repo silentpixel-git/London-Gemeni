@@ -38,6 +38,8 @@ export const Selection = z.discriminatedUnion('kind', [
     secondary: Id.optional(),
     person: Id.optional(),
     topic: Id.optional(),
+    /** ask only: the line tells the person (a claim, an answer, the player's own view), rather than asking them. A topic offered as "tell" needs it. */
+    telling: z.boolean().optional(),
     exit: Id.optional(),
     /** deduce only: the Facts named. The suspect, if any, is `person`, drawn from `suspects`. */
     facts: z.array(Id).optional(),
@@ -57,7 +59,7 @@ export const VERB_FIELDS: Record<Verb, readonly IntentField[]> = {
   examine: ['target'], read: ['target'], take: ['target'], drop: ['target'], open: ['target'], close: ['target'],
   use: ['target', 'secondary'], combine: ['target', 'secondary'],
   show: ['target', 'person'], give: ['target', 'person'],
-  talk: ['person'], ask: ['person', 'topic'], deduce: ['facts', 'person'], move: ['exit'],
+  talk: ['person'], ask: ['person', 'topic', 'telling'], deduce: ['facts', 'person'], move: ['exit'],
 };
 
 /**
@@ -69,8 +71,11 @@ export const VERB_FIELDS: Record<Verb, readonly IntentField[]> = {
  *     "talk to the landlady" → talk, target the landlady): moved to the one empty slot of
  *     the verb that takes it. Where no slot or several would, it stays put and
  *     inCandidateSet answers none, never a weaker intent the engine would accept;
- *   - an ask's topic that names nothing: dropped, since ask with no topic is the
- *     designed answer to a subject the person has nothing on (an honest deflection);
+ *   - an ask's topic that is not one of the set's topics (names nothing, or names an Object or a
+ *     person): dropped, since ask with no topic is the designed answer to a subject the person has
+ *     nothing on (an honest deflection);
+ *   - examine or read with an object as secondary ("look at the clergyman through the glass"):
+ *     using that object on the target;
  *   - a value that is exactly one candidate's name rather than its id ("bar" for the
  *     exit named "bar"): that candidate's id;
  *   - open or use on an exit itself ("open the cellar door", "lift the bar"), or the
@@ -94,6 +99,11 @@ export function trimSelection(sel: Selection, set: CandidateSet): Selection {
     return hits.size === 1 ? [...hits][0] : v;
   };
   sel = { ...sel, ...(sel.target ? { target: named(sel.target) } : {}), ...(sel.secondary ? { secondary: named(sel.secondary) } : {}) };
+  // "Look at X through Y", "read X by Y": examining or reading something with an object at hand is using that object on it.
+  const lens = sel.secondary;
+  if ((sel.verb === 'examine' || sel.verb === 'read') && sel.target && lens && lens !== sel.target && set.objects.some(o => o.id === lens)) {
+    return trimSelection({ kind: 'intent', verb: 'use', target: lens, secondary: sel.target }, set);
+  }
   // "Use the glass" with the glass in both slots means the plain use: the engine refuses a thing used on itself.
   if (sel.verb === 'use' && sel.secondary !== undefined && sel.secondary === sel.target) { const { secondary: _same, ...plain } = sel; sel = plain; }
   const exitOf = (v?: string) => (v && !set.objects.some(o => o.id === v) && !set.persons.some(p => p.id === v) ? set.exits.find(x => x.id === v) : undefined);
@@ -115,7 +125,8 @@ export function trimSelection(sel: Selection, set: CandidateSet): Selection {
   ]);
   const names = (v: unknown) => (Array.isArray(v) ? v : [v]).some(x => typeof x === 'string' && ids.has(x));
   const out: Record<string, unknown> = { kind: 'intent', verb: sel.verb };
-  for (const [k, v] of Object.entries(sel)) if (reads.includes(k) && !(k === 'topic' && !names(v))) out[k] = v;
+  // A topic must be a topic: anything else named there (an Object, a person) leaves the ask with no topic, the designed deflection.
+  for (const [k, v] of Object.entries(sel)) if (reads.includes(k) && !(k === 'topic' && !set.topics.some(t => t.fact === v))) out[k] = v;
   const fits = (slot: string, v: unknown) =>
     Array.isArray(v) === (slot === 'facts') && inCandidateSet({ kind: 'intent', verb: sel.verb, [slot]: v } as Selection, set);
   for (const [k, v] of Object.entries(sel)) {

@@ -12,7 +12,7 @@ import { Story, validateStory, type EventPayload, type Selection } from '../pack
 import { loadStoryDir } from '../packages/schema/load';
 import { buildNarrationContext, candidates, fallbackProse, initialState, playerView, replay, resolveTurn, startInvestigation, tick, type State } from '../packages/engine';
 import { suggestionsFor } from '../services/viewFormat';
-import { confineSelection } from '../packages/ai/selection';
+import { confineSelection, repairSelectionReply } from '../packages/ai/selection';
 import { fixedRng } from '../packages/engine/rng';
 
 const story = Story.parse(loadStoryDir(join('packages', 'schema', 'fixtures', 'toy')));
@@ -366,6 +366,35 @@ section('the prose\'s world, on this Story');
   check(w.location !== 'study' && garden.beats.every(b => buildNarrationContext(story, letter.state, letter.events, 'full', 'study').beats.includes(b))
     && !garden.beats.some(b => buildNarrationContext(story, letter.state, letter.events, 'full', w.location).beats.includes(b)),
     'an act that brings the player somewhere new is narrated as an arrival there; begun in place, it is not');
+}
+
+// ── Telling and asking at the seam ───────────────────────────────────────────
+// A topic offered as "tell" (the player knows it, the person does not) is the player telling.
+// The selector says whether the line tells; a question about that subject is an ask with no topic.
+section('telling and asking');
+{
+  const knows = Story.parse({ ...story, facts: story.facts.map(f => (f.id === 'letter_confession' ? { ...f, knownBy: ['player'] } : f)) });
+  let w: State = startInvestigation(knows, 42).state;
+  const set = candidates(knows, w);
+  check(set.topics.some(t => t.person === 'housekeeper' && t.fact === 'letter_confession' && t.direction === 'tell'), 'the player\'s own Fact is offered to her as a tell topic');
+  const asked = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'letter_confession' }, set, 'what do you make of the letter?');
+  check(JSON.stringify(asked) === '{"kind":"intent","verb":"ask","person":"housekeeper"}', 'a question about a tell subject keeps no topic: it is an ask, not the player telling');
+  const told = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'letter_confession', telling: true }, set, 'tell her about the letter');
+  check(told.kind === 'intent' && told.topic === 'letter_confession', 'the same subject, told, keeps its topic');
+  const plain = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'key_in_clock' }, set, 'ask her about the key');
+  check(plain.kind === 'intent' && plain.topic === 'key_in_clock', 'an ordinary ask needs no telling');
+  const object = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'mat' }, set, 'ask her about the mat');
+  check(JSON.stringify(object) === '{"kind":"intent","verb":"ask","person":"housekeeper"}', 'an Object given as a topic is the designed deflection, not a rejected line');
+  const lens = confineSelection({ kind: 'intent', verb: 'examine', target: 'hall_clock', secondary: 'mat' }, set, 'look at the clock through the mat');
+  check(JSON.stringify(lens) === '{"kind":"intent","verb":"use","target":"mat","secondary":"hall_clock"}', 'examining something with an object at hand is using that object on it');
+  const r = resolveTurn(knows, w, { text: 'tell her about the letter', selection: told }, fixedRng([0]));
+  w = r.state;
+  check(has(r.events, e => e.kind === 'FactDisclosed' && e.from === 'player' && e.to === 'housekeeper'), 'telling her discloses it to her');
+  check(!candidates(knows, w).topics.some(t => t.person === 'housekeeper' && t.fact === 'letter_confession'),
+    'once told, she is never offered as telling it back: a person does not repeat to the player what the player told them');
+  check(JSON.stringify(repairSelectionReply({ kind: 'ask', person: 'housekeeper', topic: 'key_in_clock' })) === '{"kind":"intent","verb":"ask","person":"housekeeper","topic":"key_in_clock"}',
+    'a reply that puts the verb in "kind" is read as that intent');
+  check(JSON.stringify(repairSelectionReply({ kind: 'none', reason: 'x' })) === '{"kind":"none","reason":"x"}', 'a well-formed reply is left alone');
 }
 
 // ── An Object used on itself is no use ───────────────────────────────────────

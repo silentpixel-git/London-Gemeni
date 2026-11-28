@@ -3,13 +3,13 @@
 import { GoogleGenAI } from '@google/genai';
 import { NarrationResult, Selection, type NarrationContext } from '../schema/index.js';
 import { buildNarratePrompt, buildSelectPrompt } from './prompts.js';
-import { confineObservations, confineSelection } from './selection.js';
+import { confineObservations, confineSelection, repairSelectionReply } from './selection.js';
 import type { Ai, NarrationChunk, PromptBundle, SelectInput } from './types.js';
 
 export function gemini(selectModel: string, narrateModel: string, apiKey: string): Ai {
   const client = new GoogleGenAI({ apiKey });
 
-  const request = (model: string, bundle: PromptBundle) => ({
+  const request = (model: string, bundle: PromptBundle, limits: { maxOutputTokens?: number; abortSignal?: AbortSignal } = {}) => ({
     model,
     contents: [{ role: 'user', parts: [{ text: bundle.user }] }],
     config: {
@@ -17,15 +17,19 @@ export function gemini(selectModel: string, narrateModel: string, apiKey: string
       temperature: bundle.temperature,
       responseMimeType: 'application/json',
       responseJsonSchema: forGemini(bundle.responseSchema),
+      ...limits,
     },
   });
 
   return {
     async select(input: SelectInput): Promise<Selection> {
-      const req = request(selectModel, buildSelectPrompt(input));
       for (let attempt = 0; attempt < 2; attempt++) {
-        const res = await client.models.generateContent(req);
-        const parsed = Selection.safeParse(parseJson(res.text ?? ''));
+        // A Selection is a few ids: a reply that runs on (a deduction listing every Fact, repeated) is cut short
+        // and, like one that takes too long, comes to none rather than holding the turn past the function's time.
+        const req = request(selectModel, buildSelectPrompt(input), { maxOutputTokens: SELECT_MAX_TOKENS, abortSignal: AbortSignal.timeout(SELECT_TIMEOUT_MS) });
+        const res = await client.models.generateContent(req).catch(() => null);
+        if (!res) continue;
+        const parsed = Selection.safeParse(repairSelectionReply(parseJson(res.text ?? '')));
         if (parsed.success) return confineSelection(parsed.data, input.candidates, input.text);
       }
       return { kind: 'none', reason: 'unparseable' };
@@ -70,6 +74,10 @@ export function gemini(selectModel: string, narrateModel: string, apiKey: string
     },
   };
 }
+
+/** Ceilings on one select call: a Selection is a short object, and the turn must answer well inside the function's time. */
+const SELECT_MAX_TOKENS = 512;
+const SELECT_TIMEOUT_MS = 15_000;
 
 /** Gemini's JSON-schema dialect rejects the $schema dialect marker Zod adds. */
 function forGemini(schema: Record<string, unknown>): Record<string, unknown> {
