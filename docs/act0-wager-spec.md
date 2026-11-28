@@ -21,7 +21,8 @@ mechanical score (section G) and pre-flight (I) are phase 2 and not part of this
 - The coda's last line stays.
 - Saves are not a concern.
 
-**New in this port:** the seven decisions in "For sign-off" at the end.
+**New in this port:** the seven decisions in "For sign-off" at the end. **All seven were decided by
+the owner (chat, 2026-11-28), each as recommended.**
 
 ---
 
@@ -363,6 +364,11 @@ From the reviews and from this port. None of these needs an owner decision now.
 ---
 
 ## For sign-off #1 — seven decisions
+
+**Decided by the owner, 2026-11-28: all seven as recommended.** 1 accept for the tutorial; 2 prologue
+end card; 3 beats with quoted lines; 4 the glass in Holmes's hand with the early demonstration;
+5 two branch Clues; 6 both (a) and (b); 7 make the engine change (`grantFact` with `from`) before any
+Act 0 data.
 
 1. **No choice in Act 0.** The template wants one typed moral choice. The wager is a skill branch
    whose losing side is reached by omission (not using the glass), which the template forbids for
