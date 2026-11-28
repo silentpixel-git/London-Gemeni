@@ -94,6 +94,8 @@ export function trimSelection(sel: Selection, set: CandidateSet): Selection {
     return hits.size === 1 ? [...hits][0] : v;
   };
   sel = { ...sel, ...(sel.target ? { target: named(sel.target) } : {}), ...(sel.secondary ? { secondary: named(sel.secondary) } : {}) };
+  // "Use the glass" with the glass in both slots means the plain use: the engine refuses a thing used on itself.
+  if (sel.verb === 'use' && sel.secondary !== undefined && sel.secondary === sel.target) { const { secondary: _same, ...plain } = sel; sel = plain; }
   const exitOf = (v?: string) => (v && !set.objects.some(o => o.id === v) && !set.persons.some(p => p.id === v) ? set.exits.find(x => x.id === v) : undefined);
   if (sel.verb === 'open' || sel.verb === 'use') {
     const slotted = exitOf(sel.exit);

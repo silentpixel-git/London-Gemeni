@@ -374,8 +374,11 @@ section('use on itself');
   let w: State = startInvestigation(story, 42).state;
   const r = resolveTurn(story, w, { text: 'use the mat on the mat', selection: { kind: 'intent', verb: 'use', target: 'mat', secondary: 'mat' } }, fixedRng([0]));
   w = r.state;
-  check(has(r.events, e => e.kind === 'IntentRejected') && !has(r.events, e => e.kind === 'Used'),
+  check(has(r.events, e => e.kind === 'IntentRejected' && e.reason === 'it cannot be used on itself') && !has(r.events, e => e.kind === 'Used') && w.clock === startInvestigation(story, 42).state.clock,
     'using an Object on itself is refused, as combining it with itself is, so no Rule listing it in both slots fires');
+  check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'use', target: 'mat', secondary: 'mat' }, candidates(story, startInvestigation(story, 42).state)))
+    === '{"kind":"intent","verb":"use","target":"mat"}',
+    'the selector reads a duplicated secondary as a plain use, never as a use on itself');
 }
 
 // ── An attributed grant: a Rule's Beat speaks for a person ───────────────────
