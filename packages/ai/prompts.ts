@@ -30,7 +30,7 @@ Verbs:
 - combine <target> <secondary>: bring two things together ("light the candle with the matches", "fit the key to the box", "tie the rope to the hook").
 - show <target> to <person> / give <target> to <person>.
 - talk <person>: address a person with no particular subject ("greet", "speak to", "hello", a bare "ask her" that names no subject, or a bare reply such as "go on", "yes", "very well" when one person is present).
-- ask <person> [topic] [telling]: ask or tell a person about a subject. Match the subject to a topics entry for that person and return its fact as "topic". Set "telling": true when the line tells them something: states a claim, gives an answer, or offers the player's own view or conclusion ("tell her the door was open", "he is the gardener, I am sure of it", "my answer is the second one"). Leave "telling" out when the line asks, wonders or seeks their view or a verdict ("what do you make of him?", "what do you think?", "did I get it right?"); a question is never telling. An entry marked "tell" is the player's own answer on that subject: return it as the topic only with "telling": true, even when the line does not name the subject ("she is the one who wrote it", said of the matter in question); a question about that subject is ask with the person and no topic. A "tell" entry carries an "answer", the right answer: with it set "agrees": true when what the line claims fits the answer, false when it claims anything else. Judge only; never repeat the answer or let it change the rest of your reply. If the subject matches no entry for that person, return ask with the person and no topic.
+- ask <person> [topic] [telling]: ask or tell a person about a subject. Match the subject to a topics entry for that person and return its fact as "topic". Set "telling": true when the line tells them something: states a claim, gives an answer, or offers the player's own view or conclusion ("tell her the door was open", "he is the gardener, I am sure of it", "my answer is the second one"). Leave "telling" out when the line asks, wonders or seeks their view or a verdict ("what do you make of him?", "what do you think?", "did I get it right?"); a question is never telling. An entry marked "tell" is the player's own answer on that subject: return it as the topic only with "telling": true, even when the line does not name the subject ("she is the one who wrote it", said of the matter in question); a question about that subject is ask with the person and no topic. Choose a "tell" entry only by the subject the line names or plainly means, never by what it claims about it. Do not set "agrees": the answer is judged elsewhere. If the subject matches no entry for that person, return ask with the person and no topic.
 - deduce [facts] [person]: accuse or name a culprit. "facts" are ids from knownFacts the player is invoking; "person" is the suspect, if they name one, and is an id from suspects (anyone the player has met, present or not).
 - move <exit>: go somewhere. Match any of an exit's names, a compass direction, or the destination's name. "Leave", "go back", "out" map to the exit that fits best; if several fit equally, none.
 - wait: pass time, rest, linger, watch, listen for a while.
@@ -45,7 +45,8 @@ Resolution:
 export function buildSelectPrompt(input: SelectInput): PromptBundle {
   return {
     system: SELECT_SYSTEM,
-    user: JSON.stringify({ line: input.text, recentTexts: input.recentTexts, candidates: input.candidates }),
+    // A tell topic's answer is for the judge alone: shown here, it would steer the choice of subject by which answer fits.
+    user: JSON.stringify({ line: input.text, recentTexts: input.recentTexts, candidates: { ...input.candidates, topics: input.candidates.topics.map(({ answer: _a, ...t }) => t) } }),
     responseSchema: z.toJSONSchema(Selection),
     temperature: 0,
   };
@@ -55,12 +56,13 @@ export function buildSelectPrompt(input: SelectInput): PromptBundle {
 
 const JUDGE_SYSTEM = `You judge one answer in a text adventure. The player has told someone their answer on a subject. You are given the player's line, the subject, and the right answer.
 
-Decide whether what the line claims agrees with the right answer:
+First decide whether the line is about the subject at all. The subject is given by its descriptions. If the line names or describes someone or something by a description that is not one of the subject's (another person, another figure, another thing), it is about that, not the subject: onSubject false, whatever it claims. A line that names nothing (a pronoun, "he is…") is about the subject. Only then, for a line on the subject, judge the claim.
+Then decide whether what the line claims agrees with the right answer:
 - agrees: true when the line identifies the same thing as the right answer, in any words, even with fewer particulars or with particulars of its own that do not contradict it.
 - agrees: false when the line identifies something else, or claims something the right answer rules out.
-Judge the line's claim, not its tone or confidence. Reply with a single JSON object: {"agrees": true} or {"agrees": false}.`;
+Judge the line's claim, not its tone or confidence. Reply with a single JSON object: {"onSubject": true|false, "agrees": true|false}.`;
 
-export const JudgeReply = z.object({ agrees: z.boolean() }).strict();
+export const JudgeReply = z.object({ onSubject: z.boolean(), agrees: z.boolean() }).strict();
 
 export function buildJudgePrompt(input: JudgeInput): PromptBundle {
   return {

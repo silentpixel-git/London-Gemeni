@@ -13,6 +13,7 @@ import { loadStoryDir } from '../packages/schema/load';
 import { buildNarrationContext, candidates, fallbackProse, initialState, playerView, replay, resolveTurn, startInvestigation, tick, type State } from '../packages/engine';
 import { suggestionsFor } from '../services/viewFormat';
 import { confineSelection, fromSelector, repairSelectionReply, settleAnswer } from '../packages/ai/selection';
+import { buildSelectPrompt } from '../packages/ai/prompts';
 import type { Ai } from '../packages/ai/types';
 import { fixedRng } from '../packages/engine/rng';
 import { prove } from '../packages/engine/prover';
@@ -499,10 +500,21 @@ section('settling a told answer');
   const unknown = await settleAnswer(told, set, 'the gardener wrote it', [], judging(null));
   const noJudge = await settleAnswer(told, set, 'the gardener wrote it', [], { select: async () => ({ kind: 'none' }), narrate: async function* () { /* unused */ } });
   check(right.kind === 'intent' && right.agrees === true && wrong.kind === 'intent' && wrong.agrees === false, 'the judge decides: its verdict replaces the selector\'s');
-  check([failed, unknown, noJudge].every(x => x.kind === 'intent' && x.topic === undefined && x.agrees === undefined && x.telling === undefined),
-    'an answer that cannot be judged (judge down, unsure, or none and the selector did not judge) commits nothing: the player may say it again');
+  check([failed, unknown, noJudge].every(x => x.kind === 'none' && !!x.reason && /again/.test(x.reason)),
+    'an answer that cannot be judged (judge down, off the subject, or no judgement at all) commits nothing, and the miss says it may be given again');
+  check(!buildSelectPrompt({ text: 'x', candidates: set, recentTexts: [] }).user.includes('The gardener wrote it.'),
+    'the selector is never shown a hidden answer: it picks the subject by what the line names, and the judge alone decides');
   const selectorJudged = await settleAnswer({ ...told, agrees: false }, set, 'the cook wrote it', [], { select: async () => ({ kind: 'none' }), narrate: async function* () { /* unused */ } });
-  check(selectorJudged.kind === 'intent' && selectorJudged.agrees === false, 'with no judge, the selector\'s own judgement stands');
+  check(selectorJudged.kind === 'intent' && selectorJudged.agrees === false, 'with no judge, a judgement already on the Selection (a recorded one) stands');
+  // Two subjects the player may answer on: the line is about the first one it names, whichever the selector chose.
+  const twoSubjects = { ...set, topics: [...set.topics,
+    { person: 'housekeeper', fact: 'master_was_afraid', phrase: 'the master', direction: 'tell' as const, answer: 'He was afraid.' }] };
+  const asked: string[] = [];
+  const recordingJudge: Ai = { select: async () => ({ kind: 'none' }), narrate: async function* () { /* unused */ },
+    judge: async input => { asked.push(input.answer); return false; } };
+  const swapped = await settleAnswer({ ...told }, twoSubjects, 'the master wrote it', [], recordingJudge);
+  check(swapped.kind === 'intent' && swapped.topic === 'master_was_afraid' && asked[0] === 'He was afraid.',
+    'an answer about the subject the line names is judged on that subject, even when the selector chose the other one');
   const plainAsk = await settleAnswer({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'key_in_clock' }, set, 'ask her about the key', [], judging('throw'));
   check(plainAsk.kind === 'intent' && plainAsk.topic === 'key_in_clock', 'an ordinary ask is never sent to the judge');
   check(JSON.stringify(fromSelector({ kind: 'none', reason: 'he is not a cab driver' })) === '{"kind":"none"}', 'a none reason written by the selector never reaches the narrator');

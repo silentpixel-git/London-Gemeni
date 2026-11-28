@@ -693,6 +693,18 @@ every turn. The endpoint guards (ADR-0005 §11):
 The two `answer` texts drop their marking words ("any answer that … agrees"); the judge prompt holds
 that rule. The wager Beat's dangling "Any man," is gone.
 
+**After the final live QA:**
+- The selector no longer sees the hidden answers.
+- The judge is given the line's subject as the first subject the line names (ADR-0005 §11), so a
+  swapped answer ("the old fellow is an actor") is judged against the old fellow.
+- An answer that can't be judged is an in-character miss that says it may be given again.
+
+Data changes:
+- **`holmes`** gains a beat: he neither confirms nor denies a reading until he is told one.
+- **`holmes_the_wager`'s voice** gives the stakes, not the commit line the wager Beat already
+  quotes.
+- **"England"** joins the lexicon.
+
 ## 9. Risks the golden can't see (for the playtest)
 
 - **The glass is invisible on the very first turn.** If the player's first line is about the glass

@@ -45,6 +45,20 @@ export function confineSelection(sel: Selection, set: CandidateSet, text?: strin
   return trimmed;
 }
 
+/**
+ * The tell subject a line names first, by the words of its phrases that belong to that subject alone (a word shared by
+ * two subjects' phrases, "man", names neither). Undefined when the line names none of them.
+ */
+function firstSubjectNamed(text: string, tells: CandidateSet['topics']): string | undefined {
+  const owners = new Map<string, Set<string>>();
+  for (const t of tells) for (const w of topicWords(t.phrase)) owners.set(w, (owners.get(w) ?? new Set()).add(t.fact));
+  for (const w of topicWords(text)) {
+    const facts = owners.get(w);
+    if (facts?.size === 1) return [...facts][0];
+  }
+  return undefined;
+}
+
 /** A selector's reply with its own words for a none dropped: they may echo a verdict, and they would reach the narrator. */
 export function fromSelector(sel: Selection): Selection {
   return sel.kind === 'none' && sel.reason !== undefined ? { kind: 'none' } : sel;
@@ -73,21 +87,28 @@ function isQuestion(text: string): boolean {
 
 /**
  * The endpoint's last step before the engine (ADR-0005 §11). A told answer on a topic offered only as "tell" is
- * judged by the AI's judge when it has one, and its verdict replaces the selector's; an answer that cannot be judged
- * (no judge and no judgement from the selector, a failed or unsure judge) commits nothing, so the player may say it
- * again.
+ * judged by the AI's judge when it has one; an answer that cannot be judged (no judge and no judgement already on the
+ * Selection, a failed judge, or a line the judge finds is about some other subject) commits nothing and is a miss that
+ * says so, so the player knows to say it again.
  */
 export async function settleAnswer(sel: Selection, set: CandidateSet, text: string, recentTexts: string[], ai: Ai): Promise<Selection> {
   if (sel.kind !== 'intent' || sel.verb !== 'ask' || !sel.topic || !sel.telling) return sel;
-  const offered = set.topics.filter(t => t.fact === sel.topic && (!sel.person || t.person === sel.person));
-  if (!offered.length || !offered.every(t => t.direction === 'tell')) return sel;
-  const unjudged = () => { const { topic: _t, agrees: _a, telling: _l, ...rest } = sel; return rest; };
-  if (!ai.judge) return sel.agrees === undefined ? unjudged() : sel;
+  const intent = sel;
+  const chosen = set.topics.filter(t => t.fact === intent.topic && (!intent.person || t.person === intent.person));
+  if (!chosen.length || !chosen.every(t => t.direction === 'tell')) return sel;
+  const person = chosen[0].person;
+  // The answer is about the first subject the line names, whichever the selector chose (it can be swayed by what the
+  // line claims): "the old fellow is an actor" is an answer about the old fellow.
+  const topic = firstSubjectNamed(text, set.topics.filter(t => t.direction === 'tell' && t.person === person)) ?? intent.topic;
+  const offered = set.topics.filter(t => t.fact === topic && t.person === person);
+  // Said to the narrator as an in-character miss, so the player knows the answer did not land and may give it again.
+  const unjudged = (): Selection => ({ kind: 'none', reason: 'the answer did not carry; it may be given again' });
+  if (!ai.judge) return intent.agrees === undefined ? unjudged() : { ...intent, topic };
   const verdict = await ai.judge({ text, recentTexts, subject: offered.map(t => t.phrase).join(', '), answer: offered[0].answer ?? '' }).catch((err: unknown) => {
     console.warn('judge failed:', err instanceof Error ? err.message : err);
     return null;
   });
-  return verdict === null ? unjudged() : { ...sel, agrees: verdict };
+  return verdict === null ? unjudged() : { ...intent, topic, agrees: verdict };
 }
 
 /** Whether free text carries a word of a tell topic's answer that is neither in the player's line nor in the topic's phrases. */

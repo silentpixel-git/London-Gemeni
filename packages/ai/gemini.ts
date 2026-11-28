@@ -30,7 +30,8 @@ export function gemini(selectModel: string, narrateModel: string, judgeModel: st
       });
       const res = await client.models.generateContent(req);
       const parsed = JudgeReply.safeParse(parseJson(res.text ?? ''));
-      return parsed.success ? parsed.data.agrees : null;
+      // A line about some other subject is no answer on this one: unjudged, so it commits nothing.
+      return parsed.success && parsed.data.onSubject ? parsed.data.agrees : null;
     },
 
     async select(input: SelectInput): Promise<Selection> {
@@ -51,7 +52,8 @@ export function gemini(selectModel: string, narrateModel: string, judgeModel: st
 
     async *narrate(ctx: NarrationContext): AsyncIterable<NarrationChunk> {
       // A narration that has not finished in its time ends the turn's narration; the endpoint closes the turn with its Beats.
-      const req = () => request(narrateModel, buildNarratePrompt(ctx), { abortSignal: AbortSignal.timeout(NARRATE_TIMEOUT_MS) });
+      // A bounded thinking budget: prose for one turn needs little planning, and default thinking ran into the timeout.
+      const req = () => request(narrateModel, buildNarratePrompt(ctx), { abortSignal: AbortSignal.timeout(NARRATE_TIMEOUT_MS), thinkingConfig: { thinkingBudget: NARRATE_THINKING } });
       // Streaming design: the reply is the NarrationResult JSON, and `prose` is
       // the first property of the schema (Gemini emits properties in schema
       // order), so the prose string opens early. We decode that string from the
@@ -103,7 +105,8 @@ const SELECT_TIMEOUT_MS = 5_000;
 const NARRATE_TIMEOUT_MS = 20_000;
 const JUDGE_TIMEOUT_MS = 7_000;
 const JUDGE_MAX_TOKENS = 1_024;
-const JUDGE_THINKING = 512;
+const JUDGE_THINKING = 0;
+const NARRATE_THINKING = 256;
 
 /** Gemini's JSON-schema dialect rejects the $schema dialect marker Zod adds. */
 function forGemini(schema: Record<string, unknown>): Record<string, unknown> {
