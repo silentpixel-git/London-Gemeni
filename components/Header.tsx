@@ -3,10 +3,10 @@
  *
  * Sticky top bar with:
  *   - Sidebar toggle
- *   - Connection status indicators (Engine / Cloud / Saving)
- *   - Dark mode toggle
- *   - Profile dropdown (save, load, edit profile, sign out)
- *   - "Sign In" pill button when unauthenticated
+ *   - An Engine dot, shown only when the turn endpoint stopped answering
+ *   - The diary button
+ *   - One account menu: Sign In (guest) or the account (signed in), then
+ *     Investigations and a Settings sub-page
  */
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -15,29 +15,23 @@ import type { User } from '@supabase/supabase-js';
 import type { UserProfile } from '../services/GameRepository';
 import {
   PanelLeftClose, PanelLeftOpen, User as UserIcon,
-  ChevronDown, ChevronLeft, ChevronRight, FolderOpen, LogOut, LogIn, Pencil, RefreshCw,
+  ChevronDown, ChevronLeft, ChevronRight, FolderOpen, LogOut, LogIn, Pencil,
   Settings, BookOpenText,
 } from 'lucide-react';
 import { SettingsPanel } from './SettingsPanel';
 import { Tooltip } from './Tooltip';
 import { zoomFade } from './motionTokens';
-import type { ThemeMode } from '../types';
+import type { Appearance } from '../hooks/gameState/useAppearance';
 
 interface HeaderProps {
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
-  connectionStatus: { engine: boolean | null; supabase: boolean | null };
-  onRetryConnection: () => void;
+  /** Whether POST /api/turn answered the last request; null before the first. */
+  engineOk: boolean | null;
   onOpenDiary: () => void;
   diaryUnreadCount: number;
-  themeMode: ThemeMode;
-  onSetThemeMode: (mode: ThemeMode) => void;
-  soundEffects: boolean;
-  onToggleSound: () => void;
-  ambientAudio: boolean;
-  onToggleAmbient: () => void;
-  showSuggestions: boolean;
-  onToggleSuggestions: () => void;
+  appearance: Appearance;
+  /** null for a guest. */
   user: User | null;
   userProfile: UserProfile | null;
   /** The player's investigations: open one, start one, delete one. Every turn is saved as it happens. */
@@ -48,10 +42,9 @@ interface HeaderProps {
 }
 
 /**
- * Two-page slide-over used by both the guest and signed-in dropdown menus
- * (profile/settings sub-page). The viewport height animates to match
- * whichever page is showing, so the closed menu never leaves empty space
- * under a shorter page.
+ * Two-page slide-over for the account menu (main page / settings sub-page).
+ * The viewport height animates to match whichever page is showing, so the
+ * closed menu never leaves empty space under a shorter page.
  */
 const TwoPageDropdown: React.FC<{ page1: React.ReactNode; page2: React.ReactNode; showPage2: boolean }> = ({
   page1, page2, showPage2,
@@ -88,18 +81,10 @@ const TwoPageDropdown: React.FC<{ page1: React.ReactNode; page2: React.ReactNode
 export const Header: React.FC<HeaderProps> = ({
   isSidebarOpen,
   onToggleSidebar,
-  connectionStatus,
-  onRetryConnection,
+  engineOk,
   onOpenDiary,
   diaryUnreadCount,
-  themeMode,
-  onSetThemeMode,
-  soundEffects,
-  onToggleSound,
-  ambientAudio,
-  onToggleAmbient,
-  showSuggestions,
-  onToggleSuggestions,
+  appearance,
   user,
   userProfile,
   onOpenInvestigations,
@@ -117,63 +102,31 @@ export const Header: React.FC<HeaderProps> = ({
     }
     lastBadge.current = diaryUnreadCount;
   }, [diaryUnreadCount, reducedMotion]);
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [settingsView, setSettingsView] = useState(false);
-  const [isGuestMenuOpen, setIsGuestMenuOpen] = useState(false);
-  const [guestSettingsView, setGuestSettingsView] = useState(false);
-  const [profileMenuPositionAbove, setProfileMenuPositionAbove] = useState(false);
-  const [guestMenuPositionAbove, setGuestMenuPositionAbove] = useState(false);
-  const profileMenuRef = useRef<HTMLDivElement>(null);
-  const guestMenuRef = useRef<HTMLDivElement>(null);
-  // Wrappers around trigger + menu, for outside-press detection.
-  const profileWrapRef = useRef<HTMLDivElement>(null);
-  const guestWrapRef = useRef<HTMLDivElement>(null);
+  // Wrapper around trigger + menu, for outside-press detection.
+  const menuWrapRef = useRef<HTMLDivElement>(null);
 
-  const displayName = userProfile?.displayName || user?.user_metadata?.full_name || user?.email;
+  const displayName = userProfile?.displayName || user?.email;
 
-  // Check available space and reposition menu above if needed
-  useLayoutEffect(() => {
-    if (!isProfileMenuOpen || !profileMenuRef.current) return;
-    const rect = profileMenuRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    // If less than 100px of space below, position above instead
-    setProfileMenuPositionAbove(spaceBelow < 100);
-  }, [isProfileMenuOpen, settingsView]);
-
-  useLayoutEffect(() => {
-    if (!isGuestMenuOpen || !guestMenuRef.current) return;
-    const rect = guestMenuRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    setGuestMenuPositionAbove(spaceBelow < 100);
-  }, [isGuestMenuOpen, guestSettingsView]);
-
-  const closeProfileMenu = () => {
-    setIsProfileMenuOpen(false);
+  const closeMenu = () => {
+    setIsMenuOpen(false);
     setSettingsView(false);
   };
 
-  const closeGuestMenu = () => {
-    setIsGuestMenuOpen(false);
-    setGuestSettingsView(false);
-  };
-
-  // Close the menus on any pointer press outside trigger + menu. (A fixed
+  // Close the menu on any pointer press outside trigger + menu. (A fixed
   // inset-0 click-catcher doesn't work here: the header's backdrop-filter
   // makes it the containing block for fixed descendants, clipping the
   // catcher to the header strip.)
   useEffect(() => {
-    if (!isGuestMenuOpen && !isProfileMenuOpen) return;
+    if (!isMenuOpen) return;
     const onPointerDown = (e: PointerEvent) => {
-      const target = e.target as Node;
-      if (isGuestMenuOpen && !guestWrapRef.current?.contains(target)) closeGuestMenu();
-      if (isProfileMenuOpen && !profileWrapRef.current?.contains(target)) closeProfileMenu();
+      if (!menuWrapRef.current?.contains(e.target as Node)) closeMenu();
     };
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [isGuestMenuOpen, isProfileMenuOpen]);
+  }, [isMenuOpen]);
 
-  // Shared between the guest and signed-in layouts below — a plain JSX
-  // value (not a nested component) so it doesn't remount on every render.
   const hasNewDiaryEntries = diaryUnreadCount > 0;
   const diaryButton = (
     <Tooltip label="Read Watson's Diary">
@@ -192,12 +145,12 @@ export const Header: React.FC<HeaderProps> = ({
     </Tooltip>
   );
 
-  const connectionDown = connectionStatus.engine === false || connectionStatus.supabase === false;
+  const menuItem = 'w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left';
 
   return (
     <header className="sticky top-[env(safe-area-inset-top,0px)] z-30 px-4 py-3 desk:px-16 desk:py-4 flex items-center justify-between gap-3 bg-lb-bg/90 backdrop-blur-sm border-b border-lb-border">
 
-      {/* Left — sidebar toggle + connection dots */}
+      {/* Left — sidebar toggle + engine dot */}
       <div className="flex items-center gap-3 min-w-0" data-flip>
         <Tooltip label={isSidebarOpen ? 'Hide the panel' : 'Show the panel'}>
           <button
@@ -209,268 +162,111 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </Tooltip>
 
-        {/* Connection status — shown only when a connection is down. */}
-        {connectionDown && (
-        <div className="flex items-center gap-3 min-w-0 px-3 py-1.5 bg-lb-paper/50 rounded-full border border-lb-border">
-          {/* Engine dot */}
-          <div
-            className="flex items-center gap-1.5"
-            title={
-              connectionStatus.engine === true  ? 'Engine Connected'    :
-              connectionStatus.engine === false ? 'Engine Disconnected' :
-              'Checking Engine...'
-            }
-          >
-            <div className={`w-1.5 h-1.5 rounded-full ${
-              connectionStatus.engine === true  ? 'bg-green-500' :
-              connectionStatus.engine === false ? 'bg-red-500'   :
-              'bg-yellow-500 animate-pulse'
-            }`} />
+        {/* Shown only when the turn endpoint stopped answering. */}
+        {engineOk === false && (
+          <div className="flex items-center gap-1.5 min-w-0 px-3 py-1.5 bg-lb-paper/50 rounded-full border border-lb-border" title="Engine Disconnected">
+            <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
             <span className="text-[9px] uppercase tracking-widest text-lb-muted font-bold">Engine</span>
           </div>
-
-          <div className="w-px h-3 bg-lb-border/50" />
-
-          {/* Cloud dot — clickable to retry when disconnected */}
-          <button
-            type="button"
-            onClick={connectionStatus.supabase === false ? onRetryConnection : undefined}
-            disabled={connectionStatus.supabase !== false}
-            className={`flex items-center gap-1.5 ${connectionStatus.supabase === false ? 'cursor-pointer hover:opacity-70' : 'cursor-default'}`}
-            title={
-              connectionStatus.supabase === true  ? 'Cloud Connected'           :
-              connectionStatus.supabase === false ? 'Cloud Disconnected — click to retry' :
-              'Checking Cloud...'
-            }
-          >
-            <div className={`w-1.5 h-1.5 rounded-full ${
-              connectionStatus.supabase === true  ? 'bg-green-500' :
-              connectionStatus.supabase === false ? 'bg-red-500'   :
-              'bg-yellow-500 animate-pulse'
-            }`} />
-            <span className={`text-[9px] uppercase tracking-widest font-bold ${
-              connectionStatus.supabase === false ? 'text-red-400' : 'text-lb-muted'
-            }`}>Cloud</span>
-            {connectionStatus.supabase === false && (
-              <RefreshCw size={8} className="text-red-400" />
-            )}
-          </button>
-
-        </div>
         )}
       </div>
 
-      {/* Right — settings + profile */}
-      <div className="flex items-center gap-2">
+      {/* Right — diary + account menu */}
+      <div className="flex items-center gap-3">
+        {diaryButton}
+        <div className="relative" ref={menuWrapRef}>
+          <Tooltip label="Account">
+            <button
+              onClick={() => { setIsMenuOpen(o => !o); setSettingsView(false); }}
+              className="flex items-center gap-2 text-lb-primary group pressable"
+              aria-expanded={isMenuOpen}
+              aria-label="Account menu"
+            >
+              <div className="w-10 h-10 rounded-full bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white flex items-center justify-center shrink-0">
+                {user ? <UserIcon size={18} /> : <LogIn size={18} />}
+              </div>
+              <ChevronDown
+                size={14}
+                className={`transition-transform duration-200 ${isMenuOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+          </Tooltip>
 
-        {/* Unauthenticated: guest dropdown mirrors the signed-in menu — a Sign In
-            button where the account info sits when signed in, plus the same
-            Settings sub-page. */}
-        {!user && (
-          <div className="flex items-center gap-3">
-            {diaryButton}
-            <div className="relative" ref={guestWrapRef}>
-              <Tooltip label="Account">
-                <button
-                  onClick={() => { setIsGuestMenuOpen(o => !o); setGuestSettingsView(false); }}
-                  className="flex items-center gap-2 text-lb-primary group pressable"
-                  aria-expanded={isGuestMenuOpen}
-                  aria-label="Account menu"
-                >
-                  <div className="w-10 h-10 rounded-full bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white flex items-center justify-center shrink-0">
-                    <LogIn size={18} />
-                  </div>
-                  <ChevronDown
-                    size={14}
-                    className={`transition-transform duration-200 ${isGuestMenuOpen ? 'rotate-180' : ''}`}
-                  />
-                </button>
-              </Tooltip>
-
-              <AnimatePresence>
-                {isGuestMenuOpen && (
-                  <motion.div
-                    ref={guestMenuRef}
-                    {...zoomFade(reducedMotion)}
-                    className={`absolute right-0 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 max-h-[80vh] overflow-y-auto ${
-                      guestMenuPositionAbove ? 'bottom-full mb-2 origin-bottom-right' : 'top-full mt-2 origin-top-right'
-                    }`}
-                  >
-                    <TwoPageDropdown
-                      showPage2={guestSettingsView}
-                      page1={
-                        <div className="p-1">
-                          {/* Sign In */}
-                          <div className="px-3 pt-2 pb-3 border-b border-lb-border mb-1">
-                            <p className="text-[10px] uppercase tracking-widest text-lb-muted font-bold mb-2">Playing As Guest</p>
-                            <button
-                              onClick={() => { onOpenAuth(); closeGuestMenu(); }}
-                              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white rounded-md text-xs font-bold tracking-widest uppercase hover:bg-lb-accent dark:hover:bg-lb-accent/80 pressable"
-                            >
-                              <LogIn size={14} /><span>Sign In</span>
-                            </button>
-                            <p className="mt-2 text-[10.5px] text-lb-muted text-center leading-snug">Keep your investigation safe in the cloud.</p>
-                          </div>
-
-                          <button
-                            onClick={() => { onOpenInvestigations(); closeGuestMenu(); }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                          >
-                            <FolderOpen size={14} /><span>Investigations</span>
-                          </button>
-
-                          {/* Settings — slides to the sub-page */}
-                          <button
-                            onClick={() => setGuestSettingsView(true)}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                          >
-                            <Settings size={14} /><span>Settings</span>
-                            <ChevronRight size={14} className="ml-auto opacity-50" />
-                          </button>
-                        </div>
-                      }
-                      page2={
-                        <div>
-                          <button
-                            onClick={() => setGuestSettingsView(false)}
-                            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-lb-primary border-b border-lb-border hover:bg-lb-bg text-left"
-                          >
-                            <ChevronLeft size={16} /><span>Settings</span>
-                          </button>
-                          <SettingsPanel
-                            themeMode={themeMode}
-                            onSetThemeMode={onSetThemeMode}
-                            soundEffects={soundEffects}
-                            onToggleSound={onToggleSound}
-                            ambientAudio={ambientAudio}
-                            onToggleAmbient={onToggleAmbient}
-                            showSuggestions={showSuggestions}
-                            onToggleSuggestions={onToggleSuggestions}
-                          />
-                        </div>
-                      }
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-        )}
-
-        {/* Authenticated: Profile dropdown */}
-        {user && (
-          <div className="flex items-center gap-3">
-            {diaryButton}
-            <div className="relative" ref={profileWrapRef}>
-              <Tooltip label="Account">
-                <button
-                  onClick={() => { setIsProfileMenuOpen(o => !o); setSettingsView(false); }}
-                  className="flex items-center gap-2 text-lb-primary group pressable"
-                  aria-label="Account menu"
-                >
-                  <div className="w-10 h-10 rounded-full bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white flex items-center justify-center overflow-hidden shrink-0">
-                    {user.user_metadata?.avatar_url ? (
-                      <img
-                        src={user.user_metadata.avatar_url}
-                        alt="Profile"
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <UserIcon size={18} />
-                    )}
-                  </div>
-                  <ChevronDown
-                    size={14}
-                    className={`transition-transform duration-200 ${isProfileMenuOpen ? 'rotate-180' : ''}`}
-                  />
-                </button>
-              </Tooltip>
-
-              <AnimatePresence>
-                {isProfileMenuOpen && (
-                  <motion.div
-                    ref={profileMenuRef}
-                    {...zoomFade(reducedMotion)}
-                    className={`absolute right-0 w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 max-h-[80vh] overflow-y-auto ${
-                      profileMenuPositionAbove ? 'bottom-full mb-2 origin-bottom-right' : 'top-full mt-2 origin-top-right'
-                    }`}
-                  >
-                    <TwoPageDropdown
-                      showPage2={settingsView}
-                      page1={
-                        <div className="p-1">
-                          {/* User info */}
+          <AnimatePresence>
+            {isMenuOpen && (
+              <motion.div
+                {...zoomFade(reducedMotion)}
+                className="absolute right-0 top-full mt-2 origin-top-right w-56 bg-lb-paper border border-lb-border rounded-lg shadow-xl z-20 max-h-[80vh] overflow-y-auto"
+              >
+                <TwoPageDropdown
+                  showPage2={settingsView}
+                  page1={
+                    <div className="p-1">
+                      {user ? (
+                        <>
                           <div className="px-3 py-2 border-b border-lb-border mb-1">
                             <p className="text-[10px] uppercase tracking-widest text-lb-muted font-bold">Signed In As</p>
                             <p className="text-xs font-medium text-lb-primary truncate">{displayName}</p>
                             <p className="text-[10px] text-lb-muted truncate">{user.email}</p>
                           </div>
-
-                          {/* Edit Profile */}
-                          <button
-                            onClick={() => { onOpenEditProfile(); closeProfileMenu(); }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                          >
+                          <button onClick={() => { onOpenEditProfile(); closeMenu(); }} className={menuItem}>
                             <Pencil size={14} /><span>Edit Profile</span>
                           </button>
-
-                          {/* Settings — slides to the sub-page */}
+                        </>
+                      ) : (
+                        <div className="px-3 pt-2 pb-3 border-b border-lb-border mb-1">
+                          <p className="text-[10px] uppercase tracking-widest text-lb-muted font-bold mb-2">Playing As Guest</p>
                           <button
-                            onClick={() => setSettingsView(true)}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
+                            onClick={() => { onOpenAuth(); closeMenu(); }}
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-lb-primary text-lb-bg dark:bg-lb-accent dark:text-white rounded-md text-xs font-bold tracking-widest uppercase hover:bg-lb-accent dark:hover:bg-lb-accent/80 pressable"
                           >
-                            <Settings size={14} /><span>Settings</span>
-                            <ChevronRight size={14} className="ml-auto opacity-50" />
+                            <LogIn size={14} /><span>Sign In</span>
                           </button>
+                          <p className="mt-2 text-[10.5px] text-lb-muted text-center leading-snug">Keep your investigation safe in the cloud.</p>
+                        </div>
+                      )}
 
+                      {/* Settings — slides to the sub-page */}
+                      <button onClick={() => setSettingsView(true)} className={menuItem}>
+                        <Settings size={14} /><span>Settings</span>
+                        <ChevronRight size={14} className="ml-auto opacity-50" />
+                      </button>
+
+                      <div className="h-px bg-lb-border my-1" />
+
+                      <button onClick={() => { onOpenInvestigations(); closeMenu(); }} className={menuItem}>
+                        <FolderOpen size={14} /><span>Investigations</span>
+                      </button>
+
+                      {user && (
+                        <>
                           <div className="h-px bg-lb-border my-1" />
-
                           <button
-                            onClick={() => { onOpenInvestigations(); closeProfileMenu(); }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-lb-primary hover:bg-lb-bg rounded text-left"
-                          >
-                            <FolderOpen size={14} /><span>Investigations</span>
-                          </button>
-
-                          <div className="h-px bg-lb-border my-1" />
-
-                          {/* Sign out */}
-                          <button
-                            onClick={() => { onLogout(); closeProfileMenu(); }}
+                            onClick={() => { onLogout(); closeMenu(); }}
                             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded text-left"
                           >
                             <LogOut size={14} /><span>Sign Out</span>
                           </button>
-                        </div>
-                      }
-                      page2={
-                        <div>
-                          <button
-                            onClick={() => setSettingsView(false)}
-                            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-lb-primary border-b border-lb-border hover:bg-lb-bg text-left"
-                          >
-                            <ChevronLeft size={16} /><span>Settings</span>
-                          </button>
-                          <SettingsPanel
-                            themeMode={themeMode}
-                            onSetThemeMode={onSetThemeMode}
-                            soundEffects={soundEffects}
-                            onToggleSound={onToggleSound}
-                            ambientAudio={ambientAudio}
-                            onToggleAmbient={onToggleAmbient}
-                            showSuggestions={showSuggestions}
-                            onToggleSuggestions={onToggleSuggestions}
-                          />
-                        </div>
-                      }
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-        )}
+                        </>
+                      )}
+                    </div>
+                  }
+                  page2={
+                    <div>
+                      <button
+                        onClick={() => setSettingsView(false)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold text-lb-primary border-b border-lb-border hover:bg-lb-bg text-left"
+                      >
+                        <ChevronLeft size={16} /><span>Settings</span>
+                      </button>
+                      <SettingsPanel appearance={appearance} />
+                    </div>
+                  }
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </header>
   );

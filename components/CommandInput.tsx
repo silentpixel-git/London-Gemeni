@@ -10,7 +10,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Send, Eye, Search, Glasses, Compass, Brain, Microscope, type LucideIcon } from 'lucide-react';
-import { GameHistoryItem } from '../types';
+import type { FeedItem } from '../packages/schema/view.js';
 import { zoomFade } from './motionTokens';
 import { Tooltip } from './Tooltip';
 
@@ -43,7 +43,7 @@ const PROMPTS_MOBILE = [
 interface CommandInputProps {
   isLoading: boolean;
   isGameOver: boolean;
-  history: GameHistoryItem[];
+  history: FeedItem[];
   onAction: (userAction: string) => Promise<void>;
   /** Lets the feed keep typed text clear of the dock (chips + input). */
   dockRef?: React.Ref<HTMLDivElement>;
@@ -99,11 +99,8 @@ export const CommandInput: React.FC<CommandInputProps> = ({
     await onAction(value);
   };
 
-  const isStreaming =
-    isLoading &&
-    history.length > 0 &&
-    history[history.length - 1].role === 'assistant' &&
-    history[history.length - 1].text === '';
+  const last = history.at(-1);
+  const isStreaming = isLoading && last?.kind === 'prose' && last.text === '';
 
   return (
     <div
@@ -137,7 +134,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
             {reducedMotion ? (
               <>
                 <loadingVariant.icon size={14} className="shrink-0" />
-                <span className="text-sm italic font-serif">{loadingVariant.text}</span>
+                <span className="text-sm italic">{loadingVariant.text}</span>
               </>
             ) : (
               // All messages render stacked; the lb-rot-* CSS loop shows one
@@ -151,7 +148,7 @@ export const CommandInput: React.FC<CommandInputProps> = ({
                     style={{ '--lb-slot': `${((k - loadingStart + LOADING_VARIANTS.length) % LOADING_VARIANTS.length) * 3.1}s` } as React.CSSProperties}
                   >
                     <Icon size={14} className="lb-rot-icon shrink-0" />
-                    <span className="text-sm italic font-serif lb-ink-mask lb-rot-txt">{text}</span>
+                    <span className="text-sm italic lb-ink-mask lb-rot-txt">{text}</span>
                   </span>
                 ))}
               </span>

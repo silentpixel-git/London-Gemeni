@@ -8,12 +8,14 @@
  * Run: npx tsx scripts/qa-core.ts     Exit 1 on any FAIL.
  */
 import { join } from 'node:path';
-import { Story, type EventPayload, type Selection } from '../packages/schema';
+import { Story, validateStory, type EventPayload, type Selection } from '../packages/schema';
 import { loadStoryDir } from '../packages/schema/load';
 import { buildNarrationContext, candidates, fallbackProse, initialState, playerView, replay, resolveTurn, startInvestigation, tick, type State } from '../packages/engine';
 import { suggestionsFor } from '../services/viewFormat';
-import { confineSelection } from '../packages/ai/selection';
+import { confineSelection, fromSelector, repairSelectionReply, settleAnswer } from '../packages/ai/selection';
+import type { Ai } from '../packages/ai/types';
 import { fixedRng } from '../packages/engine/rng';
+import { prove } from '../packages/engine/prover';
 
 const story = Story.parse(loadStoryDir(join('packages', 'schema', 'fixtures', 'toy')));
 
@@ -366,6 +368,253 @@ section('the prose\'s world, on this Story');
   check(w.location !== 'study' && garden.beats.every(b => buildNarrationContext(story, letter.state, letter.events, 'full', 'study').beats.includes(b))
     && !garden.beats.some(b => buildNarrationContext(story, letter.state, letter.events, 'full', w.location).beats.includes(b)),
     'an act that brings the player somewhere new is narrated as an arrival there; begun in place, it is not');
+}
+
+// ── Telling and asking at the seam ───────────────────────────────────────────
+// A topic offered as "tell" (the player knows it, the person does not) is the player telling.
+// The selector says whether the line tells; a question about that subject is an ask with no topic.
+section('telling and asking');
+{
+  const knows = Story.parse({ ...story, facts: story.facts.map(f => (f.id === 'letter_confession' ? { ...f, knownBy: ['player'] } : f)) });
+  let w: State = startInvestigation(knows, 42).state;
+  const set = candidates(knows, w);
+  check(set.topics.some(t => t.person === 'housekeeper' && t.fact === 'letter_confession' && t.direction === 'tell'), 'the player\'s own Fact is offered to her as a tell topic');
+  const asked = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'letter_confession' }, set, 'what do you make of the letter?');
+  check(JSON.stringify(asked) === '{"kind":"intent","verb":"ask","person":"housekeeper"}', 'a question about a tell subject keeps no topic: it is an ask, not the player telling');
+  const told = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'letter_confession', telling: true }, set, 'tell her about the letter');
+  check(told.kind === 'intent' && told.topic === 'letter_confession', 'the same subject, told, keeps its topic');
+  const unnamed = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'letter_confession', telling: true }, set, 'it was the gardener who did it');
+  check(unnamed.kind === 'intent' && unnamed.topic === 'letter_confession', 'a told answer need not name its subject to count');
+  const accuseThing = confineSelection({ kind: 'intent', verb: 'deduce', facts: ['letter_confession'], person: 'mat' }, set, 'i accuse the mat');
+  check(accuseThing.kind === 'none', 'a deduction naming a thing as its suspect is no deduction: it could otherwise fire into an ending');
+  const offTopic = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'letter_confession', telling: true, agrees: false }, set, 'i am sure it will rain');
+  check(offTopic.kind === 'intent' && offTopic.topic === undefined, 'a telling line that shares no word with the subject or its answer does not use the answer up');
+  const leak = confineSelection({ kind: 'flavour', subject: 'the blackmail demand that names the gardener' }, set, 'look around the hall');
+  check(leak.kind === 'none', 'a flavour subject that would show the player a hidden answer becomes none');
+  const ownWords = confineSelection({ kind: 'flavour', subject: 'the gardener' }, set, 'think about the gardener');
+  check(ownWords.kind === 'flavour', 'the player\'s own words are never a leak');
+  const plain = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'key_in_clock' }, set, 'ask her about the key');
+  check(plain.kind === 'intent' && plain.topic === 'key_in_clock', 'an ordinary ask needs no telling');
+  const object = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'mat' }, set, 'ask her about the mat');
+  check(JSON.stringify(object) === '{"kind":"intent","verb":"ask","person":"housekeeper"}', 'an Object given as a topic is the designed deflection, not a rejected line');
+  const lens = confineSelection({ kind: 'intent', verb: 'examine', target: 'hall_clock', secondary: 'mat' }, set, 'look at the clock through the mat');
+  check(JSON.stringify(lens) === '{"kind":"intent","verb":"use","target":"mat","secondary":"hall_clock"}', 'examining something with an object at hand is using that object on it');
+  const byLamp = confineSelection({ kind: 'intent', verb: 'read', target: 'hall_clock', secondary: 'mat' }, set, 'read the clock by the mat');
+  check(byLamp.kind === 'intent' && byLamp.verb === 'read' && byLamp.target === 'hall_clock', 'reading something by or with another object is still reading it');
+  const both = { ...set, persons: [...set.persons, { id: 'gardener', name: 'The Gardener', description: [] }],
+    topics: [...set.topics.filter(t => t.fact !== 'key_in_clock'), { person: 'gardener', fact: 'key_in_clock', phrase: 'the key', direction: 'ask' as const }] };
+  const wrongPerson = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'key_in_clock' }, both, 'ask her about the key');
+  check(JSON.stringify(wrongPerson) === '{"kind":"intent","verb":"ask","person":"housekeeper"}', 'a topic offered only for someone else is the designed deflection, not a rejected line');
+  const r = resolveTurn(knows, w, { text: 'tell her about the letter', selection: told }, fixedRng([0]));
+  w = r.state;
+  check(has(r.events, e => e.kind === 'FactDisclosed' && e.from === 'player' && e.to === 'housekeeper'), 'telling her discloses it to her');
+  check(!candidates(knows, w).topics.some(t => t.person === 'housekeeper' && t.fact === 'letter_confession'),
+    'once told, she is never offered as telling it back: a person does not repeat to the player what the player told them');
+  check(JSON.stringify(repairSelectionReply({ kind: 'ask', person: 'housekeeper', topic: 'key_in_clock' })) === '{"kind":"intent","verb":"ask","person":"housekeeper","topic":"key_in_clock"}',
+    'a reply that puts the verb in "kind" is read as that intent');
+  check(JSON.stringify(repairSelectionReply({ kind: 'none', reason: 'x' })) === '{"kind":"none","reason":"x"}', 'a well-formed reply is left alone');
+}
+
+// ── A told answer is judged ──────────────────────────────────────────────────
+// Telling a person a Fact the player holds (an answer, a reading) carries whether what the line claims agrees
+// with the Fact's statement; the selector judges it server side, and disclosed Rules may branch on it.
+section('a told answer is judged');
+{
+  const judged = Story.parse({
+    ...story,
+    facts: story.facts.map(f => (f.id === 'letter_confession' ? { ...f, knownBy: ['player'] } : f)),
+    rules: [...story.rules,
+      { id: 'told_right', trigger: { kind: 'disclosed', fact: 'letter_confession', from: 'player', agrees: true }, once: true, effects: [{ kind: 'playBeat', beats: ['Right.'] }] },
+      { id: 'told_wrong', trigger: { kind: 'disclosed', fact: 'letter_confession', from: 'player', agrees: false }, once: true,
+        effects: [{ kind: 'playBeat', beats: ['Wrong.'] }, { kind: 'grantFact', person: 'player', fact: 'master_was_afraid' }] }],
+    clues: [...story.clues, { id: 'clue_afraid', name: 'Afraid', fact: 'master_was_afraid', summary: 'He was afraid.' }],
+  });
+  const w0: State = startInvestigation(judged, 42).state;
+  const set = candidates(judged, w0);
+  const entry = set.topics.find(t => t.person === 'housekeeper' && t.fact === 'letter_confession' && t.direction === 'tell');
+  check(entry?.answer === judged.facts.find(f => f.id === 'letter_confession')!.statement, 'a tell topic carries its answer (here the statement), for the selector to judge against');
+  check(set.topics.filter(t => t.direction === 'ask').every(t => t.answer === undefined), 'an ask topic does not: nothing a person knows is shown before it is told');
+  const withAnswer = Story.parse({ ...judged, facts: judged.facts.map(f => (f.id === 'letter_confession' ? { ...f, answer: 'It was the gardener.' } : f)) });
+  check(candidates(withAnswer, startInvestigation(withAnswer, 42).state).topics.find(t => t.fact === 'letter_confession')?.answer === 'It was the gardener.',
+    'a Fact\'s own answer, when it has one, is what the selector judges against; its statement stays what is narrated');
+  const tell = (agrees?: boolean) => resolveTurn(judged, w0, { text: 'tell her', selection: { kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'letter_confession', telling: true, ...(agrees === undefined ? {} : { agrees }) } }, fixedRng([0]));
+  const right = tell(true), wrong = tell(false), plain = tell();
+  check(has(right.events, e => e.kind === 'FactDisclosed' && e.agrees === true) && fired(right.events, 'told_right') && !fired(right.events, 'told_wrong'), 'an agreeing answer fires the Rule that waits for one');
+  check(has(wrong.events, e => e.kind === 'FactDisclosed' && e.agrees === false) && fired(wrong.events, 'told_wrong') && !fired(wrong.events, 'told_right'), 'a contrary answer fires the other');
+  check(fired(plain.events, 'told_right') && has(plain.events, e => e.kind === 'FactDisclosed' && e.agrees === true), 'an answer not judged is taken as agreeing');
+  const untold = confineSelection({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'key_in_clock', agrees: false }, set, 'ask her about the key');
+  check(untold.kind === 'intent' && untold.agrees === undefined, 'agrees means nothing on a line that does not tell: dropped');
+  const contrary = wrong.state;
+  check(contrary.knows.housekeeper?.letter_confession === true && contrary.ledger.housekeeper?.contrary?.includes('letter_confession') === true
+    && !contrary.ledger.housekeeper?.heard.includes('letter_confession'),
+    'a contrary answer: she knows the subject was answered, and her Ledger records the player\'s contrary claim, not the Fact');
+  check(!buildNarrationContext(judged, contrary, wrong.events, 'full').ledger.some(l => l.heard.length > 0),
+    'the narrator is never told she heard the right answer the player did not give');
+  check(!candidates(judged, contrary).topics.some(t => t.fact === 'letter_confession'), 'and the answered subject is offered in neither direction: the first answer holds');
+  const fails = (trigger: object) => validateStory({ ...story, rules: [...story.rules, { id: 'probe', trigger, once: true, effects: [{ kind: 'playBeat', beats: ['x'] }] }] })
+    .issues.filter(i => i.level === 'fail' && i.at.startsWith('rules/probe/')).length;
+  check(fails({ kind: 'disclosed', fact: 'key_in_clock', from: 'housekeeper', agrees: false }) === 1, 'validator: only the player\'s answers are judged, so agrees on another teller can never fire');
+  check(fails({ kind: 'disclosed', fact: 'key_in_clock', to: 'player', agrees: true }) === 1, 'validator: nor on a disclosure to the player');
+  check(fails({ kind: 'disclosed', fact: 'key_in_clock', from: 'player', agrees: false }) === 0, 'validator: agrees on the player\'s answer is fine');
+  const p = prove(judged);
+  check(p.lines.find(l => l.goal.id === 'clue_afraid')?.reachable === true, 'the prover offers the contrary answer too: a Clue only a wrong answer gives is REACHABLE');
+}
+
+// ── Settling a told answer at the endpoint ───────────────────────────────────
+// A question never tells; a told answer is judged by the AI's judge when it has one, and one that cannot be judged
+// commits nothing (ADR-0005 §11).
+section('settling a told answer');
+{
+  const knows = Story.parse({ ...story, facts: story.facts.map(f => (f.id === 'letter_confession' ? { ...f, knownBy: ['player'], answer: 'The gardener wrote it.' } : f)) });
+  const set = candidates(knows, startInvestigation(knows, 42).state);
+  const told = { kind: 'intent' as const, verb: 'ask' as const, person: 'housekeeper', topic: 'letter_confession', telling: true };
+  const q1 = confineSelection(told, set, 'is it the gardener who wrote it?');
+  const q2 = confineSelection(told, set, 'I wonder whether the gardener wrote the letter');
+  check(q1.kind === 'intent' && q1.topic === undefined && !q1.telling && q2.kind === 'intent' && q2.topic === undefined,
+    'a line put as a question never tells, whatever the selector says');
+  const stray = confineSelection({ ...told, facts: ['key_in_clock'] } as Selection, set, 'the gardener wrote it');
+  check(stray.kind === 'intent' && stray.topic === 'letter_confession' && !('facts' in stray), 'a field the verb never reads (facts on an ask) is dropped, not the answer');
+  const looked = confineSelection({ kind: 'intent', verb: 'look', target: 'hall_clock' }, set, 'look at the clock');
+  check(JSON.stringify(looked) === '{"kind":"intent","verb":"examine","target":"hall_clock"}', 'look with a target is examining it');
+  const around = confineSelection({ kind: 'intent', verb: 'look', target: 'room' }, set, 'look around the room');
+  check(JSON.stringify(around) === '{"kind":"intent","verb":"look"}', 'look with a word that names nothing is still a look, never a miss');
+  const lookThrough = confineSelection({ kind: 'intent', verb: 'look', target: 'hall_clock', secondary: 'mat' }, set, 'look at the clock through the mat');
+  check(JSON.stringify(lookThrough) === '{"kind":"intent","verb":"use","target":"mat","secondary":"hall_clock"}', 'look at X through Y, given as look, is Y used on X');
+  const quoted = [`"Did the gardener write it?" I ask.`, `say "was it the gardener who wrote it?"`, `(is it the gardener?)`];
+  check(quoted.every(line => { const q = confineSelection(told, set, line); return q.kind === 'intent' && q.topic === undefined; }),
+    'a question inside quotation marks or brackets is still a question');
+  const statements = ['Holmes, who else but the gardener wrote it', 'When I saw the ink I knew: the gardener wrote the letter',
+    'Do not be absurd, the gardener wrote the letter', 'Whether you like it or not, the gardener wrote it', 'What a fool I was. The gardener wrote it.'];
+  check(statements.every(line => { const q = confineSelection(told, set, line); return q.kind === 'intent' && q.topic === 'letter_confession'; }),
+    'a statement that opens with a question word is still a statement');
+  const vocative = confineSelection(told, set, 'Mrs Hale, was it the gardener');
+  check(vocative.kind === 'intent' && vocative.topic === undefined, 'a question addressed by name is a question, whoever is named');
+  const judging = (verdict: boolean | null | 'throw'): Ai => ({
+    select: async () => ({ kind: 'none' }), narrate: async function* () { /* unused */ },
+    judge: async () => { if (verdict === 'throw') throw new Error('down'); return verdict; },
+  });
+  const right = await settleAnswer(told, set, 'the gardener wrote it', [], judging(true));
+  const wrong = await settleAnswer({ ...told, agrees: true }, set, 'the cook wrote it', [], judging(false));
+  const failed = await settleAnswer(told, set, 'the gardener wrote it', [], judging('throw'));
+  const unknown = await settleAnswer(told, set, 'the gardener wrote it', [], judging(null));
+  const noJudge = await settleAnswer(told, set, 'the gardener wrote it', [], { select: async () => ({ kind: 'none' }), narrate: async function* () { /* unused */ } });
+  check(right.kind === 'intent' && right.agrees === true && wrong.kind === 'intent' && wrong.agrees === false, 'the judge decides: its verdict replaces the selector\'s');
+  check([failed, unknown, noJudge].every(x => x.kind === 'intent' && x.topic === undefined && x.agrees === undefined && x.telling === undefined),
+    'an answer that cannot be judged (judge down, unsure, or none and the selector did not judge) commits nothing: the player may say it again');
+  const selectorJudged = await settleAnswer({ ...told, agrees: false }, set, 'the cook wrote it', [], { select: async () => ({ kind: 'none' }), narrate: async function* () { /* unused */ } });
+  check(selectorJudged.kind === 'intent' && selectorJudged.agrees === false, 'with no judge, the selector\'s own judgement stands');
+  const plainAsk = await settleAnswer({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'key_in_clock' }, set, 'ask her about the key', [], judging('throw'));
+  check(plainAsk.kind === 'intent' && plainAsk.topic === 'key_in_clock', 'an ordinary ask is never sent to the judge');
+  check(JSON.stringify(fromSelector({ kind: 'none', reason: 'he is not a cab driver' })) === '{"kind":"none"}', 'a none reason written by the selector never reaches the narrator');
+}
+
+// ── An Object used on itself is no use ───────────────────────────────────────
+section('use on itself');
+{
+  let w: State = startInvestigation(story, 42).state;
+  const r = resolveTurn(story, w, { text: 'use the mat on the mat', selection: { kind: 'intent', verb: 'use', target: 'mat', secondary: 'mat' } }, fixedRng([0]));
+  w = r.state;
+  check(has(r.events, e => e.kind === 'IntentRejected' && e.reason === 'it cannot be used on itself') && !has(r.events, e => e.kind === 'Used') && w.clock === startInvestigation(story, 42).state.clock,
+    'using an Object on itself is refused, as combining it with itself is, so no Rule listing it in both slots fires');
+  check(JSON.stringify(confineSelection({ kind: 'intent', verb: 'use', target: 'mat', secondary: 'mat' }, candidates(story, startInvestigation(story, 42).state)))
+    === '{"kind":"intent","verb":"use","target":"mat"}',
+    'the selector reads a duplicated secondary as a plain use, never as a use on itself');
+}
+
+// ── An attributed grant: a Rule's Beat speaks for a person ───────────────────
+// grantFact with `from` records the grant as that person telling it, exactly as an
+// answered ask does: the Ledger, who heard the turn, the Clue. Built on a copy of
+// the toy Story so the fixture (and everything keyed on it) is unchanged.
+section('attributed grant');
+{
+  const told = Story.parse({
+    ...story,
+    rules: [...story.rules, {
+      id: 'housekeeper_volunteers', trigger: { kind: 'action', verb: ['look'] }, when: { personsPresent: ['housekeeper'] }, once: true,
+      effects: [
+        { kind: 'grantFact', person: 'player', fact: 'letter_confession', from: 'housekeeper' },
+        { kind: 'grantFact', person: 'player', fact: 'master_was_afraid' },
+      ],
+    }, {
+      id: 'confession_heard', trigger: { kind: 'disclosed', fact: 'letter_confession', from: 'housekeeper' }, once: true,
+      effects: [{ kind: 'playBeat', beats: ['She lowers her voice.'] }],
+    }],
+  });
+  let w: State = startInvestigation(told, 42).state;
+  const r = resolveTurn(told, w, { text: 'look around', selection: { kind: 'intent', verb: 'look' } }, fixedRng([0]));
+  w = r.state;
+  const at = (pred: (e: EventPayload) => boolean) => r.events.findIndex(pred);
+  const teaches = at(e => e.kind === 'FactLearned' && e.person === 'housekeeper' && e.fact === 'letter_confession');
+  const discloses = at(e => e.kind === 'FactDisclosed' && e.from === 'housekeeper' && e.to === 'player' && e.fact === 'letter_confession');
+  check(discloses >= 0 && !has(r.events, e => e.kind === 'FactLearned' && e.person === 'player' && e.fact === 'letter_confession'),
+    'a grant with `from` is a disclosure from that person, not a bare learning');
+  check(teaches >= 0 && teaches < discloses && w.knows.housekeeper?.letter_confession === true,
+    'the teller learns it first if they did not know it: nobody tells what they do not know');
+  check(w.ledger.housekeeper?.told.includes('letter_confession') === true, 'the Ledger records it as told by her, as an ask would');
+  check(has(r.events, e => e.kind === 'ClueDiscovered' && e.clue === 'clue_letter'), 'and its Clue is discovered');
+  check(w.involved.includes('housekeeper'), 'the turn involves her, so she hears its prose');
+  check(fired(r.events, 'confession_heard'), 'and a disclosed Rule on that Fact from her fires, as on an ask');
+  check(has(r.events, e => e.kind === 'Spoke' && e.person === 'housekeeper' && e.fact === 'letter_confession') && w.persons.housekeeper.introduced,
+    'she speaks it (Spoke), so a self-introducing teller is introduced, as on an ask');
+
+  // The same grant, but the player already knows the Fact: still told, as an ask still tells.
+  const knew = Story.parse({ ...told, facts: told.facts.map(f => (f.id === 'letter_confession' ? { ...f, knownBy: ['player'] } : f)) });
+  const k = resolveTurn(knew, startInvestigation(knew, 42).state, { text: 'look around', selection: { kind: 'intent', verb: 'look' } }, fixedRng([0]));
+  check(has(k.events, e => e.kind === 'FactDisclosed' && e.from === 'housekeeper' && e.fact === 'letter_confession')
+    && k.state.ledger.housekeeper?.told.includes('letter_confession') === true && fired(k.events, 'confession_heard'),
+    'a player who already knows it is still told: the Ledger records it and the disclosed Rule fires');
+
+  // The player tells a person: the other direction, as an ask on a "tell" topic.
+  const tells = Story.parse({
+    ...story,
+    facts: story.facts.map(f => (f.id === 'letter_confession' ? { ...f, knownBy: ['player'] } : f)),
+    rules: [...story.rules, { id: 'player_confides', trigger: { kind: 'action', verb: ['look'] }, once: true,
+      effects: [{ kind: 'grantFact', person: 'housekeeper', fact: 'letter_confession', from: 'player' }] }],
+  });
+  const t = resolveTurn(tells, startInvestigation(tells, 42).state, { text: 'look around', selection: { kind: 'intent', verb: 'look' } }, fixedRng([0]));
+  check(has(t.events, e => e.kind === 'FactDisclosed' && e.from === 'player' && e.to === 'housekeeper')
+    && t.state.ledger.housekeeper?.heard.includes('letter_confession') === true && t.state.knows.housekeeper?.letter_confession === true,
+    'from the player to a person: the Ledger records that she heard it');
+
+  // A teller who is not here cannot tell: the grant is recorded unattributed, and nobody absent hears the turn.
+  const gone = Story.parse({
+    ...story,
+    rules: [...story.rules, { id: 'told_from_afar', trigger: { kind: 'action', verb: ['look'] }, once: true,
+      effects: [{ kind: 'dismissPerson', person: 'housekeeper' }, { kind: 'grantFact', person: 'player', fact: 'letter_confession', from: 'housekeeper' }] }],
+  });
+  const g = resolveTurn(gone, startInvestigation(gone, 42).state, { text: 'look around', selection: { kind: 'intent', verb: 'look' } }, fixedRng([0]));
+  check(has(g.events, e => e.kind === 'FactLearned' && e.person === 'player' && e.fact === 'letter_confession')
+    && !has(g.events, e => e.kind === 'FactDisclosed') && !g.state.involved.includes('housekeeper') && !g.state.ledger.housekeeper,
+    'an absent teller: the player learns it, attributed to no one, and she does not hear the turn');
+  check(has(r.events, e => e.kind === 'FactLearned' && e.person === 'player' && e.fact === 'master_was_afraid')
+    && !w.ledger.housekeeper?.told.includes('master_was_afraid'),
+    'a grant without `from` is unchanged: learned, attributed to no one');
+  const issues = (effect: object) => validateStory({ ...story, rules: [...story.rules, { id: 'probe', trigger: { kind: 'tick' }, weight: 1, once: true, effects: [effect] }] })
+    .issues.filter(i => i.level === 'fail' && i.at.startsWith('rules/probe/'));
+  check(issues({ kind: 'grantFact', person: 'player', fact: 'master_was_afraid', from: 'housekeeper', delayPeriods: 1 }).length === 1,
+    'validator: a delayed grant cannot be attributed (a rumour arrives, nobody is telling it then)');
+  check(issues({ kind: 'grantFact', person: 'housekeeper', fact: 'master_was_afraid', from: 'housekeeper' }).length === 1,
+    'validator: nobody tells themself');
+  check(issues({ kind: 'grantFact', person: 'player', fact: 'master_was_afraid', from: 'nobody_here' }).length === 1,
+    'validator: the teller must be a person in the Story');
+  check(issues({ kind: 'grantFact', person: 'player', fact: 'master_was_afraid', from: 'housekeeper' }).length === 0,
+    'validator: an attributed grant to the player from a person is fine');
+  const twoPeople = Story.parse({ ...story, persons: [...story.persons, { ...story.persons[0], id: 'gardener', name: 'The Gardener', alias: undefined, introduction: undefined }] });
+  check(validateStory({ ...twoPeople, rules: [...twoPeople.rules, { id: 'probe', trigger: { kind: 'tick' }, weight: 1, once: true,
+    effects: [{ kind: 'grantFact', person: 'housekeeper', fact: 'master_was_afraid', from: 'gardener' }] }] })
+    .issues.filter(i => i.level === 'fail' && i.at.startsWith('rules/probe/')).length === 1,
+    'validator: an attributed grant has the player on one side (between two people, nobody tells the player anything)');
+  const warns = (rule: object) => validateStory({ ...story, rules: [...story.rules, rule] }).issues.filter(i => i.level === 'warn' && i.at.startsWith('rules/probe'));
+  check(warns({ id: 'probe', trigger: { kind: 'tick' }, weight: 1, once: true, effects: [{ kind: 'grantFact', person: 'player', fact: 'letter_confession', from: 'housekeeper' }] })
+    .some(i => i.message.includes('present')),
+    'validator: warns when the Rule does not require the teller present');
+  check(warns({ id: 'probe', trigger: { kind: 'tick' }, weight: 1, once: true, when: { personsPresent: ['housekeeper'] },
+    effects: [{ kind: 'grantFact', person: 'player', fact: 'letter_confession', from: 'housekeeper' }] }).length === 0,
+    'validator: no warning once the Rule requires the teller present');
+  check(warns({ id: 'probe', trigger: { kind: 'tick' }, weight: 1, once: true, when: { personsPresent: ['housekeeper'] },
+    effects: [{ kind: 'grantFact', person: 'housekeeper', fact: 'gardener_fled', from: 'player' }] })
+    .some(i => i.message.includes('gardener_fled')),
+    'validator: a grant from the player warns early like a grant to the player (the player learns it in telling it)');
 }
 
 // ── Coverage ─────────────────────────────────────────────────────────────────

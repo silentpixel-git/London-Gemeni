@@ -11,13 +11,13 @@
  * closes the modal.
  */
 
-import React, { useState, useEffect } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import React, { useState } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import { X, Mail, Loader2, CheckCircle } from 'lucide-react';
 import { useSupabase } from './SupabaseProvider';
 import { TermsContent } from './TermsContent';
-import { ModalBackdrop } from './ModalBackdrop';
-import { overlayPresence, zoomFadeVariants } from './motionTokens';
+import { Modal } from './Modal';
+import { zoomFadeVariants } from './motionTokens';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -40,28 +40,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [clientError, setClientError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ title: string; body: React.ReactNode } | null>(null);
+  /** The address the sign-in link went to, once sent. */
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const [showTerms, setShowTerms] = useState(false);
-
-  // Lock body scroll while open; ESC to close
-  useEffect(() => {
-    if (!isOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose(); };
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.body.style.overflow = prev;
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, [isOpen]);
 
   const resetState = () => {
     setEmail('');
     setIsSubmitting(false);
-    setClientError(null);
-    setNotice(null);
+    setSentTo(null);
     setShowTerms(false);
     clearAuthError();
   };
@@ -76,30 +62,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailValid || isSubmitting) return;
-    setClientError(null);
     setIsSubmitting(true);
     const ok = await loginWithEmail(email.trim());
     setIsSubmitting(false);
     // Failure → authError shown. Success → App.tsx closes the modal once the link is opened.
-    if (ok) {
-      setNotice({
-        title: 'Sign-in link sent',
-        body: <>A one-time link is on its way to <span className="font-mono">{email.trim()}</span>. It may take a minute.</>,
-      });
-    }
+    if (ok) setSentTo(email.trim());
   };
 
-  const shownError = authError || clientError;
-
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          {...overlayPresence}
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-        >
-          <ModalBackdrop onClick={handleClose} />
-
+    <Modal isOpen={isOpen} onDismiss={handleClose}>
           {/* Modal card */}
           <motion.div variants={zoomFadeVariants(reducedMotion)} className="relative w-full max-w-md bg-lb-bg border border-lb-border rounded-xl shadow-2xl overflow-hidden">
 
@@ -129,18 +100,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             {/* Content */}
             <div className="p-6 space-y-4">
 
-              {notice ? (
+              {sentTo ? (
                 <>
                   <div className="flex items-start gap-3 rounded-lg border border-lb-accent/40 bg-lb-accent/10 px-4 py-3">
                     <CheckCircle size={16} className="text-lb-accent mt-0.5 shrink-0" />
                     <div>
-                      <p className="text-sm font-semibold text-lb-primary">{notice.title}</p>
-                      <p className="text-xs text-lb-muted mt-0.5">{notice.body}</p>
+                      <p className="text-sm font-semibold text-lb-primary">Sign-in link sent</p>
+                      <p className="text-xs text-lb-muted mt-0.5">A one-time link is on its way to <span className="font-mono">{sentTo}</span>. It may take a minute.</p>
                     </div>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setNotice(null)}
+                    onClick={() => setSentTo(null)}
                     className="w-full text-center text-xs text-lb-muted hover:text-lb-primary transition-colors"
                   >
                     ← Back to sign in
@@ -151,7 +122,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                   <input
                     type="email"
                     value={email}
-                    onChange={e => { setEmail(e.target.value); setClientError(null); }}
+                    onChange={e => setEmail(e.target.value)}
                     placeholder="your@email.com"
                     className={inputClass}
                     autoComplete="email"
@@ -164,15 +135,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 </form>
               )}
 
-              {/* Auth / validation error */}
-              {shownError && (
+              {/* Auth error */}
+              {authError && (
                 <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2">
-                  <p className="text-xs text-red-600">{shownError}</p>
+                  <p className="text-xs text-red-600">{authError}</p>
                 </div>
               )}
 
               {/* Consent note */}
-              {!notice && (
+              {!sentTo && (
                 <div className="space-y-3">
                   <p className="text-center text-[10px] text-lb-muted">
                     By continuing you agree to our{' '}
@@ -193,8 +164,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               )}
             </div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 };

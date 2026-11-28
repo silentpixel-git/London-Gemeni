@@ -66,14 +66,16 @@ export function recording(inner: Ai, dir: string): Ai {
         yield chunk;
       }
     },
+    // The judge passes through unrecorded: replay keeps the judgement in the recorded Selection's `agrees`.
+    ...(inner.judge ? { judge: inner.judge.bind(inner) } : {}),
   };
 }
 
-export function selectKey(input: SelectInput) {
+function selectKey(input: SelectInput) {
   return { key: sha1({ kind: 'select', text: input.text, candidates: input.candidates }), summary: `select ${JSON.stringify(input.text)}` };
 }
 
-export function narrateKey(ctx: NarrationContext) {
+function narrateKey(ctx: NarrationContext) {
   const kinds = ctx.events.map(e => e.kind).join(',') || 'no events';
   return { key: sha1({ kind: 'narrate', ctx }), summary: `narrate ${ctx.mode} at ${ctx.location.id}: ${kinds}` };
 }

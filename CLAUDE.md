@@ -30,7 +30,7 @@ Read before touching `packages/`, `server/` or `api/`, in this order: `GLOSSARY.
 ```bash
 npm run dev       # Vite on :3000; apiDevGateway in vite.config.ts serves POST /api/turn
 npm run build     # qa:story, then vite build
-npm run lint      # tsc --noEmit, the only lint step
+npm run lint      # tsc --noEmit, plus tsconfig.server.json over the Vercel function's imports
 npm run qa:all    # lint + every deterministic suite; run before calling engine or story work done
 ```
 
@@ -44,7 +44,6 @@ There is no unit-test framework; correctness is `tsc` plus scripted `qa:*` harne
 | `qa:stress` | The story-neutral stress fixture: behaviour the toy cannot reach (companion, closed periods, delayed rumor, rule-unlocked paths, timing) |
 | `qa:gate` | The invention gate (`packages/ai/gate.ts`) |
 | `qa:turn` | `server/turn.ts` in-process with the memory store and recorded AI: NDJSON order, seq, view and feed, resume, quiet Ticks, the fast path, one-turn-at-a-time. Recordings are keyed by a hash of the AI's input, so any engine, projection or schema change needs `npx tsx scripts/qa-turn.ts --author` and the rewritten recordings committed |
-| `qa:lambda-imports` | `api/turn.ts` runs as native Node ESM, file by file: every relative import reachable from it must be `.js`-suffixed or type-only, or the function dies at load. Nothing else catches this |
 | `qa:browser` | Phase 4 acceptance: the real app in Chromium plays Acts 0–I of the stress fixture through the real `handleTurn`; a second browser and a reload must render an identical feed and sidebar. Supabase and the AI are stood in for in-process. Needs Playwright + Chromium; not in `qa:all` |
 | `scripts/smoke-gemini.ts` | One live select and narrate against Gemini. Needs `GEMINI_API_KEY`; in a cloud session run it with `NODE_USE_ENV_PROXY=1` |
 
@@ -76,5 +75,3 @@ The reviewers in `.claude/agents/` and the skills in `.claude/skills/` describe 
 `.env.example` lists every variable. Two rules it cannot state:
 - `GEMINI_API_KEY` is server-only and never reaches the browser bundle. In cloud sessions the key may be a network secret the proxy injects: give it any placeholder value.
 - Supabase schema lives in `supabase/migrations/*.sql`, applied in order by the owner in the SQL editor; write migrations, do not apply them.
-
-Path alias `@/*` → repo root (`tsconfig.json`, mirrored in `vite.config.ts`).

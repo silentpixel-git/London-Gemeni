@@ -1,7 +1,7 @@
 /**
  * components/EditProfileModal.tsx
  *
- * Modal for setting or editing a player's display name and Victorian role.
+ * Modal for setting or editing a player's display name.
  *
  * Used in two modes:
  *   isFirstRun=true  — "Begin the Investigation" first-time setup after login.
@@ -9,17 +9,17 @@
  *   isFirstRun=false — "Edit Profile" from header dropdown. Normal close behaviour.
  *
  * Reads auth + profile state from SupabaseProvider context.
- * Writes via GameRepository.upsertProfile, then calls refreshProfile().
+ * Writes via upsertProfile, then calls refreshProfile().
  */
 
 import React, { useState, useEffect } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { X, User as UserIcon, Loader2, Save } from 'lucide-react';
 import { useSupabase } from './SupabaseProvider';
-import { GameRepository, VICTORIAN_ROLES, VictorianRole } from '../services/GameRepository';
+import { upsertProfile } from '../services/GameRepository';
 import { TermsContent } from './TermsContent';
-import { ModalBackdrop } from './ModalBackdrop';
-import { overlayPresence, zoomFadeVariants } from './motionTokens';
+import { Modal } from './Modal';
+import { zoomFadeVariants } from './motionTokens';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -36,7 +36,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const { user, userProfile, refreshProfile } = useSupabase();
 
   const [displayName, setDisplayName] = useState('');
-  const [selectedRole, setSelectedRole] = useState<VictorianRole>('Field Surgeon');
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -44,41 +43,17 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   // Pre-fill fields when modal opens
   useEffect(() => {
     if (!isOpen) return;
-    setDisplayName(
-      userProfile?.displayName ||
-      user?.user_metadata?.full_name ||
-      ''
-    );
-    setSelectedRole((userProfile?.role as VictorianRole) || 'Field Surgeon');
+    setDisplayName(userProfile?.displayName || '');
     setHasAcceptedTerms(!isFirstRun); // existing users have already accepted
     setSaveError(null);
   }, [isOpen, userProfile, user, isFirstRun]);
-
-  // Lock body scroll; ESC to close (only when not first run)
-  useEffect(() => {
-    if (!isOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isFirstRun) onClose();
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.body.style.overflow = prev;
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, [isOpen, isFirstRun, onClose]);
 
   const handleSave = async () => {
     if (!user || !displayName.trim()) return;
     setIsSaving(true);
     setSaveError(null);
     try {
-      await GameRepository.upsertProfile(user.id, {
-        displayName: displayName.trim(),
-        avatarUrl: user.user_metadata?.avatar_url ?? null,
-        role: selectedRole,
-      });
+      await upsertProfile(user.id, { displayName: displayName.trim() });
       await refreshProfile();
       onClose();
     } catch {
@@ -86,10 +61,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const handleBackdrop = () => {
-    if (!isFirstRun) onClose();
   };
 
   if (!user) return null;
@@ -101,14 +72,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     : null;
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          {...overlayPresence}
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-        >
-          <ModalBackdrop onClick={handleBackdrop} />
-
+    <Modal isOpen={isOpen} onDismiss={isFirstRun ? undefined : onClose}>
           {/* Modal card */}
           <motion.div variants={zoomFadeVariants(reducedMotion)} className="relative w-full max-w-sm bg-lb-paper border border-lb-border rounded-xl shadow-2xl overflow-hidden">
 
@@ -136,17 +100,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
               {/* Avatar */}
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-lb-primary text-lb-bg flex items-center justify-center overflow-hidden shrink-0">
-                  {user.user_metadata?.avatar_url ? (
-                    <img
-                      src={user.user_metadata.avatar_url}
-                      alt="Profile"
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <UserIcon size={22} />
-                  )}
+                <div className="w-14 h-14 rounded-full bg-lb-primary text-lb-bg flex items-center justify-center shrink-0">
+                  <UserIcon size={22} />
                 </div>
                 <div>
                   <p className="text-xs text-lb-muted">{user.email}</p>
@@ -170,22 +125,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   className="w-full border border-lb-border rounded-lg px-3 py-2 bg-lb-bg text-lb-primary text-sm placeholder:text-lb-muted focus:outline-none focus:border-lb-accent transition-colors"
                   autoFocus={isFirstRun}
                 />
-              </div>
-
-              {/* Role picker */}
-              <div>
-                <label className="block text-xs font-bold text-lb-primary uppercase tracking-widest mb-1.5">
-                  Your title in the investigation
-                </label>
-                <select
-                  value={selectedRole}
-                  onChange={e => setSelectedRole(e.target.value as VictorianRole)}
-                  className="w-full border border-lb-border rounded-lg px-3 py-2 bg-lb-bg text-lb-primary text-sm focus:outline-none focus:border-lb-accent transition-colors appearance-none cursor-pointer"
-                >
-                  {VICTORIAN_ROLES.map(role => (
-                    <option key={role} value={role}>{role}</option>
-                  ))}
-                </select>
               </div>
 
               {/* T&C checkbox — first run only */}
@@ -233,8 +172,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               </div>
             </div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 };

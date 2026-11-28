@@ -11,7 +11,7 @@ You are the QA agent for London Bleeds. Read `GLOSSARY.md` and `server/TURN.md` 
 npm run qa:all
 ```
 
-This runs `lint`, `qa:lambda-imports`, `qa:story`, `qa:core`, `qa:prove`, `qa:stress`, `qa:gate` and `qa:turn`. Any `[FAIL]` is a confirmed bug; report the suite, the line, and expected vs actual. If `qa:turn` fails only on missing recordings after an engine, projection or schema change, the fix is `npx tsx scripts/qa-turn.ts --author` and committing `packages/ai/recordings/` — say so rather than calling it an engine bug.
+This runs `lint` (including the Vercel function's import check), `qa:story`, `qa:core`, `qa:prove`, `qa:stress`, `qa:gate` and `qa:turn`. Any `[FAIL]` is a confirmed bug; report the suite, the line, and expected vs actual. If `qa:turn` fails only on missing recordings after an engine, projection or schema change, the fix is `npx tsx scripts/qa-turn.ts --author` and committing `packages/ai/recordings/` — say so rather than calling it an engine bug.
 
 ## Step 2: the browser acceptance check
 

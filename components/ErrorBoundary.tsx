@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       return (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <ModalBackdrop />
-          <div className="relative bg-lb-paper border-2 border-lb-accent rounded-2xl p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-300">
+          <div className="relative bg-lb-paper border-2 border-lb-accent rounded-2xl p-8 max-w-md w-full shadow-2xl lb-in-zoom">
             <div className="flex items-center gap-4 mb-6 text-lb-accent">
               <div className="p-3 bg-lb-accent/10 rounded-full">
                 <AlertCircle size={32} />

@@ -124,7 +124,11 @@ function actionsFrom(story: Story, s: State): Action[] {
     }
   }
   if (listens('drop')) for (const id of carried) offer(`drop ${id}`, { verb: 'drop', target: id });
-  for (const t of c.topics) offer(`ask ${t.person} about ${t.fact}`, { verb: 'ask', person: t.person, topic: t.fact });
+  for (const t of c.topics) {
+    offer(`ask ${t.person} about ${t.fact}`, { verb: 'ask', person: t.person, topic: t.fact, ...(t.direction === 'tell' ? { telling: true } : {}) });
+    // A told answer may be right or wrong (ADR-0005 §11): a Rule may wait for either.
+    if (t.direction === 'tell') offer(`tell ${t.person} a contrary answer about ${t.fact}`, { verb: 'ask', person: t.person, topic: t.fact, telling: true, agrees: false });
+  }
   if (listens('talk')) for (const p of c.persons) offer(`talk ${p.id}`, { verb: 'talk', person: p.id });
   if (listens('examine')) for (const p of c.persons) offer(`examine ${p.id}`, { verb: 'examine', target: p.id });
   for (const id of carried) {
@@ -182,6 +186,13 @@ function drawsSelectingEach(weights: number[]): number[] {
 }
 
 /** The State with the clock reduced to its period and the transcript dropped. */
+/**
+ * The search's notion of "the same state". It leaves out the Ledger: two states that differ only in whether a
+ * person heard a Fact from the player (and so is not offered as telling it back, ADR-0005 §10) are merged, and
+ * whichever the search met first stands for both. That can only hide an "ask them" action, so its worst case is a
+ * false UNREACHABLE, which fails loudly; it never claims a goal reachable that is not. Keying on it as well
+ * multiplies the stress Story's states past the search cap.
+ */
 function abstractKey(story: Story, s: State): string {
   const onceRules = Object.keys(s.firedRules).filter(id => story.rules.find(r => r.id === id)?.once);
   return JSON.stringify({

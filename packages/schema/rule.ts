@@ -25,7 +25,8 @@ export const Trigger = z.discriminatedUnion('kind', [
   /** The two Objects combined, or one used on the other. */
   z.object({ kind: z.literal('combine'), items: z.array(Id).length(2) }).strict(),
   /** A Fact was told. Omitted fields match anything. */
-  z.object({ kind: z.literal('disclosed'), fact: Id.optional(), from: PersonOrPlayer.optional(), to: PersonOrPlayer.optional() }).strict(),
+  /** `agrees`: told by the player, only an answer that agrees (true) or does not (false) with the Fact's answer (`answer ?? statement`, ADR-0005 §11). The validator refuses it on any other teller. */
+  z.object({ kind: z.literal('disclosed'), fact: Id.optional(), from: PersonOrPlayer.optional(), to: PersonOrPlayer.optional(), agrees: z.boolean().optional() }).strict(),
   /**
    * The player and the person come to share a location: the player arrives where
    * the person is, the person arrives where the player is (a Rule, a schedule,
@@ -51,8 +52,13 @@ export const Effect = z.discriminatedUnion('kind', [
   /** Brings the person to wherever the player is. */
   z.object({ kind: z.literal('summonPerson'), person: Id }).strict(),
   z.object({ kind: z.literal('dismissPerson'), person: Id }).strict(),
-  /** The person learns the Fact, optionally after N time-period boundaries; entering any act delivers it at once. */
-  z.object({ kind: z.literal('grantFact'), person: PersonOrPlayer, fact: Id, delayPeriods: z.number().int().min(0).optional() }).strict(),
+  /**
+   * The person learns the Fact, optionally after N time-period boundaries; entering any act delivers it at once.
+   * `from`: someone tells it, as a Rule's Beat speaks for them; the player is on one side (ADR-0005 §9). Recorded as
+   * an answered ask: Spoke, then a disclosure (the Ledger, who hears the turn, the Clue, disclosed Rules), and the
+   * teller learns it first if they did not know it. An absent other side makes it a plain, unattributed grant. Not with a delay.
+   */
+  z.object({ kind: z.literal('grantFact'), person: PersonOrPlayer, fact: Id, delayPeriods: z.number().int().min(0).optional(), from: PersonOrPlayer.optional() }).strict(),
   z.object({ kind: z.literal('setDisposition'), person: Id, disposition: Disposition }).strict(),
   /** Authored lines the narrator must carry this turn. asQuote renders as a world blockquote. */
   z.object({ kind: z.literal('playBeat'), beats: z.array(z.string().min(1)).min(1), asQuote: z.boolean().optional() }).strict(),

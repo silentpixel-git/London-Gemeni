@@ -31,10 +31,10 @@
  */
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { X, ChevronDown, Feather, Search, Users, ScrollText, type LucideIcon } from 'lucide-react';
-import { ModalBackdrop } from './ModalBackdrop';
-import { overlayPresence, DUR_EXIT, EASE_OUT_EXPO, EASE_OUT_QUINT, EASE_DRAWER } from './motionTokens';
+import { Modal } from './Modal';
+import { DUR_EXIT, EASE_OUT_EXPO, EASE_OUT_QUINT, EASE_DRAWER } from './motionTokens';
 import type { Diary, PlayerView } from '../packages/schema/view.js';
 import { formatClock } from '../services/viewFormat';
 
@@ -96,7 +96,7 @@ const EmptySection: React.FC<{ icon: LucideIcon; title: string; children: React.
     <span className="grid place-items-center w-12 h-12 rounded-full bg-lb-primary/[0.06] text-lb-primary/55">
       <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
     </span>
-    <p className="m-0 font-serif text-[19px] text-lb-primary">{title}</p>
+    <p className="m-0 font-bold text-[17px] text-lb-primary">{title}</p>
     <p className="m-0 max-w-[34ch] text-[15px] leading-relaxed text-lb-primary/70">{children}</p>
   </div>
 );
@@ -147,7 +147,7 @@ const JournalPanel: React.FC<{
                         <span className="grid place-items-center h-11 rounded-lg bg-lb-primary/[0.06] text-sm font-bold tabular-nums">
                           {shortTime(formatClock(clue.clock))}
                         </span>
-                        <p className="m-0 mt-0.5 font-serif text-[17px] leading-snug text-lb-primary">{clue.summary}</p>
+                        <p className="m-0 mt-0.5 text-[16px] leading-snug text-lb-primary">{clue.summary}</p>
                       </li>
                     ))}
                   </ul>
@@ -171,7 +171,7 @@ const EvidencePanel: React.FC<{ diary: Diary }> = ({ diary }) => {
     <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
       {diary.clues.map(clue => (
         <li key={clue.id} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
-          <p className="m-0 font-serif text-[19px] text-lb-primary">{clue.name}</p>
+          <p className="m-0 font-bold text-[17px] text-lb-primary">{clue.name}</p>
           <p className="m-0 text-[15px] leading-relaxed text-lb-primary/90">{clue.summary}</p>
         </li>
       ))}
@@ -189,13 +189,13 @@ const PersonsPanel: React.FC<{ diary: Diary }> = ({ diary }) => {
     <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
       {diary.persons.map(p => (
         <li key={p.id} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
-          <p className="m-0 font-serif text-[19px] text-lb-primary">{p.name}</p>
+          <p className="m-0 font-bold text-[17px] text-lb-primary">{p.name}</p>
           {p.told.length === 0 ? (
             <p className="m-0 text-[15px] leading-relaxed text-lb-primary/65">Has told you nothing of note yet.</p>
           ) : (
             <ul className="list-disc m-0 pl-5 flex flex-col gap-1.5">
               {p.told.map((line, i) => (
-                <li key={i} className={`text-[15px] leading-relaxed text-lb-primary/90 ${line.quoted ? 'font-serif italic text-base' : ''}`}>
+                <li key={i} className={`text-[15px] leading-relaxed text-lb-primary/90 ${line.quoted ? 'italic' : ''}`}>
                   {line.quoted ? `“${line.text}”` : line.text}
                 </li>
               ))}
@@ -218,8 +218,8 @@ const DocumentsPanel: React.FC<{ diary: Diary }> = ({ diary }) => {
     <ul className="list-none m-0 p-0 flex flex-col gap-3.5">
       {diary.documents.map(doc => (
         <li key={doc.id} className="flex flex-col gap-1 pb-3.5 border-b border-lb-border last:border-b-0">
-          <p className="m-0 font-serif text-[19px] text-lb-primary">{doc.name}</p>
-          <p className="mt-2 mb-0 whitespace-pre-wrap font-serif italic text-[16px] text-lb-primary/90 leading-relaxed">{doc.text}</p>
+          <p className="m-0 font-bold text-[17px] text-lb-primary">{doc.name}</p>
+          <p className="mt-2 mb-0 whitespace-pre-wrap italic text-[16px] text-lb-primary/90 leading-relaxed">{doc.text}</p>
         </li>
       ))}
     </ul>
@@ -257,39 +257,14 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, view, n
   const panelsRef = useRef<HTMLDivElement>(null);
   const panelRefs = useRef<Partial<Record<DiaryTab, HTMLDivElement | null>>>({});
   const tabRefs = useRef<Partial<Record<DiaryTab, HTMLButtonElement | null>>>({});
-  const openerRef = useRef<HTMLElement | null>(null);
   const shownTab = useRef<DiaryTab>('journal');   // the panel currently in data-state="active"
   const nextInstant = useRef(true);               // the next panel change skips its animation
   const leaveTimer = useRef<number | undefined>(undefined);
 
-  // Body scroll lock, Esc, and a focus trap. Focus goes into the dialog on open
-  // and back to the opener on close. Keyed on isOpen only (onClose via a ref), so
-  // parent re-renders never bounce focus while the diary is open.
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  // The dialog (Modal) handles Escape, the inert page and handing focus back; the
+  // card itself takes focus on open, so keyboard reading starts at the diary.
   useEffect(() => {
-    if (!isOpen) return;
-    openerRef.current = document.activeElement as HTMLElement | null;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    cardRef.current?.focus({ preventScroll: true });
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { onCloseRef.current(); return; }
-      if (e.key !== 'Tab' || !cardRef.current) return;
-      const focusable = [...cardRef.current.querySelectorAll<HTMLElement>('button:not([tabindex="-1"]), [href], [tabindex="0"]')]
-        .filter(el => el.offsetParent !== null);
-      if (focusable.length === 0) return;
-      const first = focusable[0], last = focusable[focusable.length - 1];
-      const inside = cardRef.current.contains(document.activeElement);
-      if (e.shiftKey && (document.activeElement === first || !inside)) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && (document.activeElement === last || !inside)) { e.preventDefault(); first.focus(); }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener('keydown', handleKey);
-      openerRef.current?.focus?.();
-    };
+    if (isOpen) cardRef.current?.focus({ preventScroll: true });
   }, [isOpen]);
 
   // Every open lands on Journal with the current act unfolded, without animating there.
@@ -486,20 +461,10 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, view, n
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          {...overlayPresence}
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4"
-          onClick={onClose}
-        >
-          <ModalBackdrop />
-          <motion.div variants={cardVariants} className="relative w-full sm:max-w-[780px]" onClick={e => e.stopPropagation()}>
+    <Modal isOpen={isOpen} onDismiss={onClose} className="items-end sm:items-center sm:p-4" labelledBy="diary-title">
+          <motion.div variants={cardVariants} className="relative w-full sm:max-w-[780px]">
             <div
               ref={cardRef}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="diary-title"
               tabIndex={-1}
               className={`relative grid grid-rows-[auto_minmax(0,1fr)] sm:grid-rows-1 sm:grid-cols-[200px_minmax(0,1fr)] overflow-hidden h-[86vh] max-h-[86vh] sm:h-[min(640px,86vh)] bg-lb-paper text-lb-primary border border-lb-border rounded-t-2xl sm:rounded-xl shadow-2xl focus:outline-none ${
                 sheetDrag !== null ? '' : animateHeight && !reducedMotion ? 'transition-[height,transform] [transition-duration:320ms] ease-drawer' : 'transition-transform [transition-duration:320ms] ease-drawer'
@@ -539,7 +504,7 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, view, n
                   <h2 id="diary-title" className="m-0 font-serif font-normal text-2xl sm:text-[28px] leading-[1.05]">{narrator ? `${narrator}'s Diary` : 'Diary'}</h2>
                   <p className="m-0 flex flex-row sm:flex-col items-baseline sm:items-start gap-2 sm:gap-0.5">
                     <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-lb-primary/60">Private</span>
-                    {narrator && <em className="font-playfair text-sm text-lb-primary/70">/ {narrator}</em>}
+                    {narrator && <em className="text-sm text-lb-primary/70">/ {narrator}</em>}
                   </p>
                 </div>
                 <div
@@ -619,8 +584,6 @@ export const DiaryModal: React.FC<DiaryModalProps> = ({ isOpen, onClose, view, n
               </div>
             </div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    </Modal>
   );
 };

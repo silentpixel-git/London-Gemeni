@@ -1,0 +1,32 @@
+[
+  {
+    "id": "clue_old_soldier",
+    "name": "The Old Soldier",
+    "fact": "holmes_soldier_grandchild",
+    "summary": "An old soldier, read correctly: infantry, India long ago, the left thigh healed short. Holmes added that he waits for a grandchild."
+  },
+  {
+    "id": "clue_old_soldier_missed",
+    "name": "The Old Soldier",
+    "fact": "soldier_put_right",
+    "summary": "I misread him. Holmes put me right: an old soldier, infantry, India long ago, the left thigh healed short."
+  },
+  {
+    "id": "clue_actor_found",
+    "name": "The Actor",
+    "fact": "actor_found_through_glass",
+    "summary": "Not a curate: an actor between performances. I named him before Holmes said a word."
+  },
+  {
+    "id": "clue_actor_shown",
+    "name": "The Actor",
+    "fact": "actor_shown_through_glass",
+    "summary": "Not a curate: an actor between performances. I saw a black coat and stopped looking; Holmes put the glass in my hand."
+  },
+  {
+    "id": "clue_what_asks_to_be_seen",
+    "name": "What Asks to Be Seen",
+    "fact": "holmes_invisible_in_a_crowd",
+    "summary": "Holmes, at the window: we see what asks to be seen. I could not describe one other person who had passed."
+  }
+]

@@ -4,9 +4,8 @@
 // middleware build the deps, scripts/qa-turn.ts passes in-memory ones.
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { z } from 'zod';
 import {
-  Id, Story, type EventPayload, type LogEvent, type NarrationContext, type NarrationMode, type NarrationResult,
+  Story, TurnRequest, type EventPayload, type LogEvent, type NarrationContext, type NarrationMode, type NarrationResult,
 } from '../packages/schema/index.js';
 import { loadStoryDir } from '../packages/schema/load.js';
 import {
@@ -14,7 +13,7 @@ import {
   replay, resolveTurn, startInvestigation, tick, type State,
 } from '../packages/engine/index.js';
 import { gateNarration, type GateVerdict } from '../packages/ai/gate.js';
-import { confineSelection } from '../packages/ai/selection.js';
+import { confineSelection, fromSelector, settleAnswer } from '../packages/ai/selection.js';
 import type { Ai } from '../packages/ai/types.js';
 import { SeqConflict, type InvestigationStore } from './investigationStore.js';
 
@@ -31,13 +30,6 @@ export interface TurnDeps {
   /** The clock stale-turn recovery reads; QA moves it. */
   now?: () => number;
 }
-
-const TurnRequest = z.union([
-  z.object({ investigationId: z.string().min(1), text: z.string().trim().min(1) }).strict(),
-  z.object({ investigationId: z.string().min(1), tick: z.literal(true) }).strict(),
-  z.object({ investigationId: z.string().min(1), resume: z.literal(true) }).strict(),
-  z.object({ start: z.object({ storyId: Id, name: z.string().trim().min(1) }).strict() }).strict(),
-]);
 
 /** Player lines offered to the selection model for "open it". */
 const RECENT_TEXTS = 4;
@@ -61,7 +53,7 @@ const PREPARE_ATTEMPTS = 3;
 const NDJSON = { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store' };
 
 export async function handleTurn(request: Request, deps: TurnDeps): Promise<Response> {
-  let body: z.infer<typeof TurnRequest>;
+  let body: TurnRequest;
   try {
     body = TurnRequest.parse(await request.json());
   } catch {
@@ -148,7 +140,7 @@ interface Prepared {
 
 type Refusal = { status: number; message: string };
 /** A request that resolves a turn (a resume reads only). */
-type TurnBody = Exclude<z.infer<typeof TurnRequest>, { resume: true }>;
+type TurnBody = Exclude<TurnRequest, { resume: true }>;
 
 /** Server steps 1–3: everything that can still answer with a plain HTTP error. A lost race for the next seq starts over from a fresh load. */
 async function prepare(body: TurnBody, deps: TurnDeps): Promise<Prepared | Refusal> {
@@ -201,8 +193,12 @@ async function prepareOnce(body: TurnBody, deps: TurnDeps): Promise<Prepared | R
     const set = candidates(story, before);
     const recentTexts = prior.flatMap(e => (e.kind === 'TurnReceived' ? [e.text] : [])).slice(-RECENT_TEXTS);
     // Exact commands skip the model (ADR-0003). The adapter confines too; the endpoint does not trust that it did.
-    const chosen = exactSelection(body.text, set) ?? (await deps.ai.select({ text: body.text, candidates: set, recentTexts }));
-    const selection = confineSelection(chosen, set, body.text);
+    const exact = exactSelection(body.text, set);
+    const reply = exact ?? (await deps.ai.select({ text: body.text, candidates: set, recentTexts }));
+    if (!exact && reply.kind === 'none' && reply.reason) console.info('api/turn select none:', reply.reason);
+    // The selector's own words for a none never reach the narrator; a told answer is judged here (ADR-0005 §11).
+    const chosen = exact ?? fromSelector(reply);
+    const selection = await settleAnswer(confineSelection(chosen, set, body.text), set, body.text, recentTexts, deps.ai);
     events = resolveTurn(story, before, { text: body.text, selection }).events;
   }
 

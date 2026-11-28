@@ -15,7 +15,7 @@ export type Firing =
   | { kind: 'clock'; from: number; to: number }
   | { kind: 'tick' }
   | { kind: 'combine'; items: Id[] }
-  | { kind: 'disclosed'; fact: Id; from: PersonOrPlayer; to: PersonOrPlayer }
+  | { kind: 'disclosed'; fact: Id; from: PersonOrPlayer; to: PersonOrPlayer; agrees?: boolean }
   | { kind: 'proximity'; person: Id }
   | { kind: 'deduction'; facts: Id[]; suspect?: Id };
 
@@ -35,7 +35,7 @@ export function firingsFrom(story: Story, events: EventPayload[]): Firing[] {
       case 'Combined': out.push({ kind: 'combine', items: e.items }); break;
       /** Using one Object on another is bringing the two together: "soak the wick in the oil" is a use or a combine as the parser reads it. */
       case 'Used': if (e.on && e.on !== e.object && story.objects.some(o => o.id === e.on)) out.push({ kind: 'combine', items: [e.object, e.on] }); break;
-      case 'FactDisclosed': out.push({ kind: 'disclosed', fact: e.fact, from: e.from, to: e.to }); break;
+      case 'FactDisclosed': out.push({ kind: 'disclosed', fact: e.fact, from: e.from, to: e.to, agrees: e.agrees }); break;
       case 'Deduced': out.push({ kind: 'deduction', facts: e.facts, suspect: e.suspect }); break;
       default: break;
     }
@@ -43,7 +43,7 @@ export function firingsFrom(story: Story, events: EventPayload[]): Firing[] {
   return out;
 }
 
-export function triggerMatches(t: Trigger, f: Firing, s: State): boolean {
+function triggerMatches(t: Trigger, f: Firing, s: State): boolean {
   if (t.kind !== f.kind) return false;
   switch (t.kind) {
     case 'action': {
@@ -69,7 +69,8 @@ export function triggerMatches(t: Trigger, f: Firing, s: State): boolean {
     }
     case 'disclosed': {
       const g = f as Extract<Firing, { kind: 'disclosed' }>;
-      return (!t.fact || t.fact === g.fact) && (!t.from || t.from === g.from) && (!t.to || t.to === g.to);
+      return (!t.fact || t.fact === g.fact) && (!t.from || t.from === g.from) && (!t.to || t.to === g.to)
+        && (t.agrees === undefined || (g.agrees ?? true) === t.agrees);
     }
     case 'proximity': return t.person === (f as Extract<Firing, { kind: 'proximity' }>).person;
     case 'deduction': {
@@ -81,7 +82,7 @@ export function triggerMatches(t: Trigger, f: Firing, s: State): boolean {
   }
 }
 
-export function conditionsHold(story: Story, s: State, w: Conditions | undefined): boolean {
+function conditionsHold(story: Story, s: State, w: Conditions | undefined): boolean {
   if (!w) return true;
   if (w.act && !w.act.includes(s.act)) return false;
   if (w.location && !w.location.includes(s.location)) return false;
@@ -95,7 +96,7 @@ export function conditionsHold(story: Story, s: State, w: Conditions | undefined
   return true;
 }
 
-export function ruleEligible(story: Story, s: State, r: Rule, f: Firing): boolean {
+function ruleEligible(story: Story, s: State, r: Rule, f: Firing): boolean {
   if (r.once && (s.firedRules[r.id] ?? 0) > 0) return false;
   if (!triggerMatches(r.trigger, f, s)) return false;
   // A leave Rule judges its conditions from the room being left: the world as it is now, with the player still there.
@@ -121,7 +122,7 @@ export function chooseByWeight(rules: Rule[], draw: number, quiet = 0): Rule | n
 }
 
 /** Translate one Effect into Events against the current State. */
-export function effectEvents(story: Story, s: State, e: Effect, ruleId: Id): EventPayload[] {
+function effectEvents(story: Story, s: State, e: Effect, ruleId: Id): EventPayload[] {
   switch (e.kind) {
     case 'setFlag': return s.flags[e.flag] ? [] : [{ kind: 'FlagSet', flag: e.flag }];
     case 'revealObject': return [{ kind: 'ObjectPlaced', object: e.object, placement: s.objects[e.object].placement, hidden: false }];
@@ -134,11 +135,23 @@ export function effectEvents(story: Story, s: State, e: Effect, ruleId: Id): Eve
     case 'movePerson': return [{ kind: 'PersonMoved', person: e.person, location: e.location }];
     case 'summonPerson': return [{ kind: 'PersonMoved', person: e.person, location: s.location }];
     case 'dismissPerson': return [{ kind: 'PersonMoved', person: e.person, location: null }];
-    case 'grantFact':
-      if (s.knows[e.person]?.[e.fact]) return [];
-      return e.delayPeriods
-        ? [{ kind: 'GrantScheduled', person: e.person, fact: e.fact, maturesAtBoundary: s.boundaries + e.delayPeriods }]
-        : [{ kind: 'FactLearned', person: e.person, fact: e.fact }];
+    case 'grantFact': {
+      const known = !!s.knows[e.person]?.[e.fact];
+      const learned: EventPayload[] = known ? [] : [{ kind: 'FactLearned', person: e.person, fact: e.fact }];
+      if (e.delayPeriods) return known ? [] : [{ kind: 'GrantScheduled', person: e.person, fact: e.fact, maturesAtBoundary: s.boundaries + e.delayPeriods }];
+      if (!e.from) return learned;
+      // Told, as an answered ask: the player and one person present (the validator keeps the player on one side).
+      const other = e.from === 'player' ? e.person : e.from;
+      if (!personsPresent(story, s).includes(other)) return learned; // nobody here to tell it: unattributed
+      if (e.from === 'player' && known) return []; // as an ask: the player tells only what the person does not know
+      return [
+        // Nobody tells what they do not know: the teller learns it first.
+        ...(s.knows[e.from]?.[e.fact] ? [] : [{ kind: 'FactLearned', person: e.from, fact: e.fact } as EventPayload]),
+        { kind: 'Spoke', person: other, fact: e.fact },
+        // To the player, as an ask: told even when the player already knew it.
+        { kind: 'FactDisclosed', from: e.from, to: e.person, fact: e.fact, ...(e.from === 'player' ? { agrees: true } : {}) },
+      ];
+    }
     case 'setDisposition': return [{ kind: 'DispositionChanged', person: e.person, disposition: e.disposition }];
     case 'playBeat': return [{ kind: 'BeatQueued', rule: ruleId, beats: e.beats, asQuote: e.asQuote ?? false }];
     case 'cue': return [{ kind: 'CuePlayed', sound: e.sound }];

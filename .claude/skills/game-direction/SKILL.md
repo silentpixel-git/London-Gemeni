@@ -72,6 +72,8 @@ When a new mechanic is proposed, check:
 
 **Journal**: The journal is the narrator's private record, not a game tracker. Entries should read like notes a careful observer would make, not like achievement unlocks.
 
+**Typography**: Playfair Display (`font-serif`) is for real headings only: the title lockup, modal mastheads, panel and section headings, the location heading. Everything else is Lato (`font-sans`, the default): names in lists, clue summaries, quotes, document text, signatures, status and loading lines, and prose, including its blockquotes. A name inside a list is a label, not a heading; give it weight (`font-bold`), not the display face. Mixing the two faces within one level of the hierarchy reads as noise.
+
 **Clock**: The in-game clock is canonical and immersive. It advances with investigation progress, not real time. Visible but not prominent — a detail for attentive players, not a pressure mechanic.
 
 ### Scope

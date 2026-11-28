@@ -25,19 +25,23 @@ if (!process.env.GEMINI_API_KEY) {
 
 const story = Story.parse(loadStoryDir(join('packages', 'schema', 'fixtures', 'toy')));
 const config = configFromEnv(process.env);
-const ai = createAi({ ...config, select: { ...config.select, provider: 'gemini' }, narrate: { ...config.narrate, provider: 'gemini' } }, process.env);
+const ai = createAi(config, process.env);
 const state = initialState(story, 42);
 
 const text = 'have a look inside the grandfather clock';
 const t0 = Date.now();
 const selection = await ai.select({ text, candidates: candidates(story, state), recentTexts: [] });
-console.log(`select (${config.select.model}, ${Date.now() - t0} ms): ${JSON.stringify(text)} →`, JSON.stringify(selection));
+console.log(`select (${config.selectModel}, ${Date.now() - t0} ms): ${JSON.stringify(text)} →`, JSON.stringify(selection));
+
+const t2 = Date.now();
+const verdict = await ai.judge?.({ text: 'it was the gardener who wrote it', recentTexts: [], subject: 'the letter', answer: 'The gardener wrote the letter.' });
+console.log(`judge (${config.judgeModel}, ${Date.now() - t2} ms): agrees ${verdict} (expected true)`);
 
 const turn = resolveTurn(story, state, { text, selection });
 const ctx = buildNarrationContext(story, turn.state, turn.events, 'full');
 const t1 = Date.now();
 let first = 0;
-process.stdout.write(`\nnarrate (${config.narrate.model}):\n`);
+process.stdout.write(`\nnarrate (${config.narrateModel}):\n`);
 for await (const chunk of ai.narrate(ctx)) {
   if (chunk.kind === 'text') {
     first ||= Date.now() - t1;

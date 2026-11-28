@@ -1,0 +1,21 @@
+[
+  {
+    "id": "holmes",
+    "name": "Sherlock Holmes",
+    "schedule": {
+      "0": {
+        "default": {
+          "kind": "at",
+          "location": "baker_street"
+        }
+      }
+    },
+    "disposition": "neutral",
+    "beats": [
+      "Holmes: a tall, lean man in his thirties, the only consulting detective in London, in shirtsleeves in the heat at the open window, a pipe within reach.",
+      "Bored and contemptuous of the holiday's harmlessness; once challenged, playful, competitive, and generous when beaten.",
+      "Precise in speech; he separates what he observes from what he infers.",
+      "He calls Watson 'Watson'."
+    ]
+  }
+]

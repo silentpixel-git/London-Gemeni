@@ -15,33 +15,37 @@ export type NarrationChunk =
   | { kind: 'text'; delta: string }
   | { kind: 'done'; result: NarrationResult };
 
+/** A told answer to judge (ADR-0005 §11): the player's line, what it is about, and the right answer. */
+export interface JudgeInput {
+  text: string;
+  recentTexts: string[];
+  /** The subject's phrases, for context ("the old fellow, the soldier"). */
+  subject: string;
+  /** The right answer (Fact.answer ?? statement). */
+  answer: string;
+}
+
 export interface Ai {
   /** Pick a verb and targets from the Candidate Set, or answer flavour/none. Never invents an id. */
   select(input: SelectInput): Promise<Selection>;
   /** Stream prose for a resolved turn; the final chunk carries the parsed result with Observations. */
   narrate(ctx: NarrationContext): AsyncIterable<NarrationChunk>;
+  /**
+   * Whether a told answer agrees with the right answer; null when it cannot say. Called only on a turn that tells.
+   * Optional: without it the selector's own judgement stands (recorded fixtures carry one).
+   */
+  judge?(input: JudgeInput): Promise<boolean | null>;
 }
 
-export type ProviderName = 'gemini' | 'recorded';
-
-export interface JobConfig { provider: ProviderName; model: string }
-
+/** Gemini models per job (AI_SELECT_MODEL / AI_NARRATE_MODEL). The key is read from env and never stored here. */
 export interface AiConfig {
-  select: JobConfig;
-  narrate: JobConfig;
-  /** For the 'recorded' provider: directory of JSON fixtures keyed by a hash of the input. */
+  selectModel: string;
+  narrateModel: string;
+  /** AI_JUDGE_MODEL: judges a told answer; called only on turns that tell one. */
+  judgeModel: string;
+  /** AI_RECORDINGS_DIR: with no GEMINI_API_KEY, replay JSON fixtures from here (recorded.ts). */
   recordingsDir?: string;
 }
-
-/** Environment → config. AI_SELECT_MODEL / AI_NARRATE_MODEL / AI_SELECT_PROVIDER / AI_NARRATE_PROVIDER. */
-export const ENV_KEYS = {
-  selectProvider: 'AI_SELECT_PROVIDER',
-  selectModel: 'AI_SELECT_MODEL',
-  narrateProvider: 'AI_NARRATE_PROVIDER',
-  narrateModel: 'AI_NARRATE_MODEL',
-  geminiKey: 'GEMINI_API_KEY',
-  recordingsDir: 'AI_RECORDINGS_DIR',
-} as const;
 
 /**
  * What a provider adapter needs from the prompt layer. Prompt text is owned by

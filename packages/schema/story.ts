@@ -103,6 +103,11 @@ export const Fact = z.object({
   voices: z.record(Id, z.string().min(1)).optional(),
   /** Words that would leak this Fact if they appeared in a beat visible earlier. */
   spoilerTerms: z.array(z.string().min(1)).optional(),
+  /**
+   * For a Fact the player tells as their answer: the right answer, shown only to the selector to judge a told answer
+   * (ADR-0005 §11), never narrated. Without it the statement is the answer.
+   */
+  answer: z.string().min(1).optional(),
 }).strict();
 export type Fact = z.infer<typeof Fact>;
 

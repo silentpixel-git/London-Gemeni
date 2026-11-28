@@ -22,7 +22,8 @@ export const CandidateSet = z.object({
   /** `key`: the Object that opens this exit's lock now, when it is a key lock. */
   exits: z.array(z.object({ id: Id, names: z.array(z.string()).min(1), key: Id.optional() })),
   /** Facts a present person can speak to, or the player can tell them, by phrase. */
-  topics: z.array(z.object({ person: Id, fact: Id, phrase: z.string(), direction: z.enum(['ask', 'tell']) })),
+  /** `answer` only on a tell topic: the right answer the selector judges a told answer against. A person's own Facts are never shown before they tell them. */
+  topics: z.array(z.object({ person: Id, fact: Id, phrase: z.string(), direction: z.enum(['ask', 'tell']), answer: z.string().optional() })),
   /** Facts the player knows and may name in a deduction. */
   knownFacts: z.array(z.object({ id: Id, statement: z.string() })),
   /** Everyone the player has met, by the label the player knows them by: who a deduction may accuse (ADR-0005). */
@@ -38,6 +39,10 @@ export const Selection = z.discriminatedUnion('kind', [
     secondary: Id.optional(),
     person: Id.optional(),
     topic: Id.optional(),
+    /** ask only: the line tells the person (a claim, an answer, the player's own view), rather than asking them. A topic offered as "tell" needs it. */
+    telling: z.boolean().optional(),
+    /** A telling ask on a "tell" topic: whether what the line claims agrees with that Fact's answer (`answer ?? statement`), judged by the selector. */
+    agrees: z.boolean().optional(),
     exit: Id.optional(),
     /** deduce only: the Facts named. The suspect, if any, is `person`, drawn from `suspects`. */
     facts: z.array(Id).optional(),
@@ -57,7 +62,7 @@ export const VERB_FIELDS: Record<Verb, readonly IntentField[]> = {
   examine: ['target'], read: ['target'], take: ['target'], drop: ['target'], open: ['target'], close: ['target'],
   use: ['target', 'secondary'], combine: ['target', 'secondary'],
   show: ['target', 'person'], give: ['target', 'person'],
-  talk: ['person'], ask: ['person', 'topic'], deduce: ['facts', 'person'], move: ['exit'],
+  talk: ['person'], ask: ['person', 'topic', 'telling', 'agrees'], deduce: ['facts', 'person'], move: ['exit'],
 };
 
 /**
@@ -69,8 +74,14 @@ export const VERB_FIELDS: Record<Verb, readonly IntentField[]> = {
  *     "talk to the landlady" → talk, target the landlady): moved to the one empty slot of
  *     the verb that takes it. Where no slot or several would, it stays put and
  *     inCandidateSet answers none, never a weaker intent the engine would accept;
- *   - an ask's topic that names nothing: dropped, since ask with no topic is the
- *     designed answer to a subject the person has nothing on (an honest deflection);
+ *   - an ask's topic that is not one of the set's topics (names nothing, or names an Object or a
+ *     person): dropped, since ask with no topic is the designed answer to a subject the person has
+ *     nothing on (an honest deflection);
+ *   - look with a target that is a candidate ("look at the clock"): examine it; a target that names
+ *     nothing is a stray word and the look stays a look;
+ *   - examine with an object as secondary ("look at the ship through the telescope"): using that
+ *     object on the target (a read keeps reading; its secondary is a stray word);
+ *   - facts on any verb but deduce: dropped, a stray the selector added;
  *   - a value that is exactly one candidate's name rather than its id ("bar" for the
  *     exit named "bar"): that candidate's id;
  *   - open or use on an exit itself ("open the cellar door", "lift the bar"), or the
@@ -94,6 +105,20 @@ export function trimSelection(sel: Selection, set: CandidateSet): Selection {
     return hits.size === 1 ? [...hits][0] : v;
   };
   sel = { ...sel, ...(sel.target ? { target: named(sel.target) } : {}), ...(sel.secondary ? { secondary: named(sel.secondary) } : {}) };
+  // "Look at the clock": look with a target that names something here is examining it (and "look at X through Y" is
+  // then an instrument used on X, below). A target that names nothing is a stray word: the look stays a look.
+  const seen = sel.target;
+  if (sel.verb === 'look' && seen && (set.objects.some(o => o.id === seen) || set.persons.some(p => p.id === seen))) {
+    return trimSelection({ ...sel, verb: 'examine' }, set);
+  }
+  // "Look at X through Y": examining something through an object at hand is using that object on it. Reading X by
+  // or with something is still reading X (the secondary is a stray word there), so a document is never lost to a use.
+  const lens = sel.secondary;
+  if (sel.verb === 'examine' && sel.target && lens && lens !== sel.target && set.objects.some(o => o.id === lens)) {
+    return trimSelection({ kind: 'intent', verb: 'use', target: lens, secondary: sel.target }, set);
+  }
+  // "Use the glass" with the glass in both slots means the plain use: the engine refuses a thing used on itself.
+  if (sel.verb === 'use' && sel.secondary !== undefined && sel.secondary === sel.target) { const { secondary: _same, ...plain } = sel; sel = plain; }
   const exitOf = (v?: string) => (v && !set.objects.some(o => o.id === v) && !set.persons.some(p => p.id === v) ? set.exits.find(x => x.id === v) : undefined);
   if (sel.verb === 'open' || sel.verb === 'use') {
     const slotted = exitOf(sel.exit);
@@ -106,6 +131,8 @@ export function trimSelection(sel: Selection, set: CandidateSet): Selection {
       return { kind: 'none', reason: 'that does nothing to the way' };
     }
   }
+  // facts belong to a deduction alone; on any other verb they are a stray the selector added, never a reason to refuse.
+  if (sel.verb !== 'deduce' && sel.facts !== undefined) { const { facts: _f, ...rest } = sel; sel = rest; }
   const reads: readonly string[] = VERB_FIELDS[sel.verb];
   const ids = new Set<string>([
     ...set.objects.map(o => o.id), ...set.persons.map(p => p.id), ...set.suspects.map(p => p.id),
@@ -113,7 +140,9 @@ export function trimSelection(sel: Selection, set: CandidateSet): Selection {
   ]);
   const names = (v: unknown) => (Array.isArray(v) ? v : [v]).some(x => typeof x === 'string' && ids.has(x));
   const out: Record<string, unknown> = { kind: 'intent', verb: sel.verb };
-  for (const [k, v] of Object.entries(sel)) if (reads.includes(k) && !(k === 'topic' && !names(v))) out[k] = v;
+  // A topic must be a topic: anything else named there (an Object, a person) leaves the ask with no topic, the designed deflection.
+  const offered = (v: unknown) => set.topics.some(t => t.fact === v && (sel.kind !== 'intent' || !sel.person || t.person === sel.person));
+  for (const [k, v] of Object.entries(sel)) if (reads.includes(k) && !(k === 'topic' && !offered(v))) out[k] = v;
   const fits = (slot: string, v: unknown) =>
     Array.isArray(v) === (slot === 'facts') && inCandidateSet({ kind: 'intent', verb: sel.verb, [slot]: v } as Selection, set);
   for (const [k, v] of Object.entries(sel)) {

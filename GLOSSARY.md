@@ -70,7 +70,7 @@ An authored line or set of lines the narrator must carry into prose this turn. A
 ### Memory
 
 **Disclosure Ledger**:
-The engine's mechanical record, per person, of which Facts that person has told the player and which the player has told them. Written by the engine when a topic resolves, never by the narrator.
+The engine's mechanical record, per person, of which Facts that person has told the player and which the player has told them. Written by the engine when a topic resolves, or when a Rule grants a Fact `from` a person (a Beat speaking for them), never by the narrator.
 _Also called_: Ledger
 _Avoid_: NPC memory, memory summary
 

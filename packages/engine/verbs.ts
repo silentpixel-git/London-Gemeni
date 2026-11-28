@@ -15,14 +15,14 @@
 //   drop T      → Dropped{T}; T carried
 //   open T      → T a container visible here or carried: closed → Opened; locked → lockOpen(lock) ? Opened : OpenBlocked{lock}; open → IntentRejected
 //   close T     → T an open container visible or carried → Closed
-//   use T [on S]→ Used{T, on?}; T carried or visible; S if given must be visible, carried, or a present person
+//   use T [on S]→ Used{T, on?}; T carried or visible; S if given must be visible, carried, or a present person, and not T itself
 //   combine T S → Combined{[T,S]}; both carried or visible here; no self-combine
-//   show T to P → Shown{T,P}; T carried; P present; then if T.fact and the player knows it and P does not already → FactDisclosed{player→P}
+//   show T to P → Shown{T,P}; T carried; P present; then if T.fact and the player knows it and P does not already → FactDisclosed{player→P, agrees: true}
 //   give T to P → Given{T,P}; same conditions; same disclosure
 //   talk P      → Spoke{P, greeting}; P present
 //   ask P topic → P present; topic a fact id:
 //                 canTell(P, fact) → Spoke{P, fact}, FactDisclosed{P→player}
-//                 else player knows fact and P does not → Spoke{P, fact}, FactDisclosed{player→P}
+//                 else player knows fact and P does not → Spoke{P, fact}, FactDisclosed{player→P, agrees: intent.agrees ?? true} (ADR-0005 §11)
 //                 else → Spoke{P} (an honest deflection; no fact)
 //   deduce      → Deduced{facts, suspect?}; every named fact must be known by the player; suspect must be a person id
 //   move exit   → exit in this location by id: location.openPeriods excludes now → MoveBlocked{closed, null};
@@ -39,6 +39,8 @@ export interface Intent {
   secondary?: Id;
   person?: Id;
   topic?: Id;
+  /** A told answer agrees with the Fact's answer (`answer ?? statement`, ADR-0005 §11); absent means not judged, taken as agreeing. */
+  agrees?: boolean;
   exit?: Id;
   facts?: Id[];
 }
@@ -85,6 +87,7 @@ export function resolveVerb(story: Story, s: State, intent: Intent): EventPayloa
     case 'use':
       if (!reach(t)) return reject(NO_THING);
       if (sec && !reach(sec) && !isHere(sec)) return reject(NO_THING);
+      if (sec === t) return reject('it cannot be used on itself');
       return [{ kind: 'Used', object: t, ...(sec ? { on: sec } : {}) }];
     case 'combine':
       if (!reach(t) || !reach(sec)) return reject(NO_THING);
@@ -94,7 +97,7 @@ export function resolveVerb(story: Story, s: State, intent: Intent): EventPayloa
       if (!isHere(p)) return reject(NO_ONE);
       const fact = obj(t)?.fact;
       const disclose: EventPayload[] = fact && s.knows.player[fact] && !s.knows[p]?.[fact]
-        ? [{ kind: 'FactDisclosed', from: 'player', to: p, fact }] : [];
+        ? [{ kind: 'FactDisclosed', from: 'player', to: p, fact, agrees: true }] : [];
       return [intent.verb === 'show' ? { kind: 'Shown', object: t, person: p } : { kind: 'Given', object: t, person: p }, ...disclose];
     }
     case 'talk':
@@ -104,7 +107,7 @@ export function resolveVerb(story: Story, s: State, intent: Intent): EventPayloa
       const fact = intent.topic;
       if (fact && story.facts.some(f => f.id === fact)) {
         if (canTell(story, s, p, fact)) return [{ kind: 'Spoke', person: p, fact }, { kind: 'FactDisclosed', from: p, to: 'player', fact }];
-        if (s.knows.player[fact] && !s.knows[p]?.[fact]) return [{ kind: 'Spoke', person: p, fact }, { kind: 'FactDisclosed', from: 'player', to: p, fact }];
+        if (s.knows.player[fact] && !s.knows[p]?.[fact]) return [{ kind: 'Spoke', person: p, fact }, { kind: 'FactDisclosed', from: 'player', to: p, fact, agrees: intent.agrees ?? true }];
       }
       return [{ kind: 'Spoke', person: p }];
     }

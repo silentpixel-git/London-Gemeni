@@ -16,7 +16,7 @@ export type Observation = z.infer<typeof Observation>;
 export const EventPayload = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('InvestigationStarted'), story: Id, seed: z.number().int() }),
   z.object({ kind: z.literal('TurnReceived'), text: z.string() }),
-  z.object({ kind: z.literal('IntentSelected'), verb: Verb, target: Id.optional(), secondary: Id.optional(), person: Id.optional(), topic: Id.optional(), exit: Id.optional(), facts: z.array(Id).optional() }),
+  z.object({ kind: z.literal('IntentSelected'), verb: Verb, target: Id.optional(), secondary: Id.optional(), person: Id.optional(), topic: Id.optional(), telling: z.boolean().optional(), agrees: z.boolean().optional(), exit: Id.optional(), facts: z.array(Id).optional() }),
   z.object({ kind: z.literal('IntentRejected'), reason: z.string() }),
   z.object({ kind: z.literal('FlavourRequested'), subject: z.string() }),
   z.object({ kind: z.literal('Moved'), from: Id, to: Id, exit: Id }),
@@ -39,7 +39,8 @@ export const EventPayload = z.discriminatedUnion('kind', [
   /** `greeting`: the player addressed them with no subject (talk), as against an ask that found nothing to say. */
   z.object({ kind: z.literal('Spoke'), person: Id, fact: Id.optional(), greeting: z.literal(true).optional() }),
   /** A Fact passed in conversation: the only Event the Disclosure Ledger reads. */
-  z.object({ kind: z.literal('FactDisclosed'), from: PersonOrPlayer, to: PersonOrPlayer, fact: Id }),
+  /** `agrees`: told by the player, whether what they claimed agrees with the Fact's answer (`answer ?? statement`, ADR-0005 §11). A show or a Rule's grant from the player is not judged and carries true. */
+  z.object({ kind: z.literal('FactDisclosed'), from: PersonOrPlayer, to: PersonOrPlayer, fact: Id, agrees: z.boolean().optional() }),
   /** Someone now knows a Fact by any other route: reading, a Rule, a matured rumor. */
   z.object({ kind: z.literal('FactLearned'), person: PersonOrPlayer, fact: Id }),
   z.object({ kind: z.literal('ClueDiscovered'), clue: Id }),
@@ -63,7 +64,6 @@ export const EventPayload = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('GameEnded'), ending: Id }),
 ]);
 export type EventPayload = z.infer<typeof EventPayload>;
-export type EventKind = EventPayload['kind'];
 
 /** One row of an Investigation's log. */
 export const LogEvent = z.object({

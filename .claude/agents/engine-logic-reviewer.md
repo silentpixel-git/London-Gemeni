@@ -57,7 +57,7 @@ These are the behavioural spec; a change to the engine is not done until they pa
 npm run qa:all
 ```
 
-That covers `lint`, `qa:story`, `qa:core`, `qa:prove`, `qa:stress`, `qa:gate`, `qa:turn` and `qa:lambda-imports`. In particular:
+That covers `lint`, `qa:story`, `qa:core`, `qa:prove`, `qa:stress`, `qa:gate` and `qa:turn`. In particular:
 
 - `qa:core` is the engine's behavioural specification on the toy Story. A diff that edits its expectations must say which behaviour was meant to change and why; an expectation loosened to go green is a **[BUG]**.
 - `qa:turn` replays recorded AI answers keyed by a hash of the AI's input. Any change to the engine, the projections or the schema changes those inputs, so the author must have run `npx tsx scripts/qa-turn.ts --author` and committed the rewritten files under `packages/ai/recordings/`. Recordings missing from the diff after such a change is a **[BUG]** (qa:turn will fail or, if the keys happen to match, test stale behaviour).

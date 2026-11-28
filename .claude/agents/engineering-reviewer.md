@@ -32,7 +32,7 @@ The engine decides, the AI narrates (ADR-0002, ADR-0003).
 - One turn at a time: an open turn answers 409 unless stale (`STALE_TURN_MS`); a `SeqConflict` restarts from the load, at most three times. Every failure path after engine Events are appended still closes the turn with a beats-only `Narrated`.
 - Events are appended with consecutive `seq` in one insert; `investigations.last_event_seq` follows. Nothing updates or deletes an `events` row (corrections are compensating Events, ADR-0001).
 - NDJSON order is `events`, `text`*, `done` (or a single `resume`), with errors as a final `error` line. `qa:turn` asserts this; a change here needs it green.
-- `api/turn.ts` runs as native Node ESM, file by file: every relative import reachable from it is `.js`-suffixed or type-only. `npm run qa:lambda-imports` is the only check that sees this.
+- `api/turn.ts` runs as native Node ESM, file by file: every relative import reachable from it is `.js`-suffixed or type-only. `npm run lint` checks this with `tsconfig.server.json` (nodenext); the plain `tsc` pass does not see it.
 - The story loader reads `stories/` then `packages/schema/fixtures/`; `vercel.json` must keep `includeFiles` covering both.
 
 ## 4. Secrets and Supabase

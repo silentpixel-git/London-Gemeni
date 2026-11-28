@@ -25,13 +25,10 @@ import { EditProfileModal } from './components/EditProfileModal';
 import { InvestigationsModal } from './components/InvestigationsModal';
 import { DiaryModal, diaryTabTotals, type DiaryTab } from './components/DiaryModal';
 import { DiaryToast } from './components/DiaryToast';
-import { ResetPasswordModal } from './components/ResetPasswordModal';
 import { useInvestigation } from './hooks/useInvestigation';
 import { useAppearance } from './hooks/gameState/useAppearance';
 import { suggestionsFor } from './services/viewFormat';
-import { useConnections } from './hooks/gameState/useConnections';
 import { useAudio } from './hooks/useAudio';
-import type { TimePeriod } from './types';
 
 // The `desk` breakpoint (tailwind.config.js) — the width at or above which the
 // Sidebar docks beside the game instead of sliding over it as a drawer, as in
@@ -39,24 +36,12 @@ import type { TimePeriod } from './types';
 // this in step with the `desk:` classes on the Sidebar itself.
 const DESK_QUERY = '(min-width: 901px)';
 
-/** The auto theme follows the in-game hour; a Story's own Periods are not needed for that. */
-function themePeriod(clock: number | undefined): TimePeriod {
-  if (clock === undefined) return 'evening';
-  const h = Math.floor((((clock % 1440) + 1440) % 1440) / 60);
-  if (h < 5) return 'lateNight';
-  if (h < 7) return 'dawn';
-  if (h < 12) return 'morning';
-  if (h < 17) return 'afternoon';
-  if (h < 20) return 'evening';
-  return 'night';
-}
-
 const sumTotals = (t: Record<DiaryTab, number>) => t.evidence + t.persons + t.documents;
 
 // ── Inner app (has access to Supabase context) ──────────────────────────────
 
 const AppContent: React.FC = () => {
-  const { user, isGuest, isAuthReady, isNewUser, isPasswordRecovery, userProfile, authError, logout } = useSupabase();
+  const { user, isGuest, isAuthReady, isNewUser, userProfile, authError, logout } = useSupabase();
   // Open by default on desktop (lg+); closed on smaller devices where the
   // sidebar is an overlay drawer that would otherwise cover the game.
   const [isSidebarOpen, setIsSidebarOpen] = useState(
@@ -84,8 +69,7 @@ const AppContent: React.FC = () => {
 
   const inv = useInvestigation({ userId: isAuthReady ? user?.id ?? null : null });
   const view = inv.view;
-  const appearance = useAppearance({ user, userProfile, currentTimePeriod: themePeriod(view?.clock) });
-  const { connectionStatus, checkConnections } = useConnections({ isAuthReady, setNotification });
+  const appearance = useAppearance({ user, userProfile, clock: view?.clock });
 
   // Ambient bed from what the player can see; one-shots from the latest turn's cues.
   useAudio({
@@ -170,18 +154,18 @@ const AppContent: React.FC = () => {
 
   // Nothing open once the player's investigations are loaded: choose or begin one.
   useEffect(() => {
-    if (inv.isReady && !inv.investigationId && !isPasswordRecovery) setIsInvestigationsOpen(true);
-  }, [inv.isReady, inv.investigationId, isPasswordRecovery]);
+    if (inv.isReady && !inv.investigationId) setIsInvestigationsOpen(true);
+  }, [inv.isReady, inv.investigationId]);
 
   // A signed-in (not guest) player with no display name yet: the first-run profile prompt, once.
   const firstRunShownFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!user || isGuest || !isNewUser || isPasswordRecovery || firstRunShownFor.current === user.id) return;
+    if (!user || isGuest || !isNewUser || firstRunShownFor.current === user.id) return;
     firstRunShownFor.current = user.id;
     setIsAuthModalOpen(false);
     setIsFirstRunProfile(true);
     setIsEditProfileOpen(true);
-  }, [user, isGuest, isNewUser, isPasswordRecovery]);
+  }, [user, isGuest, isNewUser]);
   // Signing in closes the sign-in modal.
   useEffect(() => { if (user && !isGuest) setIsAuthModalOpen(false); }, [user, isGuest]);
 
@@ -223,8 +207,6 @@ const AppContent: React.FC = () => {
   };
 
   const history = inv.history;
-  let lastUserIdx = -1;
-  history.forEach((m, i) => { if (m.role === 'user') lastUserIdx = i; });
 
   return (
     <div
@@ -262,16 +244,8 @@ const AppContent: React.FC = () => {
         <Header
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={toggleSidebar}
-          connectionStatus={{ engine: inv.engineOk, supabase: connectionStatus.supabase }}
-          onRetryConnection={checkConnections}
-          themeMode={appearance.themeMode}
-          onSetThemeMode={appearance.setThemeMode}
-          soundEffects={appearance.soundEffects}
-          onToggleSound={() => appearance.setSoundEffects(v => !v)}
-          ambientAudio={appearance.ambientAudio}
-          onToggleAmbient={() => appearance.setAmbientAudio(v => !v)}
-          showSuggestions={appearance.showSuggestions}
-          onToggleSuggestions={() => appearance.setShowSuggestions(v => !v)}
+          engineOk={inv.engineOk}
+          appearance={appearance}
           user={isGuest ? null : user}
           userProfile={userProfile}
           onOpenInvestigations={openInvestigations}
@@ -284,7 +258,6 @@ const AppContent: React.FC = () => {
 
         <NarrativeFeed
           history={history}
-          actualLastUserIdx={lastUserIdx}
           scrollRef={scrollRef}
           dockRef={dockRef}
         />
@@ -319,7 +292,6 @@ const AppContent: React.FC = () => {
         view={view}
         newTabs={diaryNewTabs}
       />
-      <ResetPasswordModal isOpen={isPasswordRecovery} />
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}

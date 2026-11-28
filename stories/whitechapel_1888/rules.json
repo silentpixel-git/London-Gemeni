@@ -1,0 +1,846 @@
+[
+  {
+    "id": "evening_ends_on_action",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "examine",
+        "read",
+        "take",
+        "drop",
+        "open",
+        "close",
+        "use",
+        "combine",
+        "show",
+        "give",
+        "talk",
+        "move"
+      ]
+    },
+    "when": {
+      "flagsAll": [
+        "closing_heard"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "setFlag",
+        "flag": "evening_over"
+      }
+    ]
+  },
+  {
+    "id": "evening_ends_on_tick",
+    "trigger": {
+      "kind": "tick"
+    },
+    "when": {
+      "flagsAll": [
+        "closing_heard"
+      ],
+      "flagsNone": [
+        "evening_over"
+      ]
+    },
+    "once": true,
+    "weight": 1,
+    "effects": [
+      {
+        "kind": "setFlag",
+        "flag": "evening_over"
+      }
+    ]
+  },
+  {
+    "id": "closing",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "examine",
+        "take",
+        "drop",
+        "open",
+        "close",
+        "use",
+        "combine",
+        "show",
+        "give",
+        "talk",
+        "move"
+      ]
+    },
+    "when": {
+      "flagsAll": [
+        "soldier_read",
+        "clergyman_read"
+      ],
+      "personsPresent": [
+        "holmes"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "The light was going, and Holmes had gone back to the window.",
+          "\"You did very well, Watson. Better than you know.\"",
+          "He asked me to describe any one of the some hundreds who had passed under the window since I began, one he had not pointed out. I could not: not one face.",
+          "\"Nor could I. Nor could any constable on any beat in London. We see what asks to be seen. A man who asks nothing of anybody, who dresses as the street dresses and walks as the street walks, might pass under this window every evening for a year and never once be looked at.\""
+        ]
+      },
+      {
+        "kind": "grantFact",
+        "person": "player",
+        "fact": "holmes_invisible_in_a_crowd",
+        "from": "holmes"
+      },
+      {
+        "kind": "setFlag",
+        "flag": "closing_heard"
+      }
+    ]
+  },
+  {
+    "id": "soldier_verdict_right",
+    "trigger": {
+      "kind": "disclosed",
+      "fact": "watson_reading_soldier",
+      "from": "player",
+      "to": "holmes",
+      "agrees": true
+    },
+    "when": {
+      "personsPresent": [
+        "holmes"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "I gave Holmes my reading of the old fellow, and said I knew that walk: I had watched it learned in the base hospital at Peshawar.",
+          "Holmes was silent a moment. \"Admirable,\" he said. He conceded it, and the leg better than he could have seen it himself.",
+          "Then he added the one thing I had missed. \"One to you, Watson.\""
+        ]
+      },
+      {
+        "kind": "grantFact",
+        "person": "holmes",
+        "fact": "holmes_soldier_reading"
+      },
+      {
+        "kind": "grantFact",
+        "person": "player",
+        "fact": "holmes_soldier_grandchild",
+        "from": "holmes"
+      },
+      {
+        "kind": "setFlag",
+        "flag": "soldier_read"
+      },
+      {
+        "kind": "setFlag",
+        "flag": "soldier_right"
+      }
+    ]
+  },
+  {
+    "id": "soldier_verdict_wrong",
+    "trigger": {
+      "kind": "disclosed",
+      "fact": "watson_reading_soldier",
+      "from": "player",
+      "to": "holmes",
+      "agrees": false
+    },
+    "when": {
+      "personsPresent": [
+        "holmes"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "I gave Holmes my reading of the old fellow.",
+          "Holmes shook his head, and pointed me back to the way the man stood and the way he carried his left leg.",
+          "\"One to me.\""
+        ]
+      },
+      {
+        "kind": "grantFact",
+        "person": "holmes",
+        "fact": "holmes_soldier_reading"
+      },
+      {
+        "kind": "grantFact",
+        "person": "player",
+        "fact": "soldier_put_right",
+        "from": "holmes"
+      },
+      {
+        "kind": "setFlag",
+        "flag": "soldier_read"
+      }
+    ]
+  },
+  {
+    "id": "clergyman_verdict_right",
+    "trigger": {
+      "kind": "disclosed",
+      "fact": "watson_reading_clergyman",
+      "from": "player",
+      "to": "holmes",
+      "agrees": true
+    },
+    "when": {
+      "personsPresent": [
+        "holmes"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "I gave Holmes my reading of the clergyman.",
+          "Holmes looked at me for so long that I began to fear some fresh error; then he confirmed it, and sat down rather heavily in his chair.",
+          "\"I begin to think I shall have to find another occupation.\""
+        ]
+      },
+      {
+        "kind": "grantFact",
+        "person": "player",
+        "fact": "holmes_actor_reading",
+        "from": "holmes"
+      },
+      {
+        "kind": "grantFact",
+        "person": "player",
+        "fact": "actor_found_through_glass",
+        "from": "holmes"
+      },
+      {
+        "kind": "setFlag",
+        "flag": "clergyman_read"
+      },
+      {
+        "kind": "setFlag",
+        "flag": "clergyman_right"
+      }
+    ]
+  },
+  {
+    "id": "wager_won_on_soldier",
+    "trigger": {
+      "kind": "flag",
+      "flag": "soldier_right"
+    },
+    "when": {
+      "flagsAll": [
+        "clergyman_right"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "setFlag",
+        "flag": "wager_won"
+      }
+    ]
+  },
+  {
+    "id": "wager_won_on_clergyman",
+    "trigger": {
+      "kind": "flag",
+      "flag": "clergyman_right"
+    },
+    "when": {
+      "flagsAll": [
+        "soldier_right"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "setFlag",
+        "flag": "wager_won"
+      }
+    ]
+  },
+  {
+    "id": "clergyman_verdict_wrong",
+    "trigger": {
+      "kind": "disclosed",
+      "fact": "watson_reading_clergyman",
+      "from": "player",
+      "to": "holmes",
+      "agrees": false
+    },
+    "when": {
+      "personsPresent": [
+        "holmes"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "I gave Holmes my reading of the clergyman.",
+          "\"Ah,\" said Holmes, very gently. \"Look again — through the glass this time. Not at his coat. At the line of his hair beside the ear, and at the book.\"",
+          "I looked, and saw the greasepaint and the thin script. Holmes took the glass back to the mantel.",
+          "\"You saw a black coat and stopped looking. One to me.\""
+        ]
+      },
+      {
+        "kind": "moveObject",
+        "object": "opera_glass",
+        "placement": {
+          "kind": "location",
+          "location": "baker_street"
+        }
+      },
+      {
+        "kind": "grantFact",
+        "person": "player",
+        "fact": "holmes_actor_reading",
+        "from": "holmes"
+      },
+      {
+        "kind": "grantFact",
+        "person": "player",
+        "fact": "actor_shown_through_glass",
+        "from": "holmes"
+      },
+      {
+        "kind": "setFlag",
+        "flag": "clergyman_read"
+      }
+    ]
+  },
+  {
+    "id": "glass_on_clergyman",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "use",
+        "combine"
+      ],
+      "target": [
+        "opera_glass",
+        "street_clergyman"
+      ],
+      "secondary": [
+        "opera_glass",
+        "street_clergyman"
+      ]
+    },
+    "when": {
+      "flagsNone": [
+        "clergyman_read"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "setFlag",
+        "flag": "clergyman_seen_through_glass"
+      }
+    ]
+  },
+  {
+    "id": "clergyman_examined_with_glass",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "examine",
+        "read"
+      ],
+      "target": [
+        "street_clergyman"
+      ]
+    },
+    "when": {
+      "hasItems": [
+        "opera_glass"
+      ],
+      "flagsNone": [
+        "clergyman_read"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "setFlag",
+        "flag": "clergyman_seen_through_glass"
+      }
+    ]
+  },
+  {
+    "id": "clergyman_through_glass",
+    "trigger": {
+      "kind": "flag",
+      "flag": "clergyman_seen_through_glass"
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "giveItem",
+        "object": "opera_glass"
+      },
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Through Holmes's opera glass I looked across the street at the clergyman.",
+          "Along his hairline, beside the ear, there was a faint brownish line upon the skin, too even to be dirt; and the book was no prayer-book but a thin paper volume in a coloured wrapper, its lines set out in short, uneven lengths."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "clergyman_read_by_eye",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "read"
+      ],
+      "target": [
+        "street_clergyman"
+      ]
+    },
+    "when": {
+      "flagsNone": [
+        "clergyman_seen_through_glass"
+      ]
+    },
+    "once": false,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "At that distance, in that light, I could not make out a line of it."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "clergyman_examined_by_eye",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "examine"
+      ],
+      "target": [
+        "street_clergyman"
+      ]
+    },
+    "when": {
+      "flagsNone": [
+        "clergyman_seen_through_glass"
+      ]
+    },
+    "once": false,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "To the naked eye, from here, there is nothing more to be made of him."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "glass_on_soldier",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "use",
+        "combine"
+      ],
+      "target": [
+        "opera_glass",
+        "street_soldier"
+      ],
+      "secondary": [
+        "opera_glass",
+        "street_soldier"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "giveItem",
+        "object": "opera_glass"
+      },
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Through the glass, a faded campaign ribbon shows on the old fellow's coat, worn so long it has gone the colour of the cloth."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "glass_on_crowd",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "use",
+        "combine"
+      ],
+      "target": [
+        "opera_glass",
+        "crowd"
+      ],
+      "secondary": [
+        "opera_glass",
+        "crowd"
+      ]
+    },
+    "once": false,
+    "effects": [
+      {
+        "kind": "giveItem",
+        "object": "opera_glass"
+      },
+      {
+        "kind": "playBeat",
+        "beats": [
+          "The glass brings the street up close: straw hats, a child on a man's shoulders, a sailor arguing with a cabman."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "glass_on_window",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "use",
+        "combine"
+      ],
+      "target": [
+        "opera_glass",
+        "open_window"
+      ],
+      "secondary": [
+        "opera_glass",
+        "open_window"
+      ]
+    },
+    "once": false,
+    "effects": [
+      {
+        "kind": "giveItem",
+        "object": "opera_glass"
+      },
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Through the glass the far side of Baker Street jumps forward: the chemist's window, a lamp-post, a dog asleep in a doorway."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "glass_returned",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "give"
+      ],
+      "target": [
+        "opera_glass"
+      ],
+      "person": [
+        "holmes"
+      ]
+    },
+    "when": {
+      "personsPresent": [
+        "holmes"
+      ],
+      "flagsNone": [
+        "evening_over"
+      ]
+    },
+    "once": false,
+    "effects": [
+      {
+        "kind": "moveObject",
+        "object": "opera_glass",
+        "placement": {
+          "kind": "location",
+          "location": "baker_street"
+        }
+      },
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Holmes set it back on the mantel without looking at it. \"You may want it yet.\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "wager_on_exchange",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "examine",
+        "read",
+        "take",
+        "drop",
+        "open",
+        "close",
+        "use",
+        "combine",
+        "show",
+        "give",
+        "talk",
+        "ask",
+        "deduce",
+        "move"
+      ]
+    },
+    "when": {
+      "flagsAll": [
+        "demonstration_given"
+      ],
+      "flagsNone": [
+        "wager_offered"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "setFlag",
+        "flag": "wager_offered"
+      }
+    ]
+  },
+  {
+    "id": "wager",
+    "trigger": {
+      "kind": "flag",
+      "flag": "wager_offered"
+    },
+    "when": {
+      "personsPresent": [
+        "holmes"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "When he had done, I called it a very good parlour trick. Holmes turned from the window with a look I had learned, in seven years, to distrust.",
+          "\"Very well,\" he said. \"A wager.\" Two people in the street below, to be read correctly.",
+          "\"Tell me when you have him. I shall hold you to your first answer.\"",
+          "He gestured at the window: the old fellow on the kerb by the cab rank, just under the window, and the clergyman across the street outside the chemist's, his face half-lost under the brim of his hat.",
+          "\"Take your time. I have nothing whatever else to do.\""
+        ]
+      },
+      {
+        "kind": "revealObject",
+        "object": "street_soldier"
+      },
+      {
+        "kind": "revealObject",
+        "object": "street_clergyman"
+      },
+      {
+        "kind": "setDisposition",
+        "person": "holmes",
+        "disposition": "warm"
+      },
+      {
+        "kind": "grantFact",
+        "person": "player",
+        "fact": "holmes_the_wager",
+        "from": "holmes"
+      },
+      {
+        "kind": "grantFact",
+        "person": "player",
+        "fact": "watson_reading_soldier"
+      },
+      {
+        "kind": "grantFact",
+        "person": "player",
+        "fact": "watson_reading_clergyman"
+      }
+    ]
+  },
+  {
+    "id": "lamplighter",
+    "trigger": {
+      "kind": "clock",
+      "atMinutes": 1185,
+      "act": [
+        0
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Across the street the lamplighter comes down the row with his pole, and the gas goes up one lamp at a time."
+        ]
+      },
+      {
+        "kind": "cue",
+        "sound": "lamplighter"
+      }
+    ]
+  },
+  {
+    "id": "holmes_turns_on_action",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "examine",
+        "read",
+        "take",
+        "drop",
+        "open",
+        "close",
+        "use",
+        "combine",
+        "show",
+        "give",
+        "talk",
+        "ask",
+        "deduce",
+        "move"
+      ]
+    },
+    "when": {
+      "flagsNone": [
+        "demonstration_given"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "setFlag",
+        "flag": "demonstration_given"
+      }
+    ]
+  },
+  {
+    "id": "demonstration",
+    "trigger": {
+      "kind": "flag",
+      "flag": "demonstration_given"
+    },
+    "when": {
+      "personsPresent": [
+        "holmes"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "moveObject",
+        "object": "opera_glass",
+        "placement": {
+          "kind": "location",
+          "location": "baker_street"
+        }
+      },
+      {
+        "kind": "cue",
+        "sound": "glass_down"
+      },
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Holmes spoke without turning from the window.",
+          "He read the street below for me: the licensed victualler and his daughter by the pillar box, and the man under the lamp.",
+          "He lowered the little opera glass and set it on the mantel."
+        ]
+      },
+      {
+        "kind": "grantFact",
+        "person": "player",
+        "fact": "holmes_victualler",
+        "from": "holmes"
+      },
+      {
+        "kind": "grantFact",
+        "person": "player",
+        "fact": "holmes_heath_road_dust",
+        "from": "holmes"
+      },
+      {
+        "kind": "grantFact",
+        "person": "player",
+        "fact": "holmes_observation_vs_inference",
+        "from": "holmes"
+      }
+    ]
+  },
+  {
+    "id": "coda_won",
+    "trigger": {
+      "kind": "flag",
+      "flag": "evening_over"
+    },
+    "when": {
+      "flagsAll": [
+        "wager_won"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Holmes took up the violin from its case, looked at it, and put it down again; and he kept his word until midnight, with the windows open on the street below."
+        ]
+      },
+      {
+        "kind": "endGame",
+        "ending": "prologue_end"
+      }
+    ]
+  },
+  {
+    "id": "coda_lost",
+    "trigger": {
+      "kind": "flag",
+      "flag": "evening_over"
+    },
+    "when": {
+      "flagsNone": [
+        "wager_won"
+      ]
+    },
+    "once": true,
+    "effects": [
+      {
+        "kind": "cue",
+        "sound": "pages_riffle"
+      },
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Holmes took down his monograph on a hundred and forty tobaccos and laid it in my lap with great tenderness, and I read it, plates and all, with the windows open on the street, until it was quiet."
+        ]
+      },
+      {
+        "kind": "endGame",
+        "ending": "prologue_end"
+      }
+    ]
+  }
+]

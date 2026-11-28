@@ -17,7 +17,6 @@ export const EASE_DRAWER: [number, number, number, number] = [0.32, 0.72, 0, 1];
 export const cssEase = ([a, b, c, d]: [number, number, number, number]) => `cubic-bezier(${a}, ${b}, ${c}, ${d})`;
 export const DUR_SMALL = 0.2;
 export const DUR_PANEL = 0.3;
-export const DUR_DRAMATIC = 0.6;
 /** Exits are snappier than enters — the system responding vs. announcing. */
 export const DUR_EXIT = 0.15;
 

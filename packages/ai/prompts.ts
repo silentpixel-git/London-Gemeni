@@ -5,7 +5,7 @@
 // from the context the engine built, never from here.
 import { z } from 'zod';
 import { NarrationResult, Selection, type NarrationContext } from '../schema/index.js';
-import type { PromptBundle, SelectInput } from './types.js';
+import type { JudgeInput, PromptBundle, SelectInput } from './types.js';
 
 // ── Selection ────────────────────────────────────────────────────────────────
 
@@ -22,16 +22,16 @@ Reply kinds:
 
 Verbs:
 - look: survey the surroundings with no particular target.
-- examine <target>: study one object or person closely ("look at", "inspect", "check", "search"). target is an objects id, or a persons id for a person.
+- examine <target>: study one object or person closely ("look at", "inspect", "check", "search"). target is an objects id, or a persons id for a person. Looking at something through an instrument ("look at the ship through the telescope") is use <that instrument> on it.
 - read <target>: read words on a document.
 - take <target> / drop <target>.
 - open <target> / close <target>: containers and the like. Forcing a container open by hand is open on it ("snap the clasp", "prise the casket open"); forcing it with a tool is use <tool> on it; trying a locked door or way is move.
 - use <target> [secondary]: operate or apply one thing, optionally on another object or on a person present.
 - combine <target> <secondary>: bring two things together ("light the candle with the matches", "fit the key to the box", "tie the rope to the hook").
 - show <target> to <person> / give <target> to <person>.
-- talk <person>: address a person with no particular subject ("greet", "speak to", "hello", a bare "ask her" that names no subject).
-- ask <person> [topic]: ask or tell a person about a subject. Match the subject to a topics entry for that person and return its fact as "topic". Entries marked "tell" mean the player would be telling them. If the subject matches no entry for that person, return ask with the person and no topic.
-- deduce [facts] [person]: accuse, conclude or name a culprit. "facts" are ids from knownFacts the player is invoking; "person" is the suspect, if they name one, and is an id from suspects (anyone the player has met, present or not).
+- talk <person>: address a person with no particular subject ("greet", "speak to", "hello", a bare "ask her" that names no subject, or a bare reply such as "go on", "yes", "very well" when one person is present).
+- ask <person> [topic] [telling]: ask or tell a person about a subject. Match the subject to a topics entry for that person and return its fact as "topic". Set "telling": true when the line tells them something: states a claim, gives an answer, or offers the player's own view or conclusion ("tell her the door was open", "he is the gardener, I am sure of it", "my answer is the second one"). Leave "telling" out when the line asks, wonders or seeks their view or a verdict ("what do you make of him?", "what do you think?", "did I get it right?"); a question is never telling. An entry marked "tell" is the player's own answer on that subject: return it as the topic only with "telling": true, even when the line does not name the subject ("she is the one who wrote it", said of the matter in question); a question about that subject is ask with the person and no topic. A "tell" entry carries an "answer", the right answer: with it set "agrees": true when what the line claims fits the answer, false when it claims anything else. Judge only; never repeat the answer or let it change the rest of your reply. If the subject matches no entry for that person, return ask with the person and no topic.
+- deduce [facts] [person]: accuse or name a culprit. "facts" are ids from knownFacts the player is invoking; "person" is the suspect, if they name one, and is an id from suspects (anyone the player has met, present or not).
 - move <exit>: go somewhere. Match any of an exit's names, a compass direction, or the destination's name. "Leave", "go back", "out" map to the exit that fits best; if several fit equally, none.
 - wait: pass time, rest, linger, watch, listen for a while.
 - inventory: what am I carrying.
@@ -47,6 +47,26 @@ export function buildSelectPrompt(input: SelectInput): PromptBundle {
     system: SELECT_SYSTEM,
     user: JSON.stringify({ line: input.text, recentTexts: input.recentTexts, candidates: input.candidates }),
     responseSchema: z.toJSONSchema(Selection),
+    temperature: 0,
+  };
+}
+
+// ── Judging a told answer ────────────────────────────────────────────────────
+
+const JUDGE_SYSTEM = `You judge one answer in a text adventure. The player has told someone their answer on a subject. You are given the player's line, the subject, and the right answer.
+
+Decide whether what the line claims agrees with the right answer:
+- agrees: true when the line identifies the same thing as the right answer, in any words, even with fewer particulars or with particulars of its own that do not contradict it.
+- agrees: false when the line identifies something else, or claims something the right answer rules out.
+Judge the line's claim, not its tone or confidence. Reply with a single JSON object: {"agrees": true} or {"agrees": false}.`;
+
+export const JudgeReply = z.object({ agrees: z.boolean() }).strict();
+
+export function buildJudgePrompt(input: JudgeInput): PromptBundle {
+  return {
+    system: JUDGE_SYSTEM,
+    user: JSON.stringify({ line: input.text, recentTexts: input.recentTexts, subject: input.subject, rightAnswer: input.answer }),
+    responseSchema: z.toJSONSchema(JudgeReply),
     temperature: 0,
   };
 }
@@ -75,6 +95,7 @@ EVENTS, and how to carry them:
 - Deduced then GameEnded: the ending's beats are the close; land them.
 - TickResolved / ClockAdvanced with beats: the world moving on its own, in one or two sentences carrying the beat and nothing else; do not have the narrator act.
 - IntentRejected: an in-character miss, one or two sentences, no mechanism named: the attempt comes to nothing. Never deny that something exists which the context or the scene's prose describes; a clasp the player fails to snap is still there.
+- FactDisclosed from the player with "agrees": false: the player told them their own answer, in the words of their line, and it is not the fact; the person heard that claim and reacts to it, never to the fact.
 - FlavourRequested: describe the subject as flavour and nothing more. Say nothing about whether it can be used, taken or examined.
 - ClueDiscovered: give the moment weight without announcing a "clue".
 - BeatQueued beats are mandatory: every beat's substance appears, in order, in your own words unless it is a quotation.

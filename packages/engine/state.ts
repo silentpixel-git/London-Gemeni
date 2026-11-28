@@ -36,7 +36,8 @@ export interface State {
   exitLocks: Record<string, Lock | null>;
   persons: Record<Id, PersonState>;
   knows: Record<PersonOrPlayer, Record<Id, true>>;
-  ledger: Record<Id, { told: Id[]; heard: Id[] }>;
+  /** `contrary`: subjects the player answered wrongly to them (ADR-0005 §11): they heard the player's claim, not the Fact. */
+  ledger: Record<Id, { told: Id[]; heard: Id[]; contrary?: Id[] }>;
   transcript: Record<Id, TranscriptLine[]>;
   clues: Id[];
   firedRules: Record<Id, number>;
@@ -153,9 +154,10 @@ export function apply(story: Story, s: State, e: EventPayload): State {
       s = involve(involve(s, e.from), e.to);
       if (person === 'player') return { ...s, knows };
       const entry = s.ledger[person] ?? { told: [], heard: [] };
-      const next = e.from === 'player'
-        ? { ...entry, heard: entry.heard.includes(e.fact) ? entry.heard : [...entry.heard, e.fact] }
-        : { ...entry, told: entry.told.includes(e.fact) ? entry.told : [...entry.told, e.fact] };
+      const add = (list: Id[] = []) => (list.includes(e.fact) ? list : [...list, e.fact]);
+      const next = e.from !== 'player' ? { ...entry, told: add(entry.told) }
+        : e.agrees === false ? { ...entry, contrary: add(entry.contrary) }
+        : { ...entry, heard: add(entry.heard) };
       return { ...s, knows, ledger: { ...s.ledger, [person]: next } };
     }
     case 'FactLearned': return { ...s, knows: learn(s.knows, e.person, e.fact) };
