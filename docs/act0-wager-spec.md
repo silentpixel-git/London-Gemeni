@@ -147,7 +147,7 @@ block.
 | The victualler | a licensed victualler by the pillar box, with his daughter, kept out "an hour past the time her mother allowed" |
 | The Hampstead man | under the lamp; walked in from Hampstead that morning to save the fare; Heath-road dust white to the ankle; **about four miles** |
 | The crowd | "a hundred thousand people" in London's streets (opening). "Some hundreds" have passed under the window during the wager (Watson's answer at the closing). No other counts |
-| The old fellow (the soldier) | **about sixty**; a coat too heavy for August; stick in the left hand; infantry; Indian service, not recent; old fracture of the left thigh, healed short; probably a sergeant, **long out of the army but still standing like one**; waiting for a grandchild; a faded campaign ribbon (through the glass) |
+| The old fellow (the soldier) | **about sixty**; a coat too heavy for August; stick in the **right** hand (corrected 2026-11-28: carried on the side opposite the bad leg); infantry; Indian service, not recent; old fracture of the left thigh, healed short; probably a sergeant, **long out of the army but still standing like one**; waiting for a grandchild; a faded campaign ribbon (through the glass) |
 | Watson's reference | the base hospital at **Peshawar** (canon, *A Study in Scarlet*) |
 | The "clergyman" | an actor in costume: black coat, white tie, coat shiny at the seams, cuffs turned; learning new lines from a thin paper script in a coloured wrapper; a line of greasepaint at the hairline beside the ear |
 | The theatre | **unnamed** — "a West End house", in a melodrama with a clergyman in it. He isn't wanted until the second act. *(The Princess's was checked and rejected: its summer 1888 bill was* The Still Alarm*.)* |

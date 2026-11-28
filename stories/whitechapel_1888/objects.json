@@ -12,7 +12,7 @@
       "location": "baker_street"
     },
     "beats": [
-      "The open window looks down on Baker Street, packed with the holiday: the cab rank below, the pillar box, the chemist's across the way."
+      "The open window looks down on Baker Street, packed with the holiday from kerb to kerb."
     ]
   },
   {
@@ -28,7 +28,7 @@
       "location": "baker_street"
     },
     "beats": [
-      "The holiday crowd in the street below: straw hats, a great many children, a sailor; a licensed victualler by the pillar box with his daughter; a man under the lamp whose boots are white to the ankle with dust."
+      "The holiday crowd in the street below: straw hats, a great many children, a sailor; a stout man in his Sunday best by the pillar box with a little girl; a man under the lamp whose boots are white to the ankle with dust."
     ]
   },
   {
@@ -45,8 +45,8 @@
       "location": "baker_street"
     },
     "beats": [
-      "The old fellow at the kerb by the cab rank, just under the window: about sixty, in a decent coat too heavy for August; heels together, chin up; a stick in his left hand that he leans on more than he would wish.",
-      "When he moves to let a perambulator by, the left leg swings stiff from the hip, the knee hardly bending. His neck is burned a deep brick-colour that no English summer gives a man."
+      "The old fellow at the kerb by the cab rank, just under the window: about sixty, in a decent coat too heavy for August; heels together, chin up; a stick in his right hand that he leans on more than he would wish.",
+      "When he moves to let a perambulator by, the left leg swings stiff from the hip, the knee hardly bending. His skin has gone to old leather under some hotter sun than ours, long ago, and his eyes go along the crowd low down, never at the faces."
     ]
   },
   {
@@ -64,7 +64,7 @@
     },
     "beats": [
       "The clergyman across the street outside the chemist's: a long black coat and a white tie; the coat shiny at the seams, the cuffs turned, a good hat gone to the bad.",
-      "He holds a small book open, his lips moving, and now and then looks up over the heads of the crowd as a man repeating something to himself. His face is half-lost under the brim of his hat in the failing light; from here there is nothing more to be made of it."
+      "He holds a small book open, his lips moving, and now and then looks up over the heads of the crowd as a man repeating something to himself. His face is half-lost under the brim of his hat in the failing light; to the naked eye, from here, there is nothing more to be made of it."
     ]
   },
   {
@@ -112,7 +112,8 @@
     },
     "beats": [
       "On the shelf, Holmes's monograph upon the ashes of the various tobaccos: a hundred and forty varieties, with plates."
-    ]
+    ],
+    "document": "Upon the Distinction between the Ashes of the Various Tobaccos: an enumeration of a hundred and forty forms of cigar, cigarette and pipe tobacco, with coloured plates illustrating the difference in the ash."
   },
   {
     "id": "chemistry_bench",
@@ -142,7 +143,7 @@
       "location": "baker_street"
     },
     "beats": [
-      "The mantelpiece: the clock, the pipe-rack, a litter of letters under a jack-knife."
+      "The mantelpiece: Holmes's pipe-rack and a scatter of spent matches."
     ]
   }
 ]

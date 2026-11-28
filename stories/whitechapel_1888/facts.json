@@ -16,6 +16,18 @@
     }
   },
   {
+    "id": "holmes_experiment",
+    "statement": "The afternoon's experiment failed a little after seven, when something on the bench went black and stank.",
+    "knownBy": [
+      "holmes"
+    ],
+    "visibleFromAct": 0,
+    "topics": [
+      "the experiment",
+      "your afternoon"
+    ]
+  },
+  {
     "id": "holmes_opera_glass",
     "statement": "Holmes's opera glass is French and good; he bought it for the opera and uses it for everything else.",
     "knownBy": [
@@ -56,7 +68,7 @@
   },
   {
     "id": "holmes_watsons_service",
-    "statement": "Holmes knew Watson for a man back from Afghanistan the day they met, seven years ago.",
+    "statement": "Holmes knew Watson for a man back from Afghanistan the day they met, seven years ago, come home by way of India and the base hospital at Peshawar. He has never asked where the wound was, and Watson does not say.",
     "knownBy": [
       "holmes"
     ],
@@ -76,7 +88,8 @@
     "topics": [
       "hampstead",
       "heath road",
-      "his boots"
+      "his boots",
+      "the man under the lamp"
     ],
     "voices": {
       "holmes": "His boots are white to the ankle with the dust of the Heath road. That is a fact."
@@ -90,7 +103,7 @@
     "topics": [
       "the victualler",
       "the publican",
-      "his daughter"
+      "the victualler's daughter"
     ]
   },
   {
@@ -109,7 +122,7 @@
   },
   {
     "id": "holmes_the_wager",
-    "statement": "The wager: two strangers read correctly, and Holmes will not touch the violin before midnight; fail, and Watson reads the tobacco monograph, plates and all. Holmes holds him to his first answer.",
+    "statement": "The wager: two strangers read correctly, and Holmes will not touch the violin before midnight; fail, and Watson reads the monograph on a hundred and forty tobacco ashes, plates and all. Holmes holds him to his first answer.",
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [
@@ -123,12 +136,12 @@
   },
   {
     "id": "watson_reading_soldier",
-    "statement": "The old fellow by the cab rank: an infantryman by his stance; Indian service, and not lately; an old fracture of the left thigh, set in a hurry and healed short; a sergeant, by the look of him, long out of the army and still standing like one.",
+    "statement": "Watson's reading of the old fellow by the cab rank, given to Holmes as his answer in the wager.",
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [
-      "the old soldier",
-      "the man by the cab rank"
+      "my reading of the soldier",
+      "my answer about the soldier"
     ]
   },
   {
@@ -137,8 +150,18 @@
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [
-      "the clergyman",
-      "the curate"
+      "my reading of the clergyman",
+      "my answer about the clergyman"
+    ]
+  },
+  {
+    "id": "holmes_soldier_reading",
+    "statement": "The old fellow by the cab rank, as Watson read him and Holmes conceded: about sixty, an infantryman by his stance, Indian service long ago, an old fracture of the left thigh set in a hurry and healed short, a sergeant long out of the army and still standing like one.",
+    "knownBy": [],
+    "visibleFromAct": 0,
+    "topics": [
+      "the old soldier",
+      "his leg"
     ]
   },
   {
@@ -159,6 +182,8 @@
     "knownBy": [],
     "visibleFromAct": 0,
     "topics": [
+      "the clergyman",
+      "the curate",
       "the actor",
       "greasepaint",
       "the theatre",

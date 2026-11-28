@@ -86,11 +86,11 @@
       {
         "kind": "playBeat",
         "beats": [
-          "The light was going. The crowd below had thickened, as holiday crowds do once the public-houses are the only places still open, and Holmes had gone back to the window.",
-          "\"You did very well, Watson,\" he said. \"Better than you know.\" Then he asked how many people had passed under the window since I began. \"Some hundreds,\" I said. \"Describe one of them to me,\" he said. \"Any one I did not point out.\"",
-          "I tried, and could not: straw hats, a great many children, a sailor; not one face, not one coat.",
+          "The light was going, and Holmes had gone back to the window.",
+          "\"You did very well, Watson. Better than you know.\"",
+          "He asked how many people had passed under the window since I began. \"Some hundreds,\" I said. He asked me to describe one he had not pointed out, and I could not: not one face, not one coat.",
           "\"Nor could I. Nor could any constable on any beat in London. We see what asks to be seen. A man who asks nothing of anybody, who dresses as the street dresses and walks as the street walks, might pass under this window every evening for a year and never once be looked at.\"",
-          "He let the curtain fall, and when I said London might be forgiven a little dullness once a year, he smiled and did not answer."
+          "He let the curtain fall and did not say anything more."
         ]
       },
       {
@@ -123,10 +123,15 @@
       {
         "kind": "playBeat",
         "beats": [
-          "I gave Holmes my reading of the old fellow by the cab rank, and said I knew that walk: I had watched it learned in the base hospital at Peshawar.",
+          "I gave Holmes my reading of the old fellow by the cab rank, a man of about sixty: an infantryman by his stance; India, and not lately; an old fracture of the left thigh, set in a hurry and healed short; a sergeant, long out of the army. I knew that walk: I had watched it learned in the base hospital at Peshawar.",
           "Holmes was silent a moment. \"Admirable,\" he said. He conceded every word, and the leg better than he could have seen it himself.",
           "Then he added the one thing I had missed. \"One to you, Watson.\""
         ]
+      },
+      {
+        "kind": "grantFact",
+        "person": "holmes",
+        "fact": "holmes_soldier_reading"
       },
       {
         "kind": "grantFact",
@@ -209,10 +214,10 @@
       {
         "kind": "playBeat",
         "beats": [
-          "I gave my reading: a curate from a poor parish somewhere in the country, up for the holiday and getting tomorrow's lesson by heart.",
+          "I gave my reading: a curate from a poor parish somewhere in the country, getting tomorrow's lesson by heart.",
           "\"Ah,\" said Holmes, very gently. \"Look again — through the glass this time. Not at his coat. At the line of his hair beside the ear, and at the book.\"",
-          "I looked through the glass: a faint brownish line along the hairline, too even to be dirt, and a thin paper script in a coloured wrapper. \"Greasepaint,\" I said, and felt foolish.",
-          "Holmes explained the man to me, took the glass back to the mantel, and said: \"One to me.\""
+          "I looked, and saw the greasepaint and the thin script. Holmes took the glass back to the mantel.",
+          "\"You saw a black coat and stopped looking. One to me.\""
         ]
       },
       {
@@ -328,7 +333,8 @@
     "trigger": {
       "kind": "action",
       "verb": [
-        "examine"
+        "examine",
+        "read"
       ],
       "target": [
         "street_clergyman"
@@ -367,6 +373,32 @@
         "beats": [
           "I took up Holmes's opera glass and looked across the street at the clergyman.",
           "Along his hairline, beside the ear, there was a faint brownish line upon the skin, too even to be dirt; and the book was no prayer-book but a thin paper volume in a coloured wrapper, its lines set out in short, uneven lengths."
+        ]
+      }
+    ]
+  },
+  {
+    "id": "clergyman_read_by_eye",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "read"
+      ],
+      "target": [
+        "street_clergyman"
+      ]
+    },
+    "when": {
+      "flagsNone": [
+        "clergyman_seen_through_glass"
+      ]
+    },
+    "once": false,
+    "effects": [
+      {
+        "kind": "playBeat",
+        "beats": [
+          "At that distance, in that light, I could not make out a line of it."
         ]
       }
     ]
@@ -465,6 +497,43 @@
     ]
   },
   {
+    "id": "glass_returned",
+    "trigger": {
+      "kind": "action",
+      "verb": [
+        "give"
+      ],
+      "target": [
+        "opera_glass"
+      ],
+      "person": [
+        "holmes"
+      ]
+    },
+    "when": {
+      "personsPresent": [
+        "holmes"
+      ]
+    },
+    "once": false,
+    "effects": [
+      {
+        "kind": "moveObject",
+        "object": "opera_glass",
+        "placement": {
+          "kind": "location",
+          "location": "baker_street"
+        }
+      },
+      {
+        "kind": "playBeat",
+        "beats": [
+          "Holmes set it back on the mantel without looking at it. \"You may want it yet.\""
+        ]
+      }
+    ]
+  },
+  {
     "id": "wager_on_exchange",
     "trigger": {
       "kind": "action",
@@ -493,28 +562,6 @@
     ]
   },
   {
-    "id": "wager_on_tick",
-    "trigger": {
-      "kind": "tick"
-    },
-    "when": {
-      "flagsAll": [
-        "demonstration_given"
-      ],
-      "flagsNone": [
-        "wager_offered"
-      ]
-    },
-    "once": true,
-    "weight": 1,
-    "effects": [
-      {
-        "kind": "setFlag",
-        "flag": "wager_offered"
-      }
-    ]
-  },
-  {
     "id": "wager",
     "trigger": {
       "kind": "flag",
@@ -530,10 +577,10 @@
       {
         "kind": "playBeat",
         "beats": [
-          "I had called his reading of the street a parlour trick, the kind any man might do who had nothing else to do with his evening; Holmes turned from the window at that with a look I had learned, in seven years, to distrust.",
+          "I had called his reading of the street a parlour trick; Holmes turned from the window with a look I had learned, in seven years, to distrust.",
           "\"Any man,\" he said. \"Very well. A wager.\" Two people in the street below, to be read correctly.",
-          "That was a prize worth having: the violin silent until midnight. The forfeit was his monograph upon the ashes of a hundred and forty tobaccos, plates and all.",
-          "He gestured at the window as a man holds open a door: the old fellow on the kerb by the cab rank, just under the window, and the clergyman across the street outside the chemist's, his face half-lost under the brim of his hat.",
+          "\"Tell me when you have him. I shall hold you to your first answer.\"",
+          "He gestured at the window: the old fellow on the kerb by the cab rank, just under the window, and the clergyman across the street outside the chemist's, his face half-lost under the brim of his hat.",
           "\"Take your time. I have nothing whatever else to do.\""
         ]
       },
@@ -626,25 +673,6 @@
     ]
   },
   {
-    "id": "holmes_turns_on_tick",
-    "trigger": {
-      "kind": "tick"
-    },
-    "when": {
-      "flagsNone": [
-        "demonstration_given"
-      ]
-    },
-    "once": true,
-    "weight": 1,
-    "effects": [
-      {
-        "kind": "setFlag",
-        "flag": "demonstration_given"
-      }
-    ]
-  },
-  {
     "id": "demonstration",
     "trigger": {
       "kind": "flag",
@@ -714,7 +742,7 @@
       {
         "kind": "playBeat",
         "beats": [
-          "Holmes took up the violin from its case, looked at it, and put it down again; and he kept his word until midnight, which was more than I had dared expect."
+          "Holmes took up the violin from its case, looked at it, and put it down again; and he kept his word until midnight, with the windows open on the street below."
         ]
       },
       {
@@ -743,7 +771,7 @@
       {
         "kind": "playBeat",
         "beats": [
-          "Holmes took down the monograph upon the ashes of the various tobaccos and laid it in my lap with great tenderness, and I read it, plates and all, until the street was quiet."
+          "Holmes took down his monograph on a hundred and forty tobaccos and laid it in my lap with great tenderness, and I read it, plates and all, with the windows open on the street, until it was quiet."
         ]
       },
       {

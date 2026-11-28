@@ -166,6 +166,8 @@ beats carry the words a player would use.
 
 ## 5. Rules — `rules.json`, in file order
 
+> **Amended after the consistency review (§8b):** rows #3, #4, #6, #10, #17, #21–#23 change; #16 and #20 are removed; three Rules are added. Where a row below and §8b disagree, §8b holds.
+
 Each row gives:
 
 | Column | Holds |
@@ -469,6 +471,108 @@ All four go to the live `select` check at pre-flight (§I of the spec template).
   the window are not. They are therefore `action` triggers on `use`/`combine`, with both Objects in
   both slots so either order matches. The behaviour is unchanged, and no new flag, Effect or phrasing
   is involved.
+
+## 8b. Changes after the `narrative-consistency-reviewer` pass (owner decisions, 2026-11-28)
+
+The review ran on the written JSON. You made four decisions, each as recommended:
+- **A1 is reverted.**
+- **The demonstration's and the wager's Tick fallbacks are dropped.**
+- **The soldier's stick moves to his right hand.**
+- **Two gaps are accepted as generic for now:** the glass used with nothing named or on scenery,
+  and the open windows and case that cannot be closed.
+
+The rest are data fixes inside the signed-off design.
+
+### Structural (rows)
+
+- **A1 reverted. The soldier is now built like the clergyman:**
+  - `watson_reading_soldier` is neutral again: "Watson's reading of the old fellow by the cab rank,
+    given to Holmes as his answer in the wager."
+  - New `holmes_soldier_reading`, the full reading as Holmes confirms it: about sixty, infantry,
+    India long ago, the left thigh healed short, a sergeant. Rule #4 grants it **to Holmes only**
+    (`grantFact holmes holmes_soldier_reading`), so it is askable from him afterwards.
+  - #4's first Beat now carries the reading itself, with "about sixty", so the commit turn shows what
+    Watson said. The reading no longer reaches the narrator at the wager.
+- **Topic phrases are split by direction:**
+  - The `watson_reading_*` Facts carry "my reading of the soldier" / "my reading of the clergyman".
+  - Holmes's own Facts carry the bare names:
+    - `holmes_soldier_reading`: "the old soldier", "his leg";
+    - `holmes_actor_reading`: adds "the clergyman", "the curate".
+  - Before the verdict, Holmes knows none of his own Facts, so only the tell topic is offered. After
+    it, a question about the figure meets Holmes's Fact, not the neutral reading.
+- **#16 `wager_on_tick` and #20 `holmes_turns_on_tick` are removed.** The narrator renders a Tick in
+  one or two sentences, which would squash the scene. The demonstration waits for the first action
+  and the wager for the next exchange with Holmes. Idle Ticks before the closing are quiet.
+- **#10 `clergyman_examined_with_glass` also takes `read`.** Reading his book with the glass in hand
+  counts as the glass.
+- **New #24 `clergyman_read_by_eye`** (action `read`, target `street_clergyman`; listed after #10 and
+  #11 so the glass case wins; `flagsNone [clergyman_seen_through_glass]`; `once: false`). It plays
+  one Beat: "At that distance, in that light, I could not make out a line of it." Reading by eye
+  never shows the script.
+- **New #25 `glass_returned`** (action `give`, target `opera_glass`, person `holmes`;
+  `once: false`).
+  - Effects: `moveObject opera_glass → baker_street`, then the Beat "Holmes set it back on the
+    mantel without looking at it. 'You may want it yet.'"
+  - Without this Rule, a courteous "give Holmes his glass" put it in his hand, out of reach for the
+    rest of the act, and silently forfeited the win.
+- **New Fact `holmes_experiment`:**
+  - statement: "The afternoon's experiment failed a little after seven, when something on the bench
+    went black and stank";
+  - known by Holmes from the start;
+  - topics: "the experiment", "your afternoon".
+
+  The opening names the experiment, so Holmes can be asked about it.
+- **`tobacco_monograph` gets a `document`**, the canon title page: "Upon the Distinction between the
+  Ashes of the Various Tobaccos: an enumeration of a hundred and forty forms of cigar, cigarette and
+  pipe tobacco, with coloured plates illustrating the difference in the ash." Reading it no longer
+  asks the narrator to quote text that isn't there. Like any document, examining it reads it, and it
+  enters the diary's Documents.
+
+### Words (Beats, Facts, Objects)
+
+- **Budgets:**
+  - The wager drops its stakes Beat. The stakes, with "a hundred and forty", are in
+    `holmes_the_wager`. Its gesture loses "as a man holds open a door"; its [Q] closing line
+    stays.
+  - The closing and the lose verdict are trimmed. The lose verdict no longer repeats what the glass
+    Beat already shows.
+  - Each scene's Beats plus its Facts are under 160 words. The golden measures this.
+- **Protected lines are quoted in Beats, not only in voices:**
+  - the wager's "Tell me when you have him. I shall hold you to your first answer.";
+  - the lose verdict's "You saw a black coat and stopped looking.";
+  - the closing's "You did very well, Watson. Better than you know." (now its own Beat).
+- **The codas:**
+  - The lost coda carries "a hundred and forty".
+  - Both codas name the open windows, so the ending's quoted line has its referent.
+- **The opening:** the glass is "at his eye" (not behind his back), so the demonstration's "lowered"
+  is true.
+- **`street_soldier`:**
+  - stick in the **right** hand (spec §C corrected);
+  - skin "gone to old leather under some hotter sun than ours, long ago" (no recent tan);
+  - his gaze "goes along the crowd low down, never at the faces". This is the observation; Holmes's
+    grandchild is the inference.
+- **`street_clergyman`:** "to the naked eye, from here, there is nothing more to be made of it". It
+  no longer contradicts the glass Beat when both play.
+- **`crowd`:** "a stout man in his Sunday best by the pillar box with a little girl". The trade is
+  Holmes's inference, not the crowd's description.
+- **`open_window`:** the landmarks (cab rank, pillar box, chemist's) move to the Objects they belong
+  to, so a phrase naming one doesn't tie two candidates.
+- **`mantel`:** "Holmes's pipe-rack and a scatter of spent matches". The clock and the letters go:
+  they invited "what time is it?" and "read the letters".
+- **Facts:**
+  - `holmes_watsons_service` names India and Peshawar, and says Holmes has never asked where the
+    wound was.
+  - `holmes_heath_road_dust` adds the topic "the man under the lamp".
+  - `holmes_victualler`'s "his daughter" becomes "the victualler's daughter".
+- **`holmes` beats:** "a man in his thirties, the only consulting detective in London".
+
+### Accepted as is (rare, or for the playtest)
+
+- **One deduction naming both readings** fires both verdicts in one turn, which runs over budget.
+  It is rare, and the selection prompt invites one Fact at a time.
+- **Quotations in the opening and the ending:** the prompt's "unless it is a quotation" rule is
+  written for queued Beats. Whether the opening and the ending are carried verbatim is a
+  narration-review item for the playtest.
 
 ## 9. Risks the golden can't see (for the playtest)
 
