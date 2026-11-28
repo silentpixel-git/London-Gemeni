@@ -12,7 +12,8 @@ import { Story, validateStory, type EventPayload, type Selection } from '../pack
 import { loadStoryDir } from '../packages/schema/load';
 import { buildNarrationContext, candidates, fallbackProse, initialState, playerView, replay, resolveTurn, startInvestigation, tick, type State } from '../packages/engine';
 import { suggestionsFor } from '../services/viewFormat';
-import { confineSelection, repairSelectionReply } from '../packages/ai/selection';
+import { confineSelection, fromSelector, repairSelectionReply, settleAnswer } from '../packages/ai/selection';
+import type { Ai } from '../packages/ai/types';
 import { fixedRng } from '../packages/engine/rng';
 import { prove } from '../packages/engine/prover';
 
@@ -457,6 +458,41 @@ section('a told answer is judged');
   check(fails({ kind: 'disclosed', fact: 'key_in_clock', from: 'player', agrees: false }) === 0, 'validator: agrees on the player\'s answer is fine');
   const p = prove(judged);
   check(p.lines.find(l => l.goal.id === 'clue_afraid')?.reachable === true, 'the prover offers the contrary answer too: a Clue only a wrong answer gives is REACHABLE');
+}
+
+// ── Settling a told answer at the endpoint ───────────────────────────────────
+// A question never tells; a told answer is judged by the AI's judge when it has one, and one that cannot be judged
+// commits nothing (ADR-0005 §11).
+section('settling a told answer');
+{
+  const knows = Story.parse({ ...story, facts: story.facts.map(f => (f.id === 'letter_confession' ? { ...f, knownBy: ['player'], answer: 'The gardener wrote it.' } : f)) });
+  const set = candidates(knows, startInvestigation(knows, 42).state);
+  const told = { kind: 'intent' as const, verb: 'ask' as const, person: 'housekeeper', topic: 'letter_confession', telling: true };
+  const q1 = confineSelection(told, set, 'is it the gardener who wrote it?');
+  const q2 = confineSelection(told, set, 'I wonder whether the gardener wrote the letter');
+  check(q1.kind === 'intent' && q1.topic === undefined && !q1.telling && q2.kind === 'intent' && q2.topic === undefined,
+    'a line put as a question never tells, whatever the selector says');
+  const stray = confineSelection({ ...told, facts: ['key_in_clock'] } as Selection, set, 'the gardener wrote it');
+  check(stray.kind === 'intent' && stray.topic === 'letter_confession' && !('facts' in stray), 'a field the verb never reads (facts on an ask) is dropped, not the answer');
+  const looked = confineSelection({ kind: 'intent', verb: 'look', target: 'hall_clock' }, set, 'look at the clock');
+  check(JSON.stringify(looked) === '{"kind":"intent","verb":"examine","target":"hall_clock"}', 'look with a target is examining it');
+  const judging = (verdict: boolean | null | 'throw'): Ai => ({
+    select: async () => ({ kind: 'none' }), narrate: async function* () { /* unused */ },
+    judge: async () => { if (verdict === 'throw') throw new Error('down'); return verdict; },
+  });
+  const right = await settleAnswer(told, set, 'the gardener wrote it', [], judging(true));
+  const wrong = await settleAnswer({ ...told, agrees: true }, set, 'the cook wrote it', [], judging(false));
+  const failed = await settleAnswer(told, set, 'the gardener wrote it', [], judging('throw'));
+  const unknown = await settleAnswer(told, set, 'the gardener wrote it', [], judging(null));
+  const noJudge = await settleAnswer(told, set, 'the gardener wrote it', [], { select: async () => ({ kind: 'none' }), narrate: async function* () { /* unused */ } });
+  check(right.kind === 'intent' && right.agrees === true && wrong.kind === 'intent' && wrong.agrees === false, 'the judge decides: its verdict replaces the selector\'s');
+  check([failed, unknown, noJudge].every(x => x.kind === 'intent' && x.topic === undefined && x.agrees === undefined),
+    'an answer that cannot be judged (judge down, unsure, or none and the selector did not judge) commits nothing: the player may say it again');
+  const selectorJudged = await settleAnswer({ ...told, agrees: false }, set, 'the cook wrote it', [], { select: async () => ({ kind: 'none' }), narrate: async function* () { /* unused */ } });
+  check(selectorJudged.kind === 'intent' && selectorJudged.agrees === false, 'with no judge, the selector\'s own judgement stands');
+  const plainAsk = await settleAnswer({ kind: 'intent', verb: 'ask', person: 'housekeeper', topic: 'key_in_clock' }, set, 'ask her about the key', [], judging('throw'));
+  check(plainAsk.kind === 'intent' && plainAsk.topic === 'key_in_clock', 'an ordinary ask is never sent to the judge');
+  check(JSON.stringify(fromSelector({ kind: 'none', reason: 'he is not a cab driver' })) === '{"kind":"none"}', 'a none reason written by the selector never reaches the narrator');
 }
 
 // ── An Object used on itself is no use ───────────────────────────────────────

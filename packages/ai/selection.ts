@@ -3,6 +3,7 @@
 // a Selection naming an id outside the set becomes none) and the turn endpoint
 // applies the Selection check again. The Selection rule itself lives in the
 // schema (inCandidateSet), so the prover reads the same one.
+import type { Ai } from './types.js';
 import { Verb, inCandidateSet, sharesTopicWord, topicWords, trimSelection, type CandidateSet, type NarrationContext, type NarrationResult, type Selection } from '../schema/index.js';
 
 /**
@@ -18,6 +19,10 @@ export function confineSelection(sel: Selection, set: CandidateSet, text?: strin
   if (sel.kind !== 'intent' && leaks(sel.kind === 'flavour' ? sel.subject : sel.reason ?? '', set, text)) return { kind: 'none' };
   const trimmed = trimSelection(sel, set);
   if (!inCandidateSet(trimmed, set)) return { kind: 'none', reason: 'selection outside the candidate set' };
+  // A line put as a question never tells, whatever the selector made of it: a question cannot commit an answer.
+  if (trimmed.kind === 'intent' && trimmed.verb === 'ask' && trimmed.telling && text !== undefined && isQuestion(text)) {
+    const { telling: _t, agrees: _a, ...rest } = trimmed; return confineSelection(rest, set, text);
+  }
   if (trimmed.kind === 'intent' && trimmed.verb === 'ask') {
     // A judgement means something only on a line that tells.
     if (!trimmed.telling && trimmed.agrees !== undefined) { const { agrees: _a, ...rest } = trimmed; return confineSelection(rest, set, text); }
@@ -38,6 +43,36 @@ export function confineSelection(sel: Selection, set: CandidateSet, text?: strin
     if (!sharesTopicWord(text, phrases)) { const { topic: _t, ...rest } = trimmed; return rest; }
   }
   return trimmed;
+}
+
+/** A selector's reply with its own words for a none dropped: they may echo a verdict, and they would reach the narrator. */
+export function fromSelector(sel: Selection): Selection {
+  return sel.kind === 'none' && sel.reason !== undefined ? { kind: 'none' } : sel;
+}
+
+/** A line put as a question: it ends in a question mark, or opens as one does. */
+function isQuestion(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  return t.endsWith('?') || /^(holmes,\s*)?(is|are|was|were|do|does|did|can|could|would|should|has|have|shall|will|what|who|whom|whose|why|how|which|where|when|whether|i wonder)\b/.test(t);
+}
+
+/**
+ * The endpoint's last step before the engine (ADR-0005 §11). A told answer on a topic offered only as "tell" is
+ * judged by the AI's judge when it has one, and its verdict replaces the selector's; an answer that cannot be judged
+ * (no judge and no judgement from the selector, a failed or unsure judge) commits nothing, so the player may say it
+ * again.
+ */
+export async function settleAnswer(sel: Selection, set: CandidateSet, text: string, recentTexts: string[], ai: Ai): Promise<Selection> {
+  if (sel.kind !== 'intent' || sel.verb !== 'ask' || !sel.topic || !sel.telling) return sel;
+  const offered = set.topics.filter(t => t.fact === sel.topic && (!sel.person || t.person === sel.person));
+  if (!offered.length || !offered.every(t => t.direction === 'tell')) return sel;
+  const unjudged = () => { const { topic: _t, agrees: _a, ...rest } = sel; return rest; };
+  if (!ai.judge) return sel.agrees === undefined ? unjudged() : sel;
+  const verdict = await ai.judge({ text, recentTexts, subject: offered.map(t => t.phrase).join(', '), answer: offered[0].answer ?? '' }).catch((err: unknown) => {
+    console.warn('judge failed:', err instanceof Error ? err.message : err);
+    return null;
+  });
+  return verdict === null ? unjudged() : { ...sel, agrees: verdict };
 }
 
 /** Whether free text carries a word of a tell topic's answer that is neither in the player's line nor in the topic's phrases. */

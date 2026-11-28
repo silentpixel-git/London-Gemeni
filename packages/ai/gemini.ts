@@ -2,14 +2,14 @@
 // the reply with Zod before it leaves. Adds no instructions of its own.
 import { GoogleGenAI } from '@google/genai';
 import { NarrationResult, Selection, type NarrationContext } from '../schema/index.js';
-import { buildNarratePrompt, buildSelectPrompt } from './prompts.js';
+import { JudgeReply, buildJudgePrompt, buildNarratePrompt, buildSelectPrompt } from './prompts.js';
 import { confineObservations, confineSelection, repairSelectionReply } from './selection.js';
-import type { Ai, NarrationChunk, PromptBundle, SelectInput } from './types.js';
+import type { Ai, JudgeInput, NarrationChunk, PromptBundle, SelectInput } from './types.js';
 
-export function gemini(selectModel: string, narrateModel: string, apiKey: string): Ai {
+export function gemini(selectModel: string, narrateModel: string, judgeModel: string, apiKey: string): Ai {
   const client = new GoogleGenAI({ apiKey });
 
-  const request = (model: string, bundle: PromptBundle, limits: { maxOutputTokens?: number; abortSignal?: AbortSignal } = {}) => ({
+  const request = (model: string, bundle: PromptBundle, limits: { maxOutputTokens?: number; abortSignal?: AbortSignal; thinkingConfig?: { thinkingBudget: number } } = {}) => ({
     model,
     contents: [{ role: 'user', parts: [{ text: bundle.user }] }],
     config: {
@@ -22,6 +22,17 @@ export function gemini(selectModel: string, narrateModel: string, apiKey: string
   });
 
   return {
+    async judge(input: JudgeInput): Promise<boolean | null> {
+      // One call, only on a turn that tells an answer. A small thinking budget: judging a claim against an answer is
+      // a short decision, and the turn must stay inside the function's time.
+      const req = request(judgeModel, buildJudgePrompt(input), {
+        maxOutputTokens: JUDGE_MAX_TOKENS, abortSignal: AbortSignal.timeout(JUDGE_TIMEOUT_MS), thinkingConfig: { thinkingBudget: JUDGE_THINKING },
+      });
+      const res = await client.models.generateContent(req);
+      const parsed = JudgeReply.safeParse(parseJson(res.text ?? ''));
+      return parsed.success ? parsed.data.agrees : null;
+    },
+
     async select(input: SelectInput): Promise<Selection> {
       for (let attempt = 0; attempt < 2; attempt++) {
         // A reply that runs on (a deduction listing every Fact, repeated) is cut short and, like one that takes
@@ -80,14 +91,17 @@ export function gemini(selectModel: string, narrateModel: string, apiKey: string
 }
 
 /**
- * Ceilings, so a turn fits the function's 60 s (vercel.json): select at most twice 5 s, narrate at most twice 22 s, leaving
- * time for loading, replay and the appends
+ * Ceilings, so a turn fits the function's 60 s (vercel.json): select at most twice 5 s, on a turn that tells an answer
+ * one judge call of 7 s, narrate at most twice 20 s; that leaves time for loading, replay and the appends
  * (the gate may ask once more). A select model answers in about a second; narration is the long call. A Selection is a short object: 512 tokens assumes a select model that does not
  * think (the default, flash-lite); a thinking model would spend them before replying.
  */
 const SELECT_MAX_TOKENS = 512;
 const SELECT_TIMEOUT_MS = 5_000;
-const NARRATE_TIMEOUT_MS = 22_000;
+const NARRATE_TIMEOUT_MS = 20_000;
+const JUDGE_TIMEOUT_MS = 7_000;
+const JUDGE_MAX_TOKENS = 1_024;
+const JUDGE_THINKING = 512;
 
 /** Gemini's JSON-schema dialect rejects the $schema dialect marker Zod adds. */
 function forGemini(schema: Record<string, unknown>): Record<string, unknown> {

@@ -5,7 +5,7 @@
 // from the context the engine built, never from here.
 import { z } from 'zod';
 import { NarrationResult, Selection, type NarrationContext } from '../schema/index.js';
-import type { PromptBundle, SelectInput } from './types.js';
+import type { JudgeInput, PromptBundle, SelectInput } from './types.js';
 
 // ── Selection ────────────────────────────────────────────────────────────────
 
@@ -47,6 +47,26 @@ export function buildSelectPrompt(input: SelectInput): PromptBundle {
     system: SELECT_SYSTEM,
     user: JSON.stringify({ line: input.text, recentTexts: input.recentTexts, candidates: input.candidates }),
     responseSchema: z.toJSONSchema(Selection),
+    temperature: 0,
+  };
+}
+
+// ── Judging a told answer ────────────────────────────────────────────────────
+
+const JUDGE_SYSTEM = `You judge one answer in a text adventure. The player has told someone their answer on a subject. You are given the player's line, the subject, and the right answer.
+
+Decide whether what the line claims agrees with the right answer:
+- agrees: true when the line identifies the same thing as the right answer, in any words, even with fewer particulars or with particulars of its own that do not contradict it.
+- agrees: false when the line identifies something else, or claims something the right answer rules out.
+Judge the line's claim, not its tone or confidence. Reply with a single JSON object: {"agrees": true} or {"agrees": false}.`;
+
+export const JudgeReply = z.object({ agrees: z.boolean() }).strict();
+
+export function buildJudgePrompt(input: JudgeInput): PromptBundle {
+  return {
+    system: JUDGE_SYSTEM,
+    user: JSON.stringify({ line: input.text, recentTexts: input.recentTexts, subject: input.subject, rightAnswer: input.answer }),
+    responseSchema: z.toJSONSchema(JudgeReply),
     temperature: 0,
   };
 }

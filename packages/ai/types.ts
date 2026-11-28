@@ -15,17 +15,34 @@ export type NarrationChunk =
   | { kind: 'text'; delta: string }
   | { kind: 'done'; result: NarrationResult };
 
+/** A told answer to judge (ADR-0005 §11): the player's line, what it is about, and the right answer. */
+export interface JudgeInput {
+  text: string;
+  recentTexts: string[];
+  /** The subject's phrases, for context ("the old fellow, the soldier"). */
+  subject: string;
+  /** The right answer (Fact.answer ?? statement). */
+  answer: string;
+}
+
 export interface Ai {
   /** Pick a verb and targets from the Candidate Set, or answer flavour/none. Never invents an id. */
   select(input: SelectInput): Promise<Selection>;
   /** Stream prose for a resolved turn; the final chunk carries the parsed result with Observations. */
   narrate(ctx: NarrationContext): AsyncIterable<NarrationChunk>;
+  /**
+   * Whether a told answer agrees with the right answer; null when it cannot say. Called only on a turn that tells.
+   * Optional: without it the selector's own judgement stands (recorded fixtures carry one).
+   */
+  judge?(input: JudgeInput): Promise<boolean | null>;
 }
 
 /** Gemini models per job (AI_SELECT_MODEL / AI_NARRATE_MODEL). The key is read from env and never stored here. */
 export interface AiConfig {
   selectModel: string;
   narrateModel: string;
+  /** AI_JUDGE_MODEL: judges a told answer; called only on turns that tell one. */
+  judgeModel: string;
   /** AI_RECORDINGS_DIR: with no GEMINI_API_KEY, replay JSON fixtures from here (recorded.ts). */
   recordingsDir?: string;
 }

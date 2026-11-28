@@ -122,6 +122,10 @@ export function trimSelection(sel: Selection, set: CandidateSet): Selection {
       return { kind: 'none', reason: 'that does nothing to the way' };
     }
   }
+  // "Look at the clock" with a target is examining it.
+  if (sel.verb === 'look' && sel.target) sel = { ...sel, verb: 'examine' };
+  // facts belong to a deduction alone; on any other verb they are a stray the selector added, never a reason to refuse.
+  if (sel.verb !== 'deduce' && sel.facts !== undefined) { const { facts: _f, ...rest } = sel; sel = rest; }
   const reads: readonly string[] = VERB_FIELDS[sel.verb];
   const ids = new Set<string>([
     ...set.objects.map(o => o.id), ...set.persons.map(p => p.id), ...set.suspects.map(p => p.id),

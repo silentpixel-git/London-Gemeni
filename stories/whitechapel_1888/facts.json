@@ -147,7 +147,7 @@
       "the soldier",
       "the man by the cab rank"
     ],
-    "answer": "He is an old soldier: an infantryman, Indian service long ago, lame in the left leg, probably a sergeant. Any answer that makes him an old soldier or veteran agrees; the particulars need not all be given."
+    "answer": "An old soldier, an army veteran: an infantryman, Indian service long ago, lame in the left leg, probably a sergeant."
   },
   {
     "id": "watson_reading_clergyman",
@@ -159,7 +159,7 @@
       "the curate",
       "the man outside the chemist's"
     ],
-    "answer": "He is no clergyman but an actor in costume, learning his lines. An answer that makes him an actor or a player in costume agrees; a curate, parson or clergyman does not."
+    "answer": "An actor in costume, not a real clergyman: a player learning his lines between performances."
   },
   {
     "id": "holmes_soldier_reading",

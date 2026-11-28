@@ -13,7 +13,7 @@ import {
   replay, resolveTurn, startInvestigation, tick, type State,
 } from '../packages/engine/index.js';
 import { gateNarration, type GateVerdict } from '../packages/ai/gate.js';
-import { confineSelection } from '../packages/ai/selection.js';
+import { confineSelection, fromSelector, settleAnswer } from '../packages/ai/selection.js';
 import type { Ai } from '../packages/ai/types.js';
 import { SeqConflict, type InvestigationStore } from './investigationStore.js';
 
@@ -193,8 +193,12 @@ async function prepareOnce(body: TurnBody, deps: TurnDeps): Promise<Prepared | R
     const set = candidates(story, before);
     const recentTexts = prior.flatMap(e => (e.kind === 'TurnReceived' ? [e.text] : [])).slice(-RECENT_TEXTS);
     // Exact commands skip the model (ADR-0003). The adapter confines too; the endpoint does not trust that it did.
-    const chosen = exactSelection(body.text, set) ?? (await deps.ai.select({ text: body.text, candidates: set, recentTexts }));
-    const selection = confineSelection(chosen, set, body.text);
+    const exact = exactSelection(body.text, set);
+    const reply = exact ?? (await deps.ai.select({ text: body.text, candidates: set, recentTexts }));
+    if (!exact && reply.kind === 'none' && reply.reason) console.info('api/turn select none:', reply.reason);
+    // The selector's own words for a none never reach the narrator; a told answer is judged here (ADR-0005 §11).
+    const chosen = exact ?? fromSelector(reply);
+    const selection = await settleAnswer(confineSelection(chosen, set, body.text), set, body.text, recentTexts, deps.ai);
     events = resolveTurn(story, before, { text: body.text, selection }).events;
   }
 

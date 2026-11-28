@@ -683,6 +683,16 @@ marks ("It was, I believe, the last evening …"), so the narrator can't give it
 
 **The prover's new goal:** `clue_old_soldier_missed`.
 
+**After live QA of judged answers (owner decision 2026-11-28):** told answers are judged by a separate
+`gemini-2.5-flash` call, made only on turns that tell an answer. The cheap selector still parses
+every turn. The endpoint guards (ADR-0005 §11):
+- a question never commits;
+- an answer that can't be judged commits nothing;
+- a selector's none reason never reaches the narrator.
+
+The two `answer` texts drop their marking words ("any answer that … agrees"); the judge prompt holds
+that rule. The wager Beat's dangling "Any man," is gone.
+
 ## 9. Risks the golden can't see (for the playtest)
 
 - **The glass is invisible on the very first turn.** If the player's first line is about the glass
